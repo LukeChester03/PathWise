@@ -1,15 +1,14 @@
-import { Text, View } from "react-native";
+// app/index.tsx
+import React from "react";
+import { SafeAreaView, StatusBar } from "react-native";
+import Layout from "./_layout";
+import LoginScreen from "./screens/LoginScreen";
 
 export default function Index() {
   return (
-    <View
-      style={{
-        flex: 1,
-        justifyContent: "center",
-        alignItems: "center",
-      }}
-    >
-      <Text>Edit app/index.tsx to edit this screen.</Text>
-    </View>
+    <SafeAreaView style={{ flex: 1 }}>
+      <StatusBar barStyle="dark-content" />
+      <Layout />
+    </SafeAreaView>
   );
 }
