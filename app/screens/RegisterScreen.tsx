@@ -1,4 +1,4 @@
-// app/screens/LoginScreen.tsx
+// app/screens/RegisterScreen.tsx
 import React, { useState } from "react";
 import {
   View,
@@ -10,28 +10,32 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
-import { signInWithEmailAndPassword } from "firebase/auth";
-import { useNavigation } from "@react-navigation/native";
+import { createUserWithEmailAndPassword } from "firebase/auth";
 import { auth } from "../config/firebaseConfig"; // Import Firebase auth
 
-const LoginScreen = () => {
-  const navigation = useNavigation(); // Correctly call useNavigation inside the component
+const RegisterScreen = () => {
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const handleLogin = async () => {
-    if (!email || !password) {
+  const handleRegister = async () => {
+    if (!name || !email || !password || !confirmPassword) {
       Alert.alert("Error", "Please fill in all fields");
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      Alert.alert("Error", "Passwords do not match");
       return;
     }
 
     setLoading(true);
     try {
-      await signInWithEmailAndPassword(auth, email, password);
-      Alert.alert("Success", "Logged in successfully!");
-      // Navigate to the home screen or dashboard after login
-      navigation.navigate("Home"); // Replace "Home" with your desired route
+      await createUserWithEmailAndPassword(auth, email, password);
+      Alert.alert("Success", "Account created successfully!");
+      // Navigate to the login screen or home screen after registration
     } catch (error: any) {
       Alert.alert("Error", error.message || "Something went wrong");
     } finally {
@@ -45,7 +49,16 @@ const LoginScreen = () => {
       style={styles.container}
     >
       <View style={styles.formContainer}>
-        <Text style={styles.title}>Login</Text>
+        <Text style={styles.title}>Register</Text>
+
+        {/* Name Input */}
+        <TextInput
+          placeholder="Full Name"
+          value={name}
+          onChangeText={setName}
+          autoCapitalize="words"
+          style={styles.input}
+        />
 
         {/* Email Input */}
         <TextInput
@@ -66,20 +79,24 @@ const LoginScreen = () => {
           style={styles.input}
         />
 
-        {/* Login Button */}
-        <TouchableOpacity onPress={handleLogin} style={styles.button} disabled={loading}>
-          <Text style={styles.buttonText}>{loading ? "Logging in..." : "Login"}</Text>
+        {/* Confirm Password Input */}
+        <TextInput
+          placeholder="Confirm Password"
+          value={confirmPassword}
+          onChangeText={setConfirmPassword}
+          secureTextEntry
+          style={styles.input}
+        />
+
+        {/* Register Button */}
+        <TouchableOpacity onPress={handleRegister} style={styles.button} disabled={loading}>
+          <Text style={styles.buttonText}>{loading ? "Registering..." : "Register"}</Text>
         </TouchableOpacity>
 
-        {/* Forgot Password Link */}
-        <TouchableOpacity onPress={() => Alert.alert("Info", "Forgot Password?")}>
-          <Text style={styles.forgotPassword}>Forgot Password?</Text>
-        </TouchableOpacity>
-
-        {/* Sign Up Link */}
-        <TouchableOpacity onPress={() => navigation.navigate("RegisterScreen")}>
-          <Text style={styles.signUpText}>
-            Don't have an account? <Text style={styles.signUpLink}>Sign Up</Text>
+        {/* Login Link */}
+        <TouchableOpacity onPress={() => Alert.alert("Info", "Navigate to Login Screen")}>
+          <Text style={styles.loginText}>
+            Already have an account? <Text style={styles.loginLink}>Login</Text>
           </Text>
         </TouchableOpacity>
       </View>
@@ -87,7 +104,7 @@ const LoginScreen = () => {
   );
 };
 
-export default LoginScreen;
+export default RegisterScreen;
 
 // Styles
 const styles = StyleSheet.create({
@@ -136,16 +153,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "bold",
   },
-  forgotPassword: {
-    textAlign: "right",
-    color: "#007bff",
-    marginBottom: 15,
-  },
-  signUpText: {
+  loginText: {
     textAlign: "center",
     color: "#666",
   },
-  signUpLink: {
+  loginLink: {
     color: "#007bff",
     fontWeight: "bold",
   },
