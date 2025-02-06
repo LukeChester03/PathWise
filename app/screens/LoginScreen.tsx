@@ -13,9 +13,10 @@ import {
 import { signInWithEmailAndPassword } from "firebase/auth";
 import { useNavigation } from "@react-navigation/native";
 import { auth } from "../config/firebaseConfig"; // Import Firebase auth
+import RegisterScreen from "./RegisterScreen";
 
 const LoginScreen = () => {
-  const navigation = useNavigation(); // Correctly call useNavigation inside the component
+  const navigation = useNavigation();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -31,7 +32,7 @@ const LoginScreen = () => {
       await signInWithEmailAndPassword(auth, email, password);
       Alert.alert("Success", "Logged in successfully!");
       // Navigate to the home screen or dashboard after login
-      navigation.navigate("Home"); // Replace "Home" with your desired route
+      // navigation.navigate(""); // Replace "Home" with your desired route
     } catch (error: any) {
       Alert.alert("Error", error.message || "Something went wrong");
     } finally {
@@ -77,7 +78,7 @@ const LoginScreen = () => {
         </TouchableOpacity>
 
         {/* Sign Up Link */}
-        <TouchableOpacity onPress={() => navigation.navigate("RegisterScreen")}>
+        <TouchableOpacity onPress={() => Alert.alert("Info", "Sign Up")}>
           <Text style={styles.signUpText}>
             Don't have an account? <Text style={styles.signUpLink}>Sign Up</Text>
           </Text>
