@@ -9,110 +9,131 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator,
+  SafeAreaView,
 } from "react-native";
-import { signInWithEmailAndPassword } from "firebase/auth";
 import { useNavigation } from "@react-navigation/native";
-import { auth } from "../config/firebaseConfig"; // Import Firebase auth
-import RegisterScreen from "./RegisterScreen";
+import { Colors, NeutralColors } from "../constants/colours";
+import CurvedDivider from "../components/CurvedDivider"; // Import the curved divider
+import { handleLogin } from "../controllers/LoginController"; // Import the login handler
 
 export default function LoginScreen({ navigation }: { navigation: any }) {
-  // const navigation = useNavigation();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const handleLogin = async () => {
-    if (!email || !password) {
-      Alert.alert("Error", "Please fill in all fields");
-      return;
-    }
-
+  const performLogin = async () => {
     setLoading(true);
-    try {
-      await signInWithEmailAndPassword(auth, email, password);
-      Alert.alert("Success", "Logged in successfully!");
-      // Navigate to the home screen or dashboard after login
-      // navigation.navigate(""); // Replace "Home" with your desired route
-    } catch (error: any) {
-      Alert.alert("Error", error.message || "Something went wrong");
-    } finally {
-      setLoading(false);
-    }
+    handleLogin(
+      email,
+      password,
+      () => {
+        // Success callback
+        setLoading(false);
+        navigation.navigate("Home");
+      },
+      (errorMessage: string) => {
+        // Error callback
+        setLoading(false);
+        Alert.alert("Error", errorMessage);
+      }
+    );
   };
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      style={styles.container}
-    >
-      <View style={styles.formContainer}>
-        <Text style={styles.title}>Login</Text>
-
-        {/* Email Input */}
-        <TextInput
-          placeholder="Email"
-          value={email}
-          onChangeText={setEmail}
-          keyboardType="email-address"
-          autoCapitalize="none"
-          style={styles.input}
-        />
-
-        {/* Password Input */}
-        <TextInput
-          placeholder="Password"
-          value={password}
-          onChangeText={setPassword}
-          secureTextEntry
-          style={styles.input}
-        />
-
-        {/* Login Button */}
-        <TouchableOpacity onPress={handleLogin} style={styles.button} disabled={loading}>
-          <Text style={styles.buttonText}>{loading ? "Logging in..." : "Login"}</Text>
-        </TouchableOpacity>
-
-        {/* Forgot Password Link */}
-        <TouchableOpacity onPress={() => Alert.alert("Info", "Forgot Password?")}>
-          <Text style={styles.forgotPassword}>Forgot Password?</Text>
-        </TouchableOpacity>
-
-        {/* Sign Up Link */}
-        <TouchableOpacity onPress={() => navigation.navigate("Register")}>
-          <Text style={styles.signUpText}>
-            Don't have an account? <Text style={styles.signUpLink}>Sign Up</Text>
-          </Text>
-        </TouchableOpacity>
-      </View>
-    </KeyboardAvoidingView>
+    <SafeAreaView style={styles.safeArea}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={styles.container}
+      >
+        {/* Login Form */}
+        <View style={styles.formContainer}>
+          <Text style={styles.title}>PathWise</Text>
+          <Text style={styles.subTitle}>Discover the Past, Unlock the City</Text>
+          <Text style={styles.subTitle}>Login</Text>
+          {/* Email Input */}
+          <TextInput
+            placeholder="Email"
+            value={email}
+            onChangeText={setEmail}
+            keyboardType="email-address"
+            autoCapitalize="none"
+            style={styles.input}
+          />
+          {/* Password Input */}
+          <TextInput
+            placeholder="Password"
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry
+            style={styles.input}
+          />
+          {/* Buttons Container */}
+          <View style={styles.buttonsContainer}>
+            {/* Register Link */}
+            <TouchableOpacity
+              onPress={() => navigation.navigate("Register")}
+              style={styles.registerButton}
+            >
+              <Text style={styles.registerButtonText}>Register</Text>
+            </TouchableOpacity>
+            {/* Login Button */}
+            <TouchableOpacity
+              onPress={performLogin}
+              style={[styles.button, styles.loginButton]}
+              disabled={loading}
+            >
+              <Text style={styles.buttonText}>
+                {loading ? <ActivityIndicator color={NeutralColors.white} /> : "Login"}
+              </Text>
+            </TouchableOpacity>
+          </View>
+          {/* Forgot Password Link */}
+          <TouchableOpacity onPress={() => navigation.navigate("ForgotPassword")}>
+            <Text style={styles.forgotPassword}>Forgot Password?</Text>
+          </TouchableOpacity>
+        </View>
+        {/* Curved Divider */}
+        {/* <CurvedDivider color="#008148" /> */}
+        {/* Bottom Half: Colored Section */}
+        {/* <View style={styles.bottomHalf} /> */}
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
 // Styles
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: Colors.background,
+  },
   container: {
     flex: 1,
     justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "#f5f5f5",
+    backgroundColor: Colors.background,
   },
   formContainer: {
+    // Adjust this value to move the form down
     width: "80%",
+    maxWidth: 400,
+    alignSelf: "center",
     padding: 20,
-    backgroundColor: "#fff",
-    borderRadius: 10,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 5,
-    elevation: 3,
+    backgroundColor: Colors.background,
   },
   title: {
-    fontSize: 24,
+    fontSize: 48,
     fontWeight: "bold",
     textAlign: "center",
-    marginBottom: 20,
-    color: "#333",
+    marginBottom: 8,
+    color: Colors.text,
+  },
+  subTitle: {
+    fontSize: 16,
+    fontWeight: "bold",
+    textAlign: "center",
+    marginBottom: 16,
+    color: Colors.text,
   },
   input: {
     height: 50,
@@ -123,29 +144,44 @@ const styles = StyleSheet.create({
     marginBottom: 15,
     backgroundColor: "#fafafa",
   },
+  buttonsContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    width: "100%",
+  },
   button: {
-    backgroundColor: "#007bff",
+    flex: 1,
     padding: 15,
     borderRadius: 5,
     alignItems: "center",
     marginBottom: 15,
   },
+  loginButton: {
+    backgroundColor: Colors.primary,
+    marginRight: 8,
+  },
+  registerButton: {
+    flex: 1,
+    marginBottom: 15,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   buttonText: {
-    color: "#fff",
+    color: NeutralColors.white,
+    fontSize: 16,
+    fontWeight: "bold",
+  },
+  registerButtonText: {
+    color: Colors.primary,
     fontSize: 16,
     fontWeight: "bold",
   },
   forgotPassword: {
-    textAlign: "right",
-    color: "#007bff",
-    marginBottom: 15,
-  },
-  signUpText: {
     textAlign: "center",
-    color: "#666",
-  },
-  signUpLink: {
-    color: "#007bff",
-    fontWeight: "bold",
+    fontSize: 14,
+    color: Colors.text,
+    opacity: 0.7,
+    marginTop: 10,
   },
 });

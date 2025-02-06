@@ -2,8 +2,10 @@
 
 // Define primary colors
 export const Colors = {
-  primary: "#007bff", // Main brand color (e.g., blue)
-  secondary: "#6c757d", // Secondary color (e.g., gray)
+  primary: "#3fa7d6", // Main brand color (Picton blue)
+  secondary: "#008148", // Secondary color (Sea Green)
+  background: "#f4f2f3", // Background color
+  text: "#1c2321", // Text color
   success: "#28a745", // Success color (e.g., green)
   danger: "#dc3545", // Danger color (e.g., red)
   warning: "#ffc107", // Warning color (e.g., yellow)
