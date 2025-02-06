@@ -13,7 +13,7 @@ import {
 import { createUserWithEmailAndPassword } from "firebase/auth";
 import { auth } from "../config/firebaseConfig"; // Import Firebase auth
 
-const RegisterScreen = () => {
+export default function RegisterScreen({ navigation }: { navigation: any }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -94,7 +94,7 @@ const RegisterScreen = () => {
         </TouchableOpacity>
 
         {/* Login Link */}
-        <TouchableOpacity onPress={() => Alert.alert("Info", "Navigate to Login Screen")}>
+        <TouchableOpacity onPress={() => navigation.navigate("Login")}>
           <Text style={styles.loginText}>
             Already have an account? <Text style={styles.loginLink}>Login</Text>
           </Text>
@@ -102,9 +102,7 @@ const RegisterScreen = () => {
       </View>
     </KeyboardAvoidingView>
   );
-};
-
-export default RegisterScreen;
+}
 
 // Styles
 const styles = StyleSheet.create({

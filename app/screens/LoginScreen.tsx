@@ -15,8 +15,8 @@ import { useNavigation } from "@react-navigation/native";
 import { auth } from "../config/firebaseConfig"; // Import Firebase auth
 import RegisterScreen from "./RegisterScreen";
 
-const LoginScreen = () => {
-  const navigation = useNavigation();
+export default function LoginScreen({ navigation }: { navigation: any }) {
+  // const navigation = useNavigation();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -78,7 +78,7 @@ const LoginScreen = () => {
         </TouchableOpacity>
 
         {/* Sign Up Link */}
-        <TouchableOpacity onPress={() => Alert.alert("Info", "Sign Up")}>
+        <TouchableOpacity onPress={() => navigation.navigate("Register")}>
           <Text style={styles.signUpText}>
             Don't have an account? <Text style={styles.signUpLink}>Sign Up</Text>
           </Text>
@@ -86,9 +86,7 @@ const LoginScreen = () => {
       </View>
     </KeyboardAvoidingView>
   );
-};
-
-export default LoginScreen;
+}
 
 // Styles
 const styles = StyleSheet.create({
