@@ -52,20 +52,6 @@ Setup Instructions
    Run the following command to start the Expo development server:
    npx expo start
 
-4. Project Structure
-   The project follows a modular structure for better maintainability:
-   pathwise/
-   ├── app/ # Core application logic
-   │ ├── \_layout.tsx # Navigation stack configuration
-   │ ├── index.tsx # Entry point of the app
-   │ ├── screens/ # Screen components (e.g., LoginScreen, RegisterScreen)
-   │ ├── config/ # Configuration files (e.g., Firebase setup)
-   │ ├── utils/ # Utility functions and constants (e.g., colours.ts)
-   │ └── navigation/ # Navigation-related files (e.g., types.ts)
-   ├── assets/ # Static assets (images, fonts, etc.)
-   ├── package.json # Project dependencies and scripts
-   └── README.md # This file
-
 **Resources**
 Expo Documentation : https://docs.expo.dev/
 React Navigation : https://reactnavigation.org/
