@@ -14,7 +14,7 @@ import {
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { Colors, NeutralColors } from "../constants/colours";
-import { handleRegister } from "../controllers/RegisterController"; // Import the register handler
+import { handleRegister } from "../controllers/Register/RegisterController"; // Import the register handler
 
 export default function RegisterScreen({ navigation }: { navigation: any }) {
   const [name, setName] = useState("");
@@ -122,7 +122,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
   },
   formContainer: {
-    marginTop: 50, // Adjust this value to move the form down
+    marginTop: 50,
     width: "80%",
     maxWidth: 400,
     alignSelf: "center",
@@ -151,6 +151,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     marginBottom: 15,
     backgroundColor: "#fafafa",
+    color: Colors.text,
   },
   button: {
     padding: 15,

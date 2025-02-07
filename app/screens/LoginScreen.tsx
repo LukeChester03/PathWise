@@ -15,7 +15,7 @@ import {
 import { useNavigation } from "@react-navigation/native";
 import { Colors, NeutralColors } from "../constants/colours";
 import CurvedDivider from "../components/CurvedDivider"; // Import the curved divider
-import { handleLogin } from "../controllers/LoginController"; // Import the login handler
+import { handleLogin } from "../controllers/Login/LoginController"; // Import the login handler
 
 export default function LoginScreen({ navigation }: { navigation: any }) {
   const [email, setEmail] = useState("");
@@ -143,6 +143,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     marginBottom: 15,
     backgroundColor: "#fafafa",
+    color: Colors.text,
   },
   buttonsContainer: {
     flexDirection: "row",

@@ -1,6 +1,6 @@
 // app/controllers/RegisterController.ts
 import { createUserWithEmailAndPassword } from "firebase/auth";
-import { auth } from "../config/firebaseConfig";
+import { auth } from "../../config/firebaseConfig";
 
 export const handleRegister = async (
   name: string,
