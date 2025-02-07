@@ -6,10 +6,10 @@ export const Colors = {
   secondary: "#008148", // Secondary color (Sea Green)
   background: "#f4f2f3", // Background color
   text: "#1c2321", // Text color
-  success: "#28a745", // Success color (e.g., green)
-  danger: "#dc3545", // Danger color (e.g., red)
-  warning: "#ffc107", // Warning color (e.g., yellow)
-  info: "#17a2b8", // Info color (e.g., teal)
+  success: "#28a745", // Success color (green)
+  danger: "#dc3545", // Danger color (red)
+  warning: "#ffc107", // Warning color (yellow)
+  info: "#17a2b8", // Info color (teal)
   light: "#f8f9fa", // Light background color
   dark: "#343a40", // Dark text or background color
 };
@@ -31,10 +31,10 @@ export const NeutralColors = {
 
 // Define accent colors for highlights and interactive elements
 export const AccentColors = {
-  accent1: "#ff6f61", // Warm accent (e.g., coral)
-  accent2: "#6b5b95", // Cool accent (e.g., purple)
-  accent3: "#88d8b0", // Soft accent (e.g., mint green)
-  accent4: "#ffcc5c", // Bright accent (e.g., mustard yellow)
+  accent1: "#ff6f61", // Warm accent (coral)
+  accent2: "#6b5b95", // Cool accent (purple)
+  accent3: "#88d8b0", // Soft accent (mint green)
+  accent4: "#ffcc5c", // Bright accent (mustard yellow)
 };
 
 // Define theme-specific colors
