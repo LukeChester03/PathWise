@@ -11,6 +11,7 @@ import {
   Alert,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
+import NavBar from "../components/NavBar";
 
 const HomeScreen = () => {
   const navigation = useNavigation();
@@ -52,6 +53,7 @@ const HomeScreen = () => {
           numColumns={2} // Display items in a grid
           contentContainerStyle={styles.featureList}
         />
+        <NavBar />
       </View>
     </SafeAreaView>
   );
