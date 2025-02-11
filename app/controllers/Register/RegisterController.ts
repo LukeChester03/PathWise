@@ -14,12 +14,10 @@ export const handleRegister = async (
     onError("Please fill in all fields");
     return;
   }
-
   if (password !== confirmPassword) {
     onError("Passwords do not match");
     return;
   }
-
   try {
     await createUserWithEmailAndPassword(auth, email, password);
     onSuccess();
