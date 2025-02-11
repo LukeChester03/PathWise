@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import NavBar from "../components/NavBar";
+import ScreenWithNavBar from "../components/ScreenWithNavbar";
 
 const HomeScreen = () => {
   const navigation = useNavigation();
@@ -36,26 +37,27 @@ const HomeScreen = () => {
   );
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      {/* Header Section */}
-      <View style={styles.header}>
-        <Text style={styles.welcomeText}>Welcome to PathWise!</Text>
-        <Text style={styles.subText}>Discover the Past, Unlock the City</Text>
-      </View>
+    <ScreenWithNavBar>
+      <SafeAreaView style={styles.safeArea}>
+        {/* Header Section */}
+        <View style={styles.header}>
+          <Text style={styles.welcomeText}>Welcome to PathWise!</Text>
+          <Text style={styles.subText}>Discover the Past, Unlock the City</Text>
+        </View>
 
-      {/* Features Section */}
-      <View style={styles.featuresContainer}>
-        <Text style={styles.sectionTitle}>What would you like to do?</Text>
-        <FlatList
-          data={features}
-          keyExtractor={(item) => item.id}
-          renderItem={renderFeatureItem}
-          numColumns={2} // Display items in a grid
-          contentContainerStyle={styles.featureList}
-        />
-        <NavBar />
-      </View>
-    </SafeAreaView>
+        {/* Features Section */}
+        <View style={styles.featuresContainer}>
+          <Text style={styles.sectionTitle}>What would you like to do?</Text>
+          <FlatList
+            data={features}
+            keyExtractor={(item) => item.id}
+            renderItem={renderFeatureItem}
+            numColumns={2} // Display items in a grid
+            contentContainerStyle={styles.featureList}
+          />
+        </View>
+      </SafeAreaView>
+    </ScreenWithNavBar>
   );
 };
 

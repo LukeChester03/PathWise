@@ -1,14 +1,11 @@
-// app/_layout.tsx
 import React from "react";
-import { createStackNavigator } from "@react-navigation/stack";
-import { NavigationContainer } from "@react-navigation/native";
+import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { RootStackParamList } from "./navigation/types";
 import LoginScreen from "./screens/LoginScreen";
 import RegisterScreen from "./screens/RegisterScreen";
+import ForgotPasswordScreen from "./screens/ForgotPasswordScreen";
 import HomeScreen from "./screens/HomeScreen";
 import ProfileScreen from "./screens/ProfileScreen";
-import ForgotPasswordScreen from "./screens/ForgotPasswordScreen";
-import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import ExploreScreen from "./screens/ExploreScreen";
 import LearnScreen from "./screens/LearnScreen";
 import MapScreen from "./screens/MapScreen";
@@ -26,10 +23,10 @@ export default function Layout() {
         options={{ headerShown: false }}
       />
       <Stack.Screen name="Home" component={HomeScreen} options={{ headerShown: false }} />
-      <Stack.Screen name="Profile" component={ProfileScreen} />
-      <Stack.Screen name="Explore" component={ExploreScreen} />
-      <Stack.Screen name="Learn" component={LearnScreen} />
-      <Stack.Screen name="Map" component={MapScreen} />
+      <Stack.Screen name="Profile" component={ProfileScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="Explore" component={ExploreScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="Learn" component={LearnScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="Map" component={MapScreen} options={{ headerShown: false }} />
     </Stack.Navigator>
   );
 }

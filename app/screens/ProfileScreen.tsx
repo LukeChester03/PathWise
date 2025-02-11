@@ -1,25 +1,25 @@
-// app/screens/ProfileScreen.tsx
 import React from "react";
 import { View, Text, SafeAreaView, TouchableOpacity, StyleSheet, Alert } from "react-native";
 import { signOut } from "firebase/auth";
 import { auth } from "../config/firebaseConfig";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, NavigationProp } from "@react-navigation/native";
+import { RootStackParamList } from "../navigation/types"; // Import your RootStackParamList type
 import NavBar from "../components/NavBar";
-
+import ScreenWithNavBar from "../components/ScreenWithNavbar";
 const ProfileScreen = () => {
-  const navigation = useNavigation();
+  const navigation = useNavigation<NavigationProp<RootStackParamList>>();
 
   // Simulated user data (replace with actual user data from Firebase or your backend)
   const user = {
-    displayName: "John Doe", // Replace with the actual user's name
-    email: "johndoe@example.com", // Replace with the actual user's email
+    displayName: auth.currentUser?.displayName, // Replace with the actual user's name
+    email: auth.currentUser?.email, // Replace with the actual user's email
   };
 
   // Handle logout
   const handleLogout = async () => {
     try {
       await signOut(auth); // Sign out the user
-      //   navigation.navigate("Login"); // Navigate back to the login screen
+      navigation.navigate("Login"); // Navigate back to the login screen
     } catch (error: any) {
       Alert.alert("Error", error.message || "Something went wrong");
     }
@@ -31,35 +31,36 @@ const ProfileScreen = () => {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      {/* Header Section */}
-      <View style={styles.header}>
-        <Text style={styles.title}>Profile</Text>
-      </View>
+    <ScreenWithNavBar>
+      <SafeAreaView style={styles.safeArea}>
+        {/* Header Section */}
+        <View style={styles.header}>
+          <Text style={styles.title}>Profile</Text>
+        </View>
 
-      {/* User Information */}
-      <View style={styles.userInfoContainer}>
-        <Text style={styles.userName}>{user.displayName}</Text>
-        <Text style={styles.userEmail}>{user.email}</Text>
-      </View>
+        {/* User Information */}
+        <View style={styles.userInfoContainer}>
+          <Text style={styles.userName}>{user.displayName}</Text>
+          <Text style={styles.userEmail}>{user.email}</Text>
+        </View>
 
-      {/* Action Buttons */}
-      <View style={styles.actionsContainer}>
-        {/* Change Password Button */}
-        <TouchableOpacity
-          style={[styles.button, styles.changePasswordButton]}
-          onPress={handleChangePassword}
-        >
-          <Text style={styles.buttonText}>Change Password</Text>
-        </TouchableOpacity>
+        {/* Action Buttons */}
+        <View style={styles.actionsContainer}>
+          {/* Change Password Button */}
+          <TouchableOpacity
+            style={[styles.button, styles.changePasswordButton]}
+            onPress={handleChangePassword}
+          >
+            <Text style={styles.buttonText}>Change Password</Text>
+          </TouchableOpacity>
 
-        {/* Log Out Button */}
-        <TouchableOpacity style={[styles.button, styles.logoutButton]} onPress={handleLogout}>
-          <Text style={styles.buttonText}>Log Out</Text>
-        </TouchableOpacity>
-        <NavBar />
-      </View>
-    </SafeAreaView>
+          {/* Log Out Button */}
+          <TouchableOpacity style={[styles.button, styles.logoutButton]} onPress={handleLogout}>
+            <Text style={styles.buttonText}>Log Out</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    </ScreenWithNavBar>
   );
 };
 
