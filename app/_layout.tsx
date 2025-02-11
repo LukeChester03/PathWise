@@ -14,19 +14,18 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export default function Layout() {
   return (
-    <Stack.Navigator initialRouteName="Login" screenOptions={{ animation: "fade" }}>
-      <Stack.Screen name="Login" component={LoginScreen} options={{ headerShown: false }} />
-      <Stack.Screen name="Register" component={RegisterScreen} options={{ headerShown: false }} />
-      <Stack.Screen
-        name="ForgotPassword"
-        component={ForgotPasswordScreen}
-        options={{ headerShown: false }}
-      />
-      <Stack.Screen name="Home" component={HomeScreen} options={{ headerShown: false }} />
-      <Stack.Screen name="Profile" component={ProfileScreen} options={{ headerShown: false }} />
-      <Stack.Screen name="Explore" component={ExploreScreen} options={{ headerShown: false }} />
-      <Stack.Screen name="Learn" component={LearnScreen} options={{ headerShown: false }} />
-      <Stack.Screen name="Map" component={MapScreen} options={{ headerShown: false }} />
+    <Stack.Navigator
+      initialRouteName="Login"
+      screenOptions={{ animation: "fade", headerShown: false }}
+    >
+      <Stack.Screen name="Login" component={LoginScreen} />
+      <Stack.Screen name="Register" component={RegisterScreen} />
+      <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
+      <Stack.Screen name="Home" component={HomeScreen} />
+      <Stack.Screen name="Profile" component={ProfileScreen} />
+      <Stack.Screen name="Explore" component={ExploreScreen} />
+      <Stack.Screen name="Learn" component={LearnScreen} />
+      <Stack.Screen name="Map" component={MapScreen} />
     </Stack.Navigator>
   );
 }

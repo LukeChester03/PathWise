@@ -17,25 +17,6 @@ import ScreenWithNavBar from "../components/ScreenWithNavbar";
 const HomeScreen = () => {
   const navigation = useNavigation();
 
-  // Dummy data for a list of features or options
-  const features = [
-    { id: "1", title: "Profile", icon: "👤", screen: "Profile" },
-    { id: "2", title: "Settings", icon: "⚙️", screen: "Settings" },
-    { id: "3", title: "Logout", icon: "🚪", screen: "Login" },
-  ];
-
-  // Render each feature item
-  const renderFeatureItem = ({
-    item,
-  }: {
-    item: { id: string; title: string; icon: string; screen: string };
-  }) => (
-    <TouchableOpacity style={styles.featureItem} onPress={() => Alert.alert(item.title)}>
-      <Text style={styles.featureIcon}>{item.icon}</Text>
-      <Text style={styles.featureTitle}>{item.title}</Text>
-    </TouchableOpacity>
-  );
-
   return (
     <ScreenWithNavBar>
       <SafeAreaView style={styles.safeArea}>
@@ -43,18 +24,6 @@ const HomeScreen = () => {
         <View style={styles.header}>
           <Text style={styles.welcomeText}>Welcome to PathWise!</Text>
           <Text style={styles.subText}>Discover the Past, Unlock the City</Text>
-        </View>
-
-        {/* Features Section */}
-        <View style={styles.featuresContainer}>
-          <Text style={styles.sectionTitle}>What would you like to do?</Text>
-          <FlatList
-            data={features}
-            keyExtractor={(item) => item.id}
-            renderItem={renderFeatureItem}
-            numColumns={2} // Display items in a grid
-            contentContainerStyle={styles.featureList}
-          />
         </View>
       </SafeAreaView>
     </ScreenWithNavBar>

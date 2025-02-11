@@ -61,6 +61,7 @@ export default function RegisterScreen({ navigation }: { navigation: any }) {
             value={name}
             onChangeText={setName}
             autoCapitalize="words"
+            placeholderTextColor={NeutralColors.gray600}
             style={styles.input}
           />
           {/* Email Input */}
@@ -70,6 +71,7 @@ export default function RegisterScreen({ navigation }: { navigation: any }) {
             onChangeText={setEmail}
             keyboardType="email-address"
             autoCapitalize="none"
+            placeholderTextColor={NeutralColors.gray600}
             style={styles.input}
           />
           {/* Password Input */}
@@ -78,6 +80,7 @@ export default function RegisterScreen({ navigation }: { navigation: any }) {
             value={password}
             onChangeText={setPassword}
             secureTextEntry
+            placeholderTextColor={NeutralColors.gray600}
             style={styles.input}
           />
           {/* Confirm Password Input */}
@@ -86,6 +89,7 @@ export default function RegisterScreen({ navigation }: { navigation: any }) {
             value={confirmPassword}
             onChangeText={setConfirmPassword}
             secureTextEntry
+            placeholderTextColor={NeutralColors.gray600}
             style={styles.input}
           />
           {/* Register Button */}
