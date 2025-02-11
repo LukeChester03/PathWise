@@ -1,50 +1,59 @@
-# Welcome to your Expo app 👋
+# PathWise 🚀
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+PathWise is a modern mobile application designed to help users navigate their journeys efficiently. Whether you're planning a trip or exploring new routes, PathWise provides intuitive tools and features to make your experience seamless.
 
-## Get started
+This project is built using [Expo](https://expo.dev) and React Native, leveraging modern development practices to deliver a cross-platform app for iOS and Android.
 
-1. Install dependencies
+---
 
-   ```bash
-   npm install
-   ```
+## Table of Contents
 
-2. Start the app
+1. [Features](#features)
+2. [Prerequisites](#prerequisites)
+3. [Setup Instructions](#setup-instructions)
+4. [Running the App](#running-the-app)
+5. [Project Structure](#project-structure)
+6. [Contributing](#contributing)
+7. [Resources](#resources)
 
-   ```bash
-    npx expo start
-   ```
+---
 
-In the output, you'll find options to open the app in a
+## Features
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+- **User Authentication**: Secure login and registration using Firebase.
+- **Dynamic Routing**: Plan and visualize routes with ease.
+- **Real-Time Updates**: Stay informed with real-time data synchronization.
+- **Customizable Themes**: Light and dark mode support for user preference.
+- **Cross-Platform**: Runs seamlessly on both iOS and Android.
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+---
 
-## Get a fresh project
+## Prerequisites
 
-When you're ready, run:
+Before setting up the project, ensure you have the following installed:
 
-```bash
-npm run reset-project
-```
+1. **Node.js**: [Download and install Node.js](https://nodejs.org/).
+2. **Expo CLI**: Install globally using npm:
+   _npm install -g expo-cli_
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+Setup Instructions
 
-## Learn more
+1. Clone the Repository
+   Clone the PathWise repository to your local machine:
+   _git clone https://github.com/your-username/PathWise.git_
+   _cd pathwise_
 
-To learn more about developing your project with Expo, look at the following resources:
+2. Install Dependencies
+   Install all required dependencies using npm:
+   _npm install_
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+3. Running the App
+   Start the Development Server
+   Run the following command to start the Expo development server:
+   npx expo start
 
-## Join the community
-
-Join our community of developers creating universal apps.
-
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+**Resources**
+Expo Documentation : https://docs.expo.dev/
+React Navigation : https://reactnavigation.org/
+Firebase Documentation : https://firebase.google.com/docs
+React Native Styling : https://reactnative.dev/docs/style

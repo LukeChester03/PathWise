@@ -9,9 +9,12 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator,
+  SafeAreaView,
 } from "react-native";
-import { createUserWithEmailAndPassword } from "firebase/auth";
-import { auth } from "../config/firebaseConfig"; // Import Firebase auth
+import { useNavigation } from "@react-navigation/native";
+import { Colors, NeutralColors } from "../constants/colours";
+import { handleRegister } from "../controllers/Register/RegisterController"; // Import the register handler
 
 export default function RegisterScreen({ navigation }: { navigation: any }) {
   const [name, setName] = useState("");
@@ -20,115 +23,125 @@ export default function RegisterScreen({ navigation }: { navigation: any }) {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const handleRegister = async () => {
-    if (!name || !email || !password || !confirmPassword) {
-      Alert.alert("Error", "Please fill in all fields");
-      return;
-    }
-
-    if (password !== confirmPassword) {
-      Alert.alert("Error", "Passwords do not match");
-      return;
-    }
-
+  const performRegister = async () => {
     setLoading(true);
-    try {
-      await createUserWithEmailAndPassword(auth, email, password);
-      Alert.alert("Success", "Account created successfully!");
-      // Navigate to the login screen or home screen after registration
-    } catch (error: any) {
-      Alert.alert("Error", error.message || "Something went wrong");
-    } finally {
-      setLoading(false);
-    }
+    handleRegister(
+      name,
+      email,
+      password,
+      confirmPassword,
+      () => {
+        // Success callback
+        setLoading(false);
+        Alert.alert("Success", "Account created successfully!");
+        navigation.navigate("Login");
+      },
+      (errorMessage: string) => {
+        // Error callback
+        setLoading(false);
+        Alert.alert("Error", errorMessage);
+      }
+    );
   };
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      style={styles.container}
-    >
-      <View style={styles.formContainer}>
-        <Text style={styles.title}>Register</Text>
-
-        {/* Name Input */}
-        <TextInput
-          placeholder="Full Name"
-          value={name}
-          onChangeText={setName}
-          autoCapitalize="words"
-          style={styles.input}
-        />
-
-        {/* Email Input */}
-        <TextInput
-          placeholder="Email"
-          value={email}
-          onChangeText={setEmail}
-          keyboardType="email-address"
-          autoCapitalize="none"
-          style={styles.input}
-        />
-
-        {/* Password Input */}
-        <TextInput
-          placeholder="Password"
-          value={password}
-          onChangeText={setPassword}
-          secureTextEntry
-          style={styles.input}
-        />
-
-        {/* Confirm Password Input */}
-        <TextInput
-          placeholder="Confirm Password"
-          value={confirmPassword}
-          onChangeText={setConfirmPassword}
-          secureTextEntry
-          style={styles.input}
-        />
-
-        {/* Register Button */}
-        <TouchableOpacity onPress={handleRegister} style={styles.button} disabled={loading}>
-          <Text style={styles.buttonText}>{loading ? "Registering..." : "Register"}</Text>
-        </TouchableOpacity>
-
-        {/* Login Link */}
-        <TouchableOpacity onPress={() => navigation.navigate("Login")}>
-          <Text style={styles.loginText}>
-            Already have an account? <Text style={styles.loginLink}>Login</Text>
-          </Text>
-        </TouchableOpacity>
-      </View>
-    </KeyboardAvoidingView>
+    <SafeAreaView style={styles.safeArea}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={styles.container}
+      >
+        {/* Registration Form */}
+        <View style={styles.formContainer}>
+          <Text style={styles.title}>PathWise</Text>
+          <Text style={styles.subTitle}>Discover the Past, Unlock the City</Text>
+          <Text style={styles.subTitle}>Register</Text>
+          {/* Name Input */}
+          <TextInput
+            placeholder="Full Name"
+            value={name}
+            onChangeText={setName}
+            autoCapitalize="words"
+            style={styles.input}
+          />
+          {/* Email Input */}
+          <TextInput
+            placeholder="Email"
+            value={email}
+            onChangeText={setEmail}
+            keyboardType="email-address"
+            autoCapitalize="none"
+            style={styles.input}
+          />
+          {/* Password Input */}
+          <TextInput
+            placeholder="Password"
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry
+            style={styles.input}
+          />
+          {/* Confirm Password Input */}
+          <TextInput
+            placeholder="Confirm Password"
+            value={confirmPassword}
+            onChangeText={setConfirmPassword}
+            secureTextEntry
+            style={styles.input}
+          />
+          {/* Register Button */}
+          <TouchableOpacity
+            onPress={performRegister}
+            style={[styles.button, styles.registerButton]}
+            disabled={loading}
+          >
+            <Text style={styles.buttonText}>
+              {loading ? <ActivityIndicator color={NeutralColors.white} /> : "Register"}
+            </Text>
+          </TouchableOpacity>
+          {/* Login Link */}
+          <TouchableOpacity onPress={() => navigation.navigate("Login")}>
+            <Text style={styles.loginText}>
+              Already have an account? <Text style={styles.loginLink}>Login</Text>
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
 // Styles
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: Colors.background,
+  },
   container: {
     flex: 1,
     justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "#f5f5f5",
+    backgroundColor: Colors.background,
   },
   formContainer: {
+    marginTop: 50,
     width: "80%",
+    maxWidth: 400,
+    alignSelf: "center",
     padding: 20,
-    backgroundColor: "#fff",
-    borderRadius: 10,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 5,
-    elevation: 3,
+    backgroundColor: Colors.background,
   },
   title: {
-    fontSize: 24,
+    fontSize: 48,
     fontWeight: "bold",
     textAlign: "center",
-    marginBottom: 20,
-    color: "#333",
+    marginBottom: 8,
+    color: Colors.text,
+  },
+  subTitle: {
+    fontSize: 16,
+    fontWeight: "bold",
+    textAlign: "center",
+    marginBottom: 16,
+    color: Colors.text,
   },
   input: {
     height: 50,
@@ -138,25 +151,31 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     marginBottom: 15,
     backgroundColor: "#fafafa",
+    color: Colors.text,
   },
   button: {
-    backgroundColor: "#007bff",
     padding: 15,
     borderRadius: 5,
     alignItems: "center",
     marginBottom: 15,
   },
+  registerButton: {
+    backgroundColor: Colors.primary,
+  },
   buttonText: {
-    color: "#fff",
+    color: NeutralColors.white,
     fontSize: 16,
     fontWeight: "bold",
   },
   loginText: {
     textAlign: "center",
-    color: "#666",
+    fontSize: 14,
+    color: Colors.text,
+    opacity: 0.7,
+    marginTop: 10,
   },
   loginLink: {
-    color: "#007bff",
+    color: Colors.primary,
     fontWeight: "bold",
   },
 });
