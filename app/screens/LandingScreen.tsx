@@ -2,7 +2,7 @@
 import React, { useState } from "react";
 import { View, Text, ImageBackground, TouchableOpacity, StyleSheet } from "react-native";
 import LoginComponent from "../components/Login"; // Import the LoginComponent
-import { Colors } from "../constants/colours";
+import { Colors, NeutralColors } from "../constants/colours";
 
 const LandingScreen = ({ navigation }: { navigation: any }) => {
   const [isLoginModalVisible, setIsLoginModalVisible] = useState(false);
@@ -36,6 +36,8 @@ const LandingScreen = ({ navigation }: { navigation: any }) => {
         <View style={styles.container}>
           {/* Pathwise Title */}
           <Text style={styles.title}>Pathwise</Text>
+          {/* Pathwise Subtitle */}
+          <Text style={styles.subTitle}>Discover the Past, Unlock the City</Text>
 
           {/* Buttons Container */}
           <View style={styles.buttonsContainer}>
@@ -101,14 +103,22 @@ const styles = StyleSheet.create({
     marginBottom: 15,
   },
   registerButton: {
-    backgroundColor: Colors.primary, // Green for Register
+    backgroundColor: Colors.primary,
   },
   loginButton: {
-    backgroundColor: Colors.primary, // Blue for Login
+    backgroundColor: Colors.primary,
   },
   buttonText: {
     fontSize: 18,
     fontWeight: "bold",
     color: "#fff",
+  },
+  subTitle: {
+    fontSize: 20,
+
+    fontWeight: "bold",
+    textAlign: "left",
+    marginBottom: 16,
+    color: NeutralColors.white,
   },
 });
