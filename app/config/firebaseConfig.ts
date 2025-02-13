@@ -1,6 +1,7 @@
 import { initializeApp } from "firebase/app";
 import { getAnalytics, isSupported } from "firebase/analytics";
-import { getAuth } from "firebase/auth"; // Import only getAuth
+import { getAuth } from "firebase/auth";
+import { GoogleSignin } from "@react-native-google-signin/google-signin";
 
 // Firebase configuration
 const firebaseConfig = {
@@ -17,7 +18,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 
 // Initialize Firebase Analytics (with support check)
-let analytics: any; // Explicitly type analytics as any initially
+let analytics: any;
 isSupported().then((supported) => {
   if (supported) {
     analytics = getAnalytics(app);
@@ -28,7 +29,12 @@ isSupported().then((supported) => {
 });
 
 // Initialize Firebase Auth without persistence
-const auth = getAuth(app); // Default behavior is memory persistence
+const auth = getAuth(app);
+
+// Configure Google Sign-In
+GoogleSignin.configure({
+  webClientId: "AIzaSyCvp59MfzswNjh2L_cLrZQ8Zr4dbVpFLdw", // Get this from Firebase Console > Project Settings > Web SDK configuration
+});
 
 // Export Firebase services
-export { app, auth, analytics }; // Export analytics only if initialized
+export { app, auth, analytics };

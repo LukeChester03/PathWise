@@ -26,7 +26,7 @@ const ProfileScreen = () => {
   const handleLogout = async () => {
     try {
       await signOut(auth);
-      navigation.navigate("Login");
+      navigation.navigate("Landing");
     } catch (error: any) {
       Alert.alert("Error", error.message || "Something went wrong");
     }

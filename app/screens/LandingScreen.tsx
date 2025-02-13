@@ -1,20 +1,34 @@
-import React from "react";
-import {
-  View,
-  Text,
-  ImageBackground,
-  TouchableOpacity,
-  StyleSheet,
-  SafeAreaView,
-} from "react-native";
+// app/screens/LandingScreen.tsx
+import React, { useState } from "react";
+import { View, Text, ImageBackground, TouchableOpacity, StyleSheet } from "react-native";
+import LoginComponent from "../components/Login"; // Import the LoginComponent
+import { Colors } from "../constants/colours";
 
-const LandingScreen = () => {
+const LandingScreen = ({ navigation }: { navigation: any }) => {
+  const [isLoginModalVisible, setIsLoginModalVisible] = useState(false);
+
+  const toggleLoginModal = () => {
+    setIsLoginModalVisible(!isLoginModalVisible);
+  };
+
+  const handleLoginSuccess = () => {
+    // Handle login success (e.g., navigate to Home screen)
+    console.log("Login successful!");
+    navigation.navigate("Home");
+    toggleLoginModal();
+  };
+
+  const handleNavigateToForgotPassword = () => {
+    // Navigate to Forgot Password screen
+    console.log("Navigating to Forgot Password screen...");
+  };
+
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <View style={styles.safeArea}>
       {/* Background Image */}
       <ImageBackground
         source={{
-          uri: "https://images.unsplash.com/photo-1506748686214-e9df14d4d9d0", // Example city image (replace with your own image)
+          uri: "https://images.unsplash.com/photo-1513026705753-bc3fffca8bf4?q=80&w=2070&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D", // Example city image
         }}
         style={styles.backgroundImage}
       >
@@ -31,13 +45,24 @@ const LandingScreen = () => {
             </TouchableOpacity>
 
             {/* Login Button */}
-            <TouchableOpacity style={[styles.button, styles.loginButton]}>
+            <TouchableOpacity
+              style={[styles.button, styles.loginButton]}
+              onPress={toggleLoginModal}
+            >
               <Text style={styles.buttonText}>Login</Text>
             </TouchableOpacity>
           </View>
         </View>
       </ImageBackground>
-    </SafeAreaView>
+
+      {/* Login Modal */}
+      <LoginComponent
+        visible={isLoginModalVisible}
+        onRequestClose={toggleLoginModal}
+        onLoginSuccess={handleLoginSuccess}
+        onNavigateToForgotPassword={handleNavigateToForgotPassword}
+      />
+    </View>
   );
 };
 
@@ -50,8 +75,8 @@ const styles = StyleSheet.create({
   },
   backgroundImage: {
     flex: 1,
-    resizeMode: "cover", // Ensures the image covers the entire screen
-    justifyContent: "space-between", // Aligns content between top and bottom
+    resizeMode: "cover",
+    justifyContent: "space-between",
   },
   container: {
     flex: 1,
@@ -76,10 +101,10 @@ const styles = StyleSheet.create({
     marginBottom: 15,
   },
   registerButton: {
-    backgroundColor: "#4CAF50", // Green for Register
+    backgroundColor: Colors.primary, // Green for Register
   },
   loginButton: {
-    backgroundColor: "#2196F3", // Blue for Login
+    backgroundColor: Colors.primary, // Blue for Login
   },
   buttonText: {
     fontSize: 18,
