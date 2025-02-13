@@ -6,6 +6,7 @@ import { RootStackParamList } from "../navigation/types";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Colors } from "../constants/colours";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -41,9 +42,9 @@ const NavBar = () => {
             <Icon
               name={item.icon}
               size={24}
-              color={currentRoute === item.screen ? "#007bff" : "#666"}
+              color={currentRoute === item.screen ? Colors.primary : Colors.text}
             />
-            <Text style={{ color: currentRoute === item.screen ? "#007bff" : "#666" }}>
+            <Text style={{ color: currentRoute === item.screen ? Colors.primary : Colors.text }}>
               {item.screen}
             </Text>
           </TouchableOpacity>

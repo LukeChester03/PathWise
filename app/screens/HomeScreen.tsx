@@ -13,6 +13,7 @@ import {
 import { useNavigation } from "@react-navigation/native";
 import NavBar from "../components/NavBar";
 import ScreenWithNavBar from "../components/ScreenWithNavbar";
+import { Colors } from "../constants/colours";
 
 const HomeScreen = () => {
   const navigation = useNavigation();
@@ -36,14 +37,12 @@ export default HomeScreen;
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: "#f5f5f5",
+    backgroundColor: Colors.background,
   },
   header: {
     padding: 20,
     alignItems: "center",
-    backgroundColor: "#007bff",
-    borderBottomLeftRadius: 20,
-    borderBottomRightRadius: 20,
+    backgroundColor: Colors.primary,
   },
   welcomeText: {
     fontSize: 24,

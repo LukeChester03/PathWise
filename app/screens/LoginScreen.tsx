@@ -49,7 +49,7 @@ export default function LoginScreen({ navigation }: { navigation: any }) {
         <View style={styles.formContainer}>
           <Text style={styles.title}>PathWise</Text>
           <Text style={styles.subTitle}>Discover the Past, Unlock the City</Text>
-          <Text style={styles.subTitle}>Login</Text>
+          <Text style={styles.subTitle2}>Login</Text>
           {/* Email Input */}
           <TextInput
             placeholder="Email"
@@ -133,6 +133,13 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "bold",
     textAlign: "center",
+    marginBottom: 16,
+    color: Colors.text,
+  },
+  subTitle2: {
+    fontSize: 20,
+    fontWeight: "bold",
+    textAlign: "left",
     marginBottom: 16,
     color: Colors.text,
   },

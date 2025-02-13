@@ -7,4 +7,5 @@ export type RootStackParamList = {
   Explore: undefined;
   Learn: undefined;
   Map: undefined;
+  Landing: undefined;
 };

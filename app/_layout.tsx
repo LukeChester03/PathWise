@@ -9,13 +9,14 @@ import ProfileScreen from "./screens/ProfileScreen";
 import ExploreScreen from "./screens/ExploreScreen";
 import LearnScreen from "./screens/LearnScreen";
 import MapScreen from "./screens/MapScreen";
+import LandingScreen from "./screens/LandingScreen";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export default function Layout() {
   return (
     <Stack.Navigator
-      initialRouteName="Login"
+      initialRouteName="Landing"
       screenOptions={{ animation: "fade", headerShown: false }}
     >
       <Stack.Screen name="Login" component={LoginScreen} />
@@ -26,6 +27,7 @@ export default function Layout() {
       <Stack.Screen name="Explore" component={ExploreScreen} />
       <Stack.Screen name="Learn" component={LearnScreen} />
       <Stack.Screen name="Map" component={MapScreen} />
+      <Stack.Screen name="Landing" component={LandingScreen} />
     </Stack.Navigator>
   );
 }

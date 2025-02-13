@@ -54,7 +54,7 @@ export default function RegisterScreen({ navigation }: { navigation: any }) {
         <View style={styles.formContainer}>
           <Text style={styles.title}>PathWise</Text>
           <Text style={styles.subTitle}>Discover the Past, Unlock the City</Text>
-          <Text style={styles.subTitle}>Register</Text>
+          <Text style={styles.subTitle2}>Register</Text>
           {/* Name Input */}
           <TextInput
             placeholder="Full Name"
@@ -144,6 +144,13 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "bold",
     textAlign: "center",
+    marginBottom: 16,
+    color: Colors.text,
+  },
+  subTitle2: {
+    fontSize: 20,
+    fontWeight: "bold",
+    textAlign: "left",
     marginBottom: 16,
     color: Colors.text,
   },
