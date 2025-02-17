@@ -12,7 +12,7 @@ import {
 } from "react-native";
 import { Colors, NeutralColors } from "../constants/colours";
 import { handleLogin } from "../controllers/Login/LoginController";
-
+import { Button } from "./Global/Button";
 interface LoginComponentProps {
   visible: boolean; // Controls modal visibility
   onRequestClose: () => void; // Function to close the modal
@@ -89,15 +89,11 @@ export default function LoginComponent({
             {/* Buttons Container */}
             <View style={styles.buttonsContainer}>
               {/* Login Button */}
-              <TouchableOpacity
-                onPress={performLogin}
+              <Button
+                title="Login"
                 style={[styles.button, styles.loginButton]}
-                disabled={loading}
-              >
-                <Text style={styles.buttonText}>
-                  {loading ? <ActivityIndicator color={NeutralColors.white} /> : "Login"}
-                </Text>
-              </TouchableOpacity>
+                onPress={performLogin}
+              />
             </View>
 
             {/* Forgot Password Link */}
@@ -182,7 +178,7 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     color: NeutralColors.white,
-    fontSize: 16,
+    fontSize: 24,
     fontWeight: "bold",
   },
   forgotPassword: {

@@ -1,6 +1,13 @@
 // app/screens/LandingScreen.tsx
 import React, { useState } from "react";
-import { View, Text, ImageBackground, TouchableOpacity, StyleSheet } from "react-native";
+import {
+  View,
+  Text,
+  ImageBackground,
+  TouchableOpacity,
+  StyleSheet,
+  TouchableWithoutFeedback, // Import this for handling taps outside the modal
+} from "react-native";
 import LoginComponent from "../components/Login"; // Import the LoginComponent
 import RegisterModal from "../components/Register"; // Import the RegisterModal
 import { Colors, NeutralColors } from "../constants/colours";
@@ -147,5 +154,12 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "bold",
     color: "#fff",
+  },
+  modalOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
   },
 });

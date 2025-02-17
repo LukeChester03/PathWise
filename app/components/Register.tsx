@@ -9,9 +9,12 @@ import {
   Modal,
   ActivityIndicator,
   Alert,
+  KeyboardAvoidingView, // Import this for handling keyboard behavior
+  Platform, // Import this to handle platform-specific behavior
 } from "react-native";
 import { Colors, NeutralColors } from "../constants/colours";
 import { handleRegister } from "../controllers/Register/RegisterController";
+import { Button } from "./Global/Button";
 
 interface RegisterModalProps {
   visible: boolean; // Controls modal visibility
@@ -58,66 +61,69 @@ export default function RegisterModal({
       animationType="slide"
       onRequestClose={onRequestClose}
     >
-      <View style={styles.modalOverlay}>
-        <View style={styles.modalContent}>
-          {/* Close Button (X) */}
-          <TouchableOpacity style={styles.closeButton} onPress={onRequestClose}>
-            <Text style={styles.closeButtonText}>×</Text>
-          </TouchableOpacity>
-          <Text style={styles.subTitle}>Register</Text>
-          {/* Name Input */}
-          <TextInput
-            style={styles.input}
-            placeholder="Name"
-            value={name}
-            onChangeText={setName}
-            placeholderTextColor={NeutralColors.gray600}
-          />
+      {/* KeyboardAvoidingView to handle keyboard behavior */}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"} // Adjust behavior based on platform
+        style={{ flex: 1 }}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            {/* Close Button (X) */}
+            <TouchableOpacity style={styles.closeButton} onPress={onRequestClose}>
+              <Text style={styles.closeButtonText}>×</Text>
+            </TouchableOpacity>
 
-          {/* Email Input */}
-          <TextInput
-            style={styles.input}
-            placeholder="Email"
-            value={email}
-            onChangeText={setEmail}
-            keyboardType="email-address"
-            placeholderTextColor={NeutralColors.gray600}
-          />
+            {/* Register Title */}
+            <Text style={styles.subTitle}>Register</Text>
 
-          {/* Password Input */}
-          <TextInput
-            style={styles.input}
-            placeholder="Password"
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-            placeholderTextColor={NeutralColors.gray600}
-          />
+            {/* Name Input */}
+            <TextInput
+              style={styles.input}
+              placeholder="Name"
+              value={name}
+              onChangeText={setName}
+              placeholderTextColor={NeutralColors.gray600}
+            />
 
-          {/* Confirm Password Input */}
-          <TextInput
-            style={styles.input}
-            placeholder="Confirm Password"
-            value={confirmPassword}
-            onChangeText={setConfirmPassword}
-            secureTextEntry
-            placeholderTextColor={NeutralColors.gray600}
-          />
+            {/* Email Input */}
+            <TextInput
+              style={styles.input}
+              placeholder="Email"
+              value={email}
+              onChangeText={setEmail}
+              keyboardType="email-address"
+              placeholderTextColor={NeutralColors.gray600}
+            />
 
-          {/* Register Button */}
-          <TouchableOpacity
-            style={[styles.button, styles.registerButton]}
-            onPress={performRegister}
-            disabled={loading}
-          >
-            {loading ? (
-              <ActivityIndicator color={NeutralColors.white} />
-            ) : (
-              <Text style={styles.buttonText}>Register</Text>
-            )}
-          </TouchableOpacity>
+            {/* Password Input */}
+            <TextInput
+              style={styles.input}
+              placeholder="Password"
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry
+              placeholderTextColor={NeutralColors.gray600}
+            />
+
+            {/* Confirm Password Input */}
+            <TextInput
+              style={styles.input}
+              placeholder="Confirm Password"
+              value={confirmPassword}
+              onChangeText={setConfirmPassword}
+              secureTextEntry
+              placeholderTextColor={NeutralColors.gray600}
+            />
+
+            {/* Register Button */}
+            <Button
+              title="Register"
+              style={[styles.button, styles.registerButton]}
+              onPress={performRegister}
+            />
+          </View>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -126,8 +132,8 @@ export default function RegisterModal({
 const styles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
-    justifyContent: "flex-end", // Center the modal vertically
-    alignItems: "center", // Center the modal horizontally
+    justifyContent: "flex-end", // Align modal to the bottom of the screen
+    alignItems: "center",
   },
   modalContent: {
     width: "100%", // Adjust width as needed
@@ -151,13 +157,6 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     color: Colors.text,
   },
-  title: {
-    fontSize: 48,
-    fontWeight: "bold",
-    textAlign: "center",
-    marginBottom: 8,
-    color: Colors.text,
-  },
   subTitle: {
     fontSize: 20,
     fontWeight: "bold",
@@ -174,21 +173,21 @@ const styles = StyleSheet.create({
     marginBottom: 15,
     backgroundColor: "#fafafa",
     color: "#333",
-    width: "100%", // Ensure inputs span the full width of the modal
+    width: "100%",
   },
   button: {
     padding: 15,
     borderRadius: 5,
     alignItems: "center",
     marginBottom: 15,
-    width: "100%", // Ensure buttons span the full width of the modal
+    width: "100%",
   },
   registerButton: {
     backgroundColor: Colors.primary,
   },
   buttonText: {
     color: NeutralColors.white,
-    fontSize: 16,
+    fontSize: 32,
     fontWeight: "bold",
   },
 });
