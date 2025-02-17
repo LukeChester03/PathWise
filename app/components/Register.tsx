@@ -1,4 +1,4 @@
-// app/screens/RegisterScreen.tsx
+// app/components/RegisterModal.tsx
 import React, { useState } from "react";
 import {
   View,
@@ -6,17 +6,24 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
+  Modal,
   ActivityIndicator,
-  SafeAreaView,
+  Alert,
 } from "react-native";
-import { useNavigation } from "@react-navigation/native";
 import { Colors, NeutralColors } from "../constants/colours";
-import { handleRegister } from "../controllers/Register/RegisterController"; // Import the register handler
+import { handleRegister } from "../controllers/Register/RegisterController";
 
-export default function RegisterScreen({ navigation }: { navigation: any }) {
+interface RegisterModalProps {
+  visible: boolean; // Controls modal visibility
+  onRequestClose: () => void; // Function to close the modal
+  onRegisterSuccess: () => void; // Callback for successful registration
+}
+
+export default function RegisterModal({
+  visible,
+  onRequestClose,
+  onRegisterSuccess,
+}: RegisterModalProps) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -34,7 +41,7 @@ export default function RegisterScreen({ navigation }: { navigation: any }) {
         // Success callback
         setLoading(false);
         Alert.alert("Success", "Account created successfully!");
-        navigation.navigate("Login");
+        onRegisterSuccess(); // Trigger the success callback
       },
       (errorMessage: string) => {
         // Error callback
@@ -45,93 +52,104 @@ export default function RegisterScreen({ navigation }: { navigation: any }) {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        style={styles.container}
-      >
-        {/* Registration Form */}
-        <View style={styles.formContainer}>
-          <Text style={styles.title}>PathWise</Text>
-          <Text style={styles.subTitle}>Discover the Past, Unlock the City</Text>
-          <Text style={styles.subTitle2}>Register</Text>
+    <Modal
+      visible={visible}
+      transparent={true}
+      animationType="slide"
+      onRequestClose={onRequestClose}
+    >
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalContent}>
+          {/* Close Button (X) */}
+          <TouchableOpacity style={styles.closeButton} onPress={onRequestClose}>
+            <Text style={styles.closeButtonText}>×</Text>
+          </TouchableOpacity>
+          <Text style={styles.subTitle}>Register</Text>
           {/* Name Input */}
           <TextInput
-            placeholder="Full Name"
+            style={styles.input}
+            placeholder="Name"
             value={name}
             onChangeText={setName}
-            autoCapitalize="words"
             placeholderTextColor={NeutralColors.gray600}
-            style={styles.input}
           />
+
           {/* Email Input */}
           <TextInput
+            style={styles.input}
             placeholder="Email"
             value={email}
             onChangeText={setEmail}
             keyboardType="email-address"
-            autoCapitalize="none"
             placeholderTextColor={NeutralColors.gray600}
-            style={styles.input}
           />
+
           {/* Password Input */}
           <TextInput
+            style={styles.input}
             placeholder="Password"
             value={password}
             onChangeText={setPassword}
             secureTextEntry
             placeholderTextColor={NeutralColors.gray600}
-            style={styles.input}
           />
+
           {/* Confirm Password Input */}
           <TextInput
+            style={styles.input}
             placeholder="Confirm Password"
             value={confirmPassword}
             onChangeText={setConfirmPassword}
             secureTextEntry
             placeholderTextColor={NeutralColors.gray600}
-            style={styles.input}
           />
+
           {/* Register Button */}
           <TouchableOpacity
-            onPress={performRegister}
             style={[styles.button, styles.registerButton]}
+            onPress={performRegister}
             disabled={loading}
           >
-            <Text style={styles.buttonText}>
-              {loading ? <ActivityIndicator color={NeutralColors.white} /> : "Register"}
-            </Text>
-          </TouchableOpacity>
-          {/* Login Link */}
-          <TouchableOpacity onPress={() => navigation.navigate("Login")}>
-            <Text style={styles.loginText}>
-              Already have an account? <Text style={styles.loginLink}>Login</Text>
-            </Text>
+            {loading ? (
+              <ActivityIndicator color={NeutralColors.white} />
+            ) : (
+              <Text style={styles.buttonText}>Register</Text>
+            )}
           </TouchableOpacity>
         </View>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+      </View>
+    </Modal>
   );
 }
 
 // Styles
 const styles = StyleSheet.create({
-  safeArea: {
+  modalOverlay: {
     flex: 1,
-    backgroundColor: Colors.background,
+    justifyContent: "flex-end", // Center the modal vertically
+    alignItems: "center", // Center the modal horizontally
   },
-  container: {
-    flex: 1,
-    justifyContent: "center",
-    backgroundColor: Colors.background,
+  modalContent: {
+    width: "100%", // Adjust width as needed
+    maxWidth: 400, // Limit maximum width
+    backgroundColor: Colors.background, // White background for modal content
+    borderTopEndRadius: 10, // Rounded corners
+    borderTopStartRadius: 10, // Rounded corners
+    padding: 20, // Padding inside the modal
+    alignItems: "center", // Center content horizontally
   },
-  formContainer: {
-    marginTop: 50,
-    width: "80%",
-    maxWidth: 400,
-    alignSelf: "center",
-    padding: 20,
-    backgroundColor: Colors.background,
+  closeButton: {
+    position: "absolute",
+    top: 10,
+    right: 10,
+    zIndex: 1, // Ensure it stays on top
+    padding: 10,
+    borderRadius: 15,
+  },
+  closeButtonText: {
+    fontSize: 24,
+    fontWeight: "bold",
+    color: Colors.text,
   },
   title: {
     fontSize: 48,
@@ -141,13 +159,6 @@ const styles = StyleSheet.create({
     color: Colors.text,
   },
   subTitle: {
-    fontSize: 16,
-    fontWeight: "bold",
-    textAlign: "center",
-    marginBottom: 16,
-    color: Colors.text,
-  },
-  subTitle2: {
     fontSize: 20,
     fontWeight: "bold",
     textAlign: "left",
@@ -162,13 +173,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     marginBottom: 15,
     backgroundColor: "#fafafa",
-    color: Colors.text,
+    color: "#333",
+    width: "100%", // Ensure inputs span the full width of the modal
   },
   button: {
     padding: 15,
     borderRadius: 5,
     alignItems: "center",
     marginBottom: 15,
+    width: "100%", // Ensure buttons span the full width of the modal
   },
   registerButton: {
     backgroundColor: Colors.primary,
@@ -176,17 +189,6 @@ const styles = StyleSheet.create({
   buttonText: {
     color: NeutralColors.white,
     fontSize: 16,
-    fontWeight: "bold",
-  },
-  loginText: {
-    textAlign: "center",
-    fontSize: 14,
-    color: Colors.text,
-    opacity: 0.7,
-    marginTop: 10,
-  },
-  loginLink: {
-    color: Colors.primary,
     fontWeight: "bold",
   },
 });

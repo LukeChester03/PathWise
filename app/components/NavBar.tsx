@@ -1,17 +1,24 @@
-// app/components/NavBar.tsx
 import React from "react";
-import { View, TouchableOpacity, StyleSheet, Alert } from "react-native";
-import { useNavigation } from "@react-navigation/native";
+import { View, TouchableOpacity, StyleSheet, Text } from "react-native";
+import { useNavigation, useNavigationState } from "@react-navigation/native";
 import Icon from "react-native-vector-icons/Ionicons";
-import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../navigation/types";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Colors } from "../constants/colours";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
+
 const NavBar = () => {
   const navigation = useNavigation<NavigationProp>();
-  const [activeTab, setActiveTab] = React.useState("HomeScreen");
+  const currentRoute = useNavigationState((state) => {
+    const route = state.routes[state.index];
+    return route.name;
+  });
 
-  // Define the navigation items with their respective icons and screen names
+  const insets = useSafeAreaInsets(); // Get safe area insets
+
   const navItems = [
     { id: "home", icon: "home-outline", screen: "Home" },
     { id: "map", icon: "map-outline", screen: "Map" },
@@ -21,20 +28,29 @@ const NavBar = () => {
   ];
 
   return (
-    <View style={styles.container}>
-      {navItems.map((item) => (
-        <TouchableOpacity
-          key={item.id}
-          style={styles.navItem}
-          onPress={() => {
-            setActiveTab(item.screen);
-            navigation.navigate(item.screen);
-          }}
-        >
-          <Icon name={item.icon} size={24} color={activeTab === item.screen ? "#007bff" : "#666"} />
-        </TouchableOpacity>
-      ))}
-    </View>
+    <SafeAreaView
+      edges={["bottom"]} // Ensure the bottom edge is handled
+      style={[styles.container, { paddingBottom: insets.bottom }]} // Add padding for the safe area
+    >
+      <View style={styles.innerContainer}>
+        {navItems.map((item) => (
+          <TouchableOpacity
+            key={item.id}
+            style={styles.navItem}
+            onPress={() => navigation.navigate(item.screen as keyof RootStackParamList)}
+          >
+            <Icon
+              name={item.icon}
+              size={24}
+              color={currentRoute === item.screen ? Colors.primary : Colors.text}
+            />
+            <Text style={{ color: currentRoute === item.screen ? Colors.primary : Colors.text }}>
+              {item.screen}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+    </SafeAreaView>
   );
 };
 
@@ -43,10 +59,6 @@ export default NavBar;
 // Styles
 const styles = StyleSheet.create({
   container: {
-    flexDirection: "row",
-    justifyContent: "space-around",
-    alignItems: "center",
-    paddingVertical: 10,
     backgroundColor: "#fff",
     borderTopWidth: 1,
     borderTopColor: "#ddd",
@@ -55,6 +67,13 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 5,
     elevation: 3,
+    marginBottom: -48,
+  },
+  innerContainer: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    alignItems: "center",
+    paddingVertical: 10,
   },
   navItem: {
     alignItems: "center",

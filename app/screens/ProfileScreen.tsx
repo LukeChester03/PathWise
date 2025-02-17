@@ -1,65 +1,92 @@
-// app/screens/ProfileScreen.tsx
-import React from "react";
-import { View, Text, SafeAreaView, TouchableOpacity, StyleSheet, Alert } from "react-native";
+import React, { useState } from "react";
+import {
+  View,
+  Text,
+  SafeAreaView,
+  TouchableOpacity,
+  StyleSheet,
+  Alert,
+  TextInput,
+} from "react-native";
 import { signOut } from "firebase/auth";
 import { auth } from "../config/firebaseConfig";
-import { useNavigation } from "@react-navigation/native";
-import NavBar from "../components/NavBar";
+import { useNavigation, NavigationProp } from "@react-navigation/native";
+import { RootStackParamList } from "../navigation/types"; // Import your RootStackParamList type
+import ScreenWithNavBar from "../components/ScreenWithNavbar";
+import { Colors, NeutralColors } from "../constants/colours";
 
 const ProfileScreen = () => {
-  const navigation = useNavigation();
+  const navigation = useNavigation<NavigationProp<RootStackParamList>>();
 
   // Simulated user data (replace with actual user data from Firebase or your backend)
-  const user = {
-    displayName: "John Doe", // Replace with the actual user's name
-    email: "johndoe@example.com", // Replace with the actual user's email
-  };
+  const [firstName, setFirstName] = useState(auth.currentUser?.displayName?.split(" ")[0] || "");
+  const [familyName, setFamilyName] = useState(auth.currentUser?.displayName?.split(" ")[1] || "");
 
   // Handle logout
   const handleLogout = async () => {
     try {
-      await signOut(auth); // Sign out the user
-      //   navigation.navigate("Login"); // Navigate back to the login screen
+      await signOut(auth);
+      navigation.navigate("Landing");
     } catch (error: any) {
       Alert.alert("Error", error.message || "Something went wrong");
     }
   };
 
-  // Handle change password
-  const handleChangePassword = () => {
-    // navigation.navigate("ForgotPassword"); // Navigate to the ForgotPassword screen
+  // Handle save changes
+  const handleSaveChanges = () => {
+    // Here you can implement logic to update the user's profile in Firebase or your backend
+    Alert.alert("Success", "Changes saved successfully!");
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      {/* Header Section */}
-      <View style={styles.header}>
-        <Text style={styles.title}>Profile</Text>
-      </View>
+    <ScreenWithNavBar>
+      <SafeAreaView style={styles.safeArea}>
+        {/* Header Section */}
+        <View style={styles.header}>
+          <Text style={styles.title}>Profile</Text>
+        </View>
 
-      {/* User Information */}
-      <View style={styles.userInfoContainer}>
-        <Text style={styles.userName}>{user.displayName}</Text>
-        <Text style={styles.userEmail}>{user.email}</Text>
-      </View>
+        {/* User Information */}
+        <View style={styles.userInfoContainer}>
+          <TextInput
+            style={styles.input}
+            placeholder="First Name"
+            value={firstName}
+            onChangeText={setFirstName}
+          />
+          <TextInput
+            style={styles.input}
+            placeholder="Family Name"
+            value={familyName}
+            onChangeText={setFamilyName}
+          />
+        </View>
 
-      {/* Action Buttons */}
-      <View style={styles.actionsContainer}>
-        {/* Change Password Button */}
-        <TouchableOpacity
-          style={[styles.button, styles.changePasswordButton]}
-          onPress={handleChangePassword}
-        >
-          <Text style={styles.buttonText}>Change Password</Text>
-        </TouchableOpacity>
+        {/* Action Buttons */}
+        <View style={styles.actionsContainer}>
+          {/* Change Password Button */}
+          <TouchableOpacity
+            style={[styles.button, styles.changePasswordButton]}
+            onPress={() => navigation.navigate("ForgotPassword")} // Replace with your ForgotPassword screen
+          >
+            <Text style={styles.buttonText}>Change Password</Text>
+          </TouchableOpacity>
 
-        {/* Log Out Button */}
-        <TouchableOpacity style={[styles.button, styles.logoutButton]} onPress={handleLogout}>
-          <Text style={styles.buttonText}>Log Out</Text>
-        </TouchableOpacity>
-        <NavBar />
-      </View>
-    </SafeAreaView>
+          {/* Save Changes Button */}
+          <TouchableOpacity
+            style={[styles.button, styles.saveChangesButton]}
+            onPress={handleSaveChanges}
+          >
+            <Text style={styles.buttonText}>Save Changes</Text>
+          </TouchableOpacity>
+
+          {/* Log Out Button */}
+          <TouchableOpacity style={[styles.button, styles.logoutButton]} onPress={handleLogout}>
+            <Text style={styles.buttonText}>Log Out</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    </ScreenWithNavBar>
   );
 };
 
@@ -69,14 +96,22 @@ export default ProfileScreen;
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: "#f5f5f5",
+    backgroundColor: Colors.background,
+  },
+  input: {
+    height: 50,
+    borderColor: "#ddd",
+    borderWidth: 1,
+    borderRadius: 5,
+    paddingHorizontal: 10,
+    marginBottom: 15,
+    backgroundColor: "#fafafa",
+    color: Colors.text,
   },
   header: {
     padding: 20,
     alignItems: "center",
-    backgroundColor: "#007bff",
-    borderBottomLeftRadius: 20,
-    borderBottomRightRadius: 20,
+    backgroundColor: Colors.primary,
   },
   title: {
     fontSize: 24,
@@ -84,18 +119,8 @@ const styles = StyleSheet.create({
     color: "#fff",
   },
   userInfoContainer: {
-    alignItems: "center",
-    marginTop: 30,
-  },
-  userName: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: "#333",
-  },
-  userEmail: {
-    fontSize: 16,
-    color: "#666",
-    marginTop: 5,
+    marginTop: 20,
+    paddingHorizontal: 20,
   },
   actionsContainer: {
     marginTop: 40,
@@ -109,14 +134,17 @@ const styles = StyleSheet.create({
     marginBottom: 15,
   },
   changePasswordButton: {
-    backgroundColor: "#007bff",
+    backgroundColor: Colors.secondary,
+  },
+  saveChangesButton: {
+    backgroundColor: Colors.success, // Use a success color for saving changes
   },
   logoutButton: {
-    backgroundColor: "#ff4d4d", // Red for log out
+    backgroundColor: Colors.danger,
   },
   buttonText: {
     fontSize: 16,
     fontWeight: "bold",
-    color: "#fff",
+    color: NeutralColors.white,
   },
 });

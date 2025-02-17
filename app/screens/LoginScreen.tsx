@@ -14,8 +14,7 @@ import {
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { Colors, NeutralColors } from "../constants/colours";
-import CurvedDivider from "../components/CurvedDivider"; // Import the curved divider
-import { handleLogin } from "../controllers/Login/LoginController"; // Import the login handler
+import { handleLogin } from "../controllers/Login/LoginController";
 
 export default function LoginScreen({ navigation }: { navigation: any }) {
   const [email, setEmail] = useState("");
@@ -50,7 +49,7 @@ export default function LoginScreen({ navigation }: { navigation: any }) {
         <View style={styles.formContainer}>
           <Text style={styles.title}>PathWise</Text>
           <Text style={styles.subTitle}>Discover the Past, Unlock the City</Text>
-          <Text style={styles.subTitle}>Login</Text>
+          <Text style={styles.subTitle2}>Login</Text>
           {/* Email Input */}
           <TextInput
             placeholder="Email"
@@ -58,6 +57,7 @@ export default function LoginScreen({ navigation }: { navigation: any }) {
             onChangeText={setEmail}
             keyboardType="email-address"
             autoCapitalize="none"
+            placeholderTextColor={NeutralColors.gray600}
             style={styles.input}
           />
           {/* Password Input */}
@@ -66,6 +66,7 @@ export default function LoginScreen({ navigation }: { navigation: any }) {
             value={password}
             onChangeText={setPassword}
             secureTextEntry
+            placeholderTextColor={NeutralColors.gray600}
             style={styles.input}
           />
           {/* Buttons Container */}
@@ -135,6 +136,13 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     color: Colors.text,
   },
+  subTitle2: {
+    fontSize: 20,
+    fontWeight: "bold",
+    textAlign: "left",
+    marginBottom: 16,
+    color: Colors.text,
+  },
   input: {
     height: 50,
     borderColor: "#ddd",
@@ -143,7 +151,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     marginBottom: 15,
     backgroundColor: "#fafafa",
-    color: Colors.text,
+    color: "#333",
   },
   buttonsContainer: {
     flexDirection: "row",
