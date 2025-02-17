@@ -1,7 +1,7 @@
 import { initializeApp } from "firebase/app";
 import { getAnalytics, isSupported } from "firebase/analytics";
 import { getAuth } from "firebase/auth";
-import { GoogleSignin } from "@react-native-google-signin/google-signin";
+// import { GoogleSignin } from "@react-native-google-signin/google-signin";
 
 // Firebase configuration
 const firebaseConfig = {
@@ -32,9 +32,9 @@ isSupported().then((supported) => {
 const auth = getAuth(app);
 
 // Configure Google Sign-In
-GoogleSignin.configure({
-  webClientId: "AIzaSyCvp59MfzswNjh2L_cLrZQ8Zr4dbVpFLdw", // Get this from Firebase Console > Project Settings > Web SDK configuration
-});
+// GoogleSignin.configure({
+//   webClientId: "AIzaSyCvp59MfzswNjh2L_cLrZQ8Zr4dbVpFLdw", // Get this from Firebase Console > Project Settings > Web SDK configuration
+// });
 
 // Export Firebase services
 export { app, auth, analytics };
