@@ -4,7 +4,7 @@
 export const Colors = {
   primary: "#d03f74", // Main brand color (Picton blue)
   secondary: "#3185fc", // Secondary color (Sea Green)
-  background: "#fbfbf2", // Background color
+  background: "#fff", // Background color
   text: "#04030f", // Text color
   success: "#28a745", // Success color (green)
   danger: "#dc3545", // Danger color (red)

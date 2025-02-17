@@ -59,7 +59,7 @@ export default function LoginComponent({
         <View style={styles.modalContent}>
           {/* Close Button (X) */}
           <TouchableOpacity style={styles.closeButton} onPress={onRequestClose}>
-            <Text style={styles.closeButtonText}>×</Text> {/* X symbol */}
+            <Text style={styles.closeButtonText}>×</Text>
           </TouchableOpacity>
 
           {/* Login Form */}
@@ -122,7 +122,8 @@ const styles = StyleSheet.create({
     width: "100%", // Adjust width as needed
     maxWidth: 400, // Limit maximum width
     backgroundColor: Colors.background, // White background for modal content
-    borderRadius: 10, // Rounded corners
+    borderTopLeftRadius: 10, // Rounded corners
+    borderTopRightRadius: 10, // Rounded
     padding: 20, // Padding inside the modal
     alignItems: "flex-end", // Center content horizontally
   },
@@ -148,7 +149,7 @@ const styles = StyleSheet.create({
   subTitle: {
     fontSize: 20,
     fontWeight: "bold",
-    textAlign: "left",
+    textAlign: "center",
     marginBottom: 16,
     color: Colors.text,
   },
@@ -186,7 +187,7 @@ const styles = StyleSheet.create({
   },
   forgotPassword: {
     textAlign: "left",
-    fontSize: 14,
+    fontSize: 16,
     color: Colors.text,
     opacity: 0.7,
     marginTop: 10,

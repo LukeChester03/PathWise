@@ -2,25 +2,40 @@
 import React, { useState } from "react";
 import { View, Text, ImageBackground, TouchableOpacity, StyleSheet } from "react-native";
 import LoginComponent from "../components/Login"; // Import the LoginComponent
+import RegisterModal from "../components/Register"; // Import the RegisterModal
 import { Colors, NeutralColors } from "../constants/colours";
 
 const LandingScreen = ({ navigation }: { navigation: any }) => {
   const [isLoginModalVisible, setIsLoginModalVisible] = useState(false);
+  const [isRegisterModalVisible, setIsRegisterModalVisible] = useState(false);
 
+  // Toggle Login Modal
   const toggleLoginModal = () => {
     setIsLoginModalVisible(!isLoginModalVisible);
   };
 
+  // Toggle Register Modal
+  const toggleRegisterModal = () => {
+    setIsRegisterModalVisible(!isRegisterModalVisible);
+  };
+
+  // Handle Login Success
   const handleLoginSuccess = () => {
-    // Handle login success (e.g., navigate to Home screen)
     console.log("Login successful!");
     navigation.navigate("Home");
     toggleLoginModal();
   };
 
+  // Handle Forgot Password Navigation
   const handleNavigateToForgotPassword = () => {
-    // Navigate to Forgot Password screen
     console.log("Navigating to Forgot Password screen...");
+  };
+
+  // Handle Register Success
+  const handleRegisterSuccess = () => {
+    console.log("Registration successful!");
+    navigation.navigate("Login"); // Navigate to Login screen after registration
+    toggleRegisterModal();
   };
 
   return (
@@ -34,18 +49,21 @@ const LandingScreen = ({ navigation }: { navigation: any }) => {
       >
         {/* Content Container */}
         <View style={styles.container}>
-          {/* Pathwise Title */}
-          <Text style={styles.title}>Pathwise</Text>
-          {/* Pathwise Subtitle */}
-          <Text style={styles.subTitle}>Discover the Past, Unlock the City</Text>
-
+          <View style={styles.titleContainer}>
+            {/* Pathwise Title */}
+            <Text style={styles.title}>Pathwise</Text>
+            {/* Pathwise Subtitle */}
+            <Text style={styles.subTitle}>Discover the Past, Unlock the City</Text>
+          </View>
           {/* Buttons Container */}
           <View style={styles.buttonsContainer}>
             {/* Register Button */}
-            <TouchableOpacity style={[styles.button, styles.registerButton]}>
+            <TouchableOpacity
+              style={[styles.button, styles.registerButton]}
+              onPress={toggleRegisterModal}
+            >
               <Text style={styles.buttonText}>Register</Text>
             </TouchableOpacity>
-
             {/* Login Button */}
             <TouchableOpacity
               style={[styles.button, styles.loginButton]}
@@ -63,6 +81,13 @@ const LandingScreen = ({ navigation }: { navigation: any }) => {
         onRequestClose={toggleLoginModal}
         onLoginSuccess={handleLoginSuccess}
         onNavigateToForgotPassword={handleNavigateToForgotPassword}
+      />
+
+      {/* Register Modal */}
+      <RegisterModal
+        visible={isRegisterModalVisible}
+        onRequestClose={toggleRegisterModal}
+        onRegisterSuccess={handleRegisterSuccess}
       />
     </View>
   );
@@ -85,12 +110,22 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     padding: 20,
   },
+  titleContainer: {
+    alignItems: "center",
+  },
   title: {
     fontSize: 48,
     fontWeight: "bold",
     color: "#fff",
     textAlign: "center",
     marginTop: 50,
+  },
+  subTitle: {
+    fontSize: 20,
+    fontWeight: "bold",
+    textAlign: "left",
+    marginBottom: 16,
+    color: NeutralColors.white,
   },
   buttonsContainer: {
     marginBottom: 50,
@@ -112,13 +147,5 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "bold",
     color: "#fff",
-  },
-  subTitle: {
-    fontSize: 20,
-
-    fontWeight: "bold",
-    textAlign: "left",
-    marginBottom: 16,
-    color: NeutralColors.white,
   },
 });
