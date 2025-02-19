@@ -6,7 +6,8 @@ import {
   ImageBackground,
   TouchableOpacity,
   StyleSheet,
-  TouchableWithoutFeedback, // Import this for handling taps outside the modal
+  TouchableWithoutFeedback,
+  Image, // Import this for handling taps outside the modal
 } from "react-native";
 import LoginComponent from "../components/Login"; // Import the LoginComponent
 import RegisterModal from "../components/Register"; // Import the RegisterModal
@@ -57,6 +58,11 @@ const LandingScreen = ({ navigation }: { navigation: any }) => {
         {/* Content Container */}
         <View style={styles.container}>
           <View style={styles.titleContainer}>
+            {/* Logo */}
+            <Image
+              source={require("../assets/logo.png")}
+              style={styles.logo} // Apply custom styles for the logo
+            />
             {/* Pathwise Title */}
             <Text style={styles.title}>Pathwise</Text>
             {/* Pathwise Subtitle */}
@@ -120,12 +126,18 @@ const styles = StyleSheet.create({
   titleContainer: {
     alignItems: "center",
   },
+  logo: {
+    width: 80, // Set a fixed width for the logo
+    height: 80, // Set a fixed height for the logo
+    marginBottom: 10, // Add spacing between the logo and the title
+    resizeMode: "contain", // Ensure the logo scales properly
+  },
   title: {
     fontSize: 48,
     fontWeight: "bold",
     color: "#fff",
     textAlign: "center",
-    marginTop: 50,
+    marginTop: 0, // Remove the top margin since the logo is now above the title
   },
   subTitle: {
     fontSize: 20,

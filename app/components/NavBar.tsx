@@ -20,9 +20,9 @@ const NavBar = () => {
   const insets = useSafeAreaInsets(); // Get safe area insets
 
   const navItems = [
-    { id: "home", icon: "home-outline", screen: "Home" },
     { id: "map", icon: "map-outline", screen: "Map" },
     { id: "explore", icon: "compass-outline", screen: "Explore" },
+    { id: "home", icon: "home-outline", screen: "Home" },
     { id: "learn", icon: "book-outline", screen: "Learn" },
     { id: "profile", icon: "person-outline", screen: "Profile" },
   ];

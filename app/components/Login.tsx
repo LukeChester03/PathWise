@@ -13,6 +13,7 @@ import {
 import { Colors, NeutralColors } from "../constants/colours";
 import { handleLogin } from "../controllers/Login/LoginController";
 import { Button } from "./Global/Button";
+import ForgotPasswordModal from "./ForgotPasswordModal";
 interface LoginComponentProps {
   visible: boolean; // Controls modal visibility
   onRequestClose: () => void; // Function to close the modal
@@ -29,6 +30,7 @@ export default function LoginComponent({
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [isForgotPasswordModalVisible, setIsForgotPasswordModalVisible] = useState(false);
 
   const performLogin = async () => {
     setLoading(true);
@@ -48,62 +50,72 @@ export default function LoginComponent({
     );
   };
 
+  const toggleForgotPasswordModal = () => {
+    setIsForgotPasswordModalVisible(!isForgotPasswordModalVisible);
+  };
+
   return (
-    <Modal
-      animationType="slide"
-      transparent={true}
-      visible={visible}
-      onRequestClose={onRequestClose}
-    >
-      <View style={styles.modalOverlay}>
-        <View style={styles.modalContent}>
-          {/* Close Button (X) */}
-          <TouchableOpacity style={styles.closeButton} onPress={onRequestClose}>
-            <Text style={styles.closeButtonText}>×</Text>
-          </TouchableOpacity>
-
-          {/* Login Form */}
-          <View style={styles.formContainer}>
-            <Text style={styles.subTitle}>Login</Text>
-            {/* Email Input */}
-            <TextInput
-              placeholder="Email"
-              value={email}
-              onChangeText={setEmail}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              placeholderTextColor={NeutralColors.gray600}
-              style={styles.input}
-            />
-
-            {/* Password Input */}
-            <TextInput
-              placeholder="Password"
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry
-              placeholderTextColor={NeutralColors.gray600}
-              style={styles.input}
-            />
-
-            {/* Buttons Container */}
-            <View style={styles.buttonsContainer}>
-              {/* Login Button */}
-              <Button
-                title="Login"
-                style={[styles.button, styles.loginButton]}
-                onPress={performLogin}
-              />
-            </View>
-
-            {/* Forgot Password Link */}
-            <TouchableOpacity onPress={onNavigateToForgotPassword}>
-              <Text style={styles.forgotPassword}>Forgot Password?</Text>
+    <>
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={visible}
+        onRequestClose={onRequestClose}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            {/* Close Button (X) */}
+            <TouchableOpacity style={styles.closeButton} onPress={onRequestClose}>
+              <Text style={styles.closeButtonText}>×</Text>
             </TouchableOpacity>
+
+            {/* Login Form */}
+            <View style={styles.formContainer}>
+              <Text style={styles.subTitle}>Login</Text>
+              {/* Email Input */}
+              <TextInput
+                placeholder="Email"
+                value={email}
+                onChangeText={setEmail}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                placeholderTextColor={NeutralColors.gray600}
+                style={styles.input}
+              />
+
+              {/* Password Input */}
+              <TextInput
+                placeholder="Password"
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry
+                placeholderTextColor={NeutralColors.gray600}
+                style={styles.input}
+              />
+
+              {/* Buttons Container */}
+              <View style={styles.buttonsContainer}>
+                {/* Login Button */}
+                <Button
+                  title="Login"
+                  style={[styles.button, styles.loginButton]}
+                  onPress={performLogin}
+                />
+              </View>
+
+              {/* Forgot Password Link */}
+              <TouchableOpacity onPress={toggleForgotPasswordModal}>
+                <Text style={styles.forgotPassword}>Forgot Password?</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
-      </View>
-    </Modal>
+      </Modal>
+      <ForgotPasswordModal
+        visible={isForgotPasswordModalVisible}
+        onRequestClose={toggleForgotPasswordModal}
+      />
+    </>
   );
 }
 
@@ -187,5 +199,6 @@ const styles = StyleSheet.create({
     color: Colors.text,
     opacity: 0.7,
     marginTop: 10,
+    marginBottom: 40,
   },
 });
