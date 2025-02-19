@@ -44,7 +44,9 @@ const NavBar = () => {
               size={24}
               color={currentRoute === item.screen ? Colors.primary : Colors.text}
             />
-            <Text style={{ color: currentRoute === item.screen ? Colors.primary : Colors.text }}>
+            <Text
+              style={{ color: currentRoute === item.screen ? Colors.secondary : Colors.background }}
+            >
               {item.screen}
             </Text>
           </TouchableOpacity>
@@ -59,8 +61,9 @@ export default NavBar;
 // Styles
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: "#fff",
+    backgroundColor: Colors.primary,
     borderTopWidth: 1,
+    opacity: 5,
     borderTopColor: "#ddd",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: -2 },

@@ -14,6 +14,7 @@ import { Colors, NeutralColors } from "../constants/colours";
 import { handleLogin } from "../controllers/Login/LoginController";
 import { Button } from "./Global/Button";
 import ForgotPasswordModal from "./ForgotPasswordModal";
+
 interface LoginComponentProps {
   visible: boolean; // Controls modal visibility
   onRequestClose: () => void; // Function to close the modal
@@ -33,18 +34,18 @@ export default function LoginComponent({
   const [isForgotPasswordModalVisible, setIsForgotPasswordModalVisible] = useState(false);
 
   const performLogin = async () => {
-    setLoading(true);
+    setLoading(true); // Start loading
     handleLogin(
       email,
       password,
       () => {
         // Success callback
-        setLoading(false);
+        setLoading(false); // Stop loading
         onLoginSuccess(); // Trigger the success callback
       },
       (errorMessage: string) => {
         // Error callback
-        setLoading(false);
+        setLoading(false); // Stop loading
         Alert.alert("Error", errorMessage);
       }
     );
@@ -72,6 +73,7 @@ export default function LoginComponent({
             {/* Login Form */}
             <View style={styles.formContainer}>
               <Text style={styles.subTitle}>Login</Text>
+
               {/* Email Input */}
               <TextInput
                 placeholder="Email"
@@ -96,11 +98,17 @@ export default function LoginComponent({
               {/* Buttons Container */}
               <View style={styles.buttonsContainer}>
                 {/* Login Button */}
-                <Button
-                  title="Login"
+                <TouchableOpacity
                   style={[styles.button, styles.loginButton]}
                   onPress={performLogin}
-                />
+                  disabled={loading} // Disable the button while loading
+                >
+                  {loading ? (
+                    <ActivityIndicator color={NeutralColors.white} /> // Spinner
+                  ) : (
+                    <Text style={styles.buttonText}>Login</Text> // Button text
+                  )}
+                </TouchableOpacity>
               </View>
 
               {/* Forgot Password Link */}
@@ -111,6 +119,8 @@ export default function LoginComponent({
           </View>
         </View>
       </Modal>
+
+      {/* Forgot Password Modal */}
       <ForgotPasswordModal
         visible={isForgotPasswordModalVisible}
         onRequestClose={toggleForgotPasswordModal}
