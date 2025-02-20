@@ -14,7 +14,6 @@ import {
 } from "react-native";
 import { Colors, NeutralColors } from "../constants/colours";
 import { handleRegister } from "../controllers/Register/RegisterController";
-import { Button } from "./Global/Button";
 
 interface RegisterModalProps {
   visible: boolean; // Controls modal visibility
@@ -34,7 +33,16 @@ export default function RegisterModal({
   const [loading, setLoading] = useState(false);
 
   const performRegister = async () => {
-    setLoading(true);
+    if (!name || !email || !password || !confirmPassword) {
+      Alert.alert("Error", "Please fill in all fields");
+      return;
+    }
+    if (password !== confirmPassword) {
+      Alert.alert("Error", "Passwords do not match");
+      return;
+    }
+
+    setLoading(true); // Start loading
     handleRegister(
       name,
       email,
@@ -49,7 +57,7 @@ export default function RegisterModal({
       (errorMessage: string) => {
         // Error callback
         setLoading(false);
-        Alert.alert("Error", errorMessage);
+        Alert.alert("Error", errorMessage); // Display the error message
       }
     );
   };
@@ -116,11 +124,17 @@ export default function RegisterModal({
             />
 
             {/* Register Button */}
-            <Button
-              title="Register"
+            <TouchableOpacity
               style={[styles.button, styles.registerButton]}
               onPress={performRegister}
-            />
+              disabled={loading} // Disable the button while loading
+            >
+              {loading ? (
+                <ActivityIndicator color={NeutralColors.white} /> // Spinner
+              ) : (
+                <Text style={styles.buttonText}>Register</Text> // Button text
+              )}
+            </TouchableOpacity>
           </View>
         </View>
       </KeyboardAvoidingView>

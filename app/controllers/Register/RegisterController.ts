@@ -1,4 +1,4 @@
-// app/controllers/RegisterController.ts
+// app/controllers/Register/RegisterController.ts
 import { createUserWithEmailAndPassword } from "firebase/auth";
 import { auth, db } from "../../config/firebaseConfig"; // Import Firestore
 import { doc, setDoc } from "firebase/firestore"; // Import Firestore methods
@@ -13,7 +13,6 @@ export const handleRegister = async (
 ) => {
   // Validate inputs
   if (!name || !email || !password || !confirmPassword) {
-    console.log("HERE");
     onError("Please fill in all fields");
     return;
   }
@@ -26,8 +25,7 @@ export const handleRegister = async (
     // Create user with Firebase Authentication
     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
     const user = userCredential.user;
-    console.log(email, password, name);
-    console.log("PHASE 1");
+
     if (user) {
       // Save additional user data to Firestore
       await setDoc(doc(db, "users", user.uid), {
@@ -40,9 +38,13 @@ export const handleRegister = async (
       onSuccess();
     }
   } catch (error: any) {
-    console.log("NOT GOOD");
-    // Handle errors
-    const errorMessage = error.message || "Something went wrong during registration.";
-    onError(errorMessage);
+    // Handle specific Firebase errors
+    if (error.code === "auth/email-already-in-use") {
+      onError("Email already in use. Please login.");
+    } else {
+      // Handle other errors
+      const errorMessage = error.message || "Something went wrong during registration.";
+      onError(errorMessage);
+    }
   }
 };
