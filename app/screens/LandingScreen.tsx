@@ -41,9 +41,8 @@ const LandingScreen = ({ navigation }: { navigation: any }) => {
 
   // Handle Register Success
   const handleRegisterSuccess = () => {
-    console.log("Registration successful!");
-    navigation.navigate("Login"); // Navigate to Login screen after registration
     toggleRegisterModal();
+    toggleLoginModal();
   };
 
   return (
