@@ -1,5 +1,5 @@
 // app/controllers/ResetPassword/ResetPasswordController.ts
-import auth from "@react-native-firebase/auth";
+import { auth } from "../../config/firebaseConfig";
 
 export const handleResetPassword = async (
   email: string,
