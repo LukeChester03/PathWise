@@ -2,11 +2,11 @@ import React from "react";
 import { View, TouchableOpacity, StyleSheet, Text } from "react-native";
 import { useNavigation, useNavigationState } from "@react-navigation/native";
 import Icon from "react-native-vector-icons/Ionicons";
-import { RootStackParamList } from "../navigation/types";
+import { RootStackParamList } from "../../navigation/types";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Colors } from "../constants/colours";
+import { Colors, NeutralColors } from "../../constants/colours";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -20,9 +20,9 @@ const NavBar = () => {
   const insets = useSafeAreaInsets(); // Get safe area insets
 
   const navItems = [
-    { id: "home", icon: "home-outline", screen: "Home" },
     { id: "map", icon: "map-outline", screen: "Map" },
     { id: "explore", icon: "compass-outline", screen: "Explore" },
+    { id: "home", icon: "home-outline", screen: "Home" },
     { id: "learn", icon: "book-outline", screen: "Learn" },
     { id: "profile", icon: "person-outline", screen: "Profile" },
   ];
@@ -41,10 +41,15 @@ const NavBar = () => {
           >
             <Icon
               name={item.icon}
-              size={24}
-              color={currentRoute === item.screen ? Colors.primary : Colors.text}
+              size={currentRoute === item.screen ? 40 : 24}
+              color={currentRoute === item.screen ? NeutralColors.white : NeutralColors.white}
             />
-            <Text style={{ color: currentRoute === item.screen ? Colors.primary : Colors.text }}>
+            <Text
+              style={{
+                color: currentRoute === item.screen ? NeutralColors.white : Colors.background,
+                fontSize: currentRoute === item.screen ? 18 : 16,
+              }}
+            >
               {item.screen}
             </Text>
           </TouchableOpacity>
@@ -59,8 +64,9 @@ export default NavBar;
 // Styles
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: "#fff",
+    backgroundColor: Colors.primary,
     borderTopWidth: 1,
+    opacity: 5,
     borderTopColor: "#ddd",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: -2 },

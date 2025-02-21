@@ -1,21 +1,27 @@
-import { Alert } from "react-native";
-import { sendPasswordResetEmail } from "firebase/auth";
+// app/controllers/ResetPassword/ResetPasswordController.ts
 import { auth } from "../../config/firebaseConfig";
 
-export const resetPassword = async (email: string, setLoading?: (loading: boolean) => void) => {
-  if (!email) {
-    Alert.alert("Error", "Please enter your email address");
-    return;
-  }
-
-  if (setLoading) setLoading(true);
-
+export const handleResetPassword = async (
+  email: string,
+  onSuccess: () => void,
+  onError: (errorMessage: string) => void
+) => {
   try {
-    await sendPasswordResetEmail(auth, email);
-    Alert.alert("Success", "Password reset email sent. Please check your inbox.");
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      throw new Error("Invalid email address.");
+    }
+
+    // Send password reset email using Firebase
+    await auth().sendPasswordResetEmail(email);
+
+    // Trigger success callback
+    onSuccess();
   } catch (error: any) {
-    Alert.alert("Error", error.message || "Something went wrong");
-  } finally {
-    if (setLoading) setLoading(false);
+    // Handle errors and trigger the error callback
+    const errorMessage =
+      error.message || "An unexpected error occurred while sending the reset link.";
+    onError(errorMessage);
   }
 };

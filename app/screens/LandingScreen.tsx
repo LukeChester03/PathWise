@@ -1,6 +1,14 @@
 // app/screens/LandingScreen.tsx
 import React, { useState } from "react";
-import { View, Text, ImageBackground, TouchableOpacity, StyleSheet } from "react-native";
+import {
+  View,
+  Text,
+  ImageBackground,
+  TouchableOpacity,
+  StyleSheet,
+  TouchableWithoutFeedback,
+  Image, // Import this for handling taps outside the modal
+} from "react-native";
 import LoginComponent from "../components/Login"; // Import the LoginComponent
 import RegisterModal from "../components/Register"; // Import the RegisterModal
 import { Colors, NeutralColors } from "../constants/colours";
@@ -33,9 +41,8 @@ const LandingScreen = ({ navigation }: { navigation: any }) => {
 
   // Handle Register Success
   const handleRegisterSuccess = () => {
-    console.log("Registration successful!");
-    navigation.navigate("Login"); // Navigate to Login screen after registration
     toggleRegisterModal();
+    toggleLoginModal();
   };
 
   return (
@@ -50,6 +57,11 @@ const LandingScreen = ({ navigation }: { navigation: any }) => {
         {/* Content Container */}
         <View style={styles.container}>
           <View style={styles.titleContainer}>
+            {/* Logo */}
+            <Image
+              source={require("../assets/logo.png")}
+              style={styles.logo} // Apply custom styles for the logo
+            />
             {/* Pathwise Title */}
             <Text style={styles.title}>Pathwise</Text>
             {/* Pathwise Subtitle */}
@@ -113,12 +125,18 @@ const styles = StyleSheet.create({
   titleContainer: {
     alignItems: "center",
   },
+  logo: {
+    width: 80, // Set a fixed width for the logo
+    height: 80, // Set a fixed height for the logo
+    marginBottom: 10, // Add spacing between the logo and the title
+    resizeMode: "contain", // Ensure the logo scales properly
+  },
   title: {
     fontSize: 48,
     fontWeight: "bold",
     color: "#fff",
     textAlign: "center",
-    marginTop: 50,
+    marginTop: 0, // Remove the top margin since the logo is now above the title
   },
   subTitle: {
     fontSize: 20,
@@ -147,5 +165,12 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "bold",
     color: "#fff",
+  },
+  modalOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
   },
 });

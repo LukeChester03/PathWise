@@ -12,7 +12,7 @@ import { signOut } from "firebase/auth";
 import { auth } from "../config/firebaseConfig";
 import { useNavigation, NavigationProp } from "@react-navigation/native";
 import { RootStackParamList } from "../navigation/types"; // Import your RootStackParamList type
-import ScreenWithNavBar from "../components/ScreenWithNavbar";
+import ScreenWithNavBar from "../components/Global/ScreenWithNavbar";
 import { Colors, NeutralColors } from "../constants/colours";
 
 const ProfileScreen = () => {
