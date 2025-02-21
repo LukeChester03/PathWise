@@ -2,7 +2,7 @@
 import React from "react";
 import { View, Text, SafeAreaView, TouchableOpacity, StyleSheet, Image } from "react-native";
 import { useNavigation } from "@react-navigation/native";
-import ScreenWithNavBar from "../components/ScreenWithNavbar";
+import ScreenWithNavBar from "../components/Global/ScreenWithNavbar";
 import { Colors } from "../constants/colours";
 import { SearchBar } from "../components/Global/SearchBar";
 

@@ -1,8 +1,8 @@
 import React from "react";
 import { View, Text } from "react-native";
 import { globalStyles } from "../constants/globalStyles";
-import NavBar from "../components/NavBar";
-import ScreenWithNavBar from "../components/ScreenWithNavbar";
+import NavBar from "../components/Global/NavBar";
+import ScreenWithNavBar from "../components/Global/ScreenWithNavbar";
 
 const MapScreen = () => {
   return (
