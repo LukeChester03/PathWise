@@ -7,9 +7,7 @@ import ScreenWithNavBar from "../components/Global/ScreenWithNavbar";
 const ExploreScreen = () => {
   return (
     <ScreenWithNavBar>
-      <View style={globalStyles.container}>
-        <Text>Map Screen</Text>
-      </View>
+      <View style={globalStyles.container}></View>
     </ScreenWithNavBar>
   );
 };

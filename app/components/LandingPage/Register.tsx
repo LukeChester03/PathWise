@@ -12,8 +12,8 @@ import {
   KeyboardAvoidingView, // Import this for handling keyboard behavior
   Platform, // Import this to handle platform-specific behavior
 } from "react-native";
-import { Colors, NeutralColors } from "../constants/colours";
-import { handleRegister } from "../controllers/Register/RegisterController";
+import { Colors, NeutralColors } from "../../constants/colours";
+import { handleRegister } from "../../controllers/Register/RegisterController";
 
 interface RegisterModalProps {
   visible: boolean; // Controls modal visibility
