@@ -1,6 +1,6 @@
 import React from "react";
-import MapView, { PROVIDER_GOOGLE } from "react-native-maps";
-import { StyleSheet, View } from "react-native";
+import MapView, { PROVIDER_DEFAULT, PROVIDER_GOOGLE } from "react-native-maps";
+import { Platform, StyleSheet, View } from "react-native";
 
 export default function Map() {
   const INITIAL_REGION = {
@@ -13,10 +13,10 @@ export default function Map() {
     <View style={styles.container}>
       <MapView
         style={styles.map}
-        provider={PROVIDER_GOOGLE}
         initialRegion={INITIAL_REGION}
         showsUserLocation
         showsMyLocationButton
+        provider={Platform.OS === "android" ? PROVIDER_GOOGLE : PROVIDER_DEFAULT}
       />
     </View>
   );
