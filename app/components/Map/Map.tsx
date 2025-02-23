@@ -1,17 +1,29 @@
 // src/components/Map.tsx
 import React, { useEffect, useState } from "react";
-import MapView, { PROVIDER_DEFAULT, PROVIDER_GOOGLE, Circle, Marker } from "react-native-maps";
-import { Platform, View, StyleSheet, Alert, TouchableWithoutFeedback } from "react-native";
+import MapView, {
+  PROVIDER_DEFAULT,
+  PROVIDER_GOOGLE,
+  Circle,
+  Marker,
+  Polyline,
+} from "react-native-maps";
+import { Platform, View, StyleSheet, TouchableWithoutFeedback, Image } from "react-native";
 import { getCurrentLocation } from "../../controllers/Map/locationController";
 import { fetchNearbyPlaces } from "../../controllers/Map/placesController";
+import { fetchRoute } from "../../controllers/Map/routesController";
 import { Region, Place } from "../../types/MapTypes";
-import { Button } from "../Global/Button";
+import ExploreCard from "./ExploreCard";
 import { Colors } from "../../constants/colours";
 
 export default function Map() {
   const [region, setRegion] = useState<Region | null>(null);
   const [places, setPlaces] = useState<Place[]>([]);
   const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
+  const [routeCoordinates, setRouteCoordinates] = useState<
+    { latitude: number; longitude: number }[]
+  >([]);
+  const [travelTime, setTravelTime] = useState<string | null>(null);
+  const [showCard, setShowCard] = useState<boolean>(false);
 
   useEffect(() => {
     (async () => {
@@ -37,20 +49,29 @@ export default function Map() {
     }
   }, [places]);
 
-  const handleMarkerPress = (place: Place) => {
+  const handleMarkerPress = async (place: Place) => {
     setSelectedPlace(place);
-  };
-
-  const handleDiscoverPress = () => {
-    if (selectedPlace) {
-      Alert.alert("Start Route", `Starting route to ${selectedPlace.name}`);
-      // Implement the logic to start the route to the selected place
-      // You can use a navigation library like react-navigation to navigate to a route screen
+    if (region) {
+      const origin = `${region.latitude},${region.longitude}`;
+      const destination = `${place.geometry.location.lat},${place.geometry.location.lng}`;
+      const route = await fetchRoute(origin, destination);
+      if (route) {
+        setRouteCoordinates(route.coords);
+        setTravelTime(route.duration);
+        setShowCard(true);
+      }
     }
   };
 
-  const handleDeselectPlace = () => {
+  const handleStartJourney = () => {
+    setShowCard(false);
+  };
+
+  const handleCancel = () => {
     setSelectedPlace(null);
+    setRouteCoordinates([]);
+    setTravelTime(null);
+    setShowCard(false);
   };
 
   if (!region) {
@@ -58,7 +79,7 @@ export default function Map() {
   }
 
   return (
-    <TouchableWithoutFeedback onPress={handleDeselectPlace}>
+    <TouchableWithoutFeedback onPress={handleCancel}>
       <View style={styles.container}>
         <MapView
           style={styles.map}
@@ -66,14 +87,9 @@ export default function Map() {
           showsPointsOfInterest={false} // Hide other points of interest
           showsUserLocation
           showsMyLocationButton
-          provider={Platform.OS === "android" ? PROVIDER_GOOGLE : PROVIDER_DEFAULT}
+          provider={PROVIDER_GOOGLE}
         >
-          <Circle
-            center={region}
-            radius={500}
-            strokeColor="rgba(158, 158, 255, 1.0)"
-            fillColor="rgba(158, 158, 255, 0.3)"
-          />
+          <Circle center={region} radius={500} strokeColor="rgba(158, 158, 255, 1.0)" />
           {places.map((place) => (
             <Marker
               key={place.id}
@@ -84,13 +100,28 @@ export default function Map() {
               title={place.name}
               pinColor={Colors.primary}
               onPress={() => handleMarkerPress(place)}
-            />
+            >
+              <Image
+                source={require("../../assets/Custom-Marker.png")}
+                style={styles.marker}
+              ></Image>
+            </Marker>
           ))}
+          {routeCoordinates.length > 0 && (
+            <Polyline
+              coordinates={routeCoordinates}
+              strokeColor={Colors.primary} // Change the color of the route here
+              strokeWidth={4}
+            />
+          )}
         </MapView>
-        {selectedPlace && (
-          <View style={styles.buttonContainer}>
-            <Button title="Discover Location" onPress={handleDiscoverPress} style={styles.button} />
-          </View>
+        {showCard && selectedPlace && travelTime && (
+          <ExploreCard
+            placeName={selectedPlace.name}
+            travelTime={travelTime}
+            onStartJourney={handleStartJourney}
+            onCancel={handleCancel}
+          />
         )}
       </View>
     </TouchableWithoutFeedback>
@@ -101,17 +132,12 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  marker: {
+    height: 54,
+    width: 54,
+  },
   map: {
     width: "100%",
     height: "100%",
-  },
-  buttonContainer: {
-    position: "absolute",
-    bottom: 20,
-    left: 20,
-    right: 20,
-  },
-  button: {
-    backgroundColor: Colors.primary,
   },
 });
