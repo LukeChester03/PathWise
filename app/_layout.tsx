@@ -12,10 +12,7 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export default function Layout() {
   return (
-    <Stack.Navigator
-      initialRouteName="Landing"
-      screenOptions={{ animation: "fade", headerShown: false }}
-    >
+    <Stack.Navigator initialRouteName="Landing">
       <Stack.Screen name="Home" component={HomeScreen} />
       <Stack.Screen name="Profile" component={ProfileScreen} />
       <Stack.Screen name="Explore" component={ExploreScreen} />

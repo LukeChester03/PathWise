@@ -1,21 +1,37 @@
 // src/components/Map.tsx
 import React, { useEffect, useState } from "react";
-import MapView, { PROVIDER_GOOGLE, Circle, Marker, Polyline } from "react-native-maps";
-import { View, StyleSheet, TouchableWithoutFeedback, Image } from "react-native";
+import MapView, {
+  PROVIDER_DEFAULT,
+  PROVIDER_GOOGLE,
+  Circle,
+  Marker,
+  Polyline,
+} from "react-native-maps";
+import {
+  Platform,
+  View,
+  StyleSheet,
+  TouchableWithoutFeedback,
+  Image,
+  Alert,
+  ActivityIndicator,
+} from "react-native";
 import { getCurrentLocation } from "../../controllers/Map/locationController";
 import { fetchNearbyPlaces } from "../../controllers/Map/placesController";
+import { fetchRoute } from "../../controllers/Map/routesController";
+import { Region, Place } from "../../types/MapTypes";
 import ExploreCard from "./ExploreCard";
 import { Colors } from "../../constants/colours";
-import { customMapStyle } from "../../constants/mapStyle";
-import {
-  handleMarkerPress,
-  handleStartJourney,
-  handleCancel,
-} from "../../handlers/Map/mapHandlers";
-import { Region, Place } from "../../types/MapTypes";
+
+const PLACEHOLDER_REGION: Region = {
+  latitude: 51.5074,
+  longitude: -0.1278,
+  latitudeDelta: 0.0922,
+  longitudeDelta: 0.0421,
+};
 
 export default function Map() {
-  const [region, setRegion] = useState<Region | null>(null);
+  const [region, setRegion] = useState<Region>(PLACEHOLDER_REGION);
   const [places, setPlaces] = useState<Place[]>([]);
   const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
   const [routeCoordinates, setRouteCoordinates] = useState<
@@ -23,6 +39,7 @@ export default function Map() {
   >([]);
   const [travelTime, setTravelTime] = useState<string | null>(null);
   const [showCard, setShowCard] = useState<boolean>(false);
+  const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
     (async () => {
@@ -31,28 +48,55 @@ export default function Map() {
         setRegion(newRegion);
         const nearbyPlaces = await fetchNearbyPlaces(newRegion.latitude, newRegion.longitude);
         setPlaces(nearbyPlaces);
+        setLoading(false);
       }
     })();
   }, []);
 
-  if (!region) {
-    return null;
+  const handleMarkerPress = async (place: Place) => {
+    setSelectedPlace(place);
+    if (region) {
+      const origin = `${region.latitude},${region.longitude}`;
+      const destination = `${place.geometry.location.lat},${place.geometry.location.lng}`;
+      const route = await fetchRoute(origin, destination);
+      if (route) {
+        setShowCard(true);
+        setRouteCoordinates(route.coords);
+        setTravelTime(route.duration);
+      }
+    }
+  };
+
+  const handleStartJourney = () => {
+    setShowCard(false);
+    Alert.alert("JOURNEY STARTED");
+  };
+
+  const handleCancel = () => {
+    setSelectedPlace(null);
+    setRouteCoordinates([]);
+    setTravelTime(null);
+    setShowCard(false);
+  };
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={Colors.primary} />
+      </View>
+    );
   }
 
   return (
-    <TouchableWithoutFeedback
-      onPress={() =>
-        handleCancel(setSelectedPlace, setRouteCoordinates, setTravelTime, setShowCard)
-      }
-    >
+    <TouchableWithoutFeedback onPress={handleCancel}>
       <View style={styles.container}>
         <MapView
           style={styles.map}
           initialRegion={region}
+          region={region}
           showsPointsOfInterest={false}
           showsUserLocation
           showsMyLocationButton
-          customMapStyle={customMapStyle}
           provider={PROVIDER_GOOGLE}
         >
           <Circle center={region} radius={250} strokeColor={Colors.primary} />
@@ -66,18 +110,12 @@ export default function Map() {
               title={place.name}
               description={place.description}
               pinColor={Colors.primary}
-              onPress={() =>
-                handleMarkerPress(
-                  place,
-                  region,
-                  setSelectedPlace,
-                  setRouteCoordinates,
-                  setTravelTime,
-                  setShowCard
-                )
-              }
+              onPress={() => handleMarkerPress(place)}
             >
-              <Image source={require("../../assets/Custom-Marker.png")} style={styles.marker} />
+              {/* <Image
+                source={require("../../assets/Custom-Marker.png")}
+                style={styles.marker}
+              /> */}
             </Marker>
           ))}
           {routeCoordinates.length > 0 && (
@@ -89,9 +127,7 @@ export default function Map() {
             placeName={selectedPlace.name}
             travelTime={travelTime}
             onStartJourney={handleStartJourney}
-            onCancel={() =>
-              handleCancel(setSelectedPlace, setRouteCoordinates, setTravelTime, setShowCard)
-            }
+            onCancel={handleCancel}
           />
         )}
       </View>
@@ -102,6 +138,11 @@ export default function Map() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
   },
   marker: {
     height: 50,

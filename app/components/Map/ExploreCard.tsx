@@ -1,7 +1,6 @@
 // src/components/ExploreCard.tsx
 import React from "react";
-import { View, Text, StyleSheet } from "react-native";
-import Button from "../Global/Button";
+import { View, Text, StyleSheet, Image, TouchableOpacity } from "react-native";
 import { Colors } from "../../constants/colours";
 
 interface ExploreCardProps {
@@ -18,27 +17,42 @@ const ExploreCard: React.FC<ExploreCardProps> = ({
   onCancel,
 }) => {
   return (
-    <View style={styles.cardContainer}>
-      <Text style={styles.title}>Would you like to explore {placeName}?</Text>
-      <Text style={styles.travelTimeText}>Estimated journey time: {travelTime}</Text>
-      <View style={styles.buttonContainer}>
-        <Button title="Cancel" onPress={onCancel} style={styles.cancelButton} />
-        <Button title="Start Journey" onPress={onStartJourney} style={styles.button} />
+    <TouchableOpacity activeOpacity={1} onPress={onCancel} style={styles.overlay}>
+      <View style={styles.cardContainer}>
+        <TouchableOpacity style={styles.closeButton} onPress={onCancel}>
+          <Text style={styles.closeButtonText}>X</Text>
+        </TouchableOpacity>
+        <Image source={require("../../assets/logo.png")} style={styles.logo} />
+        <Text style={styles.title}>
+          You Have Not yet Discovered this Location! Would you like to visit it?
+        </Text>
+        <Text style={styles.placeName}>{placeName}</Text>
+        <TouchableOpacity style={styles.discoverButton} onPress={onStartJourney}>
+          <Text style={styles.discoverButtonText}>Start Journey</Text>
+        </TouchableOpacity>
+        <Text>Will take {travelTime}</Text>
       </View>
-    </View>
+    </TouchableOpacity>
   );
 };
 
 const styles = StyleSheet.create({
-  cardContainer: {
+  overlay: {
     position: "absolute",
-    top: "50%",
-    left: "50%",
-    transform: [{ translateX: -150 }, { translateY: -100 }],
-    width: 300,
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  cardContainer: {
+    width: 360,
     backgroundColor: "white",
     borderRadius: 10,
-    padding: 20,
+    padding: 16,
+    alignItems: "center",
     shadowColor: "#000",
     shadowOffset: {
       width: 0,
@@ -48,26 +62,44 @@ const styles = StyleSheet.create({
     shadowRadius: 3.84,
     elevation: 5,
   },
+  closeButton: {
+    position: "absolute",
+    top: 10,
+    right: 10,
+    padding: 10,
+  },
+  closeButtonText: {
+    fontSize: 18,
+    color: Colors.primary,
+  },
+  logo: {
+    height: 62,
+    width: 62,
+    marginBottom: 20,
+  },
   title: {
     fontSize: 18,
     fontWeight: "bold",
     marginBottom: 10,
+    textAlign: "center",
   },
-  travelTimeText: {
+  placeName: {
     fontSize: 16,
     marginBottom: 20,
+    textAlign: "center",
+    fontWeight: "bold",
   },
-  buttonContainer: {
-    flexDirection: "row",
-    justifyContent: "space-evenly",
-  },
-  button: {
-    flex: 1,
-    marginHorizontal: 5,
+  discoverButton: {
     backgroundColor: Colors.primary,
+    paddingVertical: 15,
+    paddingHorizontal: 30,
+    borderRadius: 5,
+    marginTop: 20,
   },
-  cancelButton: {
-    backgroundColor: Colors.danger,
+  discoverButtonText: {
+    color: "white",
+    fontSize: 18,
+    fontWeight: "bold",
   },
 });
 
