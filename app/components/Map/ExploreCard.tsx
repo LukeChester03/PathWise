@@ -19,9 +19,9 @@ const ExploreCard: React.FC<ExploreCardProps> = ({
   return (
     <TouchableOpacity activeOpacity={1} onPress={onCancel} style={styles.overlay}>
       <View style={styles.cardContainer}>
-        <TouchableOpacity style={styles.closeButton} onPress={onCancel}>
+        {/* <TouchableOpacity style={styles.closeButton} onPress={onCancel}>
           <Text style={styles.closeButtonText}>X</Text>
-        </TouchableOpacity>
+        </TouchableOpacity> */}
         <Image source={require("../../assets/logo.png")} style={styles.logo} />
         <Text style={styles.title}>
           You Have Not yet Discovered this Location! Would you like to visit it?
@@ -30,7 +30,7 @@ const ExploreCard: React.FC<ExploreCardProps> = ({
         <TouchableOpacity style={styles.discoverButton} onPress={onStartJourney}>
           <Text style={styles.discoverButtonText}>Start Journey</Text>
         </TouchableOpacity>
-        <Text>Will take {travelTime}</Text>
+        <Text style={styles.travelTime}>Will take {travelTime}</Text>
       </View>
     </TouchableOpacity>
   );
@@ -84,7 +84,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   placeName: {
-    fontSize: 16,
+    fontSize: 26,
     marginBottom: 20,
     textAlign: "center",
     fontWeight: "bold",
@@ -92,14 +92,18 @@ const styles = StyleSheet.create({
   discoverButton: {
     backgroundColor: Colors.primary,
     paddingVertical: 15,
-    paddingHorizontal: 30,
+    paddingHorizontal: 64,
     borderRadius: 5,
-    marginTop: 20,
   },
   discoverButtonText: {
     color: "white",
-    fontSize: 18,
+    fontSize: 24,
+    width: "80%",
     fontWeight: "bold",
+  },
+  travelTime: {
+    marginTop: 8,
+    fontSize: 20,
   },
 });
 
