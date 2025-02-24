@@ -1,7 +1,7 @@
 // src/components/ExploreCard.tsx
 import React from "react";
 import { View, Text, StyleSheet } from "react-native";
-import { Button } from "../Global/Button";
+import Button from "../Global/Button";
 import { Colors } from "../../constants/colours";
 
 interface ExploreCardProps {

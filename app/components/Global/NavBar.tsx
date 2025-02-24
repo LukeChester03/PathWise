@@ -1,11 +1,11 @@
+// src/components/NavBar.tsx
 import React from "react";
 import { View, TouchableOpacity, StyleSheet, Text } from "react-native";
 import { useNavigation, useNavigationState } from "@react-navigation/native";
 import Icon from "react-native-vector-icons/Ionicons";
 import { RootStackParamList } from "../../navigation/types";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { Colors, NeutralColors } from "../../constants/colours";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
@@ -66,14 +66,13 @@ const styles = StyleSheet.create({
   container: {
     backgroundColor: Colors.primary,
     borderTopWidth: 1,
-    opacity: 5,
     borderTopColor: "#ddd",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: -2 },
     shadowOpacity: 0.1,
     shadowRadius: 5,
     elevation: 3,
-    marginBottom: -48,
+    paddingBottom: 16, // Add some padding for better spacing
   },
   innerContainer: {
     flexDirection: "row",
