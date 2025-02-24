@@ -8,8 +8,10 @@ interface ButtonProps {
   style?: object;
 }
 
-export const Button = ({ onPress, title, style }: ButtonProps) => (
+const Button = ({ onPress, title, style }: ButtonProps) => (
   <TouchableOpacity onPress={onPress} style={[globalStyles.button, style]}>
     <Text style={globalStyles.buttonText}>{title}</Text>
   </TouchableOpacity>
 );
+
+export default Button;
