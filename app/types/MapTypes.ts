@@ -14,4 +14,19 @@ export interface Place {
       lng: number;
     };
   };
+  place_id: string;
+  description?: string;
+}
+
+export interface PlaceDetails {
+  result: {
+    name: string;
+    geometry: {
+      location: {
+        lat: number;
+        lng: number;
+      };
+    };
+    desc: string;
+  };
 }

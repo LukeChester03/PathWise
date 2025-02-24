@@ -12,7 +12,7 @@ export const getCurrentLocation = async (): Promise<Region | null> => {
   try {
     let location = await Location.getCurrentPositionAsync({});
     const { latitude, longitude } = location.coords;
-    console.log("Fetched location:", { latitude, longitude });
+    // console.log("Fetched location:", { latitude, longitude });
 
     const region: Region = {
       latitude,

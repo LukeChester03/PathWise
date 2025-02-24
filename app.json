@@ -4,7 +4,7 @@
     "slug": "PathWise",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "../adaptive/images/logo.png",
     "scheme": "myapp",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
@@ -12,15 +12,13 @@
       "config": {
         "googleMapsApiKey": "AIzaSyDAGq_6eJGQpR3RcO0NrVOowel9-DxZkvA"
       },
-      "supportsTablet": true,
-      "googleServicesFile": "./GoogleService-Info.plist"
+      "supportsTablet": true
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
-      },
-      "googleServicesFile": "./google-services.json"
+      }
     },
     "web": {
       "bundler": "metro",

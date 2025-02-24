@@ -7,7 +7,7 @@ import MapView, {
   Marker,
   Polyline,
 } from "react-native-maps";
-import { Platform, View, StyleSheet, TouchableWithoutFeedback, Image } from "react-native";
+import { Platform, View, StyleSheet, TouchableWithoutFeedback, Image, Alert } from "react-native";
 import { getCurrentLocation } from "../../controllers/Map/locationController";
 import { fetchNearbyPlaces } from "../../controllers/Map/placesController";
 import { fetchRoute } from "../../controllers/Map/routesController";
@@ -31,23 +31,23 @@ export default function Map() {
       if (newRegion) {
         setRegion(newRegion);
         const nearbyPlaces = await fetchNearbyPlaces(newRegion.latitude, newRegion.longitude);
-        console.log("Fetched nearby places:", nearbyPlaces); // Log the fetched places
+        // console.log("Fetched nearby places:", nearbyPlaces);
         setPlaces(nearbyPlaces);
       }
     })();
   }, []);
 
-  useEffect(() => {
-    if (region) {
-      console.log("Region state updated:", region);
-    }
-  }, [region]);
+  // useEffect(() => {
+  //   if (region) {
+  //     console.log("Region state updated:", region);
+  //   }
+  // }, [region]);
 
-  useEffect(() => {
-    if (places.length > 0) {
-      console.log("Places state updated:", places);
-    }
-  }, [places]);
+  // useEffect(() => {
+  //   if (places.length > 0) {
+  //     console.log("Places state updated:", places);
+  //   }
+  // }, [places]);
 
   const handleMarkerPress = async (place: Place) => {
     setSelectedPlace(place);
@@ -55,16 +55,18 @@ export default function Map() {
       const origin = `${region.latitude},${region.longitude}`;
       const destination = `${place.geometry.location.lat},${place.geometry.location.lng}`;
       const route = await fetchRoute(origin, destination);
+      console.log(selectedPlace?.description, "DESC");
       if (route) {
+        setShowCard(true);
         setRouteCoordinates(route.coords);
         setTravelTime(route.duration);
-        setShowCard(true);
       }
     }
   };
 
   const handleStartJourney = () => {
     setShowCard(false);
+    Alert.alert("JOURNEY STARTED ");
   };
 
   const handleCancel = () => {
@@ -75,7 +77,7 @@ export default function Map() {
   };
 
   if (!region) {
-    return null; // or a loading indicator
+    return null;
   }
 
   return (
@@ -84,35 +86,32 @@ export default function Map() {
         <MapView
           style={styles.map}
           initialRegion={region}
-          showsPointsOfInterest={false} // Hide other points of interest
+          showsPointsOfInterest={false}
           showsUserLocation
           showsMyLocationButton
           provider={PROVIDER_GOOGLE}
         >
-          <Circle center={region} radius={500} strokeColor="rgba(158, 158, 255, 1.0)" />
+          <Circle center={region} radius={250} strokeColor={Colors.primary} />
           {places.map((place) => (
             <Marker
-              key={place.id}
+              key={place.place_id}
               coordinate={{
                 latitude: place.geometry.location.lat,
                 longitude: place.geometry.location.lng,
               }}
               title={place.name}
+              description={place.description}
               pinColor={Colors.primary}
               onPress={() => handleMarkerPress(place)}
             >
-              <Image
+              {/* <Image
                 source={require("../../assets/Custom-Marker.png")}
                 style={styles.marker}
-              ></Image>
+              ></Image> */}
             </Marker>
           ))}
           {routeCoordinates.length > 0 && (
-            <Polyline
-              coordinates={routeCoordinates}
-              strokeColor={Colors.primary} // Change the color of the route here
-              strokeWidth={4}
-            />
+            <Polyline coordinates={routeCoordinates} strokeColor={Colors.primary} strokeWidth={4} />
           )}
         </MapView>
         {showCard && selectedPlace && travelTime && (
@@ -133,8 +132,8 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   marker: {
-    height: 54,
-    width: 54,
+    height: 50,
+    width: 50,
   },
   map: {
     width: "100%",

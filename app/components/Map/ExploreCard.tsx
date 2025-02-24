@@ -20,7 +20,7 @@ const ExploreCard: React.FC<ExploreCardProps> = ({
   return (
     <View style={styles.cardContainer}>
       <Text style={styles.title}>Would you like to explore {placeName}?</Text>
-      <Text style={styles.travelTimeText}>Estimated adventure time: {travelTime}</Text>
+      <Text style={styles.travelTimeText}>Estimated journey time: {travelTime}</Text>
       <View style={styles.buttonContainer}>
         <Button title="Cancel" onPress={onCancel} style={styles.cancelButton} />
         <Button title="Start Journey" onPress={onStartJourney} style={styles.button} />
