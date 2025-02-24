@@ -5,7 +5,8 @@ import { Alert } from "react-native";
 export const fetchNearbyPlaces = async (latitude: number, longitude: number): Promise<Place[]> => {
   try {
     const response = await fetch(
-      `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${latitude},${longitude}&radius=250&type=tourist_attraction&key=AIzaSyDAGq_6eJGQpR3RcO0NrVOowel9-DxZkvA`
+      `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${latitude},${longitude}&radius=250&type=tourist_attraction
+&key=AIzaSyDAGq_6eJGQpR3RcO0NrVOowel9-DxZkvA`
     );
     const data = await response.json();
     console.log(data, "DATA");

@@ -30,6 +30,7 @@
       "@react-native-firebase/auth",
       "@react-native-firebase/crashlytics",
       "expo-router",
+      "expo-location",
       [
         "expo-splash-screen",
         {
