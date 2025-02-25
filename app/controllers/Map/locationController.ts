@@ -59,15 +59,15 @@ export const watchUserLocation = async (
   const hasPermission = await requestLocationPermission();
   if (!hasPermission) {
     Alert.alert("Permission to access location was denied");
-    return () => {}; // Return a no-op function if permission is denied
+    return () => {};
   }
 
   try {
     const subscription = await Location.watchPositionAsync(
       {
         accuracy: Location.Accuracy.High,
-        distanceInterval: 10, // Update every 10 meters
-        timeInterval: 1000, // Update every 1 second
+        distanceInterval: 20,
+        timeInterval: 1000,
       },
       (location) => {
         const { latitude, longitude } = location.coords;
