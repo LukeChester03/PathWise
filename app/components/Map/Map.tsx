@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import MapView, { PROVIDER_GOOGLE, Circle, Marker } from "react-native-maps";
 import { View, StyleSheet, ActivityIndicator, TouchableOpacity, Text, Alert } from "react-native";
 import MapViewDirections from "react-native-maps-directions";
@@ -15,8 +15,8 @@ import { customMapStyle } from "../../constants/mapStyle";
 const PLACEHOLDER_REGION: Region = {
   latitude: 51.5074,
   longitude: -0.1278,
-  latitudeDelta: 0.0922,
-  longitudeDelta: 0.0421,
+  latitudeDelta: 0.005, // Smaller value = More zoomed in
+  longitudeDelta: 0.005, // Smaller value = More zoomed in
 };
 
 const GOOGLE_MAPS_APIKEY = "AIzaSyDAGq_6eJGQpR3RcO0NrVOowel9-DxZkvA";
@@ -48,6 +48,8 @@ export default function Map() {
   const [journeyStarted, setJourneyStarted] = useState<boolean>(false);
   const [confirmEndJourney, setConfirmEndJourney] = useState<boolean>(false);
   const [userLocation, setUserLocation] = useState<Region | null>(null);
+  const [isMapFocused, setIsMapFocused] = useState<boolean>(true); // Track map focus
+  const mapRef = useRef<MapView>(null); // Ref for MapView
 
   // Request location permissions
   const requestLocationPermission = async () => {
@@ -86,8 +88,8 @@ export default function Map() {
               const newUserLocation = {
                 latitude,
                 longitude,
-                latitudeDelta: 0.0922,
-                longitudeDelta: 0.0421,
+                latitudeDelta: 0.001,
+                longitudeDelta: 0.001,
               };
               setUserLocation(newUserLocation);
 
@@ -148,7 +150,6 @@ export default function Map() {
 
   const handleMarkerPress = async (place: Place) => {
     setSelectedPlace(place);
-    console.log(selectedPlace.geometry, "Selected place");
     if (region) {
       const origin = `${region.latitude},${region.longitude}`;
       const destination = `${place.geometry.location.lat},${place.geometry.location.lng}`;
@@ -168,6 +169,10 @@ export default function Map() {
     if (hasPermission) {
       setShowCard(false);
       setJourneyStarted(true);
+      setIsMapFocused(true); // Focus on user location when journey starts
+      if (mapRef.current && userLocation) {
+        mapRef.current.animateToRegion(userLocation, 1000); // Animate to user location
+      }
     } else {
       Alert.alert("Permission Denied", "Location permission is required to start the journey.");
     }
@@ -181,6 +186,18 @@ export default function Map() {
     setDistance(null);
     setShowCard(false);
     setJourneyStarted(false);
+  };
+
+  const handleRegionChangeComplete = (region: Region) => {
+    if (journeyStarted) {
+      setIsMapFocused(false); // User has scrolled, so stop auto-centering
+      setTimeout(() => {
+        setIsMapFocused(true); // Re-enable auto-centering
+        if (mapRef.current && userLocation) {
+          mapRef.current.animateToRegion(userLocation, 1000); // Animate to user location
+        }
+      }, 5000); // Re-enable auto-centering after 5 seconds
+    }
   };
 
   if (loading) {
@@ -200,14 +217,15 @@ export default function Map() {
   return (
     <View style={styles.container}>
       <MapView
+        ref={mapRef} // Add the ref
         style={styles.map}
         initialRegion={region}
-        region={userLocation || region} // Update map region to user's current location
         customMapStyle={customMapStyle}
         showsPointsOfInterest={false}
         showsUserLocation
         showsMyLocationButton
         provider={PROVIDER_GOOGLE}
+        onRegionChangeComplete={handleRegionChangeComplete} // Detect user scrolling
       >
         <Circle center={userLocation || region} radius={250} strokeColor={Colors.primary} />
         {markersToDisplay.map((place) => (

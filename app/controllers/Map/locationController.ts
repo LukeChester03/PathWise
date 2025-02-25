@@ -6,8 +6,8 @@ import { Region } from "../../types/MapTypes";
 const DEFAULT_REGION: Region = {
   latitude: 51.5074,
   longitude: -0.1278,
-  latitudeDelta: 0.0922,
-  longitudeDelta: 0.0421,
+  latitudeDelta: 0.002,
+  longitudeDelta: 0.002,
 };
 
 export const getCurrentLocation = async (): Promise<Region> => {
