@@ -3,6 +3,6 @@ export type RootStackParamList = {
   Profile: undefined;
   Explore: undefined;
   Learn: undefined;
-  Map: undefined;
+  Discover: undefined;
   Landing: undefined;
 };

@@ -20,7 +20,7 @@ const NavBar = () => {
   const insets = useSafeAreaInsets(); // Get safe area insets
 
   const navItems = [
-    { id: "map", icon: "map-outline", screen: "Map" },
+    { id: "discover", icon: "map-outline", screen: "Discover" },
     { id: "explore", icon: "compass-outline", screen: "Explore" },
     { id: "home", icon: "home-outline", screen: "Home" },
     { id: "learn", icon: "book-outline", screen: "Learn" },
@@ -78,7 +78,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-around",
     alignItems: "center",
-    paddingVertical: 10,
+    paddingVertical: 8,
   },
   navItem: {
     alignItems: "center",

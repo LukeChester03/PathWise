@@ -12,12 +12,15 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export default function Layout() {
   return (
-    <Stack.Navigator initialRouteName="Landing">
+    <Stack.Navigator
+      initialRouteName="Landing"
+      screenOptions={{ headerShown: false, animation: "none" }}
+    >
       <Stack.Screen name="Home" component={HomeScreen} />
       <Stack.Screen name="Profile" component={ProfileScreen} />
       <Stack.Screen name="Explore" component={ExploreScreen} />
       <Stack.Screen name="Learn" component={LearnScreen} />
-      <Stack.Screen name="Map" component={MapScreen} />
+      <Stack.Screen name="Discover" component={MapScreen} />
       <Stack.Screen name="Landing" component={LandingScreen} />
     </Stack.Navigator>
   );

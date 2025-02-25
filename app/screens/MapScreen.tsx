@@ -11,7 +11,7 @@ const MapScreen = () => {
     <ScreenWithNavBar>
       <View style={globalStyles.container}>
         <View style={styles.header}>
-          <Text style={styles.title}>Map</Text>
+          <Text style={styles.title}>Discover</Text>
         </View>
         <Map />
       </View>

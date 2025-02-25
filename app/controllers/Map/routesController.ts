@@ -9,6 +9,11 @@ interface Route {
   legs: {
     duration: {
       text: string;
+      value: number;
+    };
+    distance: {
+      text: string;
+      value: number;
     };
   }[];
 }
@@ -20,7 +25,11 @@ interface RouteResponse {
 export const fetchRoute = async (
   origin: string,
   destination: string
-): Promise<{ coords: { latitude: number; longitude: number }[]; duration: string } | null> => {
+): Promise<{
+  coords: { latitude: number; longitude: number }[];
+  duration: string;
+  distance: number;
+} | null> => {
   try {
     const response = await fetch(
       `https://maps.googleapis.com/maps/api/directions/json?origin=${origin}&destination=${destination}&mode=walking&key=AIzaSyDAGq_6eJGQpR3RcO0NrVOowel9-DxZkvA`
@@ -33,7 +42,12 @@ export const fetchRoute = async (
         longitude: lng,
       }));
       const duration = data.routes[0].legs[0].duration.text;
-      return { coords, duration };
+
+      // Extract distance in kilometers (the API returns distance in meters)
+      const distanceInMeters = data.routes[0].legs[0].distance.value;
+      const distanceInKm = distanceInMeters / 1000;
+
+      return { coords, duration, distance: distanceInKm };
     } else {
       console.warn("No routes found in the response.");
       return null;
