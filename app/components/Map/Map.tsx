@@ -1,41 +1,25 @@
 import React, { useEffect, useState, useRef } from "react";
 import MapView, { PROVIDER_GOOGLE, Circle, Marker } from "react-native-maps";
-import { View, StyleSheet, ActivityIndicator, TouchableOpacity, Text, Alert } from "react-native";
+import { View, StyleSheet, ActivityIndicator, TouchableOpacity, Text } from "react-native";
 import MapViewDirections from "react-native-maps-directions";
-import * as Location from "expo-location";
-import { getCurrentLocation } from "../../controllers/Map/locationController";
-import { fetchNearbyPlaces } from "../../controllers/Map/placesController";
-import { fetchRoute } from "../../controllers/Map/routesController";
+import { initializeMap } from "../../controllers/Map/mapController";
+import {
+  handleMarkerPress,
+  handleStartJourney,
+  handleCancel,
+  handleRegionChangeComplete,
+} from "../../handlers/Map/mapHandlers";
+import { requestLocationPermission } from "../../controllers/Map/locationController";
 import { Region, Place } from "../../types/MapTypes";
 import ExploreCard from "./ExploreCard";
 import DetailsCard from "./DetailsCard";
 import { Colors } from "../../constants/colours";
 import { customMapStyle } from "../../constants/mapStyle";
 
-const PLACEHOLDER_REGION: Region = {
-  latitude: 51.5074,
-  longitude: -0.1278,
-  latitudeDelta: 0.005, // Smaller value = More zoomed in
-  longitudeDelta: 0.005, // Smaller value = More zoomed in
-};
-
 const GOOGLE_MAPS_APIKEY = "AIzaSyDAGq_6eJGQpR3RcO0NrVOowel9-DxZkvA";
 
-// Haversine formula to calculate distance between two coordinates
-const haversineDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
-  const toRad = (x: number) => (x * Math.PI) / 180;
-  const R = 6371; // Earth's radius in km
-  const dLat = toRad(lat2 - lat1);
-  const dLon = toRad(lon2 - lon1);
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c * 1000; // Distance in meters
-};
-
 export default function Map() {
-  const [region, setRegion] = useState<Region>(PLACEHOLDER_REGION);
+  const [region, setRegion] = useState<Region | null>(null);
   const [places, setPlaces] = useState<Place[]>([]);
   const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
   const [routeCoordinates, setRouteCoordinates] = useState<
@@ -48,157 +32,21 @@ export default function Map() {
   const [journeyStarted, setJourneyStarted] = useState<boolean>(false);
   const [confirmEndJourney, setConfirmEndJourney] = useState<boolean>(false);
   const [userLocation, setUserLocation] = useState<Region | null>(null);
-  const [isMapFocused, setIsMapFocused] = useState<boolean>(true); // Track map focus
-  const mapRef = useRef<MapView>(null); // Ref for MapView
-
-  // Request location permissions
-  const requestLocationPermission = async () => {
-    const { status } = await Location.requestForegroundPermissionsAsync();
-    return status === "granted";
-  };
+  const [isMapFocused, setIsMapFocused] = useState<boolean>(true);
+  const mapRef = useRef<MapView>(null);
 
   useEffect(() => {
-    (async () => {
-      const newRegion = await getCurrentLocation();
-      if (newRegion) {
-        setRegion(newRegion);
-        setUserLocation(newRegion);
-        const nearbyPlaces = await fetchNearbyPlaces(newRegion.latitude, newRegion.longitude);
-        setPlaces(nearbyPlaces);
+    const init = async () => {
+      const mapData = await initializeMap();
+      if (mapData) {
+        setRegion(mapData.region);
+        setUserLocation(mapData.region);
+        setPlaces(mapData.places);
         setLoading(false);
       }
-    })();
+    };
+    init();
   }, []);
-
-  useEffect(() => {
-    if (journeyStarted && selectedPlace) {
-      let subscription: Location.LocationSubscription | null = null;
-
-      const startTracking = async () => {
-        const hasPermission = await requestLocationPermission();
-        if (hasPermission) {
-          subscription = await Location.watchPositionAsync(
-            {
-              accuracy: Location.Accuracy.High,
-              distanceInterval: 10, // Update every 10 meters
-              timeInterval: 1000, // Update every 1 second
-            },
-            (location) => {
-              const { latitude, longitude } = location.coords;
-              const newUserLocation = {
-                latitude,
-                longitude,
-                latitudeDelta: 0.001,
-                longitudeDelta: 0.001,
-              };
-              setUserLocation(newUserLocation);
-
-              // Calculate distance to destination
-              const destinationLat = selectedPlace.geometry.location.lat;
-              const destinationLng = selectedPlace.geometry.location.lng;
-              const distanceToDestination = haversineDistance(
-                latitude,
-                longitude,
-                destinationLat,
-                destinationLng
-              );
-
-              // Check if user is within 10 meters of the destination
-              if (distanceToDestination <= 10) {
-                Alert.alert("Destination Reached", "You have arrived at your destination!", [
-                  {
-                    text: "OK",
-                    onPress: () => handleCancel(),
-                  },
-                ]);
-              } else {
-                updateRoute(newUserLocation);
-              }
-            }
-          );
-        } else {
-          Alert.alert(
-            "Permission Denied",
-            "Location permission is required to track your journey."
-          );
-        }
-      };
-
-      startTracking();
-
-      return () => {
-        if (subscription) {
-          subscription.remove(); // Stop tracking when component unmounts
-        }
-      };
-    }
-  }, [journeyStarted, selectedPlace]);
-
-  const updateRoute = async (newUserLocation: Region) => {
-    if (selectedPlace) {
-      const origin = `${newUserLocation.latitude},${newUserLocation.longitude}`;
-      const destination = `${selectedPlace.geometry.location.lat},${selectedPlace.geometry.location.lng}`;
-      const route = await fetchRoute(origin, destination);
-      if (route && route.duration && route.distance !== undefined) {
-        const duration = parseFloat(route.duration).toFixed(1);
-        setRouteCoordinates(route.coords);
-        setTravelTime(`${duration} mins`);
-        setDistance(`${route.distance.toFixed(1)} km`);
-      }
-    }
-  };
-
-  const handleMarkerPress = async (place: Place) => {
-    setSelectedPlace(place);
-    if (region) {
-      const origin = `${region.latitude},${region.longitude}`;
-      const destination = `${place.geometry.location.lat},${place.geometry.location.lng}`;
-      const route = await fetchRoute(origin, destination);
-      if (route && route.duration && route.distance !== undefined) {
-        const duration = parseFloat(route.duration).toFixed(1);
-        setShowCard(true);
-        setRouteCoordinates(route.coords);
-        setTravelTime(`${duration} mins`);
-        setDistance(`${route.distance.toFixed(1)} km`);
-      }
-    }
-  };
-
-  const handleStartJourney = async () => {
-    const hasPermission = await requestLocationPermission();
-    if (hasPermission) {
-      setShowCard(false);
-      setJourneyStarted(true);
-      setIsMapFocused(true); // Focus on user location when journey starts
-      if (mapRef.current && userLocation) {
-        mapRef.current.animateToRegion(userLocation, 1000); // Animate to user location
-      }
-    } else {
-      Alert.alert("Permission Denied", "Location permission is required to start the journey.");
-    }
-  };
-
-  const handleCancel = () => {
-    setConfirmEndJourney(true);
-    setSelectedPlace(null);
-    setRouteCoordinates([]);
-    setTravelTime(null);
-    setDistance(null);
-    setShowCard(false);
-    setJourneyStarted(false);
-  };
-
-  const handleRegionChangeComplete = (region: Region) => {
-    if (journeyStarted) {
-      setIsMapFocused(false); // User has scrolled, so stop auto-centering
-      setTimeout(() => {
-        setIsMapFocused(true); // Re-enable auto-centering
-        if (mapRef.current && userLocation) {
-          mapRef.current.animateToRegion(userLocation, 1000); // Animate to user location
-        }
-      }, 5000); // Re-enable auto-centering after 5 seconds
-    }
-  };
 
   if (loading) {
     return (
@@ -208,24 +56,22 @@ export default function Map() {
     );
   }
 
-  // Determine which places to show as markers
-  const markersToDisplay =
-    journeyStarted && selectedPlace
-      ? [selectedPlace] // Only show the selected place when journey is started
-      : places; // Show all places otherwise
+  const markersToDisplay = journeyStarted && selectedPlace ? [selectedPlace] : places;
 
   return (
     <View style={styles.container}>
       <MapView
-        ref={mapRef} // Add the ref
+        ref={mapRef}
         style={styles.map}
-        initialRegion={region}
+        initialRegion={region || undefined}
         customMapStyle={customMapStyle}
         showsPointsOfInterest={false}
         showsUserLocation
         showsMyLocationButton
         provider={PROVIDER_GOOGLE}
-        onRegionChangeComplete={handleRegionChangeComplete} // Detect user scrolling
+        onRegionChangeComplete={(region) =>
+          handleRegionChangeComplete(journeyStarted, setIsMapFocused, mapRef, userLocation)
+        }
       >
         <Circle center={userLocation || region} radius={250} strokeColor={Colors.primary} />
         {markersToDisplay.map((place) => (
@@ -238,7 +84,17 @@ export default function Map() {
             title={place.name}
             description={place.description}
             pinColor={Colors.primary}
-            onPress={() => !journeyStarted && handleMarkerPress(place)}
+            onPress={() =>
+              !journeyStarted &&
+              handleMarkerPress(
+                place,
+                region,
+                setSelectedPlace,
+                setRouteCoordinates,
+                setTravelTime,
+                setShowCard
+              )
+            }
           />
         ))}
         {routeCoordinates.length > 0 && journeyStarted && (
@@ -255,11 +111,8 @@ export default function Map() {
             optimizeWaypoints={true}
             onReady={(result) => {
               if (result.distance && result.duration) {
-                // Convert numeric values to strings with formatting
-                const durationStr = `${parseFloat(result.duration.toString()).toFixed(1)} min`;
-                const distanceStr = `${parseFloat(result.distance.toString()).toFixed(1)} km`;
-                setTravelTime(durationStr);
-                setDistance(distanceStr);
+                setTravelTime(`${parseFloat(result.duration.toString()).toFixed(1)} min`);
+                setDistance(`${parseFloat(result.distance.toString()).toFixed(1)} km`);
               }
             }}
             onError={(errorMessage) => {
@@ -272,8 +125,27 @@ export default function Map() {
         <ExploreCard
           placeName={selectedPlace.name}
           travelTime={travelTime}
-          onStartJourney={handleStartJourney}
-          onCancel={handleCancel}
+          onStartJourney={() =>
+            handleStartJourney(
+              requestLocationPermission,
+              setShowCard,
+              setJourneyStarted,
+              setIsMapFocused,
+              mapRef,
+              userLocation
+            )
+          }
+          onCancel={() =>
+            handleCancel(
+              setConfirmEndJourney,
+              setSelectedPlace,
+              setRouteCoordinates,
+              setTravelTime,
+              setDistance,
+              setShowCard,
+              setJourneyStarted
+            )
+          }
         />
       )}
       {journeyStarted && selectedPlace && travelTime && distance && (
@@ -281,7 +153,20 @@ export default function Map() {
       )}
       {journeyStarted && (
         <View style={styles.buttonContainer}>
-          <TouchableOpacity style={styles.cancelButton} onPress={handleCancel}>
+          <TouchableOpacity
+            style={styles.cancelButton}
+            onPress={() =>
+              handleCancel(
+                setConfirmEndJourney,
+                setSelectedPlace,
+                setRouteCoordinates,
+                setTravelTime,
+                setDistance,
+                setShowCard,
+                setJourneyStarted
+              )
+            }
+          >
             <Text style={styles.cancelButtonText}>End Journey</Text>
           </TouchableOpacity>
         </View>
@@ -298,10 +183,6 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-  },
-  marker: {
-    height: 50,
-    width: 50,
   },
   map: {
     width: "100%",
