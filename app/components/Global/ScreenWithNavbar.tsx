@@ -5,9 +5,7 @@ import NavBar from "./NavBar";
 const ScreenWithNavBar = ({ children }: { children: React.ReactNode }) => {
   return (
     <View style={styles.container}>
-      {/* Main Content */}
       <View style={styles.content}>{children}</View>
-      {/* NavBar */}
       <NavBar />
     </View>
   );
@@ -22,6 +20,6 @@ const styles = StyleSheet.create({
     backgroundColor: "#f5f5f5",
   },
   content: {
-    flex: 1, // Takes up all available space above the NavBar
+    flex: 1,
   },
 });

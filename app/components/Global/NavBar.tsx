@@ -72,7 +72,8 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 5,
     elevation: 3,
-    paddingBottom: 24, // Add some padding for better spacing
+    paddingBottom: 24,
+    paddingRight: 16,
   },
   innerContainer: {
     flexDirection: "row",

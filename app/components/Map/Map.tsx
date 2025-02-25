@@ -48,6 +48,7 @@ export default function Map() {
   const [showCard, setShowCard] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(true);
   const [journeyStarted, setJourneyStarted] = useState<boolean>(false);
+  const [confirmEndJourney, setConfirmEndJourney] = useState<boolean>(false);
 
   useEffect(() => {
     (async () => {
@@ -72,7 +73,6 @@ export default function Map() {
         setShowCard(true);
         setRouteCoordinates(route.coords);
         setTravelTime(`${duration} mins`);
-        // Convert the numeric distance to a formatted string with 1 decimal place
         setDistance(`${route.distance.toFixed(1)} km`);
       }
     }
@@ -84,6 +84,7 @@ export default function Map() {
   };
 
   const handleCancel = () => {
+    setConfirmEndJourney(true);
     setSelectedPlace(null);
     setRouteCoordinates([]);
     setTravelTime(null);
@@ -141,7 +142,7 @@ export default function Map() {
               longitude: selectedPlace?.geometry.location.lng || 0,
             }}
             apikey={GOOGLE_MAPS_APIKEY}
-            strokeWidth={4}
+            strokeWidth={8}
             strokeColor={Colors.primary}
             optimizeWaypoints={true}
             onReady={(result) => {
@@ -149,10 +150,6 @@ export default function Map() {
                 // Convert numeric values to strings with formatting
                 const durationStr = `${parseFloat(result.duration.toString()).toFixed(1)} min`;
                 const distanceStr = `${parseFloat(result.distance.toString()).toFixed(1)} km`;
-
-                console.log(`Distance: ${distanceStr}`);
-                console.log(`Duration: ${durationStr}`);
-
                 setTravelTime(durationStr);
                 setDistance(distanceStr);
               }

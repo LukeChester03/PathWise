@@ -9,7 +9,7 @@ export const fetchNearbyPlaces = async (latitude: number, longitude: number): Pr
 &key=AIzaSyDAGq_6eJGQpR3RcO0NrVOowel9-DxZkvA`
     );
     const data = await response.json();
-    console.log(data, "DATA");
+    // console.log(data, "DATA");
 
     const placesWithDetails: Place[] = await Promise.all(
       data.results.map(async (place: Place) => {

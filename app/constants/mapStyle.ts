@@ -12,6 +12,7 @@ export const customMapStyle = [
   {
     featureType: "road",
     elementType: "labels",
+
     stylers: [{ visibility: "simplified" }],
   },
 ];
