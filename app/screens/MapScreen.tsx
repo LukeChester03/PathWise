@@ -23,7 +23,9 @@ export default MapScreen;
 
 const styles = StyleSheet.create({
   header: {
-    padding: 20,
+    padding: 8,
+    borderBottomLeftRadius: 8,
+    borderBottomRightRadius: 8,
     alignItems: "center",
     backgroundColor: Colors.primary,
   },
