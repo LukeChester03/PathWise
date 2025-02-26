@@ -1,13 +1,5 @@
 import React, { useRef } from "react";
-import {
-  View,
-  Text,
-  Image,
-  StyleSheet,
-  Animated,
-  PanResponder,
-  TouchableOpacity,
-} from "react-native";
+import { View, Text, Image, StyleSheet, Animated, PanResponder } from "react-native";
 import { Colors } from "../../constants/colours";
 
 interface DetailsCardProps {
@@ -15,7 +7,6 @@ interface DetailsCardProps {
   travelTime: string;
   distance: string;
   onSwipeOff: () => void;
-  onArrowPress: () => void;
 }
 
 const DetailsCard: React.FC<DetailsCardProps> = ({
@@ -23,15 +14,32 @@ const DetailsCard: React.FC<DetailsCardProps> = ({
   travelTime,
   distance,
   onSwipeOff,
-  onArrowPress,
 }) => {
   const pan = useRef(new Animated.ValueXY()).current;
+  const shadowAnim = useRef(new Animated.Value(0.25)).current;
 
   const panResponder = useRef(
     PanResponder.create({
-      onMoveShouldSetPanResponder: () => true,
-      onPanResponderMove: Animated.event([null, { dx: pan.x }], { useNativeDriver: false }),
+      onStartShouldSetPanResponder: () => true,
+      onPanResponderGrant: () => {
+        // Increase shadow opacity when dragging starts
+        Animated.timing(shadowAnim, {
+          toValue: 0.5,
+          duration: 100,
+          useNativeDriver: false,
+        }).start();
+      },
+      onPanResponderMove: Animated.event([null, { dx: pan.x }], {
+        useNativeDriver: false,
+      }),
       onPanResponderRelease: (e, gestureState) => {
+        // Reset shadow opacity when dragging ends
+        Animated.timing(shadowAnim, {
+          toValue: 0.25,
+          duration: 100,
+          useNativeDriver: false,
+        }).start();
+
         if (gestureState.dx < -100) {
           // Swipe left to dismiss
           Animated.timing(pan, {
@@ -39,10 +47,11 @@ const DetailsCard: React.FC<DetailsCardProps> = ({
             duration: 200,
             useNativeDriver: false,
           }).start(() => {
-            onSwipeOff();
-            pan.setValue({ x: 0, y: 0 });
+            onSwipeOff(); // Trigger the parent callback
+            pan.setValue({ x: 0, y: 0 }); // Reset position for reuse
           });
         } else {
+          // Snap back to original position
           Animated.spring(pan, {
             toValue: { x: 0, y: 0 },
             useNativeDriver: false,
@@ -54,7 +63,13 @@ const DetailsCard: React.FC<DetailsCardProps> = ({
 
   return (
     <Animated.View
-      style={[styles.cardContainer, { transform: [{ translateX: pan.x }] }]}
+      style={[
+        styles.cardContainer,
+        {
+          transform: [{ translateX: pan.x }],
+          shadowOpacity: shadowAnim, // Use animated shadow opacity
+        },
+      ]}
       {...panResponder.panHandlers}
     >
       <Image source={require("../../assets/walking.gif")} style={styles.gif} />
@@ -81,11 +96,10 @@ const styles = StyleSheet.create({
       width: 0,
       height: 2,
     },
-    width: "60%",
-    shadowOpacity: 0.25,
     shadowRadius: 3.84,
     elevation: 6,
     alignItems: "center",
+    width: "60%",
   },
   gif: {
     width: 50,

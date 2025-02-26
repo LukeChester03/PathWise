@@ -25,13 +25,16 @@ export const requestLocationPermission = async (): Promise<boolean> => {
  */
 export const getCurrentLocation = async (): Promise<Region | null> => {
   const hasPermission = await requestLocationPermission();
+  console.log("GRANTED");
   if (!hasPermission) {
     Alert.alert("Permission to access location was denied");
     return null;
   }
 
   try {
+    console.log("first");
     const location = await Location.getCurrentPositionAsync({});
+    console.log("HEHEHREHRHERHE");
     const { latitude, longitude } = location.coords;
     return {
       latitude,
@@ -89,6 +92,6 @@ export const watchUserLocation = async (
   } catch (error: any) {
     console.error("Error watching location:", error);
     onError(error);
-    return () => {}; // Return a no-op function if an error occurs
+    return () => {};
   }
 };

@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Text, StyleSheet, SafeAreaView } from "react-native";
+import { View, Text, StyleSheet, SafeAreaView, Image } from "react-native";
 import { globalStyles } from "../constants/globalStyles";
 import NavBar from "../components/Global/NavBar";
 import Map from "../components/Map/Map";
@@ -16,7 +16,7 @@ const MapScreen = () => {
             <View style={styles.header}>
               <Text style={styles.title}>Discover</Text>
               <View style={styles.subtitle}>
-                <FeatherIcon name="map-pin" size={16} color={NeutralColors.gray600} />
+                <Image source={require("../assets/logo.png")} style={styles.logo} />
                 <Text style={styles.subtitleText}>Explore nearby locations</Text>
               </View>
             </View>
@@ -43,6 +43,11 @@ const styles = StyleSheet.create({
     shadowRadius: 3,
     elevation: 3,
     zIndex: 10,
+  },
+  logo: {
+    width: 32,
+    height: 32,
+    resizeMode: "contain",
   },
   safeArea: {
     width: "100%",

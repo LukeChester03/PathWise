@@ -19,6 +19,8 @@ import DetailsCard from "./DetailsCard";
 import { Colors, NeutralColors } from "../../constants/colours";
 import { customMapStyle } from "../../constants/mapStyle";
 import { haversineDistance } from "../../utils/mapUtils";
+import DestinationCard from "./DestinationCard";
+import { useNavigation } from "expo-router";
 
 const GOOGLE_MAPS_APIKEY = "AIzaSyDAGq_6eJGQpR3RcO0NrVOowel9-DxZkvA";
 const DESTINATION_REACHED_THRESHOLD = 10; // 10 meters
@@ -43,6 +45,7 @@ export default function Map() {
   const [locationWatcherCleanup, setLocationWatcherCleanup] = useState<(() => void) | null>(null);
   const [destinationReached, setDestinationReached] = useState<boolean>(false);
   const [showArrow, setShowArrow] = useState<boolean>(false);
+  const navigation = useNavigation();
 
   const [previousPosition, setPreviousPosition] = useState<{
     latitude: number;
@@ -97,7 +100,7 @@ export default function Map() {
       },
       pitch: 45, // Add some tilt for better navigation view
       heading: heading || 0, // Use the calculated heading or default to north
-      altitude: 500, // Adjust for desired zoom level
+      altitude: 2000, // Adjust for desired zoom level
       zoom: 17, // Close enough to see streets clearly
     };
 
@@ -161,36 +164,12 @@ export default function Map() {
 
               if (distanceToDestination <= DESTINATION_REACHED_THRESHOLD) {
                 setDestinationReached(true);
-                Alert.alert("Destination Reached!", `You have arrived at ${selectedPlace.name}!`, [
-                  {
-                    text: "OK",
-                    onPress: () => {
-                      // End the journey
-                      handleCancel(
-                        setConfirmEndJourney,
-                        setSelectedPlace,
-                        setRouteCoordinates,
-                        setTravelTime,
-                        setDistance,
-                        setShowArrow,
-                        setShowDetailsCard,
-                        setShowCard,
-                        setJourneyStarted
-                      );
-                      setDestinationReached(false);
-                      setPreviousPosition(null);
-                      setUserHeading(null);
-                      setShowArrow(false);
-                      setShowDetailsCard(false);
+                // Hide details card when destination is reached
+                setShowDetailsCard(false);
+                setShowArrow(false);
 
-                      // Clean up location watcher
-                      if (cleanupFunction) {
-                        cleanupFunction();
-                        setLocationWatcherCleanup(null);
-                      }
-                    },
-                  },
-                ]);
+                // Hide the end journey button when the destination card is shown
+                // It will automatically reappear when the user dismisses the destination card
               }
             }
           },
@@ -258,6 +237,37 @@ export default function Map() {
         "Location Permission Required",
         "We need location permission to guide you to your destination."
       );
+    }
+  };
+
+  // Handle learn more action from destination card
+  const handleLearnMore = () => {
+    // You can navigate to a details page or show more information
+    // navigation.navigate("PlaceDetails", { placeId: selectedPlace?.place_id });
+    console.log("Learn more about", selectedPlace?.name);
+  };
+
+  // Handle dismissal of destination card
+  const handleDismissDestinationCard = () => {
+    setDestinationReached(false);
+    handleCancel(
+      setConfirmEndJourney,
+      setSelectedPlace,
+      setRouteCoordinates,
+      setTravelTime,
+      setDistance,
+      setShowArrow,
+      setShowDetailsCard,
+      setShowCard,
+      setJourneyStarted
+    );
+    setPreviousPosition(null);
+    setUserHeading(null);
+
+    // Clean up location watcher
+    if (locationWatcherCleanup) {
+      locationWatcherCleanup();
+      setLocationWatcherCleanup(null);
     }
   };
 
@@ -369,15 +379,14 @@ export default function Map() {
           travelTime={travelTime}
           distance={distance}
           onSwipeOff={handleSwipeOff}
-          onArrowPress={handleArrowPress}
         />
       )}
       {showArrow && (
         <TouchableOpacity style={styles.arrowContainer} onPress={handleArrowPress}>
-          <FeatherIcon name={"more-horizontal"} size={22} color={NeutralColors.white}></FeatherIcon>
+          <FeatherIcon name={"more-horizontal"} size={22} color={NeutralColors.black}></FeatherIcon>
         </TouchableOpacity>
       )}
-      {journeyStarted && (
+      {journeyStarted && !destinationReached && (
         <View style={styles.buttonContainer}>
           <TouchableOpacity
             style={styles.cancelButton}
@@ -397,6 +406,16 @@ export default function Map() {
           >
             <Text style={styles.cancelButtonText}>End Journey</Text>
           </TouchableOpacity>
+        </View>
+      )}
+      {destinationReached && selectedPlace && (
+        <View style={styles.destinationCardContainer}>
+          <DestinationCard
+            discoveryDate={new Date().toISOString()}
+            placeName={selectedPlace.name}
+            onLearnMorePress={handleLearnMore}
+            onDismiss={handleDismissDestinationCard}
+          />
         </View>
       )}
     </View>
@@ -440,7 +459,7 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: 20,
     alignSelf: "center",
-    backgroundColor: Colors.primary,
+    backgroundColor: NeutralColors.white,
     borderRadius: 50,
     width: 40,
     height: 40,
@@ -451,5 +470,16 @@ const styles = StyleSheet.create({
     color: "white",
     fontSize: 24,
     fontWeight: "bold",
+  },
+  destinationCardContainer: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 999,
   },
 });
