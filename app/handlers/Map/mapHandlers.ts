@@ -91,8 +91,8 @@ export const handleRegionChangeComplete = (
     setTimeout(() => {
       setIsMapFocused(true); // Re-enable auto-centering
       if (mapRef.current && userLocation) {
-        mapRef.current.animateToRegion(userLocation, 1000); // Animate to user location
+        mapRef.current.animateToRegion(userLocation, 500); // Animate to user location
       }
-    }, 5000); // Re-enable auto-centering after 5 seconds
+    }, 3000); // Re-enable auto-centering after 5 seconds
   }
 };
