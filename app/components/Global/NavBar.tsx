@@ -25,7 +25,7 @@ const NavBar = () => {
   const navItems = [
     { id: "home", icon: "home", screen: "Home", label: "Home" },
     { id: "discover", icon: "compass", screen: "Discover", label: "Discover" },
-    { id: "explore", icon: "map-pin", screen: "Explore", label: "Explore" },
+    { id: "explore", icon: "map-pin", screen: "Explore", label: "Places" },
     { id: "learn", icon: "book-open", screen: "Learn", label: "Learn" },
     { id: "profile", icon: "user", screen: "Profile", label: "Profile" },
   ];

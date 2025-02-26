@@ -36,7 +36,9 @@ export const handleMarkerPress = async (
 export const handleStartJourney = async (
   requestLocationPermission: () => Promise<boolean>,
   setShowCard: (show: boolean) => void,
+  setShowDetailCard: (showDetail: boolean) => void,
   setJourneyStarted: (started: boolean) => void,
+  setShowArrow: (showArrow: boolean) => void,
   setIsMapFocused: (focused: boolean) => void,
   mapRef: React.RefObject<MapView>,
   userLocation: Region | null
@@ -44,6 +46,8 @@ export const handleStartJourney = async (
   const hasPermission = await requestLocationPermission();
   if (hasPermission) {
     setShowCard(false);
+    setShowDetailCard(true);
+    setShowArrow(false);
     setJourneyStarted(true);
     setIsMapFocused(true); // Focus on user location when journey starts
     if (mapRef.current && userLocation) {
@@ -65,6 +69,8 @@ export const handleCancel = (
   setTravelTime: (duration: string | null) => void,
   setDistance: (distance: string | null) => void,
   setShowCard: (show: boolean) => void,
+  setShowDetailCard: (showDetail: boolean) => void,
+  setShowArrow: (showArrow: boolean) => void,
   setJourneyStarted: (started: boolean) => void
 ) => {
   setConfirmEndJourney(true);
@@ -73,6 +79,8 @@ export const handleCancel = (
   setTravelTime(null);
   setDistance(null);
   setShowCard(false);
+  setShowDetailCard(false);
+  setShowArrow(false);
   setJourneyStarted(false);
 };
 
@@ -80,19 +88,19 @@ export const handleCancel = (
  * Handles the region change event.
  * Re-centers the map on the user's location after a delay.
  */
-export const handleRegionChangeComplete = (
-  journeyStarted: boolean,
-  setIsMapFocused: (focused: boolean) => void,
-  mapRef: React.RefObject<MapView>,
-  userLocation: Region | null
-) => {
-  if (journeyStarted) {
-    setIsMapFocused(false); // User has scrolled, so stop auto-centering
-    setTimeout(() => {
-      setIsMapFocused(true); // Re-enable auto-centering
-      if (mapRef.current && userLocation) {
-        mapRef.current.animateToRegion(userLocation, 500); // Animate to user location
-      }
-    }, 3000); // Re-enable auto-centering after 5 seconds
-  }
-};
+// export const handleRegionChangeComplete = (
+//   journeyStarted: boolean,
+//   setIsMapFocused: (focused: boolean) => void,
+//   mapRef: React.RefObject<MapView>,
+//   userLocation: Region | null
+// ) => {
+//   if (journeyStarted) {
+//     setIsMapFocused(false);
+//     setTimeout(() => {
+//       setIsMapFocused(true);
+//       if (mapRef.current && userLocation) {
+//         mapRef.current.animateToRegion(userLocation, 500);
+//       }
+//     }, 3000);
+//   }
+// };

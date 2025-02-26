@@ -3,11 +3,11 @@ import MapView, { PROVIDER_GOOGLE, Circle, Marker, Camera } from "react-native-m
 import { View, StyleSheet, ActivityIndicator, TouchableOpacity, Text, Alert } from "react-native";
 import MapViewDirections from "react-native-maps-directions";
 import { initializeMap } from "../../controllers/Map/mapController";
+import FeatherIcon from "react-native-vector-icons/Feather";
 import {
   handleMarkerPress,
   handleStartJourney,
   handleCancel,
-  handleRegionChangeComplete,
 } from "../../handlers/Map/mapHandlers";
 import {
   requestLocationPermission,
@@ -16,7 +16,7 @@ import {
 import { Region, Place } from "../../types/MapTypes";
 import ExploreCard from "./ExploreCard";
 import DetailsCard from "./DetailsCard";
-import { Colors } from "../../constants/colours";
+import { Colors, NeutralColors } from "../../constants/colours";
 import { customMapStyle } from "../../constants/mapStyle";
 import { haversineDistance } from "../../utils/mapUtils";
 
@@ -33,14 +33,17 @@ export default function Map() {
   const [travelTime, setTravelTime] = useState<string | null>(null);
   const [distance, setDistance] = useState<string | null>(null);
   const [showCard, setShowCard] = useState<boolean>(false);
+  const [showDetailsCard, setShowDetailsCard] = useState<boolean>(false);
+
   const [loading, setLoading] = useState<boolean>(true);
   const [journeyStarted, setJourneyStarted] = useState<boolean>(false);
   const [confirmEndJourney, setConfirmEndJourney] = useState<boolean>(false);
   const [userLocation, setUserLocation] = useState<Region | null>(null);
   const [userHeading, setUserHeading] = useState<number | null>(null);
-  const [isMapFocused, setIsMapFocused] = useState<boolean>(true);
   const [locationWatcherCleanup, setLocationWatcherCleanup] = useState<(() => void) | null>(null);
   const [destinationReached, setDestinationReached] = useState<boolean>(false);
+  const [showArrow, setShowArrow] = useState<boolean>(false);
+
   const [previousPosition, setPreviousPosition] = useState<{
     latitude: number;
     longitude: number;
@@ -169,12 +172,16 @@ export default function Map() {
                         setRouteCoordinates,
                         setTravelTime,
                         setDistance,
+                        setShowArrow,
+                        setShowDetailsCard,
                         setShowCard,
                         setJourneyStarted
                       );
                       setDestinationReached(false);
                       setPreviousPosition(null);
                       setUserHeading(null);
+                      setShowArrow(false);
+                      setShowDetailsCard(false);
 
                       // Clean up location watcher
                       if (cleanupFunction) {
@@ -219,23 +226,12 @@ export default function Map() {
     }
   }, [journeyStarted]);
 
-  // Update location controller.ts to get heading information
-  useEffect(() => {
-    // Enhance watchUserLocation to get heading information from Location
-    const enhanceLocationWatching = async () => {
-      // This would ideally be an update to your locationController.ts file
-      // to modify the watchUserLocation function, but we're handling it here
-      // by keeping track of previous position and calculating heading ourselves
-    };
-
-    enhanceLocationWatching();
-  }, []);
-
   const onStartJourney = async () => {
     const hasPermission = await requestLocationPermission();
     if (hasPermission) {
       setShowCard(false);
       setJourneyStarted(true);
+      setShowDetailsCard(true);
       setDestinationReached(false);
 
       // Reset previous position and heading
@@ -251,8 +247,8 @@ export default function Map() {
           },
           pitch: 45,
           heading: 0,
-          altitude: 1000,
-          zoom: 17,
+          altitude: 100,
+          zoom: 30,
         };
 
         mapRef.current.animateCamera(initialCamera, { duration: 500 });
@@ -273,6 +269,16 @@ export default function Map() {
     );
   }
 
+  const handleSwipeOff = () => {
+    setShowDetailsCard(false);
+    setShowArrow(true);
+  };
+
+  const handleArrowPress = () => {
+    setShowArrow(false);
+    setShowDetailsCard(true);
+  };
+
   const markersToDisplay = journeyStarted && selectedPlace ? [selectedPlace] : places;
 
   return (
@@ -284,12 +290,8 @@ export default function Map() {
         customMapStyle={customMapStyle}
         showsPointsOfInterest={false}
         showsUserLocation
-        showsMyLocationButton={!journeyStarted} // Hide during navigation
         provider={PROVIDER_GOOGLE}
         followsUserLocation={journeyStarted}
-        onRegionChangeComplete={(region) =>
-          handleRegionChangeComplete(journeyStarted, setIsMapFocused, mapRef, userLocation)
-        }
         rotateEnabled={true}
         pitchEnabled={true}
       >
@@ -354,13 +356,26 @@ export default function Map() {
               setTravelTime,
               setDistance,
               setShowCard,
-              setJourneyStarted
+              setJourneyStarted,
+              setShowArrow,
+              setShowDetailsCard
             )
           }
         />
       )}
-      {journeyStarted && selectedPlace && travelTime && distance && (
-        <DetailsCard placeName={selectedPlace.name} travelTime={travelTime} distance={distance} />
+      {journeyStarted && selectedPlace && travelTime && distance && showDetailsCard && (
+        <DetailsCard
+          placeName={selectedPlace.name}
+          travelTime={travelTime}
+          distance={distance}
+          onSwipeOff={handleSwipeOff}
+          onArrowPress={handleArrowPress}
+        />
+      )}
+      {showArrow && (
+        <TouchableOpacity style={styles.arrowContainer} onPress={handleArrowPress}>
+          <FeatherIcon name={"more-horizontal"} size={22} color={NeutralColors.white}></FeatherIcon>
+        </TouchableOpacity>
       )}
       {journeyStarted && (
         <View style={styles.buttonContainer}>
@@ -374,6 +389,8 @@ export default function Map() {
                 setTravelTime,
                 setDistance,
                 setShowCard,
+                setShowDetailsCard,
+                setShowArrow,
                 setJourneyStarted
               )
             }
@@ -417,6 +434,22 @@ const styles = StyleSheet.create({
   cancelButtonText: {
     color: "white",
     fontSize: 18,
+    fontWeight: "bold",
+  },
+  arrowContainer: {
+    position: "absolute",
+    top: 20,
+    alignSelf: "center",
+    backgroundColor: Colors.primary,
+    borderRadius: 50,
+    width: 40,
+    height: 40,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  arrowText: {
+    color: "white",
+    fontSize: 24,
     fontWeight: "bold",
   },
 });

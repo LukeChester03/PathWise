@@ -1,35 +1,78 @@
-import React from "react";
-import { View, Text, Image, StyleSheet } from "react-native";
+import React, { useRef } from "react";
+import {
+  View,
+  Text,
+  Image,
+  StyleSheet,
+  Animated,
+  PanResponder,
+  TouchableOpacity,
+} from "react-native";
 import { Colors } from "../../constants/colours";
 
 interface DetailsCardProps {
   placeName: string;
   travelTime: string;
   distance: string;
+  onSwipeOff: () => void;
+  onArrowPress: () => void;
 }
 
-const DetailsCard: React.FC<DetailsCardProps> = ({ placeName, travelTime, distance }) => {
-  return (
-    <View style={styles.cardContainer}>
-      {/* GIF on the left */}
-      <Image source={require("../../assets/walking.gif")} style={styles.gif} />
+const DetailsCard: React.FC<DetailsCardProps> = ({
+  placeName,
+  travelTime,
+  distance,
+  onSwipeOff,
+  onArrowPress,
+}) => {
+  const pan = useRef(new Animated.ValueXY()).current;
 
-      {/* Text in a column to the right of the GIF */}
+  const panResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: () => true,
+      onPanResponderMove: Animated.event([null, { dx: pan.x }], { useNativeDriver: false }),
+      onPanResponderRelease: (e, gestureState) => {
+        if (gestureState.dx < -100) {
+          // Swipe left to dismiss
+          Animated.timing(pan, {
+            toValue: { x: -500, y: 0 },
+            duration: 200,
+            useNativeDriver: false,
+          }).start(() => {
+            onSwipeOff();
+            pan.setValue({ x: 0, y: 0 });
+          });
+        } else {
+          Animated.spring(pan, {
+            toValue: { x: 0, y: 0 },
+            useNativeDriver: false,
+          }).start();
+        }
+      },
+    })
+  ).current;
+
+  return (
+    <Animated.View
+      style={[styles.cardContainer, { transform: [{ translateX: pan.x }] }]}
+      {...panResponder.panHandlers}
+    >
+      <Image source={require("../../assets/walking.gif")} style={styles.gif} />
       <View style={styles.textContainer}>
         <Text style={styles.title}>Travelling to {placeName}</Text>
         <Text style={styles.info}>Time left: {travelTime}</Text>
         <Text style={styles.info}>Distance: {distance}</Text>
       </View>
-    </View>
+    </Animated.View>
   );
 };
 
 const styles = StyleSheet.create({
   cardContainer: {
     position: "absolute",
-    top: 20, // Position at the top of the screen
-    left: 20, // Position at the left of the screen
-    flexDirection: "row", // Align GIF and text horizontally
+    top: 20,
+    left: 20,
+    flexDirection: "row",
     backgroundColor: "white",
     borderRadius: 10,
     padding: 16,
@@ -52,19 +95,19 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   textContainer: {
-    flex: 1, // Take up remaining space
-    justifyContent: "center", // Center text vertically
+    flex: 1,
+    justifyContent: "center",
   },
   title: {
     fontSize: 16,
     fontWeight: "bold",
-    marginBottom: 8, // Add spacing between title and info
-    color: Colors.primary, // Use a primary color for emphasis
+    marginBottom: 8,
+    color: Colors.primary,
   },
   info: {
     fontSize: 14,
-    marginBottom: 6, // Add spacing between info lines
-    color: Colors.text, // Use a neutral color for info
+    marginBottom: 6,
+    color: Colors.text,
   },
 });
 
