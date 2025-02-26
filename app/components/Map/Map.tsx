@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from "react";
-import MapView, { PROVIDER_GOOGLE, Circle, Marker } from "react-native-maps";
-import { View, StyleSheet, ActivityIndicator, TouchableOpacity, Text } from "react-native";
+import MapView, { PROVIDER_GOOGLE, Circle, Marker, Camera } from "react-native-maps";
+import { View, StyleSheet, ActivityIndicator, TouchableOpacity, Text, Alert } from "react-native";
 import MapViewDirections from "react-native-maps-directions";
 import { initializeMap } from "../../controllers/Map/mapController";
 import {
@@ -9,14 +9,19 @@ import {
   handleCancel,
   handleRegionChangeComplete,
 } from "../../handlers/Map/mapHandlers";
-import { requestLocationPermission } from "../../controllers/Map/locationController";
+import {
+  requestLocationPermission,
+  watchUserLocation,
+} from "../../controllers/Map/locationController";
 import { Region, Place } from "../../types/MapTypes";
 import ExploreCard from "./ExploreCard";
 import DetailsCard from "./DetailsCard";
 import { Colors } from "../../constants/colours";
 import { customMapStyle } from "../../constants/mapStyle";
+import { haversineDistance } from "../../utils/mapUtils";
 
 const GOOGLE_MAPS_APIKEY = "AIzaSyDAGq_6eJGQpR3RcO0NrVOowel9-DxZkvA";
+const DESTINATION_REACHED_THRESHOLD = 10; // 10 meters
 
 export default function Map() {
   const [region, setRegion] = useState<Region | null>(null);
@@ -32,7 +37,14 @@ export default function Map() {
   const [journeyStarted, setJourneyStarted] = useState<boolean>(false);
   const [confirmEndJourney, setConfirmEndJourney] = useState<boolean>(false);
   const [userLocation, setUserLocation] = useState<Region | null>(null);
+  const [userHeading, setUserHeading] = useState<number | null>(null);
   const [isMapFocused, setIsMapFocused] = useState<boolean>(true);
+  const [locationWatcherCleanup, setLocationWatcherCleanup] = useState<(() => void) | null>(null);
+  const [destinationReached, setDestinationReached] = useState<boolean>(false);
+  const [previousPosition, setPreviousPosition] = useState<{
+    latitude: number;
+    longitude: number;
+  } | null>(null);
   const mapRef = useRef<MapView>(null);
 
   useEffect(() => {
@@ -47,6 +59,211 @@ export default function Map() {
     };
     init();
   }, []);
+
+  // Calculate heading based on current and previous positions
+  const calculateHeading = (
+    prevLat: number,
+    prevLng: number,
+    currentLat: number,
+    currentLng: number
+  ): number => {
+    // Convert to radians
+    const startLat = (prevLat * Math.PI) / 180;
+    const startLng = (prevLng * Math.PI) / 180;
+    const destLat = (currentLat * Math.PI) / 180;
+    const destLng = (currentLng * Math.PI) / 180;
+
+    // Calculate heading
+    const y = Math.sin(destLng - startLng) * Math.cos(destLat);
+    const x =
+      Math.cos(startLat) * Math.sin(destLat) -
+      Math.sin(startLat) * Math.cos(destLat) * Math.cos(destLng - startLng);
+    let bearing = (Math.atan2(y, x) * 180) / Math.PI;
+    bearing = (bearing + 360) % 360; // Normalize to 0-360
+    return bearing;
+  };
+
+  // Update map camera to follow user with correct orientation
+  const updateMapCamera = (location: Region, heading: number | null) => {
+    if (!mapRef.current || !journeyStarted) return;
+
+    const camera: Camera = {
+      center: {
+        latitude: location.latitude,
+        longitude: location.longitude,
+      },
+      pitch: 45, // Add some tilt for better navigation view
+      heading: heading || 0, // Use the calculated heading or default to north
+      altitude: 500, // Adjust for desired zoom level
+      zoom: 17, // Close enough to see streets clearly
+    };
+
+    mapRef.current.animateCamera(camera, { duration: 1000 });
+  };
+
+  // Setup location watcher when journey starts
+  useEffect(() => {
+    let cleanupFunction: (() => void) | null = null;
+
+    const startLocationTracking = async () => {
+      if (journeyStarted && selectedPlace && !locationWatcherCleanup) {
+        // Get high accuracy location updates
+        cleanupFunction = await watchUserLocation(
+          (newLocation) => {
+            setUserLocation(newLocation);
+
+            // Calculate heading if we have a previous position
+            if (previousPosition) {
+              const heading = calculateHeading(
+                previousPosition.latitude,
+                previousPosition.longitude,
+                newLocation.latitude,
+                newLocation.longitude
+              );
+
+              // Only update heading if there's significant movement (to avoid jitter)
+              const distance = haversineDistance(
+                previousPosition.latitude,
+                previousPosition.longitude,
+                newLocation.latitude,
+                newLocation.longitude
+              );
+
+              if (distance > 2) {
+                // Only update heading if moved more than 2 meters
+                setUserHeading(heading);
+                updateMapCamera(newLocation, heading);
+                setPreviousPosition({
+                  latitude: newLocation.latitude,
+                  longitude: newLocation.longitude,
+                });
+              }
+            } else {
+              // First position update
+              setPreviousPosition({
+                latitude: newLocation.latitude,
+                longitude: newLocation.longitude,
+              });
+              updateMapCamera(newLocation, userHeading);
+            }
+
+            // Check if user has reached destination
+            if (selectedPlace && !destinationReached) {
+              const distanceToDestination = haversineDistance(
+                newLocation.latitude,
+                newLocation.longitude,
+                selectedPlace.geometry.location.lat,
+                selectedPlace.geometry.location.lng
+              );
+
+              if (distanceToDestination <= DESTINATION_REACHED_THRESHOLD) {
+                setDestinationReached(true);
+                Alert.alert("Destination Reached!", `You have arrived at ${selectedPlace.name}!`, [
+                  {
+                    text: "OK",
+                    onPress: () => {
+                      // End the journey
+                      handleCancel(
+                        setConfirmEndJourney,
+                        setSelectedPlace,
+                        setRouteCoordinates,
+                        setTravelTime,
+                        setDistance,
+                        setShowCard,
+                        setJourneyStarted
+                      );
+                      setDestinationReached(false);
+                      setPreviousPosition(null);
+                      setUserHeading(null);
+
+                      // Clean up location watcher
+                      if (cleanupFunction) {
+                        cleanupFunction();
+                        setLocationWatcherCleanup(null);
+                      }
+                    },
+                  },
+                ]);
+              }
+            }
+          },
+          (error) => {
+            console.error("Error watching location:", error);
+            Alert.alert("Location Error", "Failed to track your location.");
+          }
+        );
+
+        setLocationWatcherCleanup(() => cleanupFunction);
+      }
+    };
+
+    if (journeyStarted && selectedPlace) {
+      startLocationTracking();
+    }
+
+    return () => {
+      if (locationWatcherCleanup) {
+        locationWatcherCleanup();
+        setLocationWatcherCleanup(null);
+      }
+    };
+  }, [journeyStarted, selectedPlace]);
+
+  // Clean up location watcher when journey ends
+  useEffect(() => {
+    if (!journeyStarted && locationWatcherCleanup) {
+      locationWatcherCleanup();
+      setLocationWatcherCleanup(null);
+      setPreviousPosition(null);
+      setUserHeading(null);
+    }
+  }, [journeyStarted]);
+
+  // Update location controller.ts to get heading information
+  useEffect(() => {
+    // Enhance watchUserLocation to get heading information from Location
+    const enhanceLocationWatching = async () => {
+      // This would ideally be an update to your locationController.ts file
+      // to modify the watchUserLocation function, but we're handling it here
+      // by keeping track of previous position and calculating heading ourselves
+    };
+
+    enhanceLocationWatching();
+  }, []);
+
+  const onStartJourney = async () => {
+    const hasPermission = await requestLocationPermission();
+    if (hasPermission) {
+      setShowCard(false);
+      setJourneyStarted(true);
+      setDestinationReached(false);
+
+      // Reset previous position and heading
+      setPreviousPosition(null);
+      setUserHeading(null);
+
+      // Initial map camera update without heading (will point north)
+      if (mapRef.current && userLocation) {
+        const initialCamera: Camera = {
+          center: {
+            latitude: userLocation.latitude,
+            longitude: userLocation.longitude,
+          },
+          pitch: 45,
+          heading: 0,
+          altitude: 1000,
+          zoom: 17,
+        };
+
+        mapRef.current.animateCamera(initialCamera, { duration: 500 });
+      }
+    } else {
+      Alert.alert(
+        "Location Permission Required",
+        "We need location permission to guide you to your destination."
+      );
+    }
+  };
 
   if (loading) {
     return (
@@ -67,11 +284,14 @@ export default function Map() {
         customMapStyle={customMapStyle}
         showsPointsOfInterest={false}
         showsUserLocation
-        showsMyLocationButton
+        showsMyLocationButton={!journeyStarted} // Hide during navigation
         provider={PROVIDER_GOOGLE}
+        followsUserLocation={journeyStarted}
         onRegionChangeComplete={(region) =>
           handleRegionChangeComplete(journeyStarted, setIsMapFocused, mapRef, userLocation)
         }
+        rotateEnabled={true}
+        pitchEnabled={true}
       >
         <Circle center={userLocation || region} radius={250} strokeColor={Colors.primary} />
         {markersToDisplay.map((place) => (
@@ -125,16 +345,7 @@ export default function Map() {
         <ExploreCard
           placeName={selectedPlace.name}
           travelTime={travelTime}
-          onStartJourney={() =>
-            handleStartJourney(
-              requestLocationPermission,
-              setShowCard,
-              setJourneyStarted,
-              setIsMapFocused,
-              mapRef,
-              userLocation
-            )
-          }
+          onStartJourney={onStartJourney}
           onCancel={() =>
             handleCancel(
               setConfirmEndJourney,
