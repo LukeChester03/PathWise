@@ -35,7 +35,7 @@ const FeaturesSection = ({ navigateToScreen }) => {
       title: "Places",
       description: "View and collect places you've visited to build your personal travel journal.",
       icon: "location",
-      screen: "Places",
+      screen: "Explore", // Changed from Places to match your navigation
       gradientColors: ["#FF7043", "#FF8A65"],
     },
   ];
@@ -43,6 +43,147 @@ const FeaturesSection = ({ navigateToScreen }) => {
   const onScroll = Animated.event([{ nativeEvent: { contentOffset: { x: scrollX } } }], {
     useNativeDriver: false,
   });
+
+  // Function to render decorative circles with different positions for each card
+  const renderCircles = (index, colors) => {
+    // Different circle arrangements based on card index
+    if (index === 0) {
+      // Discover card circles
+      return (
+        <>
+          <View
+            style={[
+              styles.backgroundCircle,
+              {
+                backgroundColor: colors[0],
+                width: 150,
+                height: 150,
+                top: -60,
+                right: -30,
+                opacity: 0.05,
+              },
+            ]}
+          />
+          <View
+            style={[
+              styles.backgroundCircle,
+              {
+                backgroundColor: colors[1],
+                width: 70,
+                height: 70,
+                bottom: -20,
+                left: 30,
+                opacity: 0.04,
+              },
+            ]}
+          />
+          <View
+            style={[
+              styles.backgroundCircle,
+              {
+                backgroundColor: colors[0],
+                width: 40,
+                height: 40,
+                top: 30,
+                left: 40,
+                opacity: 0.06,
+              },
+            ]}
+          />
+        </>
+      );
+    } else if (index === 1) {
+      // Learn card circles - adjusted positions to stay within bounds
+      return (
+        <>
+          <View
+            style={[
+              styles.backgroundCircle,
+              {
+                backgroundColor: colors[0],
+                width: 100,
+                height: 100,
+                top: 20,
+                right: -40,
+                opacity: 0.04,
+              },
+            ]}
+          />
+          <View
+            style={[
+              styles.backgroundCircle,
+              {
+                backgroundColor: colors[1],
+                width: 120,
+                height: 120,
+                bottom: -35, // Reduced from -50 to prevent extending card
+                right: 50,
+                opacity: 0.03,
+              },
+            ]}
+          />
+          <View
+            style={[
+              styles.backgroundCircle,
+              {
+                backgroundColor: colors[0],
+                width: 60,
+                height: 60,
+                top: -20,
+                left: 20,
+                opacity: 0.05,
+              },
+            ]}
+          />
+        </>
+      );
+    } else {
+      // Places card circles
+      return (
+        <>
+          <View
+            style={[
+              styles.backgroundCircle,
+              {
+                backgroundColor: colors[0],
+                width: 80,
+                height: 80,
+                top: -30,
+                left: -20,
+                opacity: 0.05,
+              },
+            ]}
+          />
+          <View
+            style={[
+              styles.backgroundCircle,
+              {
+                backgroundColor: colors[1],
+                width: 130,
+                height: 130,
+                bottom: -30,
+                right: -40,
+                opacity: 0.04,
+              },
+            ]}
+          />
+          <View
+            style={[
+              styles.backgroundCircle,
+              {
+                backgroundColor: colors[0],
+                width: 50,
+                height: 50,
+                top: 80,
+                left: 60,
+                opacity: 0.06,
+              },
+            ]}
+          />
+        </>
+      );
+    }
+  };
 
   const renderCard = ({ item, index }) => {
     const inputRange = [
@@ -71,30 +212,56 @@ const FeaturesSection = ({ navigateToScreen }) => {
           onPress={() => navigateToScreen(item.screen)}
           activeOpacity={0.95}
         >
+          {/* Render background circles with unique positions per card */}
+          {renderCircles(index, item.gradientColors)}
+
           <View style={styles.cardContent}>
-            <View style={styles.cardTop}>
+            <View style={styles.cardHeader}>
               <LinearGradient
                 colors={item.gradientColors}
                 style={styles.iconContainer}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
               >
-                <Ionicons name={item.icon} size={28} color="white" />
+                <Ionicons name={item.icon} size={24} color="white" />
               </LinearGradient>
               <Text style={styles.cardTitle}>{item.title}</Text>
             </View>
 
-            <Text style={styles.cardDescription}>{item.description}</Text>
+            <Text style={styles.cardDescription} numberOfLines={3}>
+              {item.description}
+            </Text>
 
-            <LinearGradient
-              colors={item.gradientColors}
-              style={styles.cardButton}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-            >
-              <Text style={styles.buttonText}>{item.title}</Text>
-              <Ionicons name="arrow-forward" size={18} color="#fff" style={styles.buttonIcon} />
-            </LinearGradient>
+            <View style={styles.cardFooter}>
+              <View style={styles.tapPromptContainer}>
+                <View
+                  style={[
+                    styles.tapPromptLine,
+                    { backgroundColor: item.gradientColors[0], opacity: 0.2 },
+                  ]}
+                />
+                <Text style={[styles.tapPromptText, { color: item.gradientColors[0] }]}>
+                  tap to explore
+                </Text>
+                <View
+                  style={[
+                    styles.tapPromptLine,
+                    { backgroundColor: item.gradientColors[0], opacity: 0.2 },
+                  ]}
+                />
+              </View>
+
+              <View style={styles.arrowContainer}>
+                <LinearGradient
+                  colors={item.gradientColors}
+                  style={styles.arrowButton}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                >
+                  <Ionicons name="arrow-forward" size={18} color="#fff" />
+                </LinearGradient>
+              </View>
+            </View>
           </View>
         </TouchableOpacity>
       </Animated.View>
@@ -150,57 +317,80 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
     borderRadius: 24,
     overflow: "hidden",
-    elevation: 3,
+    elevation: 2,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.07,
     shadowRadius: 8,
-    minHeight: 200,
+    height: 220, // Fixed height instead of minHeight
+    width: "100%",
+    position: "relative",
+  },
+  backgroundCircle: {
+    position: "absolute",
+    borderRadius: 100,
   },
   cardContent: {
     padding: 24,
+    height: "100%", // Use height instead of minHeight
     justifyContent: "space-between",
-    minHeight: 200,
+    zIndex: 1,
   },
-  cardTop: {
+  cardHeader: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 16,
+    marginBottom: 12,
   },
   iconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 16,
+    width: 44,
+    height: 44,
+    borderRadius: 14,
     justifyContent: "center",
     alignItems: "center",
-    marginRight: 16,
+    marginRight: 14,
   },
   cardTitle: {
     fontSize: 22,
     fontWeight: "700",
     color: "#333",
+    letterSpacing: 0.3,
   },
   cardDescription: {
     fontSize: 15,
     color: "#666",
     lineHeight: 22,
-    marginBottom: 24,
+    flex: 1,
+    paddingVertical: 6,
   },
-  cardButton: {
+  cardFooter: {
     flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  tapPromptContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  tapPromptLine: {
+    width: 20,
+    height: 1,
+  },
+  tapPromptText: {
+    fontSize: 12,
+    marginHorizontal: 8,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    fontWeight: "500",
+  },
+  arrowContainer: {
+    alignItems: "flex-end",
+  },
+  arrowButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
     justifyContent: "center",
     alignItems: "center",
-    borderRadius: 16,
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-  },
-  buttonText: {
-    color: "#fff",
-    fontWeight: "600",
-    fontSize: 16,
-  },
-  buttonIcon: {
-    marginLeft: 8,
   },
 });
 

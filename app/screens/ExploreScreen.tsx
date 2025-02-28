@@ -98,7 +98,7 @@ const ExploreScreen = ({ navigation }) => {
         <View style={styles.sectionContainer}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>My Places</Text>
-            <TouchableOpacity onPress={() => navigateToViewAll("myPlaces")}>
+            <TouchableOpacity onPress={() => navigateToViewAll("ViewAll")}>
               <Text style={styles.viewAllText}>View All</Text>
             </TouchableOpacity>
           </View>

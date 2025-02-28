@@ -1,5 +1,5 @@
 // components/Home/DiscoveredLocationsSection.js
-import React, { useRef } from "react";
+import React, { useRef, useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   Animated,
   Dimensions,
+  ActivityIndicator,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
@@ -17,60 +18,59 @@ const LOCATION_CARD_WIDTH = width * 0.4;
 const SPACING = 12;
 
 const DiscoveredLocationsSection = ({ navigateToScreen }) => {
+  const [discoveredLocations, setDiscoveredLocations] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
   const locationsScrollX = useRef(new Animated.Value(0)).current;
   const locationsListRef = useRef(null);
 
-  // Hard-coded discovered locations
-  const discoveredLocations = [
-    {
-      id: 1,
-      name: "Eiffel Tower",
-      city: "Paris",
-      image:
-        "https://images.unsplash.com/photo-1543349689-9a4d426bee8e?q=80&w=1501&auto=format&fit=crop",
-      date: "2 days ago",
-    },
-    {
-      id: 2,
-      name: "Colosseum",
-      city: "Rome",
-      image:
-        "https://images.unsplash.com/photo-1552832230-c0197dd311b5?q=80&w=1396&auto=format&fit=crop",
-      date: "1 week ago",
-    },
-    {
-      id: 3,
-      name: "Big Ben",
-      city: "London",
-      image:
-        "https://images.unsplash.com/photo-1500380804539-4e1e8c1e7118?q=80&w=1450&auto=format&fit=crop",
-      date: "2 weeks ago",
-    },
-    {
-      id: 4,
-      name: "Sagrada Familia",
-      city: "Barcelona",
-      image:
-        "https://images.unsplash.com/photo-1583779457094-ab6f9164f5e8?q=80&w=1374&auto=format&fit=crop",
-      date: "3 weeks ago",
-    },
-    {
-      id: 5,
-      name: "Acropolis",
-      city: "Athens",
-      image:
-        "https://images.unsplash.com/photo-1603565816030-6b389eeb23cb?q=80&w=1470&auto=format&fit=crop",
-      date: "1 month ago",
-    },
-    {
-      id: 6,
-      name: "Burj Khalifa",
-      city: "Dubai",
-      image:
-        "https://images.unsplash.com/photo-1582672060674-bc2bd808a8f5?q=80&w=1335&auto=format&fit=crop",
-      date: "1 month ago",
-    },
-  ];
+  useEffect(() => {
+    fetchUserDiscoveredLocations();
+  }, []);
+
+  // Function to fetch user's discovered locations from database
+  const fetchUserDiscoveredLocations = async () => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      // This would be your actual database fetch
+      // For now, we'll simulate a database call with a timeout
+      setTimeout(() => {
+        // For testing: set to empty array to see empty state
+        // Or fill with data to see populated state
+        const data = []; // Empty array for demonstration
+
+        // Uncomment the below line to test with data
+        /* 
+        const data = [
+          {
+            id: 1,
+            name: "Eiffel Tower",
+            city: "Paris",
+            image: "https://images.unsplash.com/photo-1543349689-9a4d426bee8e?q=80&w=1501&auto=format&fit=crop",
+            date: "2 days ago",
+          },
+          {
+            id: 2,
+            name: "Colosseum",
+            city: "Rome",
+            image: "https://images.unsplash.com/photo-1552832230-c0197dd311b5?q=80&w=1396&auto=format&fit=crop",
+            date: "1 week ago",
+          },
+        ]; 
+        */
+
+        setDiscoveredLocations(data);
+        setLoading(false);
+      }, 1000);
+    } catch (err) {
+      console.error("Error fetching discovered locations:", err);
+      setError("Unable to load your discovered locations");
+      setLoading(false);
+    }
+  };
 
   const onLocationsScroll = Animated.event(
     [{ nativeEvent: { contentOffset: { x: locationsScrollX } } }],
@@ -81,11 +81,11 @@ const DiscoveredLocationsSection = ({ navigateToScreen }) => {
 
   const renderLocationCard = ({ item, index }) => {
     // For the "View All" card at the end
-    if (index === discoveredLocations.length) {
+    if (item.id === "ViewAll") {
       return (
         <TouchableOpacity
           style={styles.viewAllCard}
-          onPress={() => navigateToScreen("Places")}
+          onPress={() => navigateToScreen("Explore")}
           activeOpacity={0.9}
         >
           <LinearGradient
@@ -131,13 +131,81 @@ const DiscoveredLocationsSection = ({ navigateToScreen }) => {
     );
   };
 
-  return (
-    <View style={styles.locationsContainer}>
-      <Text style={styles.sectionTitle}>Discovered Locations</Text>
+  // Ultra-modern empty state component
+  const renderEmptyState = () => {
+    return (
+      <TouchableOpacity
+        style={styles.emptyStateCard}
+        onPress={() => navigateToScreen("Discover")}
+        activeOpacity={0.9}
+      >
+        {/* Background circles */}
+        <View style={[styles.backgroundCircle, styles.circle1]} />
+        <View style={[styles.backgroundCircle, styles.circle2]} />
+        <View style={[styles.backgroundCircle, styles.circle3]} />
+        <View style={[styles.backgroundCircle, styles.circle4]} />
 
+        <View style={styles.emptyStateContent}>
+          <View style={styles.leftContainer}>
+            <View style={styles.iconContainer}>
+              <Ionicons name="compass" size={22} color="#fff" />
+            </View>
+          </View>
+
+          <View style={styles.middleContainer}>
+            <Text style={styles.emptyStateTitle}>Start your journey</Text>
+            <Text style={styles.emptyStateText}>Discover new places</Text>
+          </View>
+
+          <View style={styles.rightContainer}>
+            <View style={styles.arrowContainer}>
+              <Ionicons name="arrow-forward" size={18} color="#d03f74" />
+            </View>
+          </View>
+        </View>
+
+        {/* "Click to explore" text at the bottom */}
+        <View style={styles.clickPromptContainer}>
+          <View style={styles.clickPromptLine} />
+          <Text style={styles.clickPromptText}>tap to explore</Text>
+          <View style={styles.clickPromptLine} />
+        </View>
+      </TouchableOpacity>
+    );
+  };
+
+  const renderContent = () => {
+    if (loading) {
+      return (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="small" color="#d03f74" />
+          <Text style={styles.loadingText}>Loading your places...</Text>
+        </View>
+      );
+    }
+
+    if (error) {
+      return (
+        <View style={styles.errorContainer}>
+          <Ionicons name="alert-circle-outline" size={24} color="#d03f74" />
+          <Text style={styles.errorText}>{error}</Text>
+          <TouchableOpacity onPress={fetchUserDiscoveredLocations} style={styles.retryButton}>
+            <Text style={styles.retryText}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+
+    if (discoveredLocations.length === 0) {
+      return renderEmptyState();
+    }
+
+    const dataWithViewAll = [...discoveredLocations, { id: "ViewAll" }];
+
+    return (
       <Animated.FlatList
         ref={locationsListRef}
-        data={[...discoveredLocations, { id: "viewAll" }]}
+        data={dataWithViewAll}
         keyExtractor={(item) => item.id.toString()}
         renderItem={renderLocationCard}
         horizontal
@@ -150,6 +218,13 @@ const DiscoveredLocationsSection = ({ navigateToScreen }) => {
         snapToAlignment="start"
         bounces={true}
       />
+    );
+  };
+
+  return (
+    <View style={styles.locationsContainer}>
+      <Text style={styles.sectionTitle}>Discovered Locations</Text>
+      {renderContent()}
     </View>
   );
 };
@@ -255,6 +330,165 @@ const styles = StyleSheet.create({
     color: "#fff",
     opacity: 0.9,
     textAlign: "center",
+  },
+
+  // Ultra-modern empty state styles
+  emptyStateCard: {
+    width: "100%",
+    height: 180,
+    borderRadius: 16,
+    backgroundColor: "#ffffff",
+    overflow: "hidden",
+    position: "relative", // For background circles
+    justifyContent: "center",
+    alignItems: "center",
+    elevation: 1,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+  },
+  backgroundCircle: {
+    position: "absolute",
+    borderRadius: 100,
+    backgroundColor: "#d03f74",
+  },
+  circle1: {
+    width: 140,
+    height: 140,
+    top: -70,
+    right: -40,
+    opacity: 0.04,
+  },
+  circle2: {
+    width: 90,
+    height: 90,
+    bottom: -30,
+    left: -20,
+    opacity: 0.03,
+  },
+  circle3: {
+    width: 40,
+    height: 40,
+    top: 40,
+    left: 30,
+    opacity: 0.05,
+  },
+  circle4: {
+    width: 60,
+    height: 60,
+    top: -20,
+    left: 100,
+    opacity: 0.02,
+  },
+  emptyStateContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    width: "100%",
+    paddingHorizontal: 24,
+    zIndex: 1, // Above the circles
+  },
+  leftContainer: {
+    width: 42,
+    justifyContent: "center",
+  },
+  iconContainer: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: "#d03f74",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  middleContainer: {
+    flex: 1,
+    paddingHorizontal: 16,
+  },
+  emptyStateTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#333",
+    marginBottom: 4,
+  },
+  emptyStateText: {
+    fontSize: 14,
+    color: "#999",
+    letterSpacing: 0.3,
+  },
+  rightContainer: {
+    width: 40,
+    alignItems: "flex-end",
+  },
+  arrowContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(208, 63, 116, 0.08)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  clickPromptContainer: {
+    position: "absolute",
+    bottom: 16,
+    left: 0,
+    right: 0,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 1,
+  },
+  clickPromptLine: {
+    width: 30,
+    height: 1,
+    backgroundColor: "rgba(0,0,0,0.1)",
+  },
+  clickPromptText: {
+    fontSize: 12,
+    color: "#999",
+    marginHorizontal: 8,
+    textTransform: "uppercase",
+    letterSpacing: 1,
+  },
+
+  // Loading state styles
+  loadingContainer: {
+    height: 180,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#f9f9f9",
+    borderRadius: 16,
+  },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 14,
+    color: "#666",
+  },
+
+  // Error state styles
+  errorContainer: {
+    height: 180,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#f9f9f9",
+    borderRadius: 16,
+    padding: 20,
+  },
+  errorText: {
+    marginTop: 10,
+    fontSize: 14,
+    color: "#666",
+    textAlign: "center",
+    marginBottom: 14,
+  },
+  retryButton: {
+    backgroundColor: "#d03f74",
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+  },
+  retryText: {
+    color: "#fff",
+    fontWeight: "600",
   },
 });
 

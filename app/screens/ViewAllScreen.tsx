@@ -16,11 +16,12 @@ import { LinearGradient } from "expo-linear-gradient";
 import { fetchNearbyPlaces } from "../controllers/Map/placesController";
 import { getCurrentLocation } from "../controllers/Map/locationController";
 import { Colors, NeutralColors } from "../constants/colours";
+import { getPlaceCardImageUrl } from "../utils/mapImageUtils";
 
 const { width } = Dimensions.get("window");
 const GRID_CARD_WIDTH = (width - 48) / 2; // Two columns with margins
 
-const PlacesViewAllScreen = ({ route, navigation }) => {
+const ViewAllScreen = ({ route, navigation }) => {
   const { viewType = "nearbyPlaces" } = route.params || {};
   const [places, setPlaces] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -67,12 +68,7 @@ const PlacesViewAllScreen = ({ route, navigation }) => {
     navigation.navigate("Place", { placeId });
   };
 
-  const getPhotoUrl = (place) => {
-    const photoRef = place.photos && place.photos[0]?.photo_reference;
-    return photoRef
-      ? `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photoreference=${photoRef}&key=AIzaSyDAGq_6eJGQpR3RcO0NrVOowel9-DxZkvA`
-      : "https://via.placeholder.com/400?text=No+Image";
-  };
+  // Use our utility function to get place images
 
   // Render a grid item for nearby places
   const renderGridItem = ({ item }) => {
@@ -82,7 +78,10 @@ const PlacesViewAllScreen = ({ route, navigation }) => {
         onPress={() => navigateToPlaceDetails(item.place_id)}
         activeOpacity={0.9}
       >
-        <Image source={{ uri: getPhotoUrl(item) }} style={styles.gridImage} />
+        <Image
+          source={{ uri: getPlaceCardImageUrl(item, GRID_CARD_WIDTH, GRID_CARD_WIDTH * 1.2) }}
+          style={styles.gridImage}
+        />
         <LinearGradient colors={["transparent", "rgba(0,0,0,0.7)"]} style={styles.cardGradient} />
         <View style={styles.cardContent}>
           <Text style={styles.placeName} numberOfLines={2}>
@@ -107,7 +106,10 @@ const PlacesViewAllScreen = ({ route, navigation }) => {
         onPress={() => navigateToPlaceDetails(item.place_id)}
         activeOpacity={0.9}
       >
-        <Image source={{ uri: getPhotoUrl(item) }} style={styles.listImage} />
+        <Image
+          source={{ uri: getPlaceCardImageUrl(item, width - 32, 180) }}
+          style={styles.listImage}
+        />
         <LinearGradient colors={["transparent", "rgba(0,0,0,0.7)"]} style={styles.cardGradient} />
         <View style={styles.cardContent}>
           <Text style={styles.placeName}>{item.name}</Text>
@@ -145,7 +147,7 @@ const PlacesViewAllScreen = ({ route, navigation }) => {
           </Text>
           <TouchableOpacity
             style={styles.exploreButton}
-            onPress={() => navigation.navigate("Discover")}
+            onPress={() => navigation.navigate("Explore")}
           >
             <Text style={styles.exploreButtonText}>Explore Nearby Places</Text>
           </TouchableOpacity>
@@ -245,7 +247,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: NeutralColors.gray500,
+    borderBottomColor: NeutralColors.gray400,
   },
   backButton: {
     padding: 8,
@@ -419,4 +421,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default PlacesViewAllScreen;
+export default ViewAllScreen;

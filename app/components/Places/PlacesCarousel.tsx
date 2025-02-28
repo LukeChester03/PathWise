@@ -11,6 +11,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { Colors, NeutralColors } from "../../constants/colours";
+import { getPlaceCardImageUrl } from "../../utils/mapImageUtils";
 
 const { width } = Dimensions.get("window");
 const PLACE_CARD_WIDTH = width * 0.7;
@@ -20,13 +21,6 @@ const PlacesCarousel = ({ places, onPlacePress }) => {
   const scrollX = useRef(new Animated.Value(0)).current;
   const flatListRef = useRef(null);
 
-  const getPhotoUrl = (place) => {
-    const photoRef = place.photos && place.photos[0]?.photo_reference;
-    return photoRef
-      ? `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photoreference=${photoRef}&key=AIzaSyDAGq_6eJGQpR3RcO0NrVOowel9-DxZkvA`
-      : "https://via.placeholder.com/400?text=No+Image";
-  };
-
   const renderPlaceCard = ({ item, index }) => {
     return (
       <TouchableOpacity
@@ -34,7 +28,7 @@ const PlacesCarousel = ({ places, onPlacePress }) => {
         onPress={() => onPlacePress(item.place_id)}
         activeOpacity={0.9}
       >
-        <Image source={{ uri: getPhotoUrl(item) }} style={styles.placeImage} />
+        <Image source={{ uri: getPlaceCardImageUrl(item, 400, 180) }} style={styles.placeImage} />
         <LinearGradient colors={["transparent", "rgba(0,0,0,0.8)"]} style={styles.cardGradient} />
         <View style={styles.cardContent}>
           <Text style={styles.placeName} numberOfLines={1}>
