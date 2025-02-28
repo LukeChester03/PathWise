@@ -7,6 +7,8 @@ import ExploreScreen from "./screens/ExploreScreen";
 import LearnScreen from "./screens/LearnScreen";
 import MapScreen from "./screens/MapScreen";
 import LandingScreen from "./screens/LandingScreen";
+import ViewAllScreen from "./screens/ViewAllScreen";
+
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export default function Layout() {
@@ -22,6 +24,7 @@ export default function Layout() {
       <Stack.Screen name="Learn" component={LearnScreen} />
       <Stack.Screen name="Discover" component={MapScreen} />
       <Stack.Screen name="Landing" component={LandingScreen} />
+      <Stack.Screen name="ViewAll" component={ViewAllScreen} />
     </Stack.Navigator>
   );
 }

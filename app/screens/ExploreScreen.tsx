@@ -63,11 +63,7 @@ const ExploreScreen = ({ navigation }) => {
   };
 
   const navigateToViewAll = (type) => {
-    if (type === "myPlaces") {
-      navigation.navigate("MyPlacesAll");
-    } else {
-      navigation.navigate("NearbyPlacesAll");
-    }
+    navigation.navigate("ViewAll", { viewType: type });
   };
 
   const navigateToPlaceDetails = (placeId) => {

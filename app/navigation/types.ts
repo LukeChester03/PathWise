@@ -7,4 +7,5 @@ export type RootStackParamList = {
   Landing: undefined;
   Place: undefined;
   Search: undefined;
+  ViewAll: { viewType: "myPlaces" | "nearbyPlaces" };
 };
