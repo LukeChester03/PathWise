@@ -1,4 +1,4 @@
-// components/Home/FeaturesSection.js
+// components/Home/FeaturesSection.tsx
 import React, { useRef } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, Animated, Dimensions } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
@@ -8,16 +8,29 @@ const { width } = Dimensions.get("window");
 const CARD_WIDTH = width * 0.85;
 const SPACING = 12;
 
-const FeaturesSection = ({ navigateToScreen }) => {
-  const scrollX = useRef(new Animated.Value(0)).current;
-  const flatListRef = useRef(null);
+interface FeatureCard {
+  id: number;
+  title: string;
+  description: string;
+  icon: string;
+  screen: string;
+  gradientColors: [string, string];
+}
 
-  const featureCards = [
+interface FeaturesSectionProps {
+  navigateToScreen: (screen: string) => void;
+}
+
+const FeaturesSection: React.FC<FeaturesSectionProps> = ({ navigateToScreen }) => {
+  const scrollX = useRef(new Animated.Value(0)).current;
+  const flatListRef = useRef<Animated.FlatList<FeatureCard>>(null);
+
+  const featureCards: FeatureCard[] = [
     {
       id: 1,
       title: "Discover",
       description: "Explore new locations and get guided directions to exciting places around you.",
-      icon: "compass",
+      icon: "compass-outline",
       screen: "Discover",
       gradientColors: ["#4A90E2", "#5DA9FF"],
     },
@@ -26,7 +39,7 @@ const FeaturesSection = ({ navigateToScreen }) => {
       title: "Learn",
       description:
         "Get AI-powered information tailored to each location, like having a personal tour guide.",
-      icon: "sparkles",
+      icon: "sparkles-outline",
       screen: "Learn",
       gradientColors: ["#50C878", "#63E08C"],
     },
@@ -34,8 +47,8 @@ const FeaturesSection = ({ navigateToScreen }) => {
       id: 3,
       title: "Places",
       description: "View and collect places you've visited to build your personal travel journal.",
-      icon: "location",
-      screen: "Explore", // Changed from Places to match your navigation
+      icon: "location-outline",
+      screen: "Explore",
       gradientColors: ["#FF7043", "#FF8A65"],
     },
   ];
@@ -45,7 +58,7 @@ const FeaturesSection = ({ navigateToScreen }) => {
   });
 
   // Function to render decorative circles with different positions for each card
-  const renderCircles = (index, colors) => {
+  const renderCircles = (index: number, colors: [string, string]) => {
     // Different circle arrangements based on card index
     if (index === 0) {
       // Discover card circles
@@ -116,7 +129,7 @@ const FeaturesSection = ({ navigateToScreen }) => {
                 backgroundColor: colors[1],
                 width: 120,
                 height: 120,
-                bottom: -35, // Reduced from -50 to prevent extending card
+                bottom: -35,
                 right: 50,
                 opacity: 0.03,
               },
@@ -185,7 +198,7 @@ const FeaturesSection = ({ navigateToScreen }) => {
     }
   };
 
-  const renderCard = ({ item, index }) => {
+  const renderCard = ({ item, index }: { item: FeatureCard; index: number }) => {
     const inputRange = [
       (index - 1) * (CARD_WIDTH + SPACING * 2),
       index * (CARD_WIDTH + SPACING * 2),
@@ -212,57 +225,46 @@ const FeaturesSection = ({ navigateToScreen }) => {
           onPress={() => navigateToScreen(item.screen)}
           activeOpacity={0.95}
         >
-          {/* Render background circles with unique positions per card */}
-          {renderCircles(index, item.gradientColors)}
+          <LinearGradient
+            colors={[item.gradientColors[0], item.gradientColors[1]]}
+            style={styles.cardGradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+          >
+            {/* Render background circles with unique positions per card */}
+            {renderCircles(index, item.gradientColors)}
 
-          <View style={styles.cardContent}>
-            <View style={styles.cardHeader}>
-              <LinearGradient
-                colors={item.gradientColors}
-                style={styles.iconContainer}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-              >
-                <Ionicons name={item.icon} size={24} color="white" />
-              </LinearGradient>
-              <Text style={styles.cardTitle}>{item.title}</Text>
-            </View>
-
-            <Text style={styles.cardDescription} numberOfLines={3}>
-              {item.description}
-            </Text>
-
-            <View style={styles.cardFooter}>
-              <View style={styles.tapPromptContainer}>
-                <View
-                  style={[
-                    styles.tapPromptLine,
-                    { backgroundColor: item.gradientColors[0], opacity: 0.2 },
-                  ]}
-                />
-                <Text style={[styles.tapPromptText, { color: item.gradientColors[0] }]}>
-                  tap to explore
-                </Text>
-                <View
-                  style={[
-                    styles.tapPromptLine,
-                    { backgroundColor: item.gradientColors[0], opacity: 0.2 },
-                  ]}
-                />
+            <View style={styles.cardContent}>
+              <View style={styles.cardHeader}>
+                <View style={styles.iconContainer}>
+                  <Ionicons name={item.icon as any} size={24} color="white" />
+                </View>
+                <Text style={styles.cardTitle}>{item.title}</Text>
               </View>
 
-              <View style={styles.arrowContainer}>
-                <LinearGradient
-                  colors={item.gradientColors}
-                  style={styles.arrowButton}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                >
-                  <Ionicons name="arrow-forward" size={18} color="#fff" />
-                </LinearGradient>
+              <Text style={styles.cardDescription} numberOfLines={3}>
+                {item.description}
+              </Text>
+
+              <View style={styles.cardFooter}>
+                <View style={styles.tapPromptContainer}>
+                  <View
+                    style={[styles.tapPromptLine, { backgroundColor: "white", opacity: 0.3 }]}
+                  />
+                  <Text style={styles.tapPromptText}>tap to explore</Text>
+                  <View
+                    style={[styles.tapPromptLine, { backgroundColor: "white", opacity: 0.3 }]}
+                  />
+                </View>
+
+                <View style={styles.arrowContainer}>
+                  <View style={styles.arrowButton}>
+                    <Ionicons name="arrow-forward" size={18} color="#fff" />
+                  </View>
+                </View>
               </View>
             </View>
-          </View>
+          </LinearGradient>
         </TouchableOpacity>
       </Animated.View>
     );
@@ -272,7 +274,7 @@ const FeaturesSection = ({ navigateToScreen }) => {
     <View style={styles.featuresContainer}>
       <Text style={styles.sectionTitle}>Explore Features</Text>
 
-      <Animated.FlatList
+      <Animated.FlatList<FeatureCard>
         ref={flatListRef}
         data={featureCards}
         keyExtractor={(item) => item.id.toString()}
@@ -314,7 +316,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   card: {
-    backgroundColor: "#fff",
     borderRadius: 24,
     overflow: "hidden",
     elevation: 2,
@@ -322,9 +323,16 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.07,
     shadowRadius: 8,
-    height: 220, // Fixed height instead of minHeight
+    height: 220,
     width: "100%",
     position: "relative",
+  },
+  cardGradient: {
+    width: "100%",
+    height: "100%",
+    position: "absolute",
+    top: 0,
+    left: 0,
   },
   backgroundCircle: {
     position: "absolute",
@@ -332,7 +340,7 @@ const styles = StyleSheet.create({
   },
   cardContent: {
     padding: 24,
-    height: "100%", // Use height instead of minHeight
+    height: "100%",
     justifyContent: "space-between",
     zIndex: 1,
   },
@@ -348,16 +356,17 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     marginRight: 14,
+    backgroundColor: "rgba(255,255,255,0.2)",
   },
   cardTitle: {
     fontSize: 22,
     fontWeight: "700",
-    color: "#333",
+    color: "#fff",
     letterSpacing: 0.3,
   },
   cardDescription: {
     fontSize: 15,
-    color: "#666",
+    color: "rgba(255,255,255,0.9)",
     lineHeight: 22,
     flex: 1,
     paddingVertical: 6,
@@ -381,6 +390,7 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
     letterSpacing: 0.5,
     fontWeight: "500",
+    color: "white",
   },
   arrowContainer: {
     alignItems: "flex-end",
@@ -391,6 +401,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     justifyContent: "center",
     alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.2)",
   },
 });
 
