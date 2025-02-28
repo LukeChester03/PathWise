@@ -1,8 +1,7 @@
 // components/Home/HeaderSection.js
 import React from "react";
-import { View, Text, StyleSheet, Image } from "react-native";
+import { View, Text, StyleSheet, Image, TouchableOpacity } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import { SearchBar } from "../Global/SearchBar";
 
 const HeaderSection = ({ userName }) => {
   return (
@@ -23,11 +22,6 @@ const HeaderSection = ({ userName }) => {
       <View style={styles.welcomeTextContainer}>
         <Text style={styles.welcomeGreeting}>Hello,</Text>
         <Text style={styles.welcomeText}>{userName}</Text>
-      </View>
-
-      {/* Search Bar */}
-      <View style={styles.searchBarContainer}>
-        <SearchBar />
       </View>
     </View>
   );
@@ -76,6 +70,9 @@ const styles = StyleSheet.create({
   searchBarContainer: {
     paddingHorizontal: 20,
     paddingBottom: 20,
+  },
+  searchTouchable: {
+    width: "100%",
   },
 });
 

@@ -109,7 +109,7 @@ const DiscoveredLocationsSection = ({ navigateToScreen }) => {
     return (
       <TouchableOpacity
         style={styles.locationCard}
-        onPress={() => navigateToScreen("PlaceDetails")}
+        onPress={() => navigateToScreen("Explore")}
         activeOpacity={0.9}
       >
         <Image source={{ uri: item.image }} style={styles.locationImage} />

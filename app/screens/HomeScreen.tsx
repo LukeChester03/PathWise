@@ -13,8 +13,8 @@ const HomeScreen = () => {
   const navigation = useNavigation();
   const userName = "User";
 
-  const navigateToScreen = (screenName) => {
-    navigation.navigate(screenName);
+  const navigateToScreen = (screenName, params) => {
+    navigation.navigate(screenName, params);
   };
 
   return (
