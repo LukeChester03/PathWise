@@ -36,7 +36,6 @@ export default function Map() {
   const [distance, setDistance] = useState<string | null>(null);
   const [showCard, setShowCard] = useState<boolean>(false);
   const [showDetailsCard, setShowDetailsCard] = useState<boolean>(false);
-
   const [loading, setLoading] = useState<boolean>(true);
   const [journeyStarted, setJourneyStarted] = useState<boolean>(false);
   const [confirmEndJourney, setConfirmEndJourney] = useState<boolean>(false);
@@ -64,7 +63,7 @@ export default function Map() {
       }
     };
     init();
-  }, []);
+  }, [previousPosition]);
 
   // Calculate heading based on current and previous positions
   const calculateHeading = (
@@ -241,11 +240,11 @@ export default function Map() {
   };
 
   // Handle learn more action from destination card
-  const handleLearnMore = () => {
-    // You can navigate to a details page or show more information
-    // navigation.navigate("PlaceDetails", { placeId: selectedPlace?.place_id });
-    console.log("Learn more about", selectedPlace?.name);
-  };
+  // const handleLearnMore = () => {
+  //   // You can navigate to a details page or show more information
+  //   // navigation.navigate("PlaceDetails", { placeId: selectedPlace?.place_id });
+  //   console.log("Learn more about", selectedPlace?.name);
+  // };
 
   // Handle dismissal of destination card
   const handleDismissDestinationCard = () => {
