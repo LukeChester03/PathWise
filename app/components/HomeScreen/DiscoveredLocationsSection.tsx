@@ -231,18 +231,19 @@ const DiscoveredLocationsSection = ({ navigateToScreen }) => {
 
 const styles = StyleSheet.create({
   locationsContainer: {
-    paddingTop: 8,
-    paddingHorizontal: 20,
-    marginBottom: 24,
+    marginTop: 10,
+    marginBottom: 30,
+    width: "100%",
   },
   sectionTitle: {
     fontSize: 22,
     fontWeight: "bold",
     color: "#333",
-    marginBottom: 20,
+    marginBottom: 16,
   },
   locationsCarousel: {
-    paddingLeft: SPACING,
+    paddingVertical: 8,
+    paddingLeft: 0,
     paddingRight: SPACING,
   },
   locationCard: {
@@ -457,6 +458,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: "#f9f9f9",
     borderRadius: 16,
+    width: "100%",
   },
   loadingText: {
     marginTop: 10,
@@ -472,6 +474,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#f9f9f9",
     borderRadius: 16,
     padding: 20,
+    width: "100%",
   },
   errorText: {
     marginTop: 10,

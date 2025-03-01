@@ -1,6 +1,6 @@
 // HomeScreen.tsx
 import React, { useState, useEffect } from "react";
-import { SafeAreaView, ScrollView, StyleSheet } from "react-native";
+import { SafeAreaView, ScrollView, StyleSheet, View } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import ScreenWithNavBar from "../components/Global/ScreenWithNavbar";
 import { Colors } from "../constants/colours";
@@ -46,9 +46,12 @@ const HomeScreen = () => {
           bounces={false}
         >
           <HeaderSection userName={userName} profileImage={profileImage} />
-          <StatsSection />
-          <DiscoveredLocationsSection navigateToScreen={navigateToScreen} />
-          <FeaturesSection navigateToScreen={navigateToScreen} />
+
+          <View style={styles.contentContainer}>
+            <StatsSection />
+            <DiscoveredLocationsSection navigateToScreen={navigateToScreen} />
+            <FeaturesSection navigateToScreen={navigateToScreen} />
+          </View>
         </ScrollView>
       </SafeAreaView>
     </ScreenWithNavBar>
@@ -61,7 +64,13 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
   },
   scrollContent: {
+    flexGrow: 1,
     paddingBottom: 24,
+  },
+  contentContainer: {
+    flex: 1,
+    paddingHorizontal: 16,
+    marginTop: 16,
   },
 });
 

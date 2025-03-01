@@ -295,18 +295,19 @@ const FeaturesSection: React.FC<FeaturesSectionProps> = ({ navigateToScreen }) =
 
 const styles = StyleSheet.create({
   featuresContainer: {
-    flex: 1,
-    paddingTop: 8,
-    paddingHorizontal: 20,
+    width: "100%",
+    marginTop: 10,
+    marginBottom: 30,
   },
   sectionTitle: {
     fontSize: 22,
     fontWeight: "bold",
     color: "#333",
-    marginBottom: 20,
+    marginBottom: 16,
   },
   carouselContainer: {
-    paddingLeft: SPACING,
+    paddingVertical: 8,
+    paddingLeft: 0,
     paddingRight: width - CARD_WIDTH - SPACING,
     alignItems: "center",
   },

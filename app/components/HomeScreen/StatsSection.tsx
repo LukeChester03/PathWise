@@ -212,17 +212,18 @@ const StatsSection = () => {
 
 const styles = StyleSheet.create({
   statsContainer: {
-    paddingHorizontal: 20,
-    marginBottom: 24,
+    marginBottom: 30,
+    width: "100%",
   },
   sectionTitle: {
     fontSize: 22,
     fontWeight: "bold",
     color: "#333",
-    marginBottom: 20,
+    marginBottom: 16,
   },
   statsCarousel: {
-    paddingLeft: SPACING,
+    paddingVertical: 8,
+    paddingLeft: 0,
     paddingRight: width - STATS_CARD_WIDTH - SPACING,
     alignItems: "center",
   },
@@ -294,11 +295,14 @@ const styles = StyleSheet.create({
   emptyStateContainer: {
     alignItems: "center",
     justifyContent: "center",
+    width: "100%",
+    paddingVertical: 8,
   },
   loadingContainer: {
     alignItems: "center",
     justifyContent: "center",
     height: 120,
+    width: "100%",
   },
   loadingText: {
     fontSize: 16,

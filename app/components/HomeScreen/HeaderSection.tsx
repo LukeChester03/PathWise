@@ -65,10 +65,11 @@ const HeaderSection: React.FC<HeaderSectionProps> = ({
 
 const styles = StyleSheet.create({
   headerContainer: {
-    height: height * 0.3, // Responsive height
+    height: height * 0.25, // Slightly shorter for better proportions
     overflow: "hidden",
     position: "relative",
     backgroundColor: "rgba(0,0,0,0.1)", // Subtle overlay for text readability
+    width: "100%",
   },
   backgroundContainer: {
     position: "relative",
@@ -82,6 +83,7 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     resizeMode: "cover",
+    width: "100%",
   },
   backgroundOverlay: {
     position: "absolute",
@@ -94,8 +96,8 @@ const styles = StyleSheet.create({
   headerContent: {
     position: "relative",
     zIndex: 10,
-    paddingHorizontal: width * 0.05,
-    alignItems: "center",
+    paddingHorizontal: 24,
+    alignItems: "flex-start",
     width: "100%",
     height: "100%",
     justifyContent: "center",
@@ -106,40 +108,40 @@ const styles = StyleSheet.create({
     maxWidth: "100%",
   },
   avatarContainer: {
-    marginRight: width * 0.05,
+    marginRight: 20,
   },
   avatarImage: {
-    width: width * 0.2,
-    height: width * 0.2,
-    borderRadius: width * 0.1,
+    width: width * 0.18,
+    height: width * 0.18,
+    borderRadius: width * 0.09,
     borderWidth: 2,
     borderColor: "rgba(255,255,255,0.8)",
   },
   avatarPlaceholder: {
-    width: width * 0.2,
-    height: width * 0.2,
-    borderRadius: width * 0.1,
+    width: width * 0.18,
+    height: width * 0.18,
+    borderRadius: width * 0.09,
     backgroundColor: "rgba(255,255,255,0.3)",
     justifyContent: "center",
     alignItems: "center",
   },
   avatarPlaceholderText: {
     color: "white",
-    fontSize: width * 0.08,
+    fontSize: width * 0.07,
     fontWeight: "600",
   },
   welcomeTextContainer: {
     justifyContent: "center",
-    maxWidth: "80%",
+    maxWidth: "70%",
   },
   welcomeGreeting: {
-    fontSize: 24,
-    color: "rgba(255,255,255,0.8)",
-    marginBottom: 5,
+    fontSize: 22,
+    color: "rgba(255,255,255,0.9)",
+    marginBottom: 4,
     fontWeight: "300",
   },
   welcomeText: {
-    fontSize: 32,
+    fontSize: 28,
     fontWeight: "700",
     color: "#fff",
     letterSpacing: 0.5,
