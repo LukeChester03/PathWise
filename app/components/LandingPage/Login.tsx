@@ -10,9 +10,9 @@ import {
   ActivityIndicator,
   Alert,
 } from "react-native";
-import { Colors, NeutralColors } from "../constants/colours";
-import { handleLogin } from "../controllers/Login/LoginController";
-import { Button } from "./Global/Button";
+import { Colors, NeutralColors } from "../../constants/colours";
+import { handleLogin } from "../../controllers/Login/LoginController";
+// import { Button } from "../Global/Button";
 import ForgotPasswordModal from "./ForgotPasswordModal";
 
 interface LoginComponentProps {
@@ -133,6 +133,7 @@ export default function LoginComponent({
 const styles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
+    width: "100%",
     justifyContent: "flex-end", // Center the modal vertically
     alignItems: "center", // Center the modal horizontally
   },

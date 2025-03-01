@@ -1,88 +1,114 @@
 import React from "react";
 import { View, TouchableOpacity, StyleSheet, Text } from "react-native";
 import { useNavigation, useNavigationState } from "@react-navigation/native";
-import Icon from "react-native-vector-icons/Ionicons";
+import FeatherIcon from "react-native-vector-icons/Feather";
 import { RootStackParamList } from "../../navigation/types";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { Colors, NeutralColors } from "../../constants/colours";
+
+// Assuming you have these colors defined in your project
+const border = {
+  stroke: "#EEEEEE",
+};
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 const NavBar = () => {
   const navigation = useNavigation<NavigationProp>();
+  const insets = useSafeAreaInsets();
   const currentRoute = useNavigationState((state) => {
     const route = state.routes[state.index];
     return route.name;
   });
 
-  const insets = useSafeAreaInsets(); // Get safe area insets
-
   const navItems = [
-    { id: "map", icon: "map-outline", screen: "Map" },
-    { id: "explore", icon: "compass-outline", screen: "Explore" },
-    { id: "home", icon: "home-outline", screen: "Home" },
-    { id: "learn", icon: "book-outline", screen: "Learn" },
-    { id: "profile", icon: "person-outline", screen: "Profile" },
+    { id: "home", icon: "home", screen: "Home", label: "Home" },
+    { id: "discover", icon: "compass", screen: "Discover", label: "Discover" },
+    { id: "explore", icon: "map-pin", screen: "Explore", label: "Places" },
+    { id: "learn", icon: "book-open", screen: "Learn", label: "Learn" },
+    { id: "profile", icon: "user", screen: "Profile", label: "Profile" },
   ];
 
   return (
-    <SafeAreaView
-      edges={["bottom"]} // Ensure the bottom edge is handled
-      style={[styles.container, { paddingBottom: insets.bottom }]} // Add padding for the safe area
-    >
+    <SafeAreaView edges={["bottom"]} style={[styles.container, { paddingBottom: insets.bottom }]}>
       <View style={styles.innerContainer}>
-        {navItems.map((item) => (
-          <TouchableOpacity
-            key={item.id}
-            style={styles.navItem}
-            onPress={() => navigation.navigate(item.screen as keyof RootStackParamList)}
-          >
-            <Icon
-              name={item.icon}
-              size={currentRoute === item.screen ? 40 : 24}
-              color={currentRoute === item.screen ? NeutralColors.white : NeutralColors.white}
-            />
-            <Text
-              style={{
-                color: currentRoute === item.screen ? NeutralColors.white : Colors.background,
-                fontSize: currentRoute === item.screen ? 18 : 16,
-              }}
+        {navItems.map((item) => {
+          const isActive = currentRoute === item.screen;
+
+          return (
+            <TouchableOpacity
+              key={item.id}
+              style={styles.navItem}
+              onPress={() => navigation.navigate(item.screen as keyof RootStackParamList)}
             >
-              {item.screen}
-            </Text>
-          </TouchableOpacity>
-        ))}
+              <View style={[styles.iconContainer, isActive && styles.activeIconContainer]}>
+                <FeatherIcon
+                  name={item.icon}
+                  size={22}
+                  color={isActive ? Colors.primary : NeutralColors.black}
+                />
+              </View>
+              <Text style={[styles.label, isActive && styles.activeLabel]}>{item.label}</Text>
+              {isActive && <View style={styles.indicator} />}
+            </TouchableOpacity>
+          );
+        })}
       </View>
     </SafeAreaView>
   );
 };
 
-export default NavBar;
-
-// Styles
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: Colors.primary,
+    backgroundColor: NeutralColors.white,
     borderTopWidth: 1,
-    opacity: 5,
-    borderTopColor: "#ddd",
+    borderTopColor: border.stroke,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 5,
-    elevation: 3,
-    marginBottom: -48,
+    shadowOffset: { width: 0, height: -3 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 5,
+    width: "100%",
   },
   innerContainer: {
     flexDirection: "row",
     justifyContent: "space-around",
-    alignItems: "center",
-    paddingVertical: 10,
+    paddingVertical: 12,
   },
   navItem: {
     alignItems: "center",
     justifyContent: "center",
+    position: "relative",
+  },
+  iconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  activeIconContainer: {
+    backgroundColor: `${Colors.primary}10`, // 10% opacity of primary color
+  },
+  label: {
+    fontSize: 12,
+    marginTop: 4,
+    color: NeutralColors.black,
+    fontWeight: "500",
+  },
+  activeLabel: {
+    color: Colors.primary,
+    fontWeight: "600",
+  },
+  indicator: {
+    position: "absolute",
+    bottom: -12,
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: Colors.primary,
   },
 });
+
+export default NavBar;

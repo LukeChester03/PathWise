@@ -10,8 +10,8 @@ import {
   ActivityIndicator,
   Alert,
 } from "react-native";
-import { Colors, NeutralColors } from "../constants/colours";
-import { handleResetPassword } from "../controllers/ForgotPassword/ResetPasswordController"; // Import reset password handler
+import { Colors, NeutralColors } from "../../constants/colours";
+import { handleResetPassword } from "../../controllers/ForgotPassword/ResetPasswordController"; // Import reset password handler
 
 interface ResetPasswordModalProps {
   visible: boolean; // Controls modal visibility

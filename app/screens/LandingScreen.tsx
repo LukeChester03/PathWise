@@ -9,8 +9,8 @@ import {
   TouchableWithoutFeedback,
   Image, // Import this for handling taps outside the modal
 } from "react-native";
-import LoginComponent from "../components/Login"; // Import the LoginComponent
-import RegisterModal from "../components/Register"; // Import the RegisterModal
+import LoginComponent from "../components/LandingPage/Login"; // Import the LoginComponent
+import RegisterModal from "../components/LandingPage/Register"; // Import the RegisterModal
 import { Colors, NeutralColors } from "../constants/colours";
 
 const LandingScreen = ({ navigation }: { navigation: any }) => {

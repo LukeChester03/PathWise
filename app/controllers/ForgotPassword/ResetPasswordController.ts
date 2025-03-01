@@ -14,7 +14,6 @@ export const handleResetPassword = async (
     }
 
     // Send password reset email using Firebase
-    await auth().sendPasswordResetEmail(email);
 
     // Trigger success callback
     onSuccess();

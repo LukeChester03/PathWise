@@ -1,11 +1,8 @@
 export type RootStackParamList = {
-  Login: undefined;
-  Register: undefined;
-  ForgotPassword: undefined;
   Home: undefined;
   Profile: undefined;
   Explore: undefined;
   Learn: undefined;
-  Map: undefined;
+  Discover: undefined;
   Landing: undefined;
 };

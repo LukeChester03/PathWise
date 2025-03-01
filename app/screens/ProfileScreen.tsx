@@ -64,14 +64,6 @@ const ProfileScreen = () => {
 
         {/* Action Buttons */}
         <View style={styles.actionsContainer}>
-          {/* Change Password Button */}
-          <TouchableOpacity
-            style={[styles.button, styles.changePasswordButton]}
-            onPress={() => navigation.navigate("ForgotPassword")} // Replace with your ForgotPassword screen
-          >
-            <Text style={styles.buttonText}>Change Password</Text>
-          </TouchableOpacity>
-
           {/* Save Changes Button */}
           <TouchableOpacity
             style={[styles.button, styles.saveChangesButton]}

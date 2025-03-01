@@ -2,7 +2,6 @@
 import React from "react";
 import { SafeAreaView, StatusBar } from "react-native";
 import Layout from "./_layout";
-import LoginScreen from "./screens/LoginScreen";
 import { NavigationContainer } from "@react-navigation/native";
 
 export default function Index() {
