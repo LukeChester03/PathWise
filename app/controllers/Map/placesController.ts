@@ -46,7 +46,7 @@ export const fetchNearbyPlaces = async (
 
     // First try with rankby=distance (no radius parameter allowed)
     const response = await fetch(
-      `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${latitude},${longitude}&type=tourist_attraction&keyword=tourist,park,museum,attraction,landmark,sightseeing&rankby=distance&key=AIzaSyDAGq_6eJGQpR3RcO0NrVOowel9-DxZkvA`
+      `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${latitude},${longitude}&type=tourist_attraction|museum|park|point_of_interest|art_gallery|church|natural_feature&keyword=attraction|landmark|culture|heritage|nature|park&rankby=distance&key=AIzaSyDAGq_6eJGQpR3RcO0NrVOowel9-DxZkvA`
     );
 
     const data = await response.json();

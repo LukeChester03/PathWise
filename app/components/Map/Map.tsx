@@ -498,6 +498,12 @@ export default function Map() {
           placeName={selectedPlace.name}
           travelTime={travelTime}
           onStartJourney={onStartJourney}
+          placeDescription={selectedPlace.description}
+          placeImage={
+            selectedPlace.photos && selectedPlace.photos.length > 0
+              ? `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photoreference=${selectedPlace.photos[0].photo_reference}&key=${GOOGLE_MAPS_APIKEY}`
+              : undefined
+          }
           onCancel={() =>
             handleCancel(
               setConfirmEndJourney,
