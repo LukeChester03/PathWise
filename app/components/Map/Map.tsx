@@ -514,6 +514,7 @@ export default function Map() {
           placeName={selectedPlace.name}
           travelTime={travelTime}
           onStartJourney={onStartJourney}
+          visible={showCard}
           placeDescription={selectedPlace.description}
           placeImage={
             selectedPlace.photos && selectedPlace.photos.length > 0
@@ -586,6 +587,7 @@ export default function Map() {
             placeName={selectedPlace.name}
             onLearnMorePress={handleLearnMore}
             onDismiss={handleDismissDestinationCard}
+            visible={true}
           />
         </View>
       )}

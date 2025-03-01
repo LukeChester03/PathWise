@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useRef, useEffect } from "react";
 import {
   View,
   Text,
@@ -7,6 +7,8 @@ import {
   TouchableOpacity,
   ScrollView,
   Dimensions,
+  Animated,
+  Easing,
 } from "react-native";
 import { Colors, NeutralColors } from "../../constants/colours";
 import { LinearGradient } from "expo-linear-gradient";
@@ -19,6 +21,7 @@ interface ExploreCardProps {
   travelTime: string;
   onStartJourney: () => void;
   onCancel: () => void;
+  visible?: boolean;
 }
 
 const { width, height } = Dimensions.get("window");
@@ -30,12 +33,218 @@ const ExploreCard: React.FC<ExploreCardProps> = ({
   travelTime,
   onStartJourney,
   onCancel,
+  visible = false,
 }) => {
+  // Animation values
+  const backdropAnim = useRef(new Animated.Value(0)).current;
+  const cardScaleAnim = useRef(new Animated.Value(0.8)).current;
+  const imageAnim = useRef(new Animated.Value(0)).current;
+  const titleAnim = useRef(new Animated.Value(0)).current;
+  const contentAnim = useRef(new Animated.Value(0)).current;
+  const badgeAnim = useRef(new Animated.Value(0)).current;
+  const buttonAnim = useRef(new Animated.Value(0)).current;
+
+  // Button press animations
+  const startBtnScale = useRef(new Animated.Value(1)).current;
+  const dismissBtnScale = useRef(new Animated.Value(1)).current;
+
+  // Badge pulse animation
+  const badgePulse = useRef(new Animated.Value(1)).current;
+
+  // Compass icon rotation
+  const compassRotate = useRef(new Animated.Value(0)).current;
+
+  // Start animations when card becomes visible
+  useEffect(() => {
+    if (visible) {
+      // Reset animation values
+      backdropAnim.setValue(0);
+      cardScaleAnim.setValue(0.8);
+      imageAnim.setValue(0);
+      titleAnim.setValue(0);
+      contentAnim.setValue(0);
+      badgeAnim.setValue(0);
+      buttonAnim.setValue(0);
+
+      // Sequence of animations
+      Animated.sequence([
+        // First fade in the backdrop
+        Animated.timing(backdropAnim, {
+          toValue: 1,
+          duration: 100,
+          useNativeDriver: true,
+          easing: Easing.out(Easing.ease),
+        }),
+
+        // Then scale up the card with a spring effect
+        Animated.spring(cardScaleAnim, {
+          toValue: 1,
+          friction: 7,
+          tension: 50,
+          useNativeDriver: true,
+        }),
+
+        // Then animate in the image
+        Animated.timing(imageAnim, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+          easing: Easing.out(Easing.ease),
+        }),
+
+        // Then animate the title
+        Animated.timing(titleAnim, {
+          toValue: 1,
+          duration: 200,
+          useNativeDriver: true,
+          easing: Easing.out(Easing.back(1.5)),
+        }),
+
+        // Then animate the content elements in parallel
+        Animated.parallel([
+          // Badge animation
+          Animated.timing(badgeAnim, {
+            toValue: 1,
+            duration: 200,
+            useNativeDriver: true,
+            easing: Easing.out(Easing.back(1.7)),
+          }),
+
+          // Content fade in and slide up
+          Animated.timing(contentAnim, {
+            toValue: 1,
+            duration: 300,
+            useNativeDriver: true,
+            easing: Easing.out(Easing.ease),
+          }),
+
+          // Button animation with delay
+          Animated.timing(buttonAnim, {
+            toValue: 1,
+            duration: 200,
+            delay: 100,
+            useNativeDriver: true,
+            easing: Easing.out(Easing.ease),
+          }),
+        ]),
+      ]).start();
+    }
+  }, [visible]);
+
+  // Calculate compass rotation
+  const spin = compassRotate.interpolate({
+    inputRange: [0, 1],
+    outputRange: ["0deg", "360deg"],
+  });
+
+  // Button press animations
+  const handleStartPressIn = () => {
+    Animated.spring(startBtnScale, {
+      toValue: 0.95,
+      friction: 5,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const handleStartPressOut = () => {
+    Animated.spring(startBtnScale, {
+      toValue: 1,
+      friction: 5,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const handleDismissPressIn = () => {
+    Animated.spring(dismissBtnScale, {
+      toValue: 0.95,
+      friction: 5,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const handleDismissPressOut = () => {
+    Animated.spring(dismissBtnScale, {
+      toValue: 1,
+      friction: 5,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  // Handle start journey with exit animation
+  const handleStartJourney = () => {
+    Animated.parallel([
+      Animated.timing(backdropAnim, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+        easing: Easing.in(Easing.ease),
+      }),
+      Animated.timing(cardScaleAnim, {
+        toValue: 1.1,
+        duration: 300,
+        useNativeDriver: true,
+        easing: Easing.out(Easing.ease),
+      }),
+    ]).start(() => {
+      onStartJourney();
+    });
+  };
+
+  // Handle cancel with exit animation
+  const handleCancel = () => {
+    Animated.parallel([
+      Animated.timing(backdropAnim, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+        easing: Easing.in(Easing.ease),
+      }),
+      Animated.timing(cardScaleAnim, {
+        toValue: 0.8,
+        duration: 300,
+        useNativeDriver: true,
+        easing: Easing.in(Easing.ease),
+      }),
+    ]).start(() => {
+      onCancel();
+    });
+  };
+
+  // Don't render anything if not visible and animation has completed
+  if (!visible) {
+    return null;
+  }
+
   return (
-    <View style={styles.overlay}>
-      <View style={styles.cardContainer}>
+    <Animated.View
+      style={[
+        styles.overlay,
+        {
+          opacity: backdropAnim,
+          backgroundColor: backdropAnim.interpolate({
+            inputRange: [0, 1],
+            outputRange: ["rgba(0, 0, 0, 0)", "rgba(0, 0, 0, 0.7)"],
+          }),
+        },
+      ]}
+    >
+      <Animated.View
+        style={[
+          styles.cardContainer,
+          {
+            transform: [{ scale: cardScaleAnim }],
+          },
+        ]}
+      >
         {/* Header Image with Gradient Overlay */}
-        <View style={styles.imageContainer}>
+        <Animated.View
+          style={[
+            styles.imageContainer,
+            {
+              opacity: imageAnim,
+            },
+          ]}
+        >
           <Image
             source={placeImage ? { uri: placeImage } : require("../../assets/discover.png")}
             style={styles.headerImage}
@@ -45,10 +254,25 @@ const ExploreCard: React.FC<ExploreCardProps> = ({
             colors={["transparent", "rgba(0,0,0,0.7)"]}
             style={styles.imageGradient}
           />
-          <View style={styles.imageTitleContainer}>
+          <Animated.View
+            style={[
+              styles.imageTitleContainer,
+              {
+                opacity: titleAnim,
+                transform: [
+                  {
+                    translateY: titleAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [20, 0],
+                    }),
+                  },
+                ],
+              },
+            ]}
+          >
             <Text style={styles.imageTitle}>{placeName}</Text>
-          </View>
-        </View>
+          </Animated.View>
+        </Animated.View>
 
         {/* Content Container */}
         <ScrollView
@@ -58,36 +282,118 @@ const ExploreCard: React.FC<ExploreCardProps> = ({
         >
           <View style={styles.content}>
             {/* Discovery Badge */}
-            <View style={styles.badgeContainer}>
-              <Ionicons name="compass" size={16} color="white" />
+            <Animated.View
+              style={[
+                styles.badgeContainer,
+                {
+                  opacity: badgeAnim,
+                  transform: [
+                    { scale: badgePulse },
+                    {
+                      translateX: badgeAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [-20, 0],
+                      }),
+                    },
+                  ],
+                },
+              ]}
+            >
+              <Animated.View style={{ transform: [{ rotate: spin }] }}>
+                <Ionicons name="compass" size={16} color="white" />
+              </Animated.View>
               <Text style={styles.badgeText}>New Discovery</Text>
-            </View>
+            </Animated.View>
 
             {/* Place Description */}
-            {placeDescription && <Text style={styles.description}>{placeDescription}</Text>}
+            {placeDescription && (
+              <Animated.Text
+                style={[
+                  styles.description,
+                  {
+                    opacity: contentAnim,
+                    transform: [
+                      {
+                        translateY: contentAnim.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [20, 0],
+                        }),
+                      },
+                    ],
+                  },
+                ]}
+              >
+                {placeDescription}
+              </Animated.Text>
+            )}
 
             {/* Travel Info Card */}
-            <View style={styles.travelInfoCard}>
+            <Animated.View
+              style={[
+                styles.travelInfoCard,
+                {
+                  opacity: contentAnim,
+                  transform: [
+                    {
+                      translateY: contentAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [20, 0],
+                      }),
+                    },
+                  ],
+                },
+              ]}
+            >
               <Ionicons name="time-outline" size={22} color={Colors.primary} />
               <View style={styles.travelInfoTextContainer}>
                 <Text style={styles.travelInfoLabel}>Travel time</Text>
                 <Text style={styles.travelInfoValue}>{travelTime}</Text>
               </View>
-            </View>
+            </Animated.View>
 
             {/* Action Buttons */}
-            <TouchableOpacity style={styles.discoverButton} onPress={onStartJourney}>
-              <Ionicons name="navigate" size={20} color="white" style={styles.buttonIcon} />
-              <Text style={styles.discoverButtonText}>Start Journey</Text>
-            </TouchableOpacity>
+            <Animated.View
+              style={{
+                opacity: buttonAnim,
+                transform: [
+                  {
+                    translateY: buttonAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [20, 0],
+                    }),
+                  },
+                ],
+              }}
+            >
+              <Animated.View style={{ transform: [{ scale: startBtnScale }] }}>
+                <TouchableOpacity
+                  style={styles.discoverButton}
+                  onPress={handleStartJourney}
+                  onPressIn={handleStartPressIn}
+                  onPressOut={handleStartPressOut}
+                  activeOpacity={1}
+                >
+                  <Ionicons name="navigate" size={20} color="white" style={styles.buttonIcon} />
+                  <Text style={styles.discoverButtonText}>Start Journey</Text>
+                </TouchableOpacity>
+              </Animated.View>
 
-            <TouchableOpacity style={styles.dismissButton} onPress={onCancel}>
-              <Text style={styles.dismissButtonText}>Maybe Later</Text>
-            </TouchableOpacity>
+              <Animated.View style={{ transform: [{ scale: dismissBtnScale }] }}>
+                <TouchableOpacity
+                  style={styles.dismissButton}
+                  onPress={handleCancel}
+                  onPressIn={handleDismissPressIn}
+                  onPressOut={handleDismissPressOut}
+                  activeOpacity={1}
+                >
+                  <Text style={styles.dismissButtonText}>Maybe Later</Text>
+                </TouchableOpacity>
+              </Animated.View>
+            </Animated.View>
           </View>
         </ScrollView>
-      </View>
-    </View>
+      </Animated.View>
+    </Animated.View>
   );
 };
 
@@ -98,9 +404,9 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: "rgba(0, 0, 0, 0.7)",
     justifyContent: "center",
     alignItems: "center",
+    zIndex: 1000,
   },
   cardContainer: {
     width: width * 0.85,
