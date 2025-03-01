@@ -13,10 +13,13 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
+import { collection, getDocs } from "firebase/firestore";
+import { auth, db } from "../config/firebaseConfig";
 import { fetchNearbyPlaces } from "../controllers/Map/placesController";
 import { getCurrentLocation } from "../controllers/Map/locationController";
 import { Colors, NeutralColors } from "../constants/colours";
 import { getPlaceCardImageUrl } from "../utils/mapImageUtils";
+import { formatDistanceToNow } from "date-fns"; // Make sure to install this package
 
 const { width } = Dimensions.get("window");
 const GRID_CARD_WIDTH = (width - 48) / 2; // Two columns with margins
@@ -40,10 +43,8 @@ const ViewAllScreen = ({ route, navigation }) => {
       setError(null);
 
       if (viewType === "myPlaces") {
-        // For My Places, we'd typically fetch from a database
-        // For now, showing empty state as required
-        setPlaces([]);
-        setLoading(false);
+        // Fetch visited places from Firestore
+        await fetchVisitedPlacesFromFirestore();
       } else {
         // For Nearby Places, fetch from Google Places API
         const location = await getCurrentLocation();
@@ -69,8 +70,72 @@ const ViewAllScreen = ({ route, navigation }) => {
     }
   };
 
+  // New function to fetch user's visited places from Firestore
+  const fetchVisitedPlacesFromFirestore = async () => {
+    try {
+      // Check if user is authenticated
+      const currentUser = auth.currentUser;
+      if (!currentUser) {
+        console.log("No authenticated user found");
+        setPlaces([]);
+        setLoading(false);
+        return;
+      }
+
+      // Use the user's visited places subcollection
+      const userVisitedPlacesRef = collection(db, "users", currentUser.uid, "visitedPlaces");
+      const querySnapshot = await getDocs(userVisitedPlacesRef);
+
+      if (querySnapshot.empty) {
+        console.log("No saved places found in Firestore");
+        setPlaces([]);
+      } else {
+        // Transform Firestore documents to place objects
+        const userPlacesData = querySnapshot.docs.map((doc) => {
+          const data = doc.data();
+
+          return {
+            id: doc.id,
+            place_id: data.place_id,
+            name: data.name,
+            vicinity: data.vicinity || "",
+            description: data.description || "",
+            geometry: data.geometry,
+            photos: data.photos || [],
+            // Format the visited date for display
+            visitedAt: data.visitedAt,
+            visitDate: data.visitedAt ? new Date(data.visitedAt) : new Date(),
+            // Add isVisited flag to indicate these are places that have been visited
+            isVisited: true,
+          };
+        });
+
+        console.log(`Found ${userPlacesData.length} places in Firestore`);
+        setPlaces(userPlacesData);
+      }
+    } catch (error) {
+      console.error("Error fetching visited places from Firestore:", error);
+      setError("Failed to load your visited places");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const navigateToPlaceDetails = (placeId) => {
     navigation.navigate("Place", { placeId });
+  };
+
+  // Format the date for display
+  const formatVisitDate = (dateString) => {
+    if (!dateString) return "Visited recently";
+
+    try {
+      const visitDate = new Date(dateString);
+      return `Visited ${formatDistanceToNow(visitDate, { addSuffix: true })}`;
+    } catch (error) {
+      console.error("Error formatting date:", error);
+      return "Visited recently";
+    }
   };
 
   // Render a grid item for nearby places
@@ -94,6 +159,12 @@ const ViewAllScreen = ({ route, navigation }) => {
             <View style={styles.ratingContainer}>
               <Ionicons name="star" size={12} color="#FFD700" />
               <Text style={styles.ratingText}>{item.rating}</Text>
+            </View>
+          )}
+          {item.isVisited && (
+            <View style={styles.visitedBadge}>
+              <Ionicons name="checkmark-circle" size={12} color="#fff" />
+              <Text style={styles.visitedText}>Visited</Text>
             </View>
           )}
         </View>
@@ -122,10 +193,10 @@ const ViewAllScreen = ({ route, navigation }) => {
               {item.vicinity || "Unknown location"}
             </Text>
           </View>
-          {/* For My Places, we would show when the place was visited */}
+          {/* Display formatted visit date */}
           <View style={styles.visitDateContainer}>
             <Ionicons name="time-outline" size={14} color="#fff" style={{ marginRight: 4 }} />
-            <Text style={styles.visitDateText}>Visited recently</Text>
+            <Text style={styles.visitDateText}>{formatVisitDate(item.visitedAt)}</Text>
           </View>
         </View>
         {item.rating && (
@@ -377,6 +448,23 @@ const styles = StyleSheet.create({
   },
   ratingText: {
     fontSize: 12,
+    color: "#fff",
+    fontWeight: "600",
+    marginLeft: 3,
+  },
+  visitedBadge: {
+    position: "absolute",
+    top: 10,
+    right: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: Colors.primary,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  visitedText: {
+    fontSize: 10,
     color: "#fff",
     fontWeight: "600",
     marginLeft: 3,

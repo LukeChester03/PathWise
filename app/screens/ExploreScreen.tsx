@@ -9,7 +9,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { collection, getDocs, query, where } from "firebase/firestore";
+import { collection, getDocs } from "firebase/firestore";
 import { auth, db } from "../config/firebaseConfig";
 import ScreenWithNavBar from "../components/Global/ScreenWithNavbar";
 import Header from "../components/Global/Header";
@@ -85,10 +85,10 @@ const ExploreScreen = ({ navigation }) => {
         return;
       }
 
-      // Query Firestore for places the user has visited/saved
-      const userPlacesRef = collection(db, "userPlaces");
-      const userPlacesQuery = query(userPlacesRef, where("userId", "==", currentUser.uid));
-      const querySnapshot = await getDocs(userPlacesQuery);
+      // UPDATED: Use the new nested collection structure
+      // visitedPlaces is now a subcollection under the user document
+      const userVisitedPlacesRef = collection(db, "users", currentUser.uid, "visitedPlaces");
+      const querySnapshot = await getDocs(userVisitedPlacesRef);
 
       if (querySnapshot.empty) {
         console.log("No saved places found in Firestore");
@@ -96,10 +96,24 @@ const ExploreScreen = ({ navigation }) => {
         setMyPlaces([]);
       } else {
         // Transform Firestore documents to place objects
-        const userPlacesData = querySnapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
+        const userPlacesData = querySnapshot.docs.map((doc) => {
+          const data = doc.data();
+
+          // Format the data to match what PlacesCarousel expects
+          return {
+            id: doc.id,
+            place_id: data.place_id,
+            name: data.name,
+            vicinity: data.vicinity || "",
+            description: data.description || "",
+            geometry: data.geometry,
+            photos: data.photos || [],
+            visitedAt: data.visitedAt,
+            // Convert Firestore timestamp to Date if necessary
+            visitDate: data.visitedAt ? new Date(data.visitedAt) : new Date(),
+          };
+        });
+
         console.log(`Found ${userPlacesData.length} places in Firestore`);
         setMyPlaces(userPlacesData);
         setNoMyPlacesFound(false);

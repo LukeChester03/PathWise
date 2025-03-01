@@ -1,3 +1,4 @@
+// Updated Map Component with Visited Places Integration
 import React, { useEffect, useState, useRef, useCallback } from "react";
 import MapView, {
   PROVIDER_GOOGLE,
@@ -27,11 +28,23 @@ import { customMapStyle } from "../../constants/mapStyle";
 import { haversineDistance } from "../../utils/mapUtils";
 import DestinationCard from "./DestinationCard";
 import { useNavigation } from "expo-router";
+// New imports for visited places functionality
+import {
+  handleDestinationReached,
+  checkVisitedPlaces,
+} from "../../handlers/Map/visitedPlacesHandlers";
+import { getVisitedPlaces } from "../../controllers/Map/visitedPlacesController";
 
 const GOOGLE_MAPS_APIKEY = "AIzaSyDAGq_6eJGQpR3RcO0NrVOowel9-DxZkvA";
 const DESTINATION_REACHED_THRESHOLD = 30; // 20 meters
 const MARKER_REFRESH_THRESHOLD = 10000; // milliseconds (10 seconds) minimum between refreshes
 const DEFAULT_CIRCLE_RADIUS = 500; // Default circle radius in meters if no places found
+// Define colors for different marker states
+const MARKER_COLORS = {
+  DEFAULT: Colors.primary,
+  SELECTED: Colors.secondary,
+  VISITED: "#1E90FF", // Dodger Blue for visited places
+};
 
 export default function Map() {
   const [region, setRegion] = useState<Region | null>(null);
@@ -60,6 +73,8 @@ export default function Map() {
   const [isRefreshingPlaces, setIsRefreshingPlaces] = useState<boolean>(false);
   const [circleRadius, setCircleRadius] = useState<number>(DEFAULT_CIRCLE_RADIUS);
   const [initialLoadingComplete, setInitialLoadingComplete] = useState<boolean>(false);
+  // New state for tracking if destination has been saved to database
+  const [destinationSaved, setDestinationSaved] = useState<boolean>(false);
   const navigation = useNavigation();
 
   const [previousPosition, setPreviousPosition] = useState<{
@@ -141,25 +156,30 @@ export default function Map() {
         setCircleRadius(furthestDistance);
 
         if (newPlaces && newPlaces.length > 0) {
+          // Check which places have been visited before
+          const placesWithVisitedStatus = await checkVisitedPlaces(newPlaces);
+
           // Keep selected place in the list if it exists
           if (selectedPlace) {
-            const selectedPlaceExists = newPlaces.some(
+            const selectedPlaceExists = placesWithVisitedStatus.some(
               (place) => place.place_id === selectedPlace.place_id
             );
 
             if (!selectedPlaceExists) {
               // If the selected place isn't in the new list, add it
-              setPlaces([...newPlaces, selectedPlace]);
+              const selectedWithVisitedStatus = await checkVisitedPlaces([selectedPlace]);
+              setPlaces([...placesWithVisitedStatus, ...selectedWithVisitedStatus]);
             } else {
-              setPlaces(newPlaces);
+              setPlaces(placesWithVisitedStatus);
             }
           } else {
-            setPlaces(newPlaces);
+            setPlaces(placesWithVisitedStatus);
           }
         } else if (newPlaces && newPlaces.length === 0) {
           // If no places found, keep selected place if it exists
           if (selectedPlace) {
-            setPlaces([selectedPlace]);
+            const selectedWithVisitedStatus = await checkVisitedPlaces([selectedPlace]);
+            setPlaces(selectedWithVisitedStatus);
           } else {
             setPlaces([]);
           }
@@ -268,6 +288,8 @@ export default function Map() {
       // Reset previous position and heading
       setPreviousPosition(null);
       setUserHeading(null);
+      // Reset destination saved state whenever a new journey starts
+      setDestinationSaved(false);
 
       // Initial map camera update without heading (will point north)
       if (mapRef.current && userLocation) {
@@ -350,8 +372,38 @@ export default function Map() {
       setDestinationReached(true);
       setShowDetailsCard(false);
       setShowArrow(false);
+
+      // Only save to database if not already saved
+      if (!destinationSaved) {
+        handleDestinationReached(
+          selectedPlace,
+          (isNewPlace) => {
+            // Mark as saved to prevent duplicate entries
+            setDestinationSaved(true);
+
+            // If it's a new place, update places array to mark as visited
+            if (isNewPlace) {
+              setPlaces((prevPlaces) =>
+                prevPlaces.map((place) => {
+                  if (place.place_id === selectedPlace.place_id) {
+                    return { ...place, isVisited: true };
+                  }
+                  return place;
+                })
+              );
+            }
+          },
+          (error) => {
+            console.error("Failed to save destination to database:", error);
+            Alert.alert(
+              "Error",
+              "There was an error saving this discovery. Please try again later."
+            );
+          }
+        );
+      }
     }
-  }, [userLocation, selectedPlace, journeyStarted, destinationReached]);
+  }, [userLocation, selectedPlace, journeyStarted, destinationReached, destinationSaved]);
 
   const onStartJourney = async () => {
     const hasPermission = await requestLocationPermission();
@@ -360,6 +412,7 @@ export default function Map() {
       setJourneyStarted(true);
       setShowDetailsCard(true);
       setDestinationReached(false);
+      setDestinationSaved(false); // Reset saved state when starting a new journey
     } else {
       Alert.alert(
         "Location Permission Required",
@@ -414,6 +467,17 @@ export default function Map() {
   // Only display the selected place marker if journey is started
   const markersToDisplay = journeyStarted && selectedPlace ? [selectedPlace] : places;
 
+  // Function to determine marker color based on status
+  const getMarkerColor = (place) => {
+    if (selectedPlace?.place_id === place.place_id) {
+      return MARKER_COLORS.SELECTED;
+    }
+    if (place.isVisited) {
+      return MARKER_COLORS.VISITED;
+    }
+    return MARKER_COLORS.DEFAULT;
+  };
+
   return (
     <View style={styles.container}>
       <MapView
@@ -467,9 +531,7 @@ export default function Map() {
               latitude: place.geometry.location.lat,
               longitude: place.geometry.location.lng,
             }}
-            pinColor={
-              selectedPlace?.place_id === place.place_id ? Colors.secondary : Colors.primary
-            }
+            pinColor={getMarkerColor(place)}
             onPress={() =>
               !journeyStarted &&
               handleMarkerPress(
