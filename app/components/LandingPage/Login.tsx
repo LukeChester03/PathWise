@@ -1,5 +1,4 @@
-// app/components/LoginComponent.tsx
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   View,
   Text,
@@ -9,15 +8,23 @@ import {
   Modal,
   ActivityIndicator,
   Alert,
+  Animated,
+  Dimensions,
+  KeyboardAvoidingView,
+  Platform,
+  TouchableWithoutFeedback,
+  Keyboard,
 } from "react-native";
 import { Colors, NeutralColors } from "../../constants/colours";
 import { handleLogin } from "../../controllers/Login/LoginController";
-// import { Button } from "../Global/Button";
 import ForgotPasswordModal from "./ForgotPasswordModal";
+import { Ionicons } from "@expo/vector-icons";
+
+const { height } = Dimensions.get("window");
 
 interface LoginComponentProps {
-  visible: boolean; // Controls modal visibility
-  onRequestClose: () => void; // Function to close the modal
+  visible: boolean;
+  onRequestClose: () => void;
   onLoginSuccess: () => void;
   onNavigateToForgotPassword: () => void;
 }
@@ -32,20 +39,65 @@ export default function LoginComponent({
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [isForgotPasswordModalVisible, setIsForgotPasswordModalVisible] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [emailFocused, setEmailFocused] = useState(false);
+  const [passwordFocused, setPasswordFocused] = useState(false);
+
+  const slideAnim = useRef(new Animated.Value(height)).current;
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (visible) {
+      setEmail("");
+      setPassword("");
+      Animated.parallel([
+        Animated.timing(slideAnim, {
+          toValue: 0,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    } else {
+      Animated.parallel([
+        Animated.timing(slideAnim, {
+          toValue: height,
+          duration: 250,
+          useNativeDriver: true,
+        }),
+        Animated.timing(fadeAnim, {
+          toValue: 0,
+          duration: 250,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
+  }, [visible]); // Add `visible` to the dependency array
 
   const performLogin = async () => {
-    setLoading(true); // Start loading
+    if (!email.trim()) {
+      Alert.alert("Error", "Please enter your email");
+      return;
+    }
+    if (!password.trim()) {
+      Alert.alert("Error", "Please enter your password");
+      return;
+    }
+
+    setLoading(true);
     handleLogin(
       email,
       password,
       () => {
-        // Success callback
-        setLoading(false); // Stop loading
-        onLoginSuccess(); // Trigger the success callback
+        setLoading(false);
+        onLoginSuccess();
       },
       (errorMessage: string) => {
-        // Error callback
-        setLoading(false); // Stop loading
+        setLoading(false);
         Alert.alert("Error", errorMessage);
       }
     );
@@ -55,72 +107,131 @@ export default function LoginComponent({
     setIsForgotPasswordModalVisible(!isForgotPasswordModalVisible);
   };
 
+  const closeModal = () => {
+    Animated.parallel([
+      Animated.timing(slideAnim, {
+        toValue: height,
+        duration: 250,
+        useNativeDriver: true,
+      }),
+      Animated.timing(fadeAnim, {
+        toValue: 0,
+        duration: 250,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      onRequestClose();
+    });
+  };
+
   return (
     <>
-      <Modal
-        animationType="slide"
-        transparent={true}
-        visible={visible}
-        onRequestClose={onRequestClose}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            {/* Close Button (X) */}
-            <TouchableOpacity style={styles.closeButton} onPress={onRequestClose}>
-              <Text style={styles.closeButtonText}>×</Text>
-            </TouchableOpacity>
+      <Modal animationType="none" transparent={true} visible={visible} onRequestClose={closeModal}>
+        <Animated.View style={[styles.modalOverlay, { opacity: fadeAnim }]}>
+          {/* Overlay for closing modal */}
+          <TouchableWithoutFeedback onPress={closeModal}>
+            <View style={styles.overlayBackground} />
+          </TouchableWithoutFeedback>
 
-            {/* Login Form */}
-            <View style={styles.formContainer}>
-              <Text style={styles.subTitle}>Login</Text>
-
-              {/* Email Input */}
-              <TextInput
-                placeholder="Email"
-                value={email}
-                onChangeText={setEmail}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                placeholderTextColor={NeutralColors.gray600}
-                style={styles.input}
-              />
-
-              {/* Password Input */}
-              <TextInput
-                placeholder="Password"
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry
-                placeholderTextColor={NeutralColors.gray600}
-                style={styles.input}
-              />
-
-              {/* Buttons Container */}
-              <View style={styles.buttonsContainer}>
-                {/* Login Button */}
-                <TouchableOpacity
-                  style={[styles.button, styles.loginButton]}
-                  onPress={performLogin}
-                  disabled={loading} // Disable the button while loading
-                >
-                  {loading ? (
-                    <ActivityIndicator color={NeutralColors.white} /> // Spinner
-                  ) : (
-                    <Text style={styles.buttonText}>Login</Text> // Button text
-                  )}
+          {/* Modal Content */}
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+            style={styles.keyboardAvoidingView}
+          >
+            <Animated.View
+              style={[styles.modalContainer, { transform: [{ translateY: slideAnim }] }]}
+            >
+              <View style={styles.modalHeader}>
+                <Text style={styles.title}>Welcome Back</Text>
+                <TouchableOpacity style={styles.closeButton} onPress={closeModal}>
+                  <Ionicons name="close" size={24} color={Colors.text} />
                 </TouchableOpacity>
               </View>
 
-              {/* Forgot Password Link */}
-              <TouchableOpacity onPress={toggleForgotPasswordModal}>
-                <Text style={styles.forgotPassword}>Forgot Password?</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
+              <View style={styles.formContainer}>
+                {/* Email Input */}
+                <View style={styles.inputContainer}>
+                  <Text style={styles.inputLabel}>Email</Text>
+                  <View style={[styles.inputWrapper, emailFocused && styles.inputWrapperFocused]}>
+                    <Ionicons
+                      name="mail-outline"
+                      size={20}
+                      color={emailFocused ? Colors.primary : NeutralColors.gray600}
+                    />
+                    <TextInput
+                      value={email}
+                      onChangeText={setEmail}
+                      keyboardType="email-address"
+                      autoCapitalize="none"
+                      inputMode="email"
+                      style={styles.input}
+                      placeholder="Enter your email"
+                      placeholderTextColor={NeutralColors.gray400}
+                      autoCorrect={false}
+                    />
+                  </View>
+                </View>
+
+                {/* Password Input */}
+                <View style={styles.inputContainer}>
+                  <Text style={styles.inputLabel}>Password</Text>
+                  <View
+                    style={[styles.inputWrapper, passwordFocused && styles.inputWrapperFocused]}
+                  >
+                    <Ionicons
+                      name="lock-closed-outline"
+                      size={20}
+                      color={passwordFocused ? Colors.primary : NeutralColors.gray600}
+                    />
+                    <TextInput
+                      value={password}
+                      onChangeText={setPassword}
+                      secureTextEntry={!showPassword}
+                      style={styles.input}
+                      placeholder="Enter your password"
+                      placeholderTextColor={NeutralColors.gray400}
+                      autoCorrect={false}
+                    />
+                    <TouchableOpacity
+                      onPress={() => setShowPassword(!showPassword)}
+                      style={styles.eyeIcon}
+                    >
+                      <Ionicons
+                        name={showPassword ? "eye-off-outline" : "eye-outline"}
+                        size={20}
+                        color={NeutralColors.gray600}
+                      />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+
+                {/* Forgot Password */}
+                <TouchableOpacity
+                  onPress={toggleForgotPasswordModal}
+                  style={styles.forgotPasswordContainer}
+                >
+                  <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
+                </TouchableOpacity>
+
+                {/* Login Button */}
+                <TouchableOpacity
+                  style={styles.loginButton}
+                  onPress={performLogin}
+                  disabled={loading}
+                  activeOpacity={0.8}
+                >
+                  {loading ? (
+                    <ActivityIndicator color="#fff" />
+                  ) : (
+                    <Text style={styles.loginButtonText}>Log In</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </Animated.View>
+          </KeyboardAvoidingView>
+        </Animated.View>
       </Modal>
 
-      {/* Forgot Password Modal */}
       <ForgotPasswordModal
         visible={isForgotPasswordModalVisible}
         onRequestClose={toggleForgotPasswordModal}
@@ -129,87 +240,110 @@ export default function LoginComponent({
   );
 }
 
-// Styles
 const styles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
-    width: "100%",
-    justifyContent: "flex-end", // Center the modal vertically
-    alignItems: "center", // Center the modal horizontally
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "flex-end",
   },
-  modalContent: {
-    width: "100%", // Adjust width as needed
-    maxWidth: 400, // Limit maximum width
-    backgroundColor: Colors.background, // White background for modal content
-    borderTopLeftRadius: 10, // Rounded corners
-    borderTopRightRadius: 10, // Rounded
-    padding: 20, // Padding inside the modal
-    alignItems: "flex-end", // Center content horizontally
+  overlayBackground: {
+    ...StyleSheet.absoluteFillObject, // Covers the entire screen behind the modal
   },
-  closeButton: {
-    position: "absolute",
-    top: 10,
-    right: 10,
-    zIndex: 1, // Ensure it stays on top
-    padding: 10,
-    borderRadius: 15,
+  keyboardAvoidingView: {
+    flex: 1,
+    justifyContent: "flex-end",
   },
-  closeButtonText: {
-    fontSize: 24,
-    fontWeight: "bold",
-    color: Colors.text,
-  },
-  formContainer: {
-    width: "100%",
-    alignSelf: "center",
-    padding: 20,
+  modalContainer: {
     backgroundColor: Colors.background,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingTop: 20,
+    paddingHorizontal: 24,
+    paddingBottom: 36,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 10,
   },
-  subTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
-    textAlign: "center",
-    marginBottom: 16,
-    color: Colors.text,
-  },
-  input: {
-    height: 50,
-    borderColor: "#ddd",
-    borderWidth: 1,
-    borderRadius: 5,
-    paddingHorizontal: 10,
-    marginBottom: 15,
-    backgroundColor: "#fafafa",
-    color: "#333",
-  },
-  buttonsContainer: {
+  modalHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+    marginBottom: 24,
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: "700",
+    color: Colors.text,
+  },
+  closeButton: {
+    padding: 4,
+  },
+  formContainer: {
     width: "100%",
   },
-  button: {
-    flex: 1,
-    padding: 15,
-    borderRadius: 5,
+  inputContainer: {
+    marginBottom: 18,
+  },
+  inputLabel: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: Colors.text,
+    marginBottom: 8,
+  },
+  inputWrapper: {
+    flexDirection: "row",
     alignItems: "center",
-    marginBottom: 15,
+    borderWidth: 1,
+    borderColor: NeutralColors.gray300,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    height: 54,
+    backgroundColor: NeutralColors.white,
+  },
+  inputWrapperFocused: {
+    borderColor: Colors.primary,
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  input: {
+    flex: 1,
+    marginLeft: 10,
+    color: Colors.text,
+    fontSize: 16,
+  },
+  eyeIcon: {
+    padding: 4,
+  },
+  forgotPasswordContainer: {
+    alignSelf: "flex-end",
+    marginTop: 4,
+    marginBottom: 24,
+  },
+  forgotPasswordText: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: Colors.primary,
   },
   loginButton: {
     backgroundColor: Colors.primary,
-    marginRight: 8,
+    borderRadius: 12,
+    height: 54,
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 4,
   },
-  buttonText: {
-    color: NeutralColors.white,
-    fontSize: 24,
-    fontWeight: "bold",
-  },
-  forgotPassword: {
-    textAlign: "left",
+  loginButtonText: {
+    color: "#fff",
     fontSize: 16,
-    color: Colors.text,
-    opacity: 0.7,
-    marginTop: 10,
-    marginBottom: 40,
+    fontWeight: "600",
   },
 });

@@ -1,25 +1,24 @@
 import React from "react";
 import { View, TextInput, StyleSheet, TouchableOpacity } from "react-native";
-import { Ionicons } from "@expo/vector-icons"; // Assuming you're using Expo, otherwise import your icon library
+import { Ionicons } from "@expo/vector-icons"; // Assuming you're using Expo
 
 interface SearchBarProps {
-  value: string;
-  onChangeText: (text: string) => void;
+  value?: string;
+  onChangeText?: (text: string) => void;
   onSearch?: () => void;
 }
 
-export const SearchBar = ({ value, onChangeText, onSearch }: SearchBarProps) => {
+export const SearchBar = ({ value = "", onChangeText = () => {}, onSearch }: SearchBarProps) => {
   return (
     <View style={styles.container}>
       <View style={styles.searchContainer}>
         <Ionicons name="search" size={20} color="#666" style={styles.icon} />
         <TextInput
           style={styles.input}
-          placeholder="Search by location"
+          placeholder="Search for locations"
           placeholderTextColor="#999"
           value={value}
           onChangeText={onChangeText}
-          returnKeyType="search"
           onSubmitEditing={onSearch}
         />
       </View>
@@ -30,7 +29,6 @@ export const SearchBar = ({ value, onChangeText, onSearch }: SearchBarProps) => 
 const styles = StyleSheet.create({
   container: {
     width: "100%",
-    paddingHorizontal: 10,
   },
   searchContainer: {
     flexDirection: "row",

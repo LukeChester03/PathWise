@@ -32,9 +32,7 @@ export const getCurrentLocation = async (): Promise<Region | null> => {
   }
 
   try {
-    console.log("first");
     const location = await Location.getCurrentPositionAsync({});
-    console.log("HEHEHREHRHERHE");
     const { latitude, longitude } = location.coords;
     return {
       latitude,
