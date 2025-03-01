@@ -1,11 +1,12 @@
 // controllers/Database/visitedPlacesController.js
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { db, auth } from "../../config/firebaseConfig"; // Import from your existing Firebase config
-import { collection, doc, setDoc, getDocs, query, where } from "firebase/firestore";
+import { collection, doc, setDoc, getDocs, getDoc } from "firebase/firestore";
+import { Place, PlaceDetails } from "../../types/MapTypes";
 
 /**
- * Save a visited place to the database
- * @param {object} place - The place object to save
+ * Save a visited place to the database, preserving all properties from Place or PlaceDetails
+ * @param {Place | PlaceDetails['result']} place - The place object to save
  * @param {string} userId - The user ID (optional, will use current user if not provided)
  * @returns {Promise<boolean>} - True if successful, false otherwise
  */
@@ -19,26 +20,37 @@ export const saveVisitedPlace = async (place, userId = null) => {
       return false;
     }
 
-    // Create a simplified place object to save to the database
+    // Create a place object that maintains all existing properties
+    const placeData = "result" in place ? place.result : place;
+
+    // Log the place object to verify rating data is present
+    console.log("Saving place with rating:", placeData.rating);
+
+    // Ensure we have all the required fields and preserve all existing properties
     const visitedPlace = {
-      place_id: place.place_id,
-      name: place.name,
-      geometry: place.geometry,
-      photos: place.photos || [],
-      types: place.types || [],
-      vicinity: place.vicinity || "",
-      description: place.description || "",
+      ...placeData, // Keep all existing properties
+      // Add metadata about the visit
       visitedAt: new Date().toISOString(),
+      userId: currentUser,
+
+      // Ensure critical fields exist (as fallbacks)
+      place_id: placeData.place_id,
+      name: placeData.name,
+
+      // Make sure ratings are included (if they exist)
+      rating: placeData.rating || null,
+      user_ratings_total: placeData.user_ratings_total || null,
+      reviews: placeData.reviews || [],
     };
 
     // Save to Firestore
     const userVisitedPlacesRef = collection(db, "users", currentUser, "visitedPlaces");
-    await setDoc(doc(userVisitedPlacesRef, place.place_id), visitedPlace);
+    await setDoc(doc(userVisitedPlacesRef, placeData.place_id), visitedPlace);
 
     // Also save to AsyncStorage for offline access
     await saveVisitedPlaceLocally(visitedPlace);
 
-    console.log(`Successfully saved place ${place.name} to database`);
+    console.log(`Successfully saved place ${placeData.name} to database`);
     return true;
   } catch (error) {
     console.error("Error saving visited place to database:", error);
@@ -87,11 +99,24 @@ export const getVisitedPlaces = async (userId = null) => {
  */
 export const isPlaceVisited = async (placeId, userId = null) => {
   try {
-    // Get all visited places
-    const visitedPlaces = await getVisitedPlaces(userId);
+    const currentUser = userId || auth.currentUser?.uid;
 
-    // Check if the place exists in the visited places
-    return visitedPlaces.some((place) => place.place_id === placeId);
+    if (!currentUser) {
+      console.log("No authenticated user found");
+      return false;
+    }
+
+    // Check directly in Firestore for this specific place
+    const placeDocRef = doc(db, "users", currentUser, "visitedPlaces", placeId);
+    const placeDoc = await getDoc(placeDocRef);
+
+    // Return true if the document exists, false otherwise
+    const exists = placeDoc.exists();
+
+    // Log for debugging
+    console.log(`Checking if place ${placeId} is visited: ${exists}`);
+
+    return exists;
   } catch (error) {
     console.error("Error checking if place is visited:", error);
     return false;

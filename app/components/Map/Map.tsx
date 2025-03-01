@@ -374,10 +374,12 @@ export default function Map() {
       setShowArrow(false);
 
       // Only save to database if not already saved
-      if (!destinationSaved) {
+      if (!destinationSaved && journeyStarted) {
+        // Note: We're passing the complete selectedPlace object which contains all place details
+        // including rating, user_ratings_total, and reviews if available
         handleDestinationReached(
           selectedPlace,
-          (isNewPlace) => {
+          (isNewPlace: boolean) => {
             // Mark as saved to prevent duplicate entries
             setDestinationSaved(true);
 
@@ -393,7 +395,7 @@ export default function Map() {
               );
             }
           },
-          (error) => {
+          (error: Error) => {
             console.error("Failed to save destination to database:", error);
             Alert.alert(
               "Error",
@@ -472,7 +474,8 @@ export default function Map() {
     if (selectedPlace?.place_id === place.place_id) {
       return MARKER_COLORS.SELECTED;
     }
-    if (place.isVisited) {
+    // Only show blue if explicitly marked as visited in the database (strict equality)
+    if (place.isVisited === true) {
       return MARKER_COLORS.VISITED;
     }
     return MARKER_COLORS.DEFAULT;

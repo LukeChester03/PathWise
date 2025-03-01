@@ -85,8 +85,7 @@ const ExploreScreen = ({ navigation }) => {
         return;
       }
 
-      // UPDATED: Use the new nested collection structure
-      // visitedPlaces is now a subcollection under the user document
+      // visitedPlaces is a subcollection under the user document
       const userVisitedPlacesRef = collection(db, "users", currentUser.uid, "visitedPlaces");
       const querySnapshot = await getDocs(userVisitedPlacesRef);
 
@@ -99,8 +98,9 @@ const ExploreScreen = ({ navigation }) => {
         const userPlacesData = querySnapshot.docs.map((doc) => {
           const data = doc.data();
 
-          // Format the data to match what PlacesCarousel expects
+          // Include ALL properties including rating
           return {
+            ...data, // Keep all original properties
             id: doc.id,
             place_id: data.place_id,
             name: data.name,
@@ -108,13 +108,24 @@ const ExploreScreen = ({ navigation }) => {
             description: data.description || "",
             geometry: data.geometry,
             photos: data.photos || [],
+            // Make sure rating info is included
+            rating: data.rating || null,
+            user_ratings_total: data.user_ratings_total || null,
+            // Date formatting
             visitedAt: data.visitedAt,
-            // Convert Firestore timestamp to Date if necessary
             visitDate: data.visitedAt ? new Date(data.visitedAt) : new Date(),
           };
         });
 
         console.log(`Found ${userPlacesData.length} places in Firestore`);
+        // Debug: Log the first place to check if rating is present
+        if (userPlacesData.length > 0) {
+          console.log("Sample place data:", {
+            name: userPlacesData[0].name,
+            rating: userPlacesData[0].rating,
+          });
+        }
+
         setMyPlaces(userPlacesData);
         setNoMyPlacesFound(false);
       }

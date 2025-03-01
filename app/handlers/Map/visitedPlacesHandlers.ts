@@ -28,9 +28,9 @@ export const handleDestinationReached = async (
 
     if (success) {
       console.log(`Successfully saved destination ${place.name} to visited places`);
-      Alert.alert("New Discovery!", `${place.name} has been added to your discoveries.`, [
-        { text: "Great!", onPress: () => onSuccess(true) },
-      ]);
+      //   Alert.alert("New Discovery!", `${place.name} has been added to your discoveries.`, [
+      //     { text: "Great!", onPress: () => onSuccess(true) },
+      //   ]);
     } else {
       console.error(`Failed to save destination ${place.name} to visited places`);
       onError(new Error(`Failed to save destination ${place.name}`));
