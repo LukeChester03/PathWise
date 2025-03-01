@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useCallback } from "react";
 import MapView, { PROVIDER_GOOGLE, Circle, Marker, Camera } from "react-native-maps";
 import { View, StyleSheet, ActivityIndicator, TouchableOpacity, Text, Alert } from "react-native";
 import MapViewDirections from "react-native-maps-directions";
@@ -13,6 +13,7 @@ import {
   requestLocationPermission,
   watchUserLocation,
 } from "../../controllers/Map/locationController";
+import { fetchNearbyPlaces } from "../../controllers/Map/placesController";
 import { Region, Place } from "../../types/MapTypes";
 import ExploreCard from "./ExploreCard";
 import DetailsCard from "./DetailsCard";
@@ -24,6 +25,8 @@ import { useNavigation } from "expo-router";
 
 const GOOGLE_MAPS_APIKEY = "AIzaSyDAGq_6eJGQpR3RcO0NrVOowel9-DxZkvA";
 const DESTINATION_REACHED_THRESHOLD = 10; // 10 meters
+const REFRESH_PLACES_DISTANCE = 100; // Refresh places when user moves 100 meters
+const MARKER_REFRESH_THRESHOLD = 10000; // milliseconds (10 seconds) minimum between refreshes
 
 export default function Map() {
   const [region, setRegion] = useState<Region | null>(null);
@@ -44,6 +47,12 @@ export default function Map() {
   const [locationWatcherCleanup, setLocationWatcherCleanup] = useState<(() => void) | null>(null);
   const [destinationReached, setDestinationReached] = useState<boolean>(false);
   const [showArrow, setShowArrow] = useState<boolean>(false);
+  const [lastRefreshPosition, setLastRefreshPosition] = useState<{
+    latitude: number;
+    longitude: number;
+  } | null>(null);
+  const [lastRefreshTime, setLastRefreshTime] = useState<number>(0);
+  const [isRefreshingPlaces, setIsRefreshingPlaces] = useState<boolean>(false);
   const navigation = useNavigation();
 
   const [previousPosition, setPreviousPosition] = useState<{
@@ -59,11 +68,54 @@ export default function Map() {
         setRegion(mapData.region);
         setUserLocation(mapData.region);
         setPlaces(mapData.places);
+        setLastRefreshPosition({
+          latitude: mapData.region.latitude,
+          longitude: mapData.region.longitude,
+        });
+        setLastRefreshTime(Date.now());
         setLoading(false);
       }
     };
     init();
-  }, [previousPosition]);
+  }, []);
+
+  // Function to refresh nearby places
+  const refreshNearbyPlaces = useCallback(
+    async (latitude: number, longitude: number) => {
+      if (isRefreshingPlaces) return;
+
+      try {
+        setIsRefreshingPlaces(true);
+        const newPlaces = await fetchNearbyPlaces(latitude, longitude);
+
+        if (newPlaces && newPlaces.length > 0) {
+          // Keep selected place in the list if it exists
+          if (selectedPlace) {
+            const selectedPlaceExists = newPlaces.some(
+              (place) => place.place_id === selectedPlace.place_id
+            );
+
+            if (!selectedPlaceExists) {
+              // If the selected place isn't in the new list, add it
+              setPlaces([...newPlaces, selectedPlace]);
+            } else {
+              setPlaces(newPlaces);
+            }
+          } else {
+            setPlaces(newPlaces);
+          }
+        }
+
+        setLastRefreshPosition({ latitude, longitude });
+        setLastRefreshTime(Date.now());
+      } catch (error) {
+        console.error("Error refreshing nearby places:", error);
+      } finally {
+        setIsRefreshingPlaces(false);
+      }
+    },
+    [selectedPlace, isRefreshingPlaces]
+  );
 
   // Calculate heading based on current and previous positions
   const calculateHeading = (
@@ -106,16 +158,45 @@ export default function Map() {
     mapRef.current.animateCamera(camera, { duration: 1000 });
   };
 
+  // Check if we should refresh places based on user movement
+  const checkAndRefreshPlaces = useCallback(
+    (newLocation: Region) => {
+      if (!lastRefreshPosition) return;
+
+      const currentTime = Date.now();
+      const timeSinceLastRefresh = currentTime - lastRefreshTime;
+
+      // Only refresh if enough time has passed since the last refresh
+      if (timeSinceLastRefresh < MARKER_REFRESH_THRESHOLD) return;
+
+      const distance = haversineDistance(
+        lastRefreshPosition.latitude,
+        lastRefreshPosition.longitude,
+        newLocation.latitude,
+        newLocation.longitude
+      );
+
+      // If user has moved more than the threshold, refresh places
+      if (distance > REFRESH_PLACES_DISTANCE) {
+        refreshNearbyPlaces(newLocation.latitude, newLocation.longitude);
+      }
+    },
+    [lastRefreshPosition, lastRefreshTime, refreshNearbyPlaces]
+  );
+
   // Setup location watcher when journey starts
   useEffect(() => {
     let cleanupFunction: (() => void) | null = null;
 
     const startLocationTracking = async () => {
-      if (journeyStarted && selectedPlace && !locationWatcherCleanup) {
+      if (!locationWatcherCleanup) {
         // Get high accuracy location updates
         cleanupFunction = await watchUserLocation(
           (newLocation) => {
             setUserLocation(newLocation);
+
+            // Check if we should refresh nearby places
+            checkAndRefreshPlaces(newLocation);
 
             // Calculate heading if we have a previous position
             if (previousPosition) {
@@ -166,9 +247,6 @@ export default function Map() {
                 // Hide details card when destination is reached
                 setShowDetailsCard(false);
                 setShowArrow(false);
-
-                // Hide the end journey button when the destination card is shown
-                // It will automatically reappear when the user dismisses the destination card
               }
             }
           },
@@ -184,6 +262,9 @@ export default function Map() {
 
     if (journeyStarted && selectedPlace) {
       startLocationTracking();
+    } else if (!journeyStarted && userLocation) {
+      // Even when not in journey mode, start location tracking for marker refreshing
+      startLocationTracking();
     }
 
     return () => {
@@ -192,17 +273,17 @@ export default function Map() {
         setLocationWatcherCleanup(null);
       }
     };
-  }, [journeyStarted, selectedPlace]);
+  }, [journeyStarted, selectedPlace, checkAndRefreshPlaces, userLocation]);
 
-  // Clean up location watcher when journey ends
+  // Clean up location watcher when component unmounts
   useEffect(() => {
-    if (!journeyStarted && locationWatcherCleanup) {
-      locationWatcherCleanup();
-      setLocationWatcherCleanup(null);
-      setPreviousPosition(null);
-      setUserHeading(null);
-    }
-  }, [journeyStarted]);
+    return () => {
+      if (locationWatcherCleanup) {
+        locationWatcherCleanup();
+        setLocationWatcherCleanup(null);
+      }
+    };
+  }, []);
 
   const onStartJourney = async () => {
     const hasPermission = await requestLocationPermission();
@@ -241,9 +322,9 @@ export default function Map() {
 
   // Handle learn more action from destination card
   const handleLearnMore = () => {
-    // You can navigate to a details page or show more information
-    // navigation.navigate("PlaceDetails", { placeId: selectedPlace?.place_id });
-    console.log("Learn more about", selectedPlace?.name);
+    if (selectedPlace) {
+      // navigation.navigate("Place", { placeId: selectedPlace.place_id });
+    }
   };
 
   // Handle dismissal of destination card
@@ -262,12 +343,6 @@ export default function Map() {
     );
     setPreviousPosition(null);
     setUserHeading(null);
-
-    // Clean up location watcher
-    if (locationWatcherCleanup) {
-      locationWatcherCleanup();
-      setLocationWatcherCleanup(null);
-    }
   };
 
   if (loading) {
@@ -288,6 +363,7 @@ export default function Map() {
     setShowDetailsCard(true);
   };
 
+  // Only display the selected place marker if journey is started
   const markersToDisplay = journeyStarted && selectedPlace ? [selectedPlace] : places;
 
   return (
@@ -303,8 +379,36 @@ export default function Map() {
         followsUserLocation={journeyStarted}
         rotateEnabled={true}
         pitchEnabled={true}
+        onUserLocationChange={(event) => {
+          const { coordinate } = event.nativeEvent;
+          if (coordinate && !journeyStarted) {
+            // Update user location even when not in journey mode
+            setUserLocation({
+              latitude: coordinate.latitude,
+              longitude: coordinate.longitude,
+              latitudeDelta: region?.latitudeDelta || 0.01,
+              longitudeDelta: region?.longitudeDelta || 0.01,
+            });
+
+            // Check if we should refresh places
+            checkAndRefreshPlaces({
+              latitude: coordinate.latitude,
+              longitude: coordinate.longitude,
+              latitudeDelta: region?.latitudeDelta || 0.01,
+              longitudeDelta: region?.longitudeDelta || 0.01,
+            });
+          }
+        }}
       >
-        <Circle center={userLocation || region} radius={250} strokeColor={Colors.primary} />
+        {userLocation && (
+          <Circle
+            center={userLocation}
+            radius={250}
+            strokeColor={Colors.primary}
+            fillColor={`${Colors.primary}20`}
+          />
+        )}
+
         {markersToDisplay.map((place) => (
           <Marker
             key={place.place_id}
@@ -313,13 +417,15 @@ export default function Map() {
               longitude: place.geometry.location.lng,
             }}
             title={place.name}
-            description={place.description}
-            pinColor={Colors.primary}
+            description={place.description || "Tourist attraction"}
+            pinColor={
+              selectedPlace?.place_id === place.place_id ? Colors.secondary : Colors.primary
+            }
             onPress={() =>
               !journeyStarted &&
               handleMarkerPress(
                 place,
-                region,
+                userLocation || region,
                 setSelectedPlace,
                 setRouteCoordinates,
                 setTravelTime,
@@ -328,6 +434,7 @@ export default function Map() {
             }
           />
         ))}
+
         {routeCoordinates.length > 0 && journeyStarted && (
           <MapViewDirections
             origin={userLocation || region}
@@ -352,6 +459,7 @@ export default function Map() {
           />
         )}
       </MapView>
+
       {showCard && selectedPlace && travelTime && (
         <ExploreCard
           placeName={selectedPlace.name}
@@ -372,6 +480,7 @@ export default function Map() {
           }
         />
       )}
+
       {journeyStarted && selectedPlace && travelTime && distance && showDetailsCard && (
         <DetailsCard
           placeName={selectedPlace.name}
@@ -380,11 +489,13 @@ export default function Map() {
           onSwipeOff={handleSwipeOff}
         />
       )}
+
       {showArrow && (
         <TouchableOpacity style={styles.arrowContainer} onPress={handleArrowPress}>
           <FeatherIcon name={"more-horizontal"} size={22} color={NeutralColors.black}></FeatherIcon>
         </TouchableOpacity>
       )}
+
       {journeyStarted && !destinationReached && (
         <View style={styles.buttonContainer}>
           <TouchableOpacity
@@ -407,6 +518,7 @@ export default function Map() {
           </TouchableOpacity>
         </View>
       )}
+
       {destinationReached && selectedPlace && (
         <View style={styles.destinationCardContainer}>
           <DestinationCard
