@@ -240,11 +240,11 @@ export default function Map() {
   };
 
   // Handle learn more action from destination card
-  // const handleLearnMore = () => {
-  //   // You can navigate to a details page or show more information
-  //   // navigation.navigate("PlaceDetails", { placeId: selectedPlace?.place_id });
-  //   console.log("Learn more about", selectedPlace?.name);
-  // };
+  const handleLearnMore = () => {
+    // You can navigate to a details page or show more information
+    // navigation.navigate("PlaceDetails", { placeId: selectedPlace?.place_id });
+    console.log("Learn more about", selectedPlace?.name);
+  };
 
   // Handle dismissal of destination card
   const handleDismissDestinationCard = () => {
