@@ -33,17 +33,17 @@ import {
   handleDestinationReached,
   checkVisitedPlaces,
 } from "../../handlers/Map/visitedPlacesHandlers";
-import { getVisitedPlaces } from "../../controllers/Map/visitedPlacesController";
+import { getVisitedPlaces, isPlaceVisited } from "../../controllers/Map/visitedPlacesController";
 
 const GOOGLE_MAPS_APIKEY = "AIzaSyDAGq_6eJGQpR3RcO0NrVOowel9-DxZkvA";
-const DESTINATION_REACHED_THRESHOLD = 30; // 20 meters
-const MARKER_REFRESH_THRESHOLD = 10000; // milliseconds (10 seconds) minimum between refreshes
-const DEFAULT_CIRCLE_RADIUS = 500; // Default circle radius in meters if no places found
+const DESTINATION_REACHED_THRESHOLD = 30;
+const MARKER_REFRESH_THRESHOLD = 10000;
+const DEFAULT_CIRCLE_RADIUS = 500;
 // Define colors for different marker states
 const MARKER_COLORS = {
   DEFAULT: Colors.primary,
-  SELECTED: Colors.secondary,
-  VISITED: "#1E90FF", // Dodger Blue for visited places
+  SELECTED: Colors.primary,
+  VISITED: Colors.secondary,
 };
 
 export default function Map() {
@@ -472,6 +472,12 @@ export default function Map() {
   // Function to determine marker color based on status
   const getMarkerColor = (place) => {
     if (selectedPlace?.place_id === place.place_id) {
+      return MARKER_COLORS.SELECTED;
+    }
+    if (selectedPlace?.place_id === place.place_id && place.isVisited === true) {
+      return MARKER_COLORS.VISITED;
+    }
+    if (selectedPlace?.place_id === place.place_id && place.isVisited === false) {
       return MARKER_COLORS.SELECTED;
     }
     // Only show blue if explicitly marked as visited in the database (strict equality)
