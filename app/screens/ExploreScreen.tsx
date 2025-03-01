@@ -7,12 +7,12 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
-  Image,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { collection, getDocs, query, where } from "firebase/firestore";
 import { auth, db } from "../config/firebaseConfig";
 import ScreenWithNavBar from "../components/Global/ScreenWithNavbar";
+import Header from "../components/Global/Header";
 import { SearchBar } from "../components/Global/SearchBar";
 import { fetchNearbyPlaces } from "../controllers/Map/placesController";
 import { getCurrentLocation } from "../controllers/Map/locationController";
@@ -290,9 +290,7 @@ const ExploreScreen = ({ navigation }) => {
   return (
     <ScreenWithNavBar>
       <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Places</Text>
-        </View>
+        <Header title="Places" />
 
         {/* Search Bar */}
         <View style={styles.searchBarContainer}>
@@ -310,21 +308,10 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.background,
   },
-  header: {
-    marginTop: 24,
-    padding: 16,
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  headerTitle: {
-    fontSize: 28,
-    fontWeight: "700",
-    color: Colors.primary,
-    marginBottom: 4,
-  },
   searchBarContainer: {
     paddingHorizontal: 16,
     marginBottom: 16,
+    marginTop: 8,
   },
   scrollContent: {
     paddingBottom: 24,
