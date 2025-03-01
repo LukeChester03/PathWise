@@ -23,7 +23,7 @@ import DestinationCard from "./DestinationCard";
 import { useNavigation } from "expo-router";
 
 const GOOGLE_MAPS_APIKEY = "AIzaSyDAGq_6eJGQpR3RcO0NrVOowel9-DxZkvA";
-const DESTINATION_REACHED_THRESHOLD = 10; // 10 meters
+const DESTINATION_REACHED_THRESHOLD = 30; // 20 meters
 const MARKER_REFRESH_THRESHOLD = 10000; // milliseconds (10 seconds) minimum between refreshes
 const DEFAULT_CIRCLE_RADIUS = 500; // Default circle radius in meters if no places found
 
@@ -281,7 +281,7 @@ export default function Map() {
     }
   }, [journeyStarted]);
 
-  // Update heading and check for destination reached
+  // Update heading and refresh places based on movement
   useEffect(() => {
     if (!userLocation || !previousPosition) return;
 
@@ -317,23 +317,35 @@ export default function Map() {
         checkAndRefreshPlaces(userLocation);
       }
     }
+  }, [userLocation, previousPosition, journeyStarted]);
 
-    // Check if user has reached destination
-    if (selectedPlace && journeyStarted && !destinationReached) {
-      const distanceToDestination = haversineDistance(
-        userLocation.latitude,
-        userLocation.longitude,
-        selectedPlace.geometry.location.lat,
-        selectedPlace.geometry.location.lng
-      );
+  // Separate useEffect specifically for checking if destination reached
+  useEffect(() => {
+    // Only run this effect when we have all needed data and journey is active
+    if (!userLocation || !selectedPlace || !journeyStarted) return;
 
-      if (distanceToDestination <= DESTINATION_REACHED_THRESHOLD) {
-        setDestinationReached(true);
-        setShowDetailsCard(false);
-        setShowArrow(false);
-      }
+    // Skip the check if destination already reached
+    if (destinationReached) return;
+
+    // Check if destination has been reached
+    const distanceToDestination = haversineDistance(
+      userLocation.latitude,
+      userLocation.longitude,
+      selectedPlace.geometry.location.lat,
+      selectedPlace.geometry.location.lng
+    );
+
+    console.log(
+      `Distance to destination: ${distanceToDestination}m (threshold: ${DESTINATION_REACHED_THRESHOLD}m)`
+    );
+
+    if (distanceToDestination <= DESTINATION_REACHED_THRESHOLD) {
+      console.log("Destination reached!");
+      setDestinationReached(true);
+      setShowDetailsCard(false);
+      setShowArrow(false);
     }
-  }, [userLocation, previousPosition, selectedPlace, journeyStarted, destinationReached]);
+  }, [userLocation, selectedPlace, journeyStarted, destinationReached]);
 
   const onStartJourney = async () => {
     const hasPermission = await requestLocationPermission();
@@ -353,7 +365,7 @@ export default function Map() {
   // Handle learn more action from destination card
   const handleLearnMore = () => {
     if (selectedPlace) {
-      // navigation.navigate("Place", { placeId: selectedPlace.place_id });
+      // Logic with AI
     }
   };
 
@@ -449,8 +461,6 @@ export default function Map() {
               latitude: place.geometry.location.lat,
               longitude: place.geometry.location.lng,
             }}
-            title={place.name}
-            description={place.description || "Tourist attraction"}
             pinColor={
               selectedPlace?.place_id === place.place_id ? Colors.secondary : Colors.primary
             }
@@ -562,6 +572,11 @@ export default function Map() {
         <View style={styles.destinationCardContainer}>
           <DestinationCard
             discoveryDate={new Date().toISOString()}
+            placeImage={
+              selectedPlace.photos && selectedPlace.photos.length > 0
+                ? `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photoreference=${selectedPlace.photos[0].photo_reference}&key=${GOOGLE_MAPS_APIKEY}`
+                : undefined
+            }
             placeName={selectedPlace.name}
             onLearnMorePress={handleLearnMore}
             onDismiss={handleDismissDestinationCard}
