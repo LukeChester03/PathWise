@@ -2,7 +2,6 @@ import React, { useEffect, useState, useRef, useCallback } from "react";
 import MapView, { PROVIDER_GOOGLE, Circle, Marker, Camera } from "react-native-maps";
 import { View, StyleSheet, ActivityIndicator, TouchableOpacity, Text, Alert } from "react-native";
 import MapViewDirections from "react-native-maps-directions";
-import { initializeMap } from "../../controllers/Map/mapController";
 import FeatherIcon from "react-native-vector-icons/Feather";
 import {
   handleMarkerPress,
@@ -25,8 +24,8 @@ import { useNavigation } from "expo-router";
 
 const GOOGLE_MAPS_APIKEY = "AIzaSyDAGq_6eJGQpR3RcO0NrVOowel9-DxZkvA";
 const DESTINATION_REACHED_THRESHOLD = 10; // 10 meters
-const REFRESH_PLACES_DISTANCE = 100; // Refresh places when user moves 100 meters
 const MARKER_REFRESH_THRESHOLD = 10000; // milliseconds (10 seconds) minimum between refreshes
+const DEFAULT_CIRCLE_RADIUS = 500; // Default circle radius in meters if no places found
 
 export default function Map() {
   const [region, setRegion] = useState<Region | null>(null);
@@ -53,6 +52,8 @@ export default function Map() {
   } | null>(null);
   const [lastRefreshTime, setLastRefreshTime] = useState<number>(0);
   const [isRefreshingPlaces, setIsRefreshingPlaces] = useState<boolean>(false);
+  const [circleRadius, setCircleRadius] = useState<number>(DEFAULT_CIRCLE_RADIUS);
+  const [initialLoadingComplete, setInitialLoadingComplete] = useState<boolean>(false);
   const navigation = useNavigation();
 
   const [previousPosition, setPreviousPosition] = useState<{
@@ -61,22 +62,59 @@ export default function Map() {
   } | null>(null);
   const mapRef = useRef<MapView>(null);
 
-  useEffect(() => {
-    const init = async () => {
-      const mapData = await initializeMap();
-      if (mapData) {
-        setRegion(mapData.region);
-        setUserLocation(mapData.region);
-        setPlaces(mapData.places);
-        setLastRefreshPosition({
-          latitude: mapData.region.latitude,
-          longitude: mapData.region.longitude,
-        });
-        setLastRefreshTime(Date.now());
+  // Initialize map with user location and nearby places
+  const initializeMap = async () => {
+    try {
+      // Request location permission
+      const hasPermission = await requestLocationPermission();
+      if (!hasPermission) {
+        Alert.alert(
+          "Location Permission Required",
+          "We need your location to show you nearby attractions."
+        );
         setLoading(false);
+        return;
+      }
+
+      // Get current location
+      const locationWatcher = await watchUserLocation(
+        (locationUpdate) => {
+          if (!region) {
+            // First time setting the region
+            setRegion(locationUpdate);
+            setUserLocation(locationUpdate);
+
+            // Fetch places once we have the initial location
+            refreshNearbyPlaces(locationUpdate.latitude, locationUpdate.longitude);
+          } else {
+            // Just update the user location, not the map region
+            setUserLocation(locationUpdate);
+          }
+        },
+        (error) => {
+          console.error("Error getting location:", error);
+          Alert.alert("Location Error", "Could not get your current location.");
+          setLoading(false);
+        }
+      );
+
+      // Set cleanup function
+      setLocationWatcherCleanup(() => locationWatcher);
+    } catch (error) {
+      console.error("Error initializing map:", error);
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    initializeMap();
+
+    // Cleanup function
+    return () => {
+      if (locationWatcherCleanup) {
+        locationWatcherCleanup();
       }
     };
-    init();
   }, []);
 
   // Function to refresh nearby places
@@ -86,7 +124,15 @@ export default function Map() {
 
       try {
         setIsRefreshingPlaces(true);
-        const newPlaces = await fetchNearbyPlaces(latitude, longitude);
+
+        // Get places using the updated controller that returns places and furthestDistance
+        const { places: newPlaces, furthestDistance } = await fetchNearbyPlaces(
+          latitude,
+          longitude
+        );
+
+        // Set the circle radius based on the furthest place
+        setCircleRadius(furthestDistance);
 
         if (newPlaces && newPlaces.length > 0) {
           // Keep selected place in the list if it exists
@@ -104,17 +150,36 @@ export default function Map() {
           } else {
             setPlaces(newPlaces);
           }
+        } else if (newPlaces && newPlaces.length === 0) {
+          // If no places found, keep selected place if it exists
+          if (selectedPlace) {
+            setPlaces([selectedPlace]);
+          } else {
+            setPlaces([]);
+          }
         }
 
         setLastRefreshPosition({ latitude, longitude });
         setLastRefreshTime(Date.now());
+        setLoading(false);
+
+        // Mark initial loading as complete
+        if (!initialLoadingComplete) {
+          setInitialLoadingComplete(true);
+        }
       } catch (error) {
         console.error("Error refreshing nearby places:", error);
+        setLoading(false);
+
+        // Still mark initial loading as complete even if there was an error
+        if (!initialLoadingComplete) {
+          setInitialLoadingComplete(true);
+        }
       } finally {
         setIsRefreshingPlaces(false);
       }
     },
-    [selectedPlace, isRefreshingPlaces]
+    [selectedPlace, isRefreshingPlaces, initialLoadingComplete]
   );
 
   // Calculate heading based on current and previous positions
@@ -161,7 +226,8 @@ export default function Map() {
   // Check if we should refresh places based on user movement
   const checkAndRefreshPlaces = useCallback(
     (newLocation: Region) => {
-      if (!lastRefreshPosition) return;
+      // Don't try to refresh if initial loading isn't complete or if lastRefreshPosition isn't set
+      if (!initialLoadingComplete || !lastRefreshPosition) return;
 
       const currentTime = Date.now();
       const timeSinceLastRefresh = currentTime - lastRefreshTime;
@@ -176,123 +242,23 @@ export default function Map() {
         newLocation.longitude
       );
 
-      // If user has moved more than the threshold, refresh places
-      if (distance > REFRESH_PLACES_DISTANCE) {
+      // If user has moved more than 50% of the circle radius, refresh places
+      if (distance > circleRadius * 0.5) {
         refreshNearbyPlaces(newLocation.latitude, newLocation.longitude);
       }
     },
-    [lastRefreshPosition, lastRefreshTime, refreshNearbyPlaces]
+    [
+      lastRefreshPosition,
+      lastRefreshTime,
+      circleRadius,
+      refreshNearbyPlaces,
+      initialLoadingComplete,
+    ]
   );
 
-  // Setup location watcher when journey starts
+  // Setup detailed location tracking when journey starts
   useEffect(() => {
-    let cleanupFunction: (() => void) | null = null;
-
-    const startLocationTracking = async () => {
-      if (!locationWatcherCleanup) {
-        // Get high accuracy location updates
-        cleanupFunction = await watchUserLocation(
-          (newLocation) => {
-            setUserLocation(newLocation);
-
-            // Check if we should refresh nearby places
-            checkAndRefreshPlaces(newLocation);
-
-            // Calculate heading if we have a previous position
-            if (previousPosition) {
-              const heading = calculateHeading(
-                previousPosition.latitude,
-                previousPosition.longitude,
-                newLocation.latitude,
-                newLocation.longitude
-              );
-
-              // Only update heading if there's significant movement (to avoid jitter)
-              const distance = haversineDistance(
-                previousPosition.latitude,
-                previousPosition.longitude,
-                newLocation.latitude,
-                newLocation.longitude
-              );
-
-              if (distance > 2) {
-                // Only update heading if moved more than 2 meters
-                setUserHeading(heading);
-                updateMapCamera(newLocation, heading);
-                setPreviousPosition({
-                  latitude: newLocation.latitude,
-                  longitude: newLocation.longitude,
-                });
-              }
-            } else {
-              // First position update
-              setPreviousPosition({
-                latitude: newLocation.latitude,
-                longitude: newLocation.longitude,
-              });
-              updateMapCamera(newLocation, userHeading);
-            }
-
-            // Check if user has reached destination
-            if (selectedPlace && !destinationReached) {
-              const distanceToDestination = haversineDistance(
-                newLocation.latitude,
-                newLocation.longitude,
-                selectedPlace.geometry.location.lat,
-                selectedPlace.geometry.location.lng
-              );
-
-              if (distanceToDestination <= DESTINATION_REACHED_THRESHOLD) {
-                setDestinationReached(true);
-                // Hide details card when destination is reached
-                setShowDetailsCard(false);
-                setShowArrow(false);
-              }
-            }
-          },
-          (error) => {
-            console.error("Error watching location:", error);
-            Alert.alert("Location Error", "Failed to track your location.");
-          }
-        );
-
-        setLocationWatcherCleanup(() => cleanupFunction);
-      }
-    };
-
     if (journeyStarted && selectedPlace) {
-      startLocationTracking();
-    } else if (!journeyStarted && userLocation) {
-      // Even when not in journey mode, start location tracking for marker refreshing
-      startLocationTracking();
-    }
-
-    return () => {
-      if (locationWatcherCleanup) {
-        locationWatcherCleanup();
-        setLocationWatcherCleanup(null);
-      }
-    };
-  }, [journeyStarted, selectedPlace, checkAndRefreshPlaces, userLocation]);
-
-  // Clean up location watcher when component unmounts
-  useEffect(() => {
-    return () => {
-      if (locationWatcherCleanup) {
-        locationWatcherCleanup();
-        setLocationWatcherCleanup(null);
-      }
-    };
-  }, []);
-
-  const onStartJourney = async () => {
-    const hasPermission = await requestLocationPermission();
-    if (hasPermission) {
-      setShowCard(false);
-      setJourneyStarted(true);
-      setShowDetailsCard(true);
-      setDestinationReached(false);
-
       // Reset previous position and heading
       setPreviousPosition(null);
       setUserHeading(null);
@@ -312,6 +278,70 @@ export default function Map() {
 
         mapRef.current.animateCamera(initialCamera, { duration: 500 });
       }
+    }
+  }, [journeyStarted]);
+
+  // Update heading and check for destination reached
+  useEffect(() => {
+    if (!userLocation || !previousPosition) return;
+
+    // Calculate heading if we have a previous position
+    const heading = calculateHeading(
+      previousPosition.latitude,
+      previousPosition.longitude,
+      userLocation.latitude,
+      userLocation.longitude
+    );
+
+    // Only update heading if there's significant movement (to avoid jitter)
+    const distance = haversineDistance(
+      previousPosition.latitude,
+      previousPosition.longitude,
+      userLocation.latitude,
+      userLocation.longitude
+    );
+
+    if (distance > 2) {
+      // Only update heading if moved more than 2 meters
+      setUserHeading(heading);
+      if (journeyStarted) {
+        updateMapCamera(userLocation, heading);
+      }
+      setPreviousPosition({
+        latitude: userLocation.latitude,
+        longitude: userLocation.longitude,
+      });
+
+      // Check if we should refresh places (when not in journey mode)
+      if (!journeyStarted) {
+        checkAndRefreshPlaces(userLocation);
+      }
+    }
+
+    // Check if user has reached destination
+    if (selectedPlace && journeyStarted && !destinationReached) {
+      const distanceToDestination = haversineDistance(
+        userLocation.latitude,
+        userLocation.longitude,
+        selectedPlace.geometry.location.lat,
+        selectedPlace.geometry.location.lng
+      );
+
+      if (distanceToDestination <= DESTINATION_REACHED_THRESHOLD) {
+        setDestinationReached(true);
+        setShowDetailsCard(false);
+        setShowArrow(false);
+      }
+    }
+  }, [userLocation, previousPosition, selectedPlace, journeyStarted, destinationReached]);
+
+  const onStartJourney = async () => {
+    const hasPermission = await requestLocationPermission();
+    if (hasPermission) {
+      setShowCard(false);
+      setJourneyStarted(true);
+      setShowDetailsCard(true);
+      setDestinationReached(false);
     } else {
       Alert.alert(
         "Location Permission Required",
@@ -381,31 +411,34 @@ export default function Map() {
         pitchEnabled={true}
         onUserLocationChange={(event) => {
           const { coordinate } = event.nativeEvent;
-          if (coordinate && !journeyStarted) {
-            // Update user location even when not in journey mode
-            setUserLocation({
+          if (coordinate) {
+            // Update user location
+            const locationUpdate = {
               latitude: coordinate.latitude,
               longitude: coordinate.longitude,
               latitudeDelta: region?.latitudeDelta || 0.01,
               longitudeDelta: region?.longitudeDelta || 0.01,
-            });
+            };
 
-            // Check if we should refresh places
-            checkAndRefreshPlaces({
-              latitude: coordinate.latitude,
-              longitude: coordinate.longitude,
-              latitudeDelta: region?.latitudeDelta || 0.01,
-              longitudeDelta: region?.longitudeDelta || 0.01,
-            });
+            setUserLocation(locationUpdate);
+
+            // Initialize previous position if not set
+            if (!previousPosition) {
+              setPreviousPosition({
+                latitude: coordinate.latitude,
+                longitude: coordinate.longitude,
+              });
+            }
           }
         }}
       >
         {userLocation && (
           <Circle
             center={userLocation}
-            radius={250}
+            radius={circleRadius}
             strokeColor={Colors.primary}
-            fillColor={`${Colors.primary}20`}
+            strokeWidth={2}
+            fillColor={`${Colors.primary}10`}
           />
         )}
 
@@ -576,11 +609,6 @@ const styles = StyleSheet.create({
     height: 40,
     justifyContent: "center",
     alignItems: "center",
-  },
-  arrowText: {
-    color: "white",
-    fontSize: 24,
-    fontWeight: "bold",
   },
   destinationCardContainer: {
     position: "absolute",

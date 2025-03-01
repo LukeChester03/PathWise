@@ -78,6 +78,7 @@ export interface Place {
   icon_mask_base_uri?: string;
   vicinity?: string;
   business_status?: string;
+  distance?: number; // Distance from user in meters
 }
 
 export interface PlaceDetails {
@@ -132,4 +133,10 @@ export interface ApiResponse {
   results: Place[];
   status: string;
   error_message?: string;
+}
+
+// Response type for fetchNearbyPlaces
+export interface NearbyPlacesResponse {
+  places: Place[];
+  furthestDistance: number;
 }

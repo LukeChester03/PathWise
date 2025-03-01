@@ -48,14 +48,19 @@ const ExploreScreen = ({ navigation }) => {
         return;
       }
 
-      // Fetch nearby places using the Google Places API
-      const places = await fetchNearbyPlaces(location.latitude, location.longitude);
+      // Fetch nearby places using the updated Places API
+      const { places, furthestDistance } = await fetchNearbyPlaces(
+        location.latitude,
+        location.longitude
+      );
 
       if (!places || places.length === 0) {
+        // No places found, display the empty state card
         setNoPlacesFound(true);
         setNearbyPlaces([]);
       } else {
         setNearbyPlaces(places);
+        setNoPlacesFound(false);
       }
 
       setLoading(false);
@@ -204,6 +209,15 @@ const ExploreScreen = ({ navigation }) => {
   };
 
   const renderNearbyPlacesSection = () => {
+    if (loading) {
+      return (
+        <View style={[styles.loadingContainer, { height: 180 }]}>
+          <ActivityIndicator size="small" color={Colors.primary} />
+          <Text style={styles.loadingText}>Finding places nearby...</Text>
+        </View>
+      );
+    }
+
     return (
       <>
         <View style={styles.sectionHeader}>
@@ -215,10 +229,15 @@ const ExploreScreen = ({ navigation }) => {
           )}
         </View>
 
-        {nearbyPlaces.length === 0 ? (
+        {noPlacesFound || nearbyPlaces.length === 0 ? (
           renderEmptyState(
             "No tourist attractions found nearby. Try exploring a different area.",
-            "compass-outline"
+            "compass-outline",
+            () => {
+              // Add a way to refresh by pulling down or show a refresh button
+              fetchNearbyData();
+            },
+            "Try Again"
           )
         ) : (
           <PlacesCarousel places={nearbyPlaces} onPlacePress={navigateToPlaceDetails} />
@@ -228,6 +247,7 @@ const ExploreScreen = ({ navigation }) => {
   };
 
   const renderContent = () => {
+    // Show only the loading state when both are loading
     if (loading && loadingMyPlaces) {
       return (
         <View style={styles.centerContainer}>
@@ -237,6 +257,7 @@ const ExploreScreen = ({ navigation }) => {
       );
     }
 
+    // Show error screen if fetching fails
     if (error) {
       return (
         <View style={styles.centerContainer}>
@@ -249,10 +270,12 @@ const ExploreScreen = ({ navigation }) => {
       );
     }
 
-    if (noPlacesFound && noMyPlacesFound) {
+    // If both sections have no content, show a consolidated empty state
+    if (noPlacesFound && noMyPlacesFound && !loading && !loadingMyPlaces) {
       return renderNoPlacesCard();
     }
 
+    // Otherwise, show both sections (either with content or individual empty states)
     return (
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
         {/* My Places Section */}

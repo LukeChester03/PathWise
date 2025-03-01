@@ -53,7 +53,12 @@ const ViewAllScreen = ({ route, navigation }) => {
           return;
         }
 
-        const nearbyPlaces = await fetchNearbyPlaces(location.latitude, location.longitude);
+        // Use destructuring to get places from the returned object
+        const { places: nearbyPlaces, furthestDistance } = await fetchNearbyPlaces(
+          location.latitude,
+          location.longitude
+        );
+
         setPlaces(nearbyPlaces || []);
         setLoading(false);
       }
@@ -67,8 +72,6 @@ const ViewAllScreen = ({ route, navigation }) => {
   const navigateToPlaceDetails = (placeId) => {
     navigation.navigate("Place", { placeId });
   };
-
-  // Use our utility function to get place images
 
   // Render a grid item for nearby places
   const renderGridItem = ({ item }) => {
@@ -159,7 +162,8 @@ const ViewAllScreen = ({ route, navigation }) => {
           <Ionicons name="location-outline" size={60} color="#ccc" />
           <Text style={styles.emptyTitle}>No Nearby Places Found</Text>
           <Text style={styles.emptyText}>
-            We couldn't find any places nearby. Try again later or in a different location.
+            We couldn't find any tourist attractions nearby. Try again later or in a different
+            location.
           </Text>
           <TouchableOpacity style={styles.retryButton} onPress={fetchData}>
             <Text style={styles.retryButtonText}>Try Again</Text>

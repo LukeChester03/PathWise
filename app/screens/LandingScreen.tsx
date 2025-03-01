@@ -7,10 +7,10 @@ import {
   TouchableOpacity,
   StyleSheet,
   TouchableWithoutFeedback,
-  Image, // Import this for handling taps outside the modal
+  Image,
 } from "react-native";
-import LoginComponent from "../components/LandingPage/Login"; // Import the LoginComponent
-import RegisterModal from "../components/LandingPage/Register"; // Import the RegisterModal
+import LoginComponent from "../components/LandingPage/Login";
+import RegisterModal from "../components/LandingPage/Register";
 import { Colors, NeutralColors } from "../constants/colours";
 
 const LandingScreen = ({ navigation }: { navigation: any }) => {
