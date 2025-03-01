@@ -1,5 +1,11 @@
 import React, { useEffect, useState, useRef, useCallback } from "react";
-import MapView, { PROVIDER_GOOGLE, Circle, Marker, Camera } from "react-native-maps";
+import MapView, {
+  PROVIDER_GOOGLE,
+  Circle,
+  Marker,
+  Camera,
+  PROVIDER_DEFAULT,
+} from "react-native-maps";
 import { View, StyleSheet, ActivityIndicator, TouchableOpacity, Text, Alert } from "react-native";
 import MapViewDirections from "react-native-maps-directions";
 import FeatherIcon from "react-native-vector-icons/Feather";
@@ -417,7 +423,7 @@ export default function Map() {
         customMapStyle={customMapStyle}
         showsPointsOfInterest={false}
         showsUserLocation
-        provider={PROVIDER_GOOGLE}
+        provider={PROVIDER_DEFAULT}
         followsUserLocation={journeyStarted}
         rotateEnabled={true}
         pitchEnabled={true}

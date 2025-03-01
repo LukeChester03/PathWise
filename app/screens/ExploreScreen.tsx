@@ -311,14 +311,16 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
   },
   header: {
+    marginTop: 24,
     padding: 16,
     flexDirection: "row",
     alignItems: "center",
   },
   headerTitle: {
-    fontSize: 24,
-    fontWeight: "bold",
-    color: NeutralColors.black,
+    fontSize: 28,
+    fontWeight: "700",
+    color: Colors.primary,
+    marginBottom: 4,
   },
   searchBarContainer: {
     paddingHorizontal: 16,

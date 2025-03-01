@@ -2,6 +2,7 @@
 import { createUserWithEmailAndPassword } from "firebase/auth";
 import { auth, db } from "../../config/firebaseConfig"; // Import Firestore
 import { doc, setDoc } from "firebase/firestore"; // Import Firestore methods
+import { handleLogin } from "../Login/LoginController";
 
 export const handleRegister = async (
   name: string,
@@ -35,6 +36,7 @@ export const handleRegister = async (
       });
 
       // Trigger success callback
+      handleLogin(email, password, onSuccess, onError);
       onSuccess();
     }
   } catch (error: any) {

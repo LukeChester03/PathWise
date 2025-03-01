@@ -1,17 +1,40 @@
-import React from "react";
-import { View, Text, StyleSheet, SafeAreaView, Image } from "react-native";
+import React, { useState, useEffect } from "react";
+import { View, Text, StyleSheet, SafeAreaView, Image, Dimensions } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { globalStyles } from "../constants/globalStyles";
-import NavBar from "../components/Global/NavBar";
 import Map from "../components/Map/Map";
 import ScreenWithNavBar from "../components/Global/ScreenWithNavbar";
 import { Colors, NeutralColors } from "../constants/colours";
-import FeatherIcon from "react-native-vector-icons/Feather";
 
 const MapScreen = () => {
+  const insets = useSafeAreaInsets();
+  const [screenHeight, setScreenHeight] = useState(Dimensions.get("window").height);
+
+  useEffect(() => {
+    const updateDimensions = () => {
+      setScreenHeight(Dimensions.get("window").height);
+    };
+
+    const subscription = Dimensions.addEventListener("change", updateDimensions);
+
+    return () => {
+      subscription.remove();
+    };
+  }, []);
+
+  // Ensure the header is positioned correctly regardless of screen height
+  const headerPaddingTop = insets.top + 10; // Add safe area inset + some extra padding
+  const headerPaddingBottom = screenHeight > 800 ? 20 : 16; // Adjust bottom padding for larger screens
+
   return (
     <ScreenWithNavBar>
       <View style={globalStyles.container}>
-        <View style={styles.headerContainer}>
+        <View
+          style={[
+            styles.headerContainer,
+            { paddingTop: headerPaddingTop, paddingBottom: headerPaddingBottom },
+          ]}
+        >
           <SafeAreaView style={styles.safeArea}>
             <View style={styles.header}>
               <Text style={styles.title}>Discover</Text>
@@ -54,7 +77,6 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingHorizontal: 20,
-    paddingVertical: 16,
     flexDirection: "row",
     justifyContent: "space-between",
   },
@@ -76,30 +98,5 @@ const styles = StyleSheet.create({
   mapContainer: {
     flex: 1,
     position: "relative",
-  },
-  floatingCard: {
-    position: "absolute",
-    bottom: 20,
-    left: 20,
-    right: 20,
-    backgroundColor: NeutralColors.white,
-    borderRadius: 16,
-    padding: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 5,
-  },
-  cardTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: NeutralColors.black,
-    marginBottom: 6,
-  },
-  cardDescription: {
-    fontSize: 14,
-    color: NeutralColors.gray600,
-    lineHeight: 20,
   },
 });

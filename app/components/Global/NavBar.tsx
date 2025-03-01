@@ -1,5 +1,5 @@
-import React from "react";
-import { View, TouchableOpacity, StyleSheet, Text } from "react-native";
+import React, { useState, useEffect } from "react";
+import { View, TouchableOpacity, StyleSheet, Text, Dimensions } from "react-native";
 import { useNavigation, useNavigationState } from "@react-navigation/native";
 import FeatherIcon from "react-native-vector-icons/Feather";
 import { RootStackParamList } from "../../navigation/types";
@@ -7,7 +7,6 @@ import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { Colors, NeutralColors } from "../../constants/colours";
 
-// Assuming you have these colors defined in your project
 const border = {
   stroke: "#EEEEEE",
 };
@@ -22,6 +21,25 @@ const NavBar = () => {
     return route.name;
   });
 
+  // State to store dynamic screen height
+  const [screenHeight, setScreenHeight] = useState(Dimensions.get("window").height);
+
+  useEffect(() => {
+    // Update screen height on window size change (handles rotation)
+    const updateDimensions = () => {
+      setScreenHeight(Dimensions.get("window").height);
+    };
+
+    const subscription = Dimensions.addEventListener("change", updateDimensions);
+
+    return () => {
+      subscription.remove();
+    };
+  }, []);
+
+  // Calculate dynamic navbar height based on screen height
+  const dynamicNavBarHeight = screenHeight > 800 ? 90 : 80; // Adjust for large/small screens
+
   const navItems = [
     { id: "home", icon: "home", screen: "Home", label: "Home" },
     { id: "discover", icon: "compass", screen: "Discover", label: "Discover" },
@@ -31,7 +49,10 @@ const NavBar = () => {
   ];
 
   return (
-    <SafeAreaView edges={["bottom"]} style={[styles.container, { paddingBottom: insets.bottom }]}>
+    <SafeAreaView
+      edges={["bottom"]}
+      style={[styles.container, { height: dynamicNavBarHeight + insets.bottom }]}
+    >
       <View style={styles.innerContainer}>
         {navItems.map((item) => {
           const isActive = currentRoute === item.screen;
@@ -62,7 +83,6 @@ const NavBar = () => {
 const styles = StyleSheet.create({
   container: {
     backgroundColor: NeutralColors.white,
-    borderTopWidth: 1,
     borderTopColor: border.stroke,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: -3 },
