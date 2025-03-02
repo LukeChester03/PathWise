@@ -144,3 +144,9 @@ export interface NearbyPlacesResponse {
   places: Place[];
   furthestDistance: number;
 }
+
+// Travel mode types that match both our app and the Google Maps API
+export type TravelMode = "walking" | "driving" | "bicycling" | "transit";
+
+// Travel mode types specifically for MapViewDirections which uses uppercase
+export type MapViewDirectionsMode = "WALKING" | "DRIVING" | "BICYCLING" | "TRANSIT";

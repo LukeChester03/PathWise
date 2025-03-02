@@ -13,6 +13,7 @@ import {
 import { Colors, NeutralColors } from "../../constants/colours";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
+import { TravelMode } from "../../types/MapTypes";
 
 interface ExploreCardProps {
   placeName: string;
@@ -22,6 +23,7 @@ interface ExploreCardProps {
   onStartJourney: () => void;
   onCancel: () => void;
   visible?: boolean;
+  travelMode?: TravelMode; // Made optional with default in component
 }
 
 const { width, height } = Dimensions.get("window");
@@ -34,6 +36,7 @@ const ExploreCard: React.FC<ExploreCardProps> = ({
   onStartJourney,
   onCancel,
   visible = false,
+  travelMode = "walking", // Default to walking if not provided
 }) => {
   // Animation values
   const backdropAnim = useRef(new Animated.Value(0)).current;
@@ -210,6 +213,15 @@ const ExploreCard: React.FC<ExploreCardProps> = ({
     });
   };
 
+  // Travel mode icon and label
+  const getTravelModeIcon = () => {
+    return travelMode === "driving" ? "car-outline" : "walk-outline";
+  };
+
+  const getTravelModeLabel = () => {
+    return travelMode === "driving" ? "Driving" : "Walking";
+  };
+
   // Don't render anything if not visible and animation has completed
   if (!visible) {
     return null;
@@ -347,7 +359,13 @@ const ExploreCard: React.FC<ExploreCardProps> = ({
               <Ionicons name="time-outline" size={22} color={Colors.primary} />
               <View style={styles.travelInfoTextContainer}>
                 <Text style={styles.travelInfoLabel}>Travel time</Text>
-                <Text style={styles.travelInfoValue}>{travelTime}</Text>
+                <View style={styles.travelValueContainer}>
+                  <Text style={styles.travelInfoValue}>{travelTime}</Text>
+                  <View style={styles.travelModeContainer}>
+                    <Ionicons name={getTravelModeIcon()} size={16} color={NeutralColors.white} />
+                    <Text style={styles.travelModeText}>{getTravelModeLabel()}</Text>
+                  </View>
+                </View>
               </View>
             </Animated.View>
 
@@ -494,15 +512,36 @@ const styles = StyleSheet.create({
   },
   travelInfoTextContainer: {
     marginLeft: 12,
+    flex: 1,
   },
   travelInfoLabel: {
     fontSize: 14,
     color: NeutralColors.gray500,
   },
+  travelValueContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: 4,
+  },
   travelInfoValue: {
     fontSize: 16,
     fontWeight: "700",
     color: NeutralColors.black,
+  },
+  travelModeContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: Colors.primary,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 12,
+  },
+  travelModeText: {
+    fontSize: 12,
+    color: NeutralColors.white,
+    fontWeight: "600",
+    marginLeft: 4,
   },
   discoverButton: {
     backgroundColor: Colors.primary,

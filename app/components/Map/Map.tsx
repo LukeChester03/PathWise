@@ -1,4 +1,4 @@
-// Updated Map Component with Visited Places Integration and Proximity Notifications
+// Updated Map Component with Dynamic Travel Mode and Proximity Notifications
 import React, { useEffect, useState, useRef, useCallback } from "react";
 import MapView, {
   PROVIDER_GOOGLE,
@@ -32,7 +32,8 @@ import {
   watchUserLocation,
 } from "../../controllers/Map/locationController";
 import { fetchNearbyPlaces } from "../../controllers/Map/placesController";
-import { Region, Place } from "../../types/MapTypes";
+import { fetchRoute } from "../../controllers/Map/routesController"; // Make sure to import fetchRoute
+import { Region, Place, TravelMode, MapViewDirectionsMode } from "../../types/MapTypes";
 import ExploreCard from "./ExploreCard";
 import DetailsCard from "./DetailsCard";
 import { Colors, NeutralColors } from "../../constants/colours";
@@ -62,6 +63,8 @@ const MARKER_COLORS = {
 // Define proximity thresholds for notifications
 const PROXIMITY_NOTIFICATION_THRESHOLD = 100; // 100 meters
 const NOTIFICATION_COOLDOWN = 60000; // 1 minute cooldown between notifications for the same place
+// Distance threshold for driving vs walking mode (5 kilometers)
+const DRIVING_DISTANCE_THRESHOLD = 5000; // 5000 meters = 5km
 
 export default function Map() {
   const [region, setRegion] = useState<Region | null>(null);
@@ -92,6 +95,9 @@ export default function Map() {
   const [initialLoadingComplete, setInitialLoadingComplete] = useState<boolean>(false);
   // New state for tracking if destination has been saved to database
   const [destinationSaved, setDestinationSaved] = useState<boolean>(false);
+  // New state for travel mode (walking or driving)
+  const [travelMode, setTravelMode] = useState<TravelMode>("walking");
+  const [routeUpdateCounter, setRouteUpdateCounter] = useState<number>(0);
 
   // New states for proximity notifications
   const [showProximityNotification, setShowProximityNotification] = useState<boolean>(false);
@@ -101,6 +107,7 @@ export default function Map() {
   const [notificationVisible, setNotificationVisible] = useState<boolean>(false);
   const notificationOpacity = useRef(new Animated.Value(0)).current;
   const notificationTranslateY = useRef(new Animated.Value(-100)).current;
+  const [routeKey, setRouteKey] = useState<number>(0);
 
   const navigation = useNavigation();
 
@@ -208,15 +215,61 @@ export default function Map() {
   // Function to handle notification response
   const handleNotificationResponse = (place: Place) => {
     // If user taps notification, select the place
-    handleMarkerPress(
-      place,
-      userLocation || region,
-      setSelectedPlace,
-      setRouteCoordinates,
-      setTravelTime,
-      setShowCard
-    );
+    handlePlaceSelection(place);
     dismissNotification();
+  };
+
+  // Custom function to handle place selection (extracted from handleMarkerPress)
+  const handlePlaceSelection = async (place: Place) => {
+    if (!userLocation && !region) {
+      Alert.alert("Location Error", "Unable to determine your current location.");
+      return;
+    }
+
+    const origin = `${userLocation?.latitude || region?.latitude},${
+      userLocation?.longitude || region?.longitude
+    }`;
+    const destination = `${place.geometry.location.lat},${place.geometry.location.lng}`;
+
+    try {
+      setSelectedPlace(place);
+
+      // Fetch route details with travel mode determination
+      const routeResult = await fetchRoute(origin, destination);
+
+      if (routeResult) {
+        const { coords, duration, distance: distanceKm, travelMode: routeTravelMode } = routeResult;
+
+        // Log the detected travel mode and distance
+        console.log(
+          `Route calculation: ${distanceKm.toFixed(
+            1
+          )}km, mode: ${routeTravelMode}, time: ${duration}`
+        );
+
+        setRouteCoordinates(coords);
+        setTravelTime(duration);
+        setDistance(distanceKm.toFixed(1) + " km");
+
+        // Set travel mode - restrict to just walking or driving
+        if (routeTravelMode === "bicycling" || routeTravelMode === "transit") {
+          // Map other modes to driving for simplicity
+          setTravelMode("driving");
+        } else {
+          setTravelMode(routeTravelMode);
+        }
+
+        // Force route recalculation by updating the key
+        setRouteKey((prev) => prev + 1);
+
+        setShowCard(true);
+      } else {
+        Alert.alert("Route Error", "Could not calculate a route to this destination.");
+      }
+    } catch (error) {
+      console.error("Error getting route:", error);
+      Alert.alert("Route Error", "There was a problem calculating the route.");
+    }
   };
 
   // Initialize map with user location and nearby places
@@ -275,14 +328,7 @@ export default function Map() {
       // Find place by ID and navigate to it
       const place = places.find((p) => p.place_id === placeId);
       if (place) {
-        handleMarkerPress(
-          place,
-          userLocation || region,
-          setSelectedPlace,
-          setRouteCoordinates,
-          setTravelTime,
-          setShowCard
-        );
+        handlePlaceSelection(place);
       }
     });
 
@@ -617,6 +663,9 @@ export default function Map() {
       setShowDetailsCard(true);
       setDestinationReached(false);
       setDestinationSaved(false); // Reset saved state when starting a new journey
+
+      // Increment counter to force route redraw
+      setRouteUpdateCounter((prev) => prev + 1);
     } else {
       Alert.alert(
         "Location Permission Required",
@@ -773,24 +822,16 @@ export default function Map() {
               longitude: place.geometry.location.lng,
             }}
             pinColor={getMarkerColor(place)}
-            onPress={() =>
-              !journeyStarted &&
-              handleMarkerPress(
-                place,
-                userLocation || region,
-                setSelectedPlace,
-                setRouteCoordinates,
-                setTravelTime,
-                setShowCard
-              )
-            }
+            onPress={() => !journeyStarted && handlePlaceSelection(place)}
           />
         ))}
 
         {routeCoordinates.length > 0 && journeyStarted && (
           <MapViewDirections
+            key={`route-${routeKey}-${travelMode}`} // Force re-render when travel mode changes
             origin={userLocation || region}
-            mode="WALKING"
+            resetOnChange={false}
+            mode={travelMode.toUpperCase() as MapViewDirectionsMode}
             destination={{
               latitude: selectedPlace?.geometry.location.lat || 0,
               longitude: selectedPlace?.geometry.location.lng || 0,
@@ -801,12 +842,22 @@ export default function Map() {
             optimizeWaypoints={true}
             onReady={(result) => {
               if (result.distance && result.duration) {
-                setTravelTime(`${parseFloat(result.duration.toString()).toFixed(1)} min`);
-                setDistance(`${parseFloat(result.distance.toString()).toFixed(1)} km`);
+                // Always update the travel time and distance when route is ready
+                const newTravelTime = `${parseFloat(result.duration.toString()).toFixed(1)} min`;
+                const newDistance = `${parseFloat(result.distance.toString()).toFixed(1)} km`;
+
+                console.log(
+                  `Route ready: ${result.distance.toFixed(
+                    1
+                  )}km with ${travelMode} mode, time: ${newTravelTime}`
+                );
+
+                setTravelTime(newTravelTime);
+                setDistance(newDistance);
               }
             }}
             onError={(errorMessage) => {
-              console.log(errorMessage);
+              console.error("MapViewDirections error:", errorMessage);
             }}
           />
         )}
@@ -893,6 +944,7 @@ export default function Map() {
           travelTime={travelTime}
           onStartJourney={onStartJourney}
           visible={showCard}
+          travelMode={travelMode}
           placeDescription={selectedPlace.description}
           placeImage={
             selectedPlace.photos && selectedPlace.photos.length > 0
@@ -920,7 +972,16 @@ export default function Map() {
           placeName={selectedPlace.name}
           travelTime={travelTime}
           distance={distance}
+          travelMode={travelMode} // Now required, not optional
           onSwipeOff={handleSwipeOff}
+          onInfoPress={() => {
+            Alert.alert(
+              "Route Information",
+              `This route uses ${travelMode} mode because the destination is ${
+                travelMode === "driving" ? "over" : "under"
+              } 5km away. Travel time: ${travelTime}, Distance: ${distance}`
+            );
+          }}
         />
       )}
 

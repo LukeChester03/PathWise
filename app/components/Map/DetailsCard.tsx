@@ -1,12 +1,24 @@
-import React, { useRef } from "react";
-import { View, Text, Image, StyleSheet, Animated, PanResponder } from "react-native";
-import { Colors } from "../../constants/colours";
+import React, { useRef, useEffect } from "react";
+import {
+  View,
+  Text,
+  Image,
+  StyleSheet,
+  Animated,
+  PanResponder,
+  TouchableOpacity,
+} from "react-native";
+import { Colors, NeutralColors } from "../../constants/colours";
+import { Ionicons } from "@expo/vector-icons";
+import { TravelMode } from "../../types/MapTypes";
 
 interface DetailsCardProps {
   placeName: string;
   travelTime: string;
   distance: string;
   onSwipeOff: () => void;
+  travelMode: TravelMode; // Make this required, not optional
+  onInfoPress?: () => void;
 }
 
 const DetailsCard: React.FC<DetailsCardProps> = ({
@@ -14,9 +26,22 @@ const DetailsCard: React.FC<DetailsCardProps> = ({
   travelTime,
   distance,
   onSwipeOff,
+  travelMode,
+  onInfoPress = () => {},
 }) => {
   const pan = useRef(new Animated.ValueXY()).current;
   const shadowAnim = useRef(new Animated.Value(0.25)).current;
+
+  // Use a ref to remember the last mode to detect changes
+  const lastModeRef = useRef<TravelMode>(travelMode);
+
+  // Track when travel mode changes
+  useEffect(() => {
+    if (lastModeRef.current !== travelMode) {
+      console.log(`Travel mode changed from ${lastModeRef.current} to ${travelMode}`);
+      lastModeRef.current = travelMode;
+    }
+  }, [travelMode]);
 
   const panResponder = useRef(
     PanResponder.create({
@@ -61,22 +86,58 @@ const DetailsCard: React.FC<DetailsCardProps> = ({
     })
   ).current;
 
+  // Get appropriate asset based on travel mode
+  const getTravelModeAsset = () => {
+    if (travelMode === "driving") {
+      try {
+        return require("../../assets/driving.gif");
+      } catch (e) {
+        console.warn("driving.gif not found, using walking.gif as fallback");
+        return require("../../assets/walking.gif");
+      }
+    } else {
+      return require("../../assets/walking.gif");
+    }
+  };
+
   return (
     <Animated.View
       style={[
         styles.cardContainer,
         {
           transform: [{ translateX: pan.x }],
-          shadowOpacity: shadowAnim, // Use animated shadow opacity
+          shadowOpacity: shadowAnim,
         },
       ]}
       {...panResponder.panHandlers}
     >
-      <Image source={require("../../assets/walking.gif")} style={styles.gif} />
+      <Image
+        source={getTravelModeAsset()}
+        style={styles.gif}
+        key={`travel-${travelMode}`} // Force re-render when mode changes
+      />
       <View style={styles.textContainer}>
         <Text style={styles.title}>Travelling to {placeName}</Text>
-        <Text style={styles.info}>Time left: {travelTime}</Text>
-        <Text style={styles.info}>Distance: {distance}</Text>
+        <View style={styles.infoRow}>
+          <Text style={styles.info}>Time left: {travelTime}</Text>
+          <TouchableOpacity style={styles.infoIconButton} onPress={onInfoPress}>
+            <Ionicons name="information-circle" size={18} color={Colors.primary} />
+          </TouchableOpacity>
+        </View>
+        <View style={styles.infoRow}>
+          <Text style={styles.info}>Distance: {distance}</Text>
+          <View style={[styles.travelModeTag, { backgroundColor: Colors.primary }]}>
+            <Ionicons
+              name={travelMode === "driving" ? "car" : "walk"}
+              size={14}
+              color="white"
+              style={styles.travelModeIcon}
+            />
+            <Text style={styles.travelModeText}>
+              {travelMode === "driving" ? "Driving" : "Walking"}
+            </Text>
+          </View>
+        </View>
       </View>
     </Animated.View>
   );
@@ -99,7 +160,7 @@ const styles = StyleSheet.create({
     shadowRadius: 3.84,
     elevation: 6,
     alignItems: "center",
-    width: "60%",
+    width: "70%",
   },
   gif: {
     width: 50,
@@ -118,10 +179,34 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     color: Colors.primary,
   },
+  infoRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 6,
+  },
   info: {
     fontSize: 14,
-    marginBottom: 6,
-    color: Colors.text,
+    color: NeutralColors.gray600,
+    flex: 1,
+  },
+  infoIconButton: {
+    padding: 4,
+  },
+  travelModeTag: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 12,
+  },
+  travelModeIcon: {
+    marginRight: 4,
+  },
+  travelModeText: {
+    color: "white",
+    fontSize: 12,
+    fontWeight: "600",
   },
 });
 

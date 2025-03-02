@@ -23,7 +23,7 @@ const NON_TOURIST_TYPES = [
 const MAX_PLACES = 20;
 
 // Default search radius when ranking by distance is not available
-const DEFAULT_RADIUS = 50000; // 50km
+const DEFAULT_RADIUS = 50000;
 
 export const fetchNearbyPlaces = async (
   latitude: number,
@@ -52,33 +52,33 @@ export const fetchNearbyPlaces = async (
     const data = await response.json();
 
     // If we get ZERO_RESULTS, try a broader search with radius instead
-    if (data.status === "ZERO_RESULTS") {
-      console.log("No nearby places found with rankby=distance, trying with radius instead");
+    // if (data.status === "ZERO_RESULTS") {
+    //   console.log("No nearby places found with rankby=distance, trying with radius instead");
 
-      // Try a broader search with radius parameter
-      const radiusResponse = await fetch(
-        `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${latitude},${longitude}&radius=${DEFAULT_RADIUS}&type=tourist_attraction,museum,park&keyword=tourist,attraction,sightseeing&key=AIzaSyDAGq_6eJGQpR3RcO0NrVOowel9-DxZkvA`
-      );
+    //   // Try a broader search with radius parameter
+    //   const radiusResponse = await fetch(
+    //     `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${latitude},${longitude}&radius=${DEFAULT_RADIUS}&type=tourist_attraction,museum,park&keyword=tourist,attraction,sightseeing&key=AIzaSyDAGq_6eJGQpR3RcO0NrVOowel9-DxZkvA`
+    //   );
 
-      const radiusData = await radiusResponse.json();
+    //   const radiusData = await radiusResponse.json();
 
-      // If still no results, return empty array with default radius
-      if (
-        radiusData.status === "ZERO_RESULTS" ||
-        !radiusData.results ||
-        radiusData.results.length === 0
-      ) {
-        console.log("No tourist attractions found in this area");
-        return {
-          places: [],
-          furthestDistance: DEFAULT_RADIUS, // Default 500m radius if no places found
-        };
-      }
+    //   // If still no results, return empty array with default radius
+    //   if (
+    //     radiusData.status === "ZERO_RESULTS" ||
+    //     !radiusData.results ||
+    //     radiusData.results.length === 0
+    //   ) {
+    //     console.log("No tourist attractions found in this area");
+    //     return {
+    //       places: [],
+    //       furthestDistance: DEFAULT_RADIUS, // Default 500m radius if no places found
+    //     };
+    //   }
 
-      // Use the results from the radius search
-      data.results = radiusData.results;
-      data.status = radiusData.status;
-    }
+    //   // Use the results from the radius search
+    //   data.results = radiusData.results;
+    //   data.status = radiusData.status;
+    // }
 
     if (data.status !== "OK" && data.status !== "ZERO_RESULTS") {
       console.error("API Error:", data.status, data.error_message || "Unknown API error");
