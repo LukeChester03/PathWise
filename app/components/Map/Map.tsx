@@ -1,4 +1,3 @@
-// Updated Map Component with Dynamic Travel Mode and Proximity Notifications
 import React, { useEffect, useState, useRef, useCallback } from "react";
 import MapView, {
   PROVIDER_GOOGLE,
@@ -32,7 +31,7 @@ import {
   watchUserLocation,
 } from "../../controllers/Map/locationController";
 import { fetchNearbyPlaces } from "../../controllers/Map/placesController";
-import { fetchRoute } from "../../controllers/Map/routesController"; // Make sure to import fetchRoute
+import { fetchRoute } from "../../controllers/Map/routesController";
 import { Region, Place, TravelMode, MapViewDirectionsMode } from "../../types/MapTypes";
 import ExploreCard from "./ExploreCard";
 import DetailsCard from "./DetailsCard";
@@ -43,7 +42,6 @@ import DestinationCard from "./DestinationCard";
 import { useNavigation } from "expo-router";
 // Notifications
 import * as Notifications from "expo-notifications";
-// New imports for visited places functionality
 import {
   handleDestinationReached,
   checkVisitedPlaces,
@@ -54,6 +52,7 @@ const GOOGLE_MAPS_APIKEY = "AIzaSyDAGq_6eJGQpR3RcO0NrVOowel9-DxZkvA";
 const DESTINATION_REACHED_THRESHOLD = 30;
 const MARKER_REFRESH_THRESHOLD = 10000;
 const DEFAULT_CIRCLE_RADIUS = 500;
+
 // Define colors for different marker states
 const MARKER_COLORS = {
   DEFAULT: Colors.primary,
@@ -62,9 +61,9 @@ const MARKER_COLORS = {
 };
 // Define proximity thresholds for notifications
 const PROXIMITY_NOTIFICATION_THRESHOLD = 100; // 100 meters
-const NOTIFICATION_COOLDOWN = 60000; // 1 minute cooldown between notifications for the same place
+const NOTIFICATION_COOLDOWN = 600000; // 1 minute cooldown between notifications for the same place
 // Distance threshold for driving vs walking mode (5 kilometers)
-const DRIVING_DISTANCE_THRESHOLD = 5000; // 5000 meters = 5km
+const DRIVING_DISTANCE_THRESHOLD = 5000; // 5000 meters
 
 export default function Map() {
   const [region, setRegion] = useState<Region | null>(null);
@@ -93,13 +92,9 @@ export default function Map() {
   const [isRefreshingPlaces, setIsRefreshingPlaces] = useState<boolean>(false);
   const [circleRadius, setCircleRadius] = useState<number>(DEFAULT_CIRCLE_RADIUS);
   const [initialLoadingComplete, setInitialLoadingComplete] = useState<boolean>(false);
-  // New state for tracking if destination has been saved to database
   const [destinationSaved, setDestinationSaved] = useState<boolean>(false);
-  // New state for travel mode (walking or driving)
   const [travelMode, setTravelMode] = useState<TravelMode>("walking");
   const [routeUpdateCounter, setRouteUpdateCounter] = useState<number>(0);
-
-  // New states for proximity notifications
   const [showProximityNotification, setShowProximityNotification] = useState<boolean>(false);
   const [nearbyPlace, setNearbyPlace] = useState<Place | null>(null);
   const [notifiedPlaces, setNotifiedPlaces] = useState<Record<string, number>>({});

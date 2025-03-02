@@ -226,7 +226,6 @@ const FeaturesSection: React.FC<FeaturesSectionProps> = ({ navigateToScreen }) =
         </>
       );
     } else if (index === 1) {
-      // Learn card circles - adjusted positions to stay within bounds
       return (
         <>
           <Animated.View
@@ -462,7 +461,7 @@ const FeaturesSection: React.FC<FeaturesSectionProps> = ({ navigateToScreen }) =
                 <Text style={styles.cardTitle}>{item.title}</Text>
               </View>
 
-              <Text style={styles.cardDescription} numberOfLines={3}>
+              <Text style={styles.cardDescription} numberOfLines={4}>
                 {item.description}
               </Text>
 

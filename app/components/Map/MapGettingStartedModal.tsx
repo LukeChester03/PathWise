@@ -98,7 +98,7 @@ const MapGettingStartedModal = ({ visible, onClose }) => {
             <View style={styles.headerIconContainer}>
               <Ionicons name="map-outline" size={28} color={Colors.primary} />
             </View>
-            <Text style={styles.modalTitle}>Map Navigation Guide</Text>
+            <Text style={styles.modalTitle}>Discovering New Places</Text>
             <TouchableOpacity style={styles.closeButton} onPress={onClose}>
               <Ionicons name="close" size={24} color={NeutralColors.gray500} />
             </TouchableOpacity>
@@ -131,15 +131,8 @@ const MapGettingStartedModal = ({ visible, onClose }) => {
                 {renderStep(
                   "navigate-outline",
                   "Plan Your Route",
-                  'Tap "Directions" on any place card to see the best route to get there. You can choose between driving, walking, or public transit.',
+                  'Tap "Start Journey" on any place card begin your adventure. It will automatically determine whether you are driving or walking',
                   "#4CAF50"
-                )}
-
-                {renderStep(
-                  "filter-outline",
-                  "Filter Places",
-                  "Use the filter button to narrow down places by category, rating, or distance from your location.",
-                  "#FF9800"
                 )}
 
                 {renderStep(
@@ -156,7 +149,6 @@ const MapGettingStartedModal = ({ visible, onClose }) => {
                   {renderTipItem("Pinch to zoom in and out", "hand-left-outline")}
                   {renderTipItem("Double tap to zoom in", "scan-outline")}
                   {renderTipItem("Two-finger tap to zoom out", "expand-outline")}
-                  {renderTipItem("Press and hold to drop a pin", "pin-outline", "#9C27B0")}
                   {renderTipItem("Swipe to pan the map", "arrow-up-outline", "#FF5722")}
                 </View>
               </View>
