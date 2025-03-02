@@ -118,24 +118,6 @@ const DestinationCard = ({
           }),
         ]),
       ]).start();
-
-      // Start continuous celebration emoji animation
-      Animated.loop(
-        Animated.sequence([
-          Animated.timing(celebrationBounce, {
-            toValue: 1,
-            duration: 800,
-            useNativeDriver: true,
-            easing: Easing.out(Easing.sin), // Fixed: changed from 'sine' to 'sin'
-          }),
-          Animated.timing(celebrationBounce, {
-            toValue: 0,
-            duration: 800,
-            useNativeDriver: true,
-            easing: Easing.in(Easing.sin), // Fixed: changed from 'sine' to 'sin'
-          }),
-        ])
-      ).start();
     }
   }, [visible]);
 

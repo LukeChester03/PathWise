@@ -7,8 +7,12 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
+  StatusBar,
+  Image,
+  Dimensions,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import { collection, getDocs } from "firebase/firestore";
 import { auth, db } from "../config/firebaseConfig";
 import ScreenWithNavBar from "../components/Global/ScreenWithNavbar";
@@ -18,9 +22,13 @@ import { fetchNearbyPlaces } from "../controllers/Map/placesController";
 import { getCurrentLocation } from "../controllers/Map/locationController";
 import { Colors, NeutralColors } from "../constants/colours";
 import PlacesCarousel from "../components/Places/PlacesCarousel";
+import GettingStartedModal from "../components/Places/GettingStartedModal";
+
+const { width } = Dimensions.get("window");
 
 const ExploreScreen = ({ navigation }) => {
   const [searchQuery, setSearchQuery] = useState("");
+  const [helpModalVisible, setHelpModalVisible] = useState(false);
   const [myPlaces, setMyPlaces] = useState([]);
   const [nearbyPlaces, setNearbyPlaces] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -118,14 +126,6 @@ const ExploreScreen = ({ navigation }) => {
         });
 
         console.log(`Found ${userPlacesData.length} places in Firestore`);
-        // Debug: Log the first place to check if rating is present
-        if (userPlacesData.length > 0) {
-          console.log("Sample place data:", {
-            name: userPlacesData[0].name,
-            rating: userPlacesData[0].rating,
-          });
-        }
-
         setMyPlaces(userPlacesData);
         setNoMyPlacesFound(false);
       }
@@ -164,6 +164,11 @@ const ExploreScreen = ({ navigation }) => {
   ) => {
     return (
       <View style={styles.emptyStateCard}>
+        <LinearGradient
+          colors={["rgba(255,255,255,0.5)", "rgba(240,240,255,0.8)"]}
+          style={styles.emptyStateGradient}
+        />
+
         {/* Background decoration */}
         <View style={styles.emptyStateDecoration}>
           <View style={[styles.decorationCircle, styles.circle1]} />
@@ -179,42 +184,51 @@ const ExploreScreen = ({ navigation }) => {
           <Text style={styles.emptyStateMessage}>{message}</Text>
 
           <TouchableOpacity style={styles.emptyStateButton} onPress={buttonAction}>
-            <Text style={styles.emptyStateButtonText}>{buttonText}</Text>
-            <Ionicons name="chevron-forward" size={16} color="#fff" />
+            <LinearGradient
+              colors={[Colors.primary, Colors.primary + "CC"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.buttonGradient}
+            >
+              <Text style={styles.emptyStateButtonText}>{buttonText}</Text>
+              <Ionicons name="chevron-forward" size={16} color="#fff" />
+            </LinearGradient>
           </TouchableOpacity>
         </View>
       </View>
     );
   };
 
-  const renderNoPlacesCard = () => {
+  const renderLoadingState = (message, height = 220) => {
     return (
-      <View style={styles.sectionContainer}>
-        {renderEmptyState(
-          "Sorry, we couldn't find any tourist attractions nearby. Try exploring a different area or searching for specific places.",
-          "compass-outline"
-        )}
+      <View style={[styles.shimmerContainer, { height }]}>
+        <View style={styles.shimmerContent}>
+          <ActivityIndicator size="small" color={Colors.primary} />
+          <Text style={styles.loadingText}>{message}</Text>
+        </View>
       </View>
     );
   };
 
   const renderMyPlacesSection = () => {
     if (loadingMyPlaces) {
-      return (
-        <View style={[styles.loadingContainer, { height: 180 }]}>
-          <ActivityIndicator size="small" color={Colors.primary} />
-          <Text style={styles.loadingText}>Loading your places...</Text>
-        </View>
-      );
+      return renderLoadingState("Loading your places...");
     }
 
     return (
       <>
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>My Places</Text>
+          <View style={styles.sectionTitleContainer}>
+            <Ionicons name="bookmark" size={22} color={Colors.primary} style={styles.sectionIcon} />
+            <Text style={styles.sectionTitle}>My Places</Text>
+          </View>
           {myPlaces.length > 0 && (
-            <TouchableOpacity onPress={() => navigateToViewAll("myPlaces")}>
+            <TouchableOpacity
+              onPress={() => navigateToViewAll("myPlaces")}
+              style={styles.viewAllButton}
+            >
               <Text style={styles.viewAllText}>View All</Text>
+              <Ionicons name="chevron-forward" size={14} color={Colors.primary} />
             </TouchableOpacity>
           )}
         </View>
@@ -235,21 +249,23 @@ const ExploreScreen = ({ navigation }) => {
 
   const renderNearbyPlacesSection = () => {
     if (loading) {
-      return (
-        <View style={[styles.loadingContainer, { height: 180 }]}>
-          <ActivityIndicator size="small" color={Colors.primary} />
-          <Text style={styles.loadingText}>Finding places nearby...</Text>
-        </View>
-      );
+      return renderLoadingState("Finding places nearby...");
     }
 
     return (
       <>
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Nearby Places</Text>
+          <View style={styles.sectionTitleContainer}>
+            <Ionicons name="location" size={22} color={Colors.primary} style={styles.sectionIcon} />
+            <Text style={styles.sectionTitle}>Nearby Places</Text>
+          </View>
           {nearbyPlaces.length > 0 && (
-            <TouchableOpacity onPress={() => navigateToViewAll("nearbyPlaces")}>
+            <TouchableOpacity
+              onPress={() => navigateToViewAll("nearbyPlaces")}
+              style={styles.viewAllButton}
+            >
               <Text style={styles.viewAllText}>View All</Text>
+              <Ionicons name="chevron-forward" size={14} color={Colors.primary} />
             </TouchableOpacity>
           )}
         </View>
@@ -259,7 +275,6 @@ const ExploreScreen = ({ navigation }) => {
             "No tourist attractions found nearby. Try exploring a different area.",
             "compass-outline",
             () => {
-              // Add a way to refresh by pulling down or show a refresh button
               fetchNearbyData();
             },
             "Try Again"
@@ -267,6 +282,73 @@ const ExploreScreen = ({ navigation }) => {
         ) : (
           <PlacesCarousel places={nearbyPlaces} onPlacePress={navigateToPlaceDetails} />
         )}
+      </>
+    );
+  };
+
+  const renderFeaturedSection = () => {
+    return (
+      <>
+        <View style={styles.sectionHeader}>
+          <View style={styles.sectionTitleContainer}>
+            <Ionicons name="star" size={22} color={Colors.primary} style={styles.sectionIcon} />
+            <Text style={styles.sectionTitle}>Popular Destinations</Text>
+          </View>
+        </View>
+
+        <View style={styles.featuredGrid}>
+          <TouchableOpacity style={styles.featuredItem} onPress={navigateToDiscover}>
+            <Image
+              source={{ uri: "https://source.unsplash.com/random/?city" }}
+              style={styles.featuredImage}
+            />
+            <LinearGradient
+              colors={["transparent", "rgba(0,0,0,0.8)"]}
+              style={styles.featuredGradient}
+            >
+              <Text style={styles.featuredTitle}>Cities</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.featuredItem} onPress={navigateToDiscover}>
+            <Image
+              source={{ uri: "https://source.unsplash.com/random/?nature" }}
+              style={styles.featuredImage}
+            />
+            <LinearGradient
+              colors={["transparent", "rgba(0,0,0,0.8)"]}
+              style={styles.featuredGradient}
+            >
+              <Text style={styles.featuredTitle}>Nature</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.featuredItem} onPress={navigateToDiscover}>
+            <Image
+              source={{ uri: "https://source.unsplash.com/random/?beach" }}
+              style={styles.featuredImage}
+            />
+            <LinearGradient
+              colors={["transparent", "rgba(0,0,0,0.8)"]}
+              style={styles.featuredGradient}
+            >
+              <Text style={styles.featuredTitle}>Beaches</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.featuredItem} onPress={navigateToDiscover}>
+            <Image
+              source={{ uri: "https://source.unsplash.com/random/?mountain" }}
+              style={styles.featuredImage}
+            />
+            <LinearGradient
+              colors={["transparent", "rgba(0,0,0,0.8)"]}
+              style={styles.featuredGradient}
+            >
+              <Text style={styles.featuredTitle}>Mountains</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+        </View>
       </>
     );
   };
@@ -289,7 +371,14 @@ const ExploreScreen = ({ navigation }) => {
           <Ionicons name="alert-circle-outline" size={60} color="#ccc" />
           <Text style={styles.errorText}>{error}</Text>
           <TouchableOpacity style={styles.retryButton} onPress={fetchNearbyData}>
-            <Text style={styles.retryButtonText}>Retry</Text>
+            <LinearGradient
+              colors={[Colors.primary, Colors.primary + "CC"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.buttonGradient}
+            >
+              <Text style={styles.retryButtonText}>Retry</Text>
+            </LinearGradient>
           </TouchableOpacity>
         </View>
       );
@@ -297,7 +386,14 @@ const ExploreScreen = ({ navigation }) => {
 
     // If both sections have no content, show a consolidated empty state
     if (noPlacesFound && noMyPlacesFound && !loading && !loadingMyPlaces) {
-      return renderNoPlacesCard();
+      return (
+        <View style={styles.sectionContainer}>
+          {renderEmptyState(
+            "We couldn't find any places to show. Try exploring a different area or search for specific places.",
+            "compass-outline"
+          )}
+        </View>
+      );
     }
 
     // Otherwise, show both sections (either with content or individual empty states)
@@ -308,14 +404,48 @@ const ExploreScreen = ({ navigation }) => {
 
         {/* Nearby Places Section */}
         <View style={styles.sectionContainer}>{renderNearbyPlacesSection()}</View>
+
+        {/* Featured Destinations Section */}
+        <View style={styles.sectionContainer}>{renderFeaturedSection()}</View>
       </ScrollView>
     );
   };
 
+  // Create a right component for the header with notification icon
+  const headerRightComponent = (
+    <TouchableOpacity style={styles.notificationButton}>
+      <View style={styles.notificationIconContainer}>
+        <Ionicons name="notifications-outline" size={20} color={Colors.primary} />
+        <View style={styles.notificationBadge} />
+      </View>
+    </TouchableOpacity>
+  );
+
+  const handleHelpPress = () => {
+    setHelpModalVisible(true);
+  };
+
   return (
     <ScreenWithNavBar>
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
       <SafeAreaView style={styles.container}>
-        <Header title="Places" />
+        {/* Enhanced Header with subtitle and icon */}
+        <Header
+          title="Places"
+          subtitle="Discover new places around you"
+          showIcon={true}
+          iconName="compass"
+          iconColor={Colors.primary}
+          rightComponent={headerRightComponent}
+          customStyles={styles.headerCustomStyles}
+          onHelpPress={handleHelpPress}
+        />
+
+        {/* Getting Started Modal */}
+        <GettingStartedModal
+          visible={helpModalVisible}
+          onClose={() => setHelpModalVisible(false)}
+        />
 
         {/* Search Bar */}
         <View style={styles.searchBarContainer}>
@@ -333,13 +463,48 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.background,
   },
+  headerCustomStyles: {
+    marginBottom: 0,
+  },
   searchBarContainer: {
     paddingHorizontal: 16,
-    marginBottom: 16,
-    marginTop: 8,
+    paddingVertical: 12,
+    backgroundColor: "#FFFFFF",
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(0,0,0,0.05)",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.03,
+    shadowRadius: 2,
+    elevation: 1,
+    zIndex: 5,
+  },
+  notificationButton: {
+    padding: 8,
+  },
+  notificationIconContainer: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: "rgba(0,0,0,0.03)",
+    justifyContent: "center",
+    alignItems: "center",
+    position: "relative",
+  },
+  notificationBadge: {
+    position: "absolute",
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "#FF5252",
+    top: 8,
+    right: 8,
+    borderWidth: 1,
+    borderColor: "#FFFFFF",
   },
   scrollContent: {
     paddingBottom: 24,
+    paddingTop: 12,
   },
   centerContainer: {
     flex: 1,
@@ -347,16 +512,21 @@ const styles = StyleSheet.create({
     alignItems: "center",
     padding: 20,
   },
-  loadingContainer: {
-    justifyContent: "center",
-    alignItems: "center",
+  shimmerContainer: {
     width: "100%",
     borderRadius: 16,
-    backgroundColor: "rgba(0,0,0,0.02)",
+    backgroundColor: "#f8f8f8",
+    overflow: "hidden",
+    marginBottom: 8,
+  },
+  shimmerContent: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
   },
   loadingText: {
     marginTop: 10,
-    fontSize: 16,
+    fontSize: 14,
     color: NeutralColors.gray500,
     textAlign: "center",
   },
@@ -365,17 +535,24 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: NeutralColors.gray500,
     textAlign: "center",
+    maxWidth: "80%",
   },
   retryButton: {
     marginTop: 20,
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    backgroundColor: Colors.primary,
-    borderRadius: 8,
+    overflow: "hidden",
+    borderRadius: 10,
+  },
+  buttonGradient: {
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
   },
   retryButtonText: {
     color: NeutralColors.white,
-    fontWeight: "bold",
+    fontWeight: "600",
   },
   sectionContainer: {
     marginBottom: 24,
@@ -387,15 +564,64 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 12,
   },
+  sectionTitleContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  sectionIcon: {
+    marginRight: 8,
+  },
   sectionTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
+    fontSize: 18,
+    fontWeight: "700",
     color: NeutralColors.black,
+  },
+  viewAllButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(0,0,0,0.03)",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
   },
   viewAllText: {
     fontSize: 14,
     color: Colors.primary,
     fontWeight: "600",
+    marginRight: 2,
+  },
+
+  // Featured grid
+  featuredGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+  },
+  featuredItem: {
+    width: (width - 40) / 2,
+    height: 120,
+    borderRadius: 16,
+    marginBottom: 8,
+    overflow: "hidden",
+  },
+  featuredImage: {
+    width: "100%",
+    height: "100%",
+  },
+  featuredGradient: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: "50%",
+    justifyContent: "flex-end",
+    paddingBottom: 12,
+    paddingHorizontal: 12,
+  },
+  featuredTitle: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "700",
   },
 
   // Enhanced empty state styles
@@ -410,7 +636,14 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 8,
     position: "relative",
-    minHeight: 200,
+    minHeight: 220,
+  },
+  emptyStateGradient: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
   },
   emptyStateDecoration: {
     position: "absolute",
@@ -475,13 +708,8 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   emptyStateButton: {
-    flexDirection: "row",
-    backgroundColor: Colors.primary,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    alignItems: "center",
-    justifyContent: "center",
+    overflow: "hidden",
+    borderRadius: 10,
   },
   emptyStateButtonText: {
     color: "#fff",

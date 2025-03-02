@@ -20,6 +20,7 @@ import { getCurrentLocation } from "../controllers/Map/locationController";
 import { Colors, NeutralColors } from "../constants/colours";
 import { getPlaceCardImageUrl } from "../utils/mapImageUtils";
 import { formatDistanceToNow } from "date-fns"; // Make sure to install this package
+import Header from "../components/Global/Header";
 
 const { width } = Dimensions.get("window");
 const GRID_CARD_WIDTH = (width - 48) / 2; // Two columns with margins
@@ -30,8 +31,24 @@ const ViewAllScreen = ({ route, navigation }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Screen title based on view type
-  const screenTitle = viewType === "myPlaces" ? "My Places" : "Nearby Places";
+  // Set dynamic header properties based on view type
+  const headerConfig = {
+    myPlaces: {
+      title: "My Places",
+      subtitle: "Places you've visited",
+      icon: "bookmark",
+      color: Colors.primary,
+    },
+    nearbyPlaces: {
+      title: "Nearby Places",
+      subtitle: "Discover attractions around you",
+      icon: "location",
+      color: Colors.primary,
+    },
+  };
+
+  // Get current header configuration
+  const currentHeaderConfig = headerConfig[viewType] || headerConfig.nearbyPlaces;
 
   useEffect(() => {
     fetchData();
@@ -244,17 +261,40 @@ const ViewAllScreen = ({ route, navigation }) => {
     }
   };
 
+  // Create a right component for filter and sort options
+  const headerRightComponent = (
+    <View style={styles.headerRightContainer}>
+      {/* {viewType === "nearbyPlaces" && (
+        <TouchableOpacity style={styles.headerButton}>
+          <View style={styles.iconContainer}>
+            <Ionicons name="filter" size={20} color={Colors.primary} />
+          </View>
+        </TouchableOpacity>
+      )} */}
+      {/* <TouchableOpacity style={styles.headerButton}>
+        <View style={styles.iconContainer}>
+          <Ionicons name="options" size={20} color={Colors.primary} />
+        </View>
+      </TouchableOpacity> */}
+    </View>
+  );
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
 
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-          <Ionicons name="arrow-back" size={24} color={NeutralColors.black} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>{screenTitle}</Text>
-      </View>
+      {/* Dynamic Header based on view type */}
+      <Header
+        title={currentHeaderConfig.title}
+        subtitle={currentHeaderConfig.subtitle}
+        showIcon={false}
+        iconName={currentHeaderConfig.icon}
+        iconColor={currentHeaderConfig.color}
+        // rightComponent={headerRightComponent}
+        showBackButton={true}
+        showHelp={false}
+        onBackPress={() => navigation.goBack()}
+      />
 
       {/* Content */}
       {loading ? (
@@ -317,21 +357,19 @@ const styles = StyleSheet.create({
     color: NeutralColors.gray500,
     textAlign: "center",
   },
-  header: {
+  headerRightContainer: {
     flexDirection: "row",
+  },
+  headerButton: {
+    marginLeft: 8,
+  },
+  iconContainer: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: "rgba(0,0,0,0.03)",
+    justifyContent: "center",
     alignItems: "center",
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: NeutralColors.gray400,
-  },
-  backButton: {
-    padding: 8,
-    marginRight: 8,
-  },
-  headerTitle: {
-    fontSize: 22,
-    fontWeight: "bold",
-    color: NeutralColors.black,
   },
   // Grid Layout (for Nearby Places)
   gridContent: {
