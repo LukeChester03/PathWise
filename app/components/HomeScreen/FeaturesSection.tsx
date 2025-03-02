@@ -1,6 +1,15 @@
 // components/Home/FeaturesSection.tsx
-import React, { useRef } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, Animated, Dimensions } from "react-native";
+import React, { useRef, useEffect } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Animated,
+  Dimensions,
+  Easing,
+  Platform,
+} from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 
@@ -24,6 +33,13 @@ interface FeaturesSectionProps {
 const FeaturesSection: React.FC<FeaturesSectionProps> = ({ navigateToScreen }) => {
   const scrollX = useRef(new Animated.Value(0)).current;
   const flatListRef = useRef<Animated.FlatList<FeatureCard>>(null);
+
+  // Animation values
+  const pulseAnim = useRef(new Animated.Value(0)).current;
+  const rotateAnim = useRef(new Animated.Value(0)).current;
+  const floatAnim = useRef(new Animated.Value(0)).current;
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const titleAnim = useRef(new Animated.Value(0)).current;
 
   const featureCards: FeatureCard[] = [
     {
@@ -53,6 +69,80 @@ const FeaturesSection: React.FC<FeaturesSectionProps> = ({ navigateToScreen }) =
     },
   ];
 
+  // Setup animations
+  useEffect(() => {
+    // Pulse animation for icons
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 2000,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 0,
+          duration: 2000,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+
+    // Subtle rotation for some elements
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(rotateAnim, {
+          toValue: 1,
+          duration: 8000,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(rotateAnim, {
+          toValue: 0,
+          duration: 8000,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+
+    // Floating effect for background circles
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(floatAnim, {
+          toValue: 1,
+          duration: 3000,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(floatAnim, {
+          toValue: 0,
+          duration: 3000,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+
+    // Fade in section
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 800,
+      easing: Easing.out(Easing.ease),
+      useNativeDriver: true,
+    }).start();
+
+    // Title animation
+    Animated.timing(titleAnim, {
+      toValue: 1,
+      duration: 600,
+      delay: 300,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  }, []);
+
   const onScroll = Animated.event([{ nativeEvent: { contentOffset: { x: scrollX } } }], {
     useNativeDriver: false,
   });
@@ -64,7 +154,7 @@ const FeaturesSection: React.FC<FeaturesSectionProps> = ({ navigateToScreen }) =
       // Discover card circles
       return (
         <>
-          <View
+          <Animated.View
             style={[
               styles.backgroundCircle,
               {
@@ -74,10 +164,24 @@ const FeaturesSection: React.FC<FeaturesSectionProps> = ({ navigateToScreen }) =
                 top: -60,
                 right: -30,
                 opacity: 0.05,
+                transform: [
+                  {
+                    translateY: floatAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0, -10],
+                    }),
+                  },
+                  {
+                    rotate: rotateAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: ["0deg", "10deg"],
+                    }),
+                  },
+                ],
               },
             ]}
           />
-          <View
+          <Animated.View
             style={[
               styles.backgroundCircle,
               {
@@ -87,10 +191,18 @@ const FeaturesSection: React.FC<FeaturesSectionProps> = ({ navigateToScreen }) =
                 bottom: -20,
                 left: 30,
                 opacity: 0.04,
+                transform: [
+                  {
+                    translateY: floatAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0, 8],
+                    }),
+                  },
+                ],
               },
             ]}
           />
-          <View
+          <Animated.View
             style={[
               styles.backgroundCircle,
               {
@@ -100,6 +212,14 @@ const FeaturesSection: React.FC<FeaturesSectionProps> = ({ navigateToScreen }) =
                 top: 30,
                 left: 40,
                 opacity: 0.06,
+                transform: [
+                  {
+                    translateX: floatAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0, 5],
+                    }),
+                  },
+                ],
               },
             ]}
           />
@@ -109,7 +229,7 @@ const FeaturesSection: React.FC<FeaturesSectionProps> = ({ navigateToScreen }) =
       // Learn card circles - adjusted positions to stay within bounds
       return (
         <>
-          <View
+          <Animated.View
             style={[
               styles.backgroundCircle,
               {
@@ -119,10 +239,24 @@ const FeaturesSection: React.FC<FeaturesSectionProps> = ({ navigateToScreen }) =
                 top: 20,
                 right: -40,
                 opacity: 0.04,
+                transform: [
+                  {
+                    translateY: floatAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0, -8],
+                    }),
+                  },
+                  {
+                    rotate: rotateAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: ["0deg", "-8deg"],
+                    }),
+                  },
+                ],
               },
             ]}
           />
-          <View
+          <Animated.View
             style={[
               styles.backgroundCircle,
               {
@@ -132,10 +266,18 @@ const FeaturesSection: React.FC<FeaturesSectionProps> = ({ navigateToScreen }) =
                 bottom: -35,
                 right: 50,
                 opacity: 0.03,
+                transform: [
+                  {
+                    translateX: floatAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0, -6],
+                    }),
+                  },
+                ],
               },
             ]}
           />
-          <View
+          <Animated.View
             style={[
               styles.backgroundCircle,
               {
@@ -145,6 +287,14 @@ const FeaturesSection: React.FC<FeaturesSectionProps> = ({ navigateToScreen }) =
                 top: -20,
                 left: 20,
                 opacity: 0.05,
+                transform: [
+                  {
+                    translateY: floatAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0, 6],
+                    }),
+                  },
+                ],
               },
             ]}
           />
@@ -154,7 +304,7 @@ const FeaturesSection: React.FC<FeaturesSectionProps> = ({ navigateToScreen }) =
       // Places card circles
       return (
         <>
-          <View
+          <Animated.View
             style={[
               styles.backgroundCircle,
               {
@@ -164,10 +314,24 @@ const FeaturesSection: React.FC<FeaturesSectionProps> = ({ navigateToScreen }) =
                 top: -30,
                 left: -20,
                 opacity: 0.05,
+                transform: [
+                  {
+                    translateY: floatAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0, 5],
+                    }),
+                  },
+                  {
+                    rotate: rotateAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: ["0deg", "5deg"],
+                    }),
+                  },
+                ],
               },
             ]}
           />
-          <View
+          <Animated.View
             style={[
               styles.backgroundCircle,
               {
@@ -177,10 +341,18 @@ const FeaturesSection: React.FC<FeaturesSectionProps> = ({ navigateToScreen }) =
                 bottom: -30,
                 right: -40,
                 opacity: 0.04,
+                transform: [
+                  {
+                    translateX: floatAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0, -8],
+                    }),
+                  },
+                ],
               },
             ]}
           />
-          <View
+          <Animated.View
             style={[
               styles.backgroundCircle,
               {
@@ -190,6 +362,14 @@ const FeaturesSection: React.FC<FeaturesSectionProps> = ({ navigateToScreen }) =
                 top: 80,
                 left: 60,
                 opacity: 0.06,
+                transform: [
+                  {
+                    translateY: floatAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0, -4],
+                    }),
+                  },
+                ],
               },
             ]}
           />
@@ -207,7 +387,32 @@ const FeaturesSection: React.FC<FeaturesSectionProps> = ({ navigateToScreen }) =
 
     const scale = scrollX.interpolate({
       inputRange,
-      outputRange: [0.95, 1, 0.95],
+      outputRange: [0.9, 1, 0.9],
+      extrapolate: "clamp",
+    });
+
+    const translateY = scrollX.interpolate({
+      inputRange,
+      outputRange: [15, 0, 15],
+      extrapolate: "clamp",
+    });
+
+    const opacity = scrollX.interpolate({
+      inputRange,
+      outputRange: [0.85, 1, 0.85],
+      extrapolate: "clamp",
+    });
+
+    const cardRotate = scrollX.interpolate({
+      inputRange,
+      outputRange: ["-1deg", "0deg", "1deg"],
+      extrapolate: "clamp",
+    });
+
+    // Animation for the arrow button on focus
+    const arrowScale = scrollX.interpolate({
+      inputRange,
+      outputRange: [1, 1.1, 1],
       extrapolate: "clamp",
     });
 
@@ -216,7 +421,8 @@ const FeaturesSection: React.FC<FeaturesSectionProps> = ({ navigateToScreen }) =
         style={[
           styles.cardContainer,
           {
-            transform: [{ scale }],
+            opacity,
+            transform: [{ scale }, { translateY }, { rotate: cardRotate }],
           },
         ]}
       >
@@ -236,9 +442,23 @@ const FeaturesSection: React.FC<FeaturesSectionProps> = ({ navigateToScreen }) =
 
             <View style={styles.cardContent}>
               <View style={styles.cardHeader}>
-                <View style={styles.iconContainer}>
+                <Animated.View
+                  style={[
+                    styles.iconContainer,
+                    {
+                      transform: [
+                        {
+                          scale: pulseAnim.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: [1, 1.12],
+                          }),
+                        },
+                      ],
+                    },
+                  ]}
+                >
                   <Ionicons name={item.icon as any} size={24} color="white" />
-                </View>
+                </Animated.View>
                 <Text style={styles.cardTitle}>{item.title}</Text>
               </View>
 
@@ -247,20 +467,60 @@ const FeaturesSection: React.FC<FeaturesSectionProps> = ({ navigateToScreen }) =
               </Text>
 
               <View style={styles.cardFooter}>
-                <View style={styles.tapPromptContainer}>
-                  <View
-                    style={[styles.tapPromptLine, { backgroundColor: "white", opacity: 0.3 }]}
+                <Animated.View
+                  style={[
+                    styles.tapPromptContainer,
+                    {
+                      opacity: scrollX.interpolate({
+                        inputRange,
+                        outputRange: [0.7, 1, 0.7],
+                        extrapolate: "clamp",
+                      }),
+                    },
+                  ]}
+                >
+                  <Animated.View
+                    style={[
+                      styles.tapPromptLine,
+                      {
+                        backgroundColor: "white",
+                        opacity: 0.3,
+                        width: scrollX.interpolate({
+                          inputRange,
+                          outputRange: [15, 20, 15],
+                          extrapolate: "clamp",
+                        }),
+                      },
+                    ]}
                   />
                   <Text style={styles.tapPromptText}>tap to explore</Text>
-                  <View
-                    style={[styles.tapPromptLine, { backgroundColor: "white", opacity: 0.3 }]}
+                  <Animated.View
+                    style={[
+                      styles.tapPromptLine,
+                      {
+                        backgroundColor: "white",
+                        opacity: 0.3,
+                        width: scrollX.interpolate({
+                          inputRange,
+                          outputRange: [15, 20, 15],
+                          extrapolate: "clamp",
+                        }),
+                      },
+                    ]}
                   />
-                </View>
+                </Animated.View>
 
                 <View style={styles.arrowContainer}>
-                  <View style={styles.arrowButton}>
+                  <Animated.View
+                    style={[
+                      styles.arrowButton,
+                      {
+                        transform: [{ scale: arrowScale }],
+                      },
+                    ]}
+                  >
                     <Ionicons name="arrow-forward" size={18} color="#fff" />
-                  </View>
+                  </Animated.View>
                 </View>
               </View>
             </View>
@@ -271,8 +531,40 @@ const FeaturesSection: React.FC<FeaturesSectionProps> = ({ navigateToScreen }) =
   };
 
   return (
-    <View style={styles.featuresContainer}>
-      <Text style={styles.sectionTitle}>Explore Features</Text>
+    <Animated.View
+      style={[
+        styles.featuresContainer,
+        {
+          opacity: fadeAnim,
+          transform: [
+            {
+              translateY: fadeAnim.interpolate({
+                inputRange: [0, 1],
+                outputRange: [20, 0],
+              }),
+            },
+          ],
+        },
+      ]}
+    >
+      <Animated.Text
+        style={[
+          styles.sectionTitle,
+          {
+            transform: [
+              {
+                translateX: titleAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [-10, 0],
+                }),
+              },
+            ],
+            opacity: titleAnim,
+          },
+        ]}
+      >
+        Explore Features
+      </Animated.Text>
 
       <Animated.FlatList<FeatureCard>
         ref={flatListRef}
@@ -288,8 +580,9 @@ const FeaturesSection: React.FC<FeaturesSectionProps> = ({ navigateToScreen }) =
         scrollEventThrottle={16}
         snapToAlignment="center"
         bounces={true}
+        initialNumToRender={3}
       />
-    </View>
+    </Animated.View>
   );
 };
 
@@ -304,6 +597,7 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     color: "#333",
     marginBottom: 16,
+    marginLeft: SPACING,
   },
   carouselContainer: {
     paddingVertical: 8,
@@ -315,15 +609,21 @@ const styles = StyleSheet.create({
     width: CARD_WIDTH,
     marginHorizontal: SPACING,
     alignItems: "center",
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.1,
+        shadowRadius: 10,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
   },
   card: {
     borderRadius: 24,
     overflow: "hidden",
-    elevation: 2,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.07,
-    shadowRadius: 8,
     height: 220,
     width: "100%",
     position: "relative",

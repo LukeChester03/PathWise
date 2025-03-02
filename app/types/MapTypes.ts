@@ -79,6 +79,8 @@ export interface Place {
   vicinity?: string;
   business_status?: string;
   distance?: number; // Distance from user in meters
+  isVisited?: boolean; // Flag to indicate if the place has been visited
+  visitedAt?: string; // Timestamp when the place was visited
 }
 
 export interface PlaceDetails {
@@ -123,6 +125,8 @@ export interface PlaceDetails {
       types: string[];
     }[];
     international_phone_number?: string;
+    isVisited?: boolean; // Flag to indicate if the place has been visited
+    visitedAt?: string; // Timestamp when the place was visited
   };
   status: string;
 }

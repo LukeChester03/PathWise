@@ -1,32 +1,85 @@
 // components/Home/DiscoveredLocationsSection.js
-import React, { useRef, useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
   StyleSheet,
   Image,
   TouchableOpacity,
-  Animated,
-  Dimensions,
+  FlatList,
   ActivityIndicator,
+  Dimensions,
+  Platform,
+  Animated,
+  Easing,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
+import { getVisitedPlaces } from "../../controllers/Map/visitedPlacesController";
+import { useNavigation } from "expo-router";
+import { Colors } from "../../constants/colours";
 
 const { width } = Dimensions.get("window");
-const LOCATION_CARD_WIDTH = width * 0.4;
+const LOCATION_CARD_WIDTH = width * 0.42; // Slightly wider cards
 const SPACING = 12;
 
 const DiscoveredLocationsSection = ({ navigateToScreen }) => {
   const [discoveredLocations, setDiscoveredLocations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const navigation = useNavigation();
 
-  const locationsScrollX = useRef(new Animated.Value(0)).current;
-  const locationsListRef = useRef(null);
+  // Animation values
+  const fadeAnimation = useRef(new Animated.Value(0)).current;
+  const slideAnimation = useRef(new Animated.Value(30)).current;
+  const scaleAnimation = useRef(new Animated.Value(0.9)).current;
+  const loadingAnimation = useRef(new Animated.Value(0)).current;
+
+  // Scroll handling for location cards
+  const scrollX = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     fetchUserDiscoveredLocations();
+
+    // Start the entrance animations
+    Animated.parallel([
+      Animated.timing(fadeAnimation, {
+        toValue: 1,
+        duration: 800,
+        useNativeDriver: true,
+        easing: Easing.out(Easing.cubic),
+      }),
+      Animated.timing(slideAnimation, {
+        toValue: 0,
+        duration: 800,
+        useNativeDriver: true,
+        easing: Easing.out(Easing.back(1.5)),
+      }),
+      Animated.timing(scaleAnimation, {
+        toValue: 1,
+        duration: 800,
+        useNativeDriver: true,
+        easing: Easing.out(Easing.cubic),
+      }),
+    ]).start();
+
+    // Start loading animation loop
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(loadingAnimation, {
+          toValue: 1,
+          duration: 1000,
+          useNativeDriver: true,
+          easing: Easing.inOut(Easing.sin),
+        }),
+        Animated.timing(loadingAnimation, {
+          toValue: 0,
+          duration: 1000,
+          useNativeDriver: true,
+          easing: Easing.inOut(Easing.sin),
+        }),
+      ])
+    ).start();
   }, []);
 
   // Function to fetch user's discovered locations from database
@@ -35,36 +88,42 @@ const DiscoveredLocationsSection = ({ navigateToScreen }) => {
     setError(null);
 
     try {
-      // This would be your actual database fetch
-      // For now, we'll simulate a database call with a timeout
-      setTimeout(() => {
-        // For testing: set to empty array to see empty state
-        // Or fill with data to see populated state
-        const data = []; // Empty array for demonstration
+      // Get visited places from database
+      const visitedPlaces = await getVisitedPlaces();
 
-        // Uncomment the below line to test with data
-        /* 
-        const data = [
-          {
-            id: 1,
-            name: "Eiffel Tower",
-            city: "Paris",
-            image: "https://images.unsplash.com/photo-1543349689-9a4d426bee8e?q=80&w=1501&auto=format&fit=crop",
-            date: "2 days ago",
-          },
-          {
-            id: 2,
-            name: "Colosseum",
-            city: "Rome",
-            image: "https://images.unsplash.com/photo-1552832230-c0197dd311b5?q=80&w=1396&auto=format&fit=crop",
-            date: "1 week ago",
-          },
-        ]; 
-        */
+      // Process the visited places to match our component's data structure
+      const formattedLocations = visitedPlaces.map((place) => {
+        // Create a clean city string by limiting length
+        let cityText = place.vicinity || place.formatted_address || "Unknown location";
+        if (cityText.length > 25) {
+          cityText = cityText.substring(0, 22) + "...";
+        }
 
-        setDiscoveredLocations(data);
-        setLoading(false);
-      }, 1000);
+        // Generate placeholder images with location name if no photo is available
+        const placeholderImage = `https://via.placeholder.com/400x300/f0f0f0/666666?text=${encodeURIComponent(
+          place.name.substring(0, 15)
+        )}`;
+
+        return {
+          id: place.place_id,
+          name: place.name.length > 20 ? place.name.substring(0, 18) + "..." : place.name,
+          city: cityText,
+          // Use photos array if available or fallback to a placeholder
+          image:
+            place.photos && place.photos.length > 0
+              ? `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photoreference=${place.photos[0].photo_reference}&key=AIzaSyDAGq_6eJGQpR3RcO0NrVOowel9-DxZkvA`
+              : placeholderImage,
+          // Format the visit date
+          date: formatVisitDate(place.visitedAt),
+          // Include the full place data for potential use
+          placeData: place,
+          // Add rating if available
+          rating: place.rating || null,
+        };
+      });
+
+      setDiscoveredLocations(formattedLocations);
+      setLoading(false);
     } catch (err) {
       console.error("Error fetching discovered locations:", err);
       setError("Unable to load your discovered locations");
@@ -72,128 +131,430 @@ const DiscoveredLocationsSection = ({ navigateToScreen }) => {
     }
   };
 
-  const onLocationsScroll = Animated.event(
-    [{ nativeEvent: { contentOffset: { x: locationsScrollX } } }],
-    {
-      useNativeDriver: false,
+  // Helper function to format visit date
+  const formatVisitDate = (visitedAt) => {
+    if (!visitedAt) return "Unknown date";
+    const visitDate = new Date(visitedAt);
+    const now = new Date();
+    // Get time in milliseconds and convert to days
+    const diffTime = Math.abs(now.getTime() - visitDate.getTime());
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+    if (diffDays === 0) {
+      return "Today";
+    } else if (diffDays === 1) {
+      return "Yesterday";
+    } else if (diffDays < 7) {
+      return `${diffDays} days ago`;
+    } else if (diffDays < 30) {
+      const weeks = Math.floor(diffDays / 7);
+      return `${weeks} ${weeks === 1 ? "week" : "weeks"} ago`;
+    } else {
+      return visitDate.toLocaleDateString();
     }
-  );
+  };
 
   const renderLocationCard = ({ item, index }) => {
     // For the "View All" card at the end
     if (item.id === "ViewAll") {
+      // Animation for the view-all card
+      const viewAllOpacity = scrollX.interpolate({
+        inputRange: [
+          (discoveredLocations.length - 1) * (LOCATION_CARD_WIDTH + SPACING) - width,
+          (discoveredLocations.length - 0.5) * (LOCATION_CARD_WIDTH + SPACING) - width,
+        ],
+        outputRange: [0.6, 1],
+        extrapolate: "clamp",
+      });
+
       return (
-        <TouchableOpacity
-          style={styles.viewAllCard}
-          onPress={() => navigateToScreen("Explore")}
-          activeOpacity={0.9}
+        <Animated.View
+          style={{
+            opacity: viewAllOpacity,
+            transform: [
+              {
+                scale: scrollX.interpolate({
+                  inputRange: [
+                    (discoveredLocations.length - 1) * (LOCATION_CARD_WIDTH + SPACING) - width,
+                    discoveredLocations.length * (LOCATION_CARD_WIDTH + SPACING) - width,
+                  ],
+                  outputRange: [0.92, 1],
+                  extrapolate: "clamp",
+                }),
+              },
+            ],
+          }}
         >
-          <LinearGradient
-            colors={["#d03f74", "#ff1493"]}
-            style={styles.viewAllGradient}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
+          <TouchableOpacity
+            style={styles.viewAllCard}
+            onPress={() => navigateToScreen("ViewAll")}
+            activeOpacity={0.9}
           >
-            <View style={styles.viewAllContent}>
-              <Ionicons name="grid" size={32} color="#fff" />
-              <Text style={styles.viewAllText}>View All</Text>
-              <Text style={styles.viewAllSubtext}>
-                See all {discoveredLocations.length} discovered places
-              </Text>
-            </View>
-          </LinearGradient>
-        </TouchableOpacity>
+            <LinearGradient
+              colors={["#d03f74", "#ff1493"]}
+              style={styles.viewAllGradient}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+            >
+              <Animated.View
+                style={[
+                  styles.backgroundCircle,
+                  {
+                    transform: [
+                      {
+                        translateY: loadingAnimation.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [0, -8],
+                        }),
+                      },
+                      {
+                        scale: loadingAnimation.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [1, 1.1],
+                        }),
+                      },
+                    ],
+                  },
+                ]}
+              />
+              <Animated.View
+                style={[
+                  styles.backgroundCircle2,
+                  {
+                    transform: [
+                      {
+                        translateX: loadingAnimation.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [0, 10],
+                        }),
+                      },
+                      {
+                        translateY: loadingAnimation.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [0, 5],
+                        }),
+                      },
+                    ],
+                  },
+                ]}
+              />
+
+              <View style={styles.viewAllContent}>
+                <Animated.View
+                  style={{
+                    transform: [
+                      {
+                        scale: loadingAnimation.interpolate({
+                          inputRange: [0, 0.5, 1],
+                          outputRange: [1, 1.15, 1],
+                        }),
+                      },
+                    ],
+                  }}
+                >
+                  <Ionicons name="grid" size={28} color="#fff" />
+                </Animated.View>
+                <Text style={styles.viewAllText}>View All</Text>
+                <Text style={styles.viewAllSubtext}>
+                  See all {discoveredLocations.length} discovered places
+                </Text>
+              </View>
+            </LinearGradient>
+          </TouchableOpacity>
+        </Animated.View>
       );
     }
 
+    // Calculate input range for animations
+    const inputRange = [
+      (index - 1) * (LOCATION_CARD_WIDTH + SPACING),
+      index * (LOCATION_CARD_WIDTH + SPACING),
+      (index + 1) * (LOCATION_CARD_WIDTH + SPACING),
+    ];
+
+    const opacity = scrollX.interpolate({
+      inputRange,
+      outputRange: [0.7, 1, 0.7],
+      extrapolate: "clamp",
+    });
+
+    const scale = scrollX.interpolate({
+      inputRange,
+      outputRange: [0.92, 1, 0.92],
+      extrapolate: "clamp",
+    });
+
+    const translateY = scrollX.interpolate({
+      inputRange,
+      outputRange: [7, 0, 7],
+      extrapolate: "clamp",
+    });
+
     return (
-      <TouchableOpacity
-        style={styles.locationCard}
-        onPress={() => navigateToScreen("Explore")}
-        activeOpacity={0.9}
+      <Animated.View
+        style={{
+          opacity: Animated.multiply(fadeAnimation, opacity),
+          transform: [{ scale }, { translateY }],
+        }}
       >
-        <Image source={{ uri: item.image }} style={styles.locationImage} />
-        <LinearGradient
-          colors={["transparent", "rgba(0,0,0,0.8)"]}
-          style={styles.locationGradient}
-        />
-        <View style={styles.locationInfo}>
-          <Text style={styles.locationName}>{item.name}</Text>
-          <View style={styles.locationMeta}>
-            <Ionicons name="location" size={14} color="#fff" style={{ marginRight: 4 }} />
-            <Text style={styles.locationCity}>{item.city}</Text>
+        <TouchableOpacity
+          style={styles.locationCard}
+          onPress={() =>
+            navigateToScreen("PlaceDetails", { placeId: item.id, placeData: item.placeData })
+          }
+          activeOpacity={0.9}
+        >
+          <Image source={{ uri: item.image }} style={styles.locationImage} />
+          <LinearGradient
+            colors={["transparent", "rgba(0,0,0,0.9)"]}
+            style={styles.locationGradient}
+          />
+
+          {/* Rating badge with animation if available */}
+          {item.rating && (
+            <Animated.View
+              style={[
+                styles.ratingBadge,
+                {
+                  transform: [
+                    {
+                      scale: loadingAnimation.interpolate({
+                        inputRange: [0, 0.5, 1],
+                        outputRange: [1, 1.08, 1],
+                      }),
+                    },
+                  ],
+                },
+              ]}
+            >
+              <Ionicons name="star" size={12} color="#FFD700" style={{ marginRight: 2 }} />
+              <Text style={styles.ratingText}>{item.rating.toFixed(1)}</Text>
+            </Animated.View>
+          )}
+
+          <View style={styles.locationInfo}>
+            <Text style={styles.locationName} numberOfLines={1} ellipsizeMode="tail">
+              {item.name}
+            </Text>
+            <View style={styles.locationMeta}>
+              <Text style={styles.locationCity} numberOfLines={1} ellipsizeMode="tail">
+                {item.city}
+              </Text>
+            </View>
+            <View style={styles.dateContainer}>
+              <Ionicons name="time-outline" size={10} color="#fff" style={{ marginRight: 2 }} />
+              <Text style={styles.dateText}>{item.date}</Text>
+            </View>
           </View>
-          <View style={styles.locationDate}>
-            <Text style={styles.dateText}>{item.date}</Text>
-          </View>
-        </View>
-      </TouchableOpacity>
+        </TouchableOpacity>
+      </Animated.View>
     );
   };
 
-  // Ultra-modern empty state component
+  // Animated empty state component
   const renderEmptyState = () => {
     return (
-      <TouchableOpacity
-        style={styles.emptyStateCard}
-        onPress={() => navigateToScreen("Discover")}
-        activeOpacity={0.9}
+      <Animated.View
+        style={[
+          styles.emptyStateCard,
+          {
+            opacity: fadeAnimation,
+            transform: [{ scale: scaleAnimation }, { translateY: slideAnimation }],
+          },
+        ]}
       >
-        {/* Background circles */}
-        <View style={[styles.backgroundCircle, styles.circle1]} />
-        <View style={[styles.backgroundCircle, styles.circle2]} />
-        <View style={[styles.backgroundCircle, styles.circle3]} />
-        <View style={[styles.backgroundCircle, styles.circle4]} />
+        <TouchableOpacity
+          style={{ width: "100%", height: "100%" }}
+          onPress={() => navigateToScreen("Discover")}
+          activeOpacity={0.9}
+        >
+          <View style={styles.emptyStateContent}>
+            <Animated.View
+              style={[
+                styles.backgroundCircle3,
+                {
+                  transform: [
+                    {
+                      translateY: loadingAnimation.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [0, -12],
+                      }),
+                    },
+                  ],
+                },
+              ]}
+            />
+            <Animated.View
+              style={[
+                styles.backgroundCircle4,
+                {
+                  transform: [
+                    {
+                      translateX: loadingAnimation.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [0, 15],
+                      }),
+                    },
+                  ],
+                },
+              ]}
+            />
 
-        <View style={styles.emptyStateContent}>
-          <View style={styles.leftContainer}>
-            <View style={styles.iconContainer}>
-              <Ionicons name="compass" size={22} color="#fff" />
+            <View style={styles.leftContainer}>
+              <Animated.View
+                style={[
+                  styles.iconContainer,
+                  {
+                    transform: [
+                      {
+                        scale: loadingAnimation.interpolate({
+                          inputRange: [0, 0.5, 1],
+                          outputRange: [1, 1.12, 1],
+                        }),
+                      },
+                    ],
+                  },
+                ]}
+              >
+                <Ionicons name="compass" size={22} color="#fff" />
+              </Animated.View>
+            </View>
+
+            <View style={styles.middleContainer}>
+              <Text style={styles.emptyStateTitle}>Start your journey</Text>
+              <Text style={styles.emptyStateText}>Discover new places</Text>
+            </View>
+
+            <View style={styles.rightContainer}>
+              <Animated.View
+                style={[
+                  styles.arrowContainer,
+                  {
+                    transform: [
+                      {
+                        translateX: loadingAnimation.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [0, 4],
+                        }),
+                      },
+                    ],
+                  },
+                ]}
+              >
+                <Ionicons name="arrow-forward" size={18} color="#d03f74" />
+              </Animated.View>
             </View>
           </View>
 
-          <View style={styles.middleContainer}>
-            <Text style={styles.emptyStateTitle}>Start your journey</Text>
-            <Text style={styles.emptyStateText}>Discover new places</Text>
-          </View>
+          {/* "Click to explore" text at the bottom */}
+          <Animated.View
+            style={[
+              styles.clickPromptContainer,
+              {
+                opacity: loadingAnimation.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0.6, 1],
+                }),
+              },
+            ]}
+          >
+            <Animated.View
+              style={[
+                styles.clickPromptLine,
+                {
+                  width: fadeAnimation.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0, 30],
+                  }),
+                },
+              ]}
+            />
+            <Text style={styles.clickPromptText}>tap to explore</Text>
+            <Animated.View
+              style={[
+                styles.clickPromptLine,
+                {
+                  width: fadeAnimation.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0, 30],
+                  }),
+                },
+              ]}
+            />
+          </Animated.View>
+        </TouchableOpacity>
+      </Animated.View>
+    );
+  };
 
-          <View style={styles.rightContainer}>
-            <View style={styles.arrowContainer}>
-              <Ionicons name="arrow-forward" size={18} color="#d03f74" />
-            </View>
-          </View>
-        </View>
+  // Animated loading state
+  const renderLoadingState = () => {
+    return (
+      <Animated.View
+        style={[
+          styles.loadingContainer,
+          {
+            opacity: fadeAnimation,
+            transform: [{ scale: scaleAnimation }],
+          },
+        ]}
+      >
+        <Animated.View
+          style={{
+            opacity: loadingAnimation.interpolate({
+              inputRange: [0, 0.5, 1],
+              outputRange: [0.5, 1, 0.5],
+            }),
+          }}
+        >
+          <ActivityIndicator size="small" color="#d03f74" />
+        </Animated.View>
+        <Text style={styles.loadingText}>Loading your places...</Text>
+      </Animated.View>
+    );
+  };
 
-        {/* "Click to explore" text at the bottom */}
-        <View style={styles.clickPromptContainer}>
-          <View style={styles.clickPromptLine} />
-          <Text style={styles.clickPromptText}>tap to explore</Text>
-          <View style={styles.clickPromptLine} />
-        </View>
-      </TouchableOpacity>
+  // Animated error state
+  const renderErrorState = () => {
+    return (
+      <Animated.View
+        style={[
+          styles.errorContainer,
+          {
+            opacity: fadeAnimation,
+            transform: [{ scale: scaleAnimation }, { translateY: slideAnimation }],
+          },
+        ]}
+      >
+        <Animated.View
+          style={{
+            transform: [
+              {
+                scale: loadingAnimation.interpolate({
+                  inputRange: [0, 0.5, 1],
+                  outputRange: [1, 1.1, 1],
+                }),
+              },
+            ],
+          }}
+        >
+          <Ionicons name="alert-circle-outline" size={24} color="#d03f74" />
+        </Animated.View>
+        <Text style={styles.errorText}>{error}</Text>
+        <TouchableOpacity onPress={fetchUserDiscoveredLocations} style={styles.retryButton}>
+          <Text style={styles.retryText}>Retry</Text>
+        </TouchableOpacity>
+      </Animated.View>
     );
   };
 
   const renderContent = () => {
     if (loading) {
-      return (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="small" color="#d03f74" />
-          <Text style={styles.loadingText}>Loading your places...</Text>
-        </View>
-      );
+      return renderLoadingState();
     }
 
     if (error) {
-      return (
-        <View style={styles.errorContainer}>
-          <Ionicons name="alert-circle-outline" size={24} color="#d03f74" />
-          <Text style={styles.errorText}>{error}</Text>
-          <TouchableOpacity onPress={fetchUserDiscoveredLocations} style={styles.retryButton}>
-            <Text style={styles.retryText}>Retry</Text>
-          </TouchableOpacity>
-        </View>
-      );
+      return renderErrorState();
     }
 
     if (discoveredLocations.length === 0) {
@@ -204,7 +565,6 @@ const DiscoveredLocationsSection = ({ navigateToScreen }) => {
 
     return (
       <Animated.FlatList
-        ref={locationsListRef}
         data={dataWithViewAll}
         keyExtractor={(item) => item.id.toString()}
         renderItem={renderLocationCard}
@@ -213,46 +573,86 @@ const DiscoveredLocationsSection = ({ navigateToScreen }) => {
         contentContainerStyle={styles.locationsCarousel}
         snapToInterval={LOCATION_CARD_WIDTH + SPACING}
         decelerationRate="fast"
-        onScroll={onLocationsScroll}
-        scrollEventThrottle={16}
         snapToAlignment="start"
         bounces={true}
+        onScroll={Animated.event([{ nativeEvent: { contentOffset: { x: scrollX } } }], {
+          useNativeDriver: true,
+        })}
+        scrollEventThrottle={16}
       />
     );
   };
 
   return (
-    <View style={styles.locationsContainer}>
-      <Text style={styles.sectionTitle}>Discovered Locations</Text>
+    <Animated.View
+      style={[
+        styles.locationsContainer,
+        {
+          opacity: fadeAnimation,
+          transform: [{ translateY: slideAnimation }],
+        },
+      ]}
+    >
+      <Animated.Text
+        style={[
+          styles.sectionTitle,
+          {
+            transform: [
+              {
+                translateX: slideAnimation.interpolate({
+                  inputRange: [0, 30],
+                  outputRange: [0, -20],
+                }),
+              },
+            ],
+          },
+        ]}
+      >
+        Discovered Locations
+      </Animated.Text>
       {renderContent()}
-    </View>
+    </Animated.View>
   );
 };
 
 const styles = StyleSheet.create({
   locationsContainer: {
-    marginTop: 10,
-    marginBottom: 30,
+    marginTop: 16,
+    marginBottom: 24,
+    paddingHorizontal: 16, // Add proper padding to container
     width: "100%",
   },
   sectionTitle: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: "bold",
-    color: "#333",
+    color: Colors.text,
     marginBottom: 16,
+    paddingLeft: 4, // Ensure title is properly visible
   },
   locationsCarousel: {
     paddingVertical: 8,
-    paddingLeft: 0,
     paddingRight: SPACING,
   },
   locationCard: {
     width: LOCATION_CARD_WIDTH,
-    height: 180,
+    height: 170, // Slightly shorter cards
     marginRight: SPACING,
     borderRadius: 16,
     overflow: "hidden",
     backgroundColor: "#f0f0f0",
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.15,
+        shadowRadius: 6,
+      },
+      android: {
+        elevation: 4,
+      },
+    }),
+    borderWidth: 1,
+    borderColor: "rgba(0,0,0,0.05)", // Subtle border for definition
   },
   locationImage: {
     width: "100%",
@@ -264,7 +664,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    height: "50%",
+    height: "65%", // Cover more of the image for better text readability
   },
   locationInfo: {
     position: "absolute",
@@ -274,50 +674,122 @@ const styles = StyleSheet.create({
     padding: 12,
   },
   locationName: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "bold",
     color: "#fff",
     marginBottom: 4,
+    letterSpacing: 0.3,
+    textShadowColor: "rgba(0, 0, 0, 0.5)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
   locationMeta: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 4,
+    marginBottom: 6,
   },
   locationCity: {
-    fontSize: 14,
+    fontSize: 12,
     color: "#fff",
     opacity: 0.9,
+    flex: 1, // Allow text to take available space
   },
-  locationDate: {
-    backgroundColor: "rgba(255,255,255,0.3)",
-    paddingHorizontal: 8,
+  dateContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.2)",
+    paddingHorizontal: 6,
     paddingVertical: 3,
-    borderRadius: 12,
+    borderRadius: 10,
     alignSelf: "flex-start",
-    marginTop: 4,
   },
   dateText: {
-    fontSize: 11,
+    fontSize: 10,
     color: "#fff",
-    fontWeight: "600",
+    fontWeight: "500",
+  },
+  ratingBadge: {
+    position: "absolute",
+    top: 8,
+    right: 8,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    zIndex: 10,
+  },
+  ratingText: {
+    color: "#fff",
+    fontSize: 10,
+    fontWeight: "bold",
   },
   viewAllCard: {
     width: LOCATION_CARD_WIDTH,
-    height: 180,
+    height: 170,
     marginRight: SPACING,
     borderRadius: 16,
     overflow: "hidden",
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.15,
+        shadowRadius: 6,
+      },
+      android: {
+        elevation: 4,
+      },
+    }),
   },
   viewAllGradient: {
     width: "100%",
     height: "100%",
     justifyContent: "center",
     alignItems: "center",
+    position: "relative",
+  },
+  backgroundCircle: {
+    position: "absolute",
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: "rgba(255, 255, 255, 0.1)",
+    top: -30,
+    right: -30,
+  },
+  backgroundCircle2: {
+    position: "absolute",
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: "rgba(255, 255, 255, 0.08)",
+    bottom: -20,
+    left: -20,
+  },
+  backgroundCircle3: {
+    position: "absolute",
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+    backgroundColor: "rgba(0, 0, 0, 0.03)",
+    top: -70,
+    right: -50,
+  },
+  backgroundCircle4: {
+    position: "absolute",
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: "rgba(0, 0, 0, 0.02)",
+    bottom: -30,
+    left: -30,
   },
   viewAllContent: {
     alignItems: "center",
     padding: 16,
+    zIndex: 1,
   },
   viewAllText: {
     fontSize: 18,
@@ -333,61 +805,35 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
 
-  // Ultra-modern empty state styles
+  // Empty state styles (with animation enhancements)
   emptyStateCard: {
     width: "100%",
-    height: 180,
+    height: 170,
     borderRadius: 16,
     backgroundColor: "#ffffff",
     overflow: "hidden",
-    position: "relative", // For background circles
+    position: "relative",
     justifyContent: "center",
     alignItems: "center",
-    elevation: 1,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-  },
-  backgroundCircle: {
-    position: "absolute",
-    borderRadius: 100,
-    backgroundColor: "#d03f74",
-  },
-  circle1: {
-    width: 140,
-    height: 140,
-    top: -70,
-    right: -40,
-    opacity: 0.04,
-  },
-  circle2: {
-    width: 90,
-    height: 90,
-    bottom: -30,
-    left: -20,
-    opacity: 0.03,
-  },
-  circle3: {
-    width: 40,
-    height: 40,
-    top: 40,
-    left: 30,
-    opacity: 0.05,
-  },
-  circle4: {
-    width: 60,
-    height: 60,
-    top: -20,
-    left: 100,
-    opacity: 0.02,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 3 },
+        shadowOpacity: 0.08,
+        shadowRadius: 6,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
   },
   emptyStateContent: {
     flexDirection: "row",
     alignItems: "center",
     width: "100%",
     paddingHorizontal: 24,
-    zIndex: 1, // Above the circles
+    zIndex: 1,
+    height: "100%",
   },
   leftContainer: {
     width: 42,
@@ -439,7 +885,6 @@ const styles = StyleSheet.create({
     zIndex: 1,
   },
   clickPromptLine: {
-    width: 30,
     height: 1,
     backgroundColor: "rgba(0,0,0,0.1)",
   },
@@ -453,7 +898,7 @@ const styles = StyleSheet.create({
 
   // Loading state styles
   loadingContainer: {
-    height: 180,
+    height: 170,
     justifyContent: "center",
     alignItems: "center",
     backgroundColor: "#f9f9f9",
@@ -468,7 +913,7 @@ const styles = StyleSheet.create({
 
   // Error state styles
   errorContainer: {
-    height: 180,
+    height: 170,
     justifyContent: "center",
     alignItems: "center",
     backgroundColor: "#f9f9f9",

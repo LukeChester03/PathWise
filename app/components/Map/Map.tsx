@@ -1,4 +1,4 @@
-// Updated Map Component with Visited Places Integration
+// Updated Map Component with Visited Places Integration and Proximity Notifications
 import React, { useEffect, useState, useRef, useCallback } from "react";
 import MapView, {
   PROVIDER_GOOGLE,
@@ -7,9 +7,21 @@ import MapView, {
   Camera,
   PROVIDER_DEFAULT,
 } from "react-native-maps";
-import { View, StyleSheet, ActivityIndicator, TouchableOpacity, Text, Alert } from "react-native";
+import {
+  View,
+  StyleSheet,
+  ActivityIndicator,
+  TouchableOpacity,
+  Text,
+  Alert,
+  Animated,
+  Vibration,
+  Platform,
+} from "react-native";
 import MapViewDirections from "react-native-maps-directions";
 import FeatherIcon from "react-native-vector-icons/Feather";
+import MaterialIcon from "react-native-vector-icons/MaterialIcons";
+import FontAwesome from "react-native-vector-icons/FontAwesome";
 import {
   handleMarkerPress,
   handleStartJourney,
@@ -28,6 +40,8 @@ import { customMapStyle } from "../../constants/mapStyle";
 import { haversineDistance } from "../../utils/mapUtils";
 import DestinationCard from "./DestinationCard";
 import { useNavigation } from "expo-router";
+// Notifications
+import * as Notifications from "expo-notifications";
 // New imports for visited places functionality
 import {
   handleDestinationReached,
@@ -45,6 +59,9 @@ const MARKER_COLORS = {
   SELECTED: Colors.primary,
   VISITED: Colors.secondary,
 };
+// Define proximity thresholds for notifications
+const PROXIMITY_NOTIFICATION_THRESHOLD = 100; // 100 meters
+const NOTIFICATION_COOLDOWN = 60000; // 1 minute cooldown between notifications for the same place
 
 export default function Map() {
   const [region, setRegion] = useState<Region | null>(null);
@@ -75,6 +92,16 @@ export default function Map() {
   const [initialLoadingComplete, setInitialLoadingComplete] = useState<boolean>(false);
   // New state for tracking if destination has been saved to database
   const [destinationSaved, setDestinationSaved] = useState<boolean>(false);
+
+  // New states for proximity notifications
+  const [showProximityNotification, setShowProximityNotification] = useState<boolean>(false);
+  const [nearbyPlace, setNearbyPlace] = useState<Place | null>(null);
+  const [notifiedPlaces, setNotifiedPlaces] = useState<Record<string, number>>({});
+  const [notificationCount, setNotificationCount] = useState<number>(0);
+  const [notificationVisible, setNotificationVisible] = useState<boolean>(false);
+  const notificationOpacity = useRef(new Animated.Value(0)).current;
+  const notificationTranslateY = useRef(new Animated.Value(-100)).current;
+
   const navigation = useNavigation();
 
   const [previousPosition, setPreviousPosition] = useState<{
@@ -82,6 +109,115 @@ export default function Map() {
     longitude: number;
   } | null>(null);
   const mapRef = useRef<MapView>(null);
+
+  // Function to handle notification permissions
+  const registerForPushNotificationsAsync = async () => {
+    if (Platform.OS === "android") {
+      await Notifications.setNotificationChannelAsync("default", {
+        name: "default",
+        importance: Notifications.AndroidImportance.MAX,
+        vibrationPattern: [0, 250, 250, 250],
+        lightColor: `Colors.primary/10`,
+      });
+    }
+
+    const { status: existingStatus } = await Notifications.getPermissionsAsync();
+    let finalStatus = existingStatus;
+
+    if (existingStatus !== "granted") {
+      const { status } = await Notifications.requestPermissionsAsync();
+      finalStatus = status;
+    }
+
+    if (finalStatus !== "granted") {
+      Alert.alert("Notification Permission", "Enable notifications to discover nearby locations!", [
+        { text: "Maybe Later", style: "cancel" },
+        {
+          text: "Settings",
+          onPress: () => {
+            /* Open settings */
+          },
+        },
+      ]);
+      return false;
+    }
+
+    return true;
+  };
+
+  // Function to show in-app notification
+  const showInAppNotification = (place: Place) => {
+    setNearbyPlace(place);
+    setNotificationVisible(true);
+    setNotificationCount((prev) => prev + 1);
+
+    // Vibrate to alert user
+    Vibration.vibrate(500);
+
+    // Animate notification in
+    Animated.parallel([
+      Animated.timing(notificationOpacity, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+      Animated.timing(notificationTranslateY, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
+    // Auto dismiss after 5 seconds
+    setTimeout(() => {
+      dismissNotification();
+    }, 5000);
+  };
+
+  // Function to dismiss notification
+  const dismissNotification = () => {
+    Animated.parallel([
+      Animated.timing(notificationOpacity, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+      Animated.timing(notificationTranslateY, {
+        toValue: -100,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      setNotificationVisible(false);
+      setNearbyPlace(null);
+    });
+  };
+
+  // Function to send push notification
+  const sendPushNotification = async (place: Place) => {
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title: "You have entered the discovery zone!",
+        body: `${place.name} is nearby. Tap to explore this undiscovered place!`,
+        data: { placeId: place.place_id },
+      },
+      trigger: null, // Send immediately
+    });
+  };
+
+  // Function to handle notification response
+  const handleNotificationResponse = (place: Place) => {
+    // If user taps notification, select the place
+    handleMarkerPress(
+      place,
+      userLocation || region,
+      setSelectedPlace,
+      setRouteCoordinates,
+      setTravelTime,
+      setShowCard
+    );
+    dismissNotification();
+  };
 
   // Initialize map with user location and nearby places
   const initializeMap = async () => {
@@ -96,6 +232,9 @@ export default function Map() {
         setLoading(false);
         return;
       }
+
+      // Request notification permissions
+      await registerForPushNotificationsAsync();
 
       // Get current location
       const locationWatcher = await watchUserLocation(
@@ -130,13 +269,76 @@ export default function Map() {
   useEffect(() => {
     initializeMap();
 
+    // Set up notification handler
+    const subscription = Notifications.addNotificationResponseReceivedListener((response) => {
+      const placeId = response.notification.request.content.data.placeId;
+      // Find place by ID and navigate to it
+      const place = places.find((p) => p.place_id === placeId);
+      if (place) {
+        handleMarkerPress(
+          place,
+          userLocation || region,
+          setSelectedPlace,
+          setRouteCoordinates,
+          setTravelTime,
+          setShowCard
+        );
+      }
+    });
+
     // Cleanup function
     return () => {
       if (locationWatcherCleanup) {
         locationWatcherCleanup();
       }
+      subscription.remove();
     };
   }, []);
+
+  // Check for nearby undiscovered places
+  useEffect(() => {
+    if (!userLocation || places.length === 0 || journeyStarted) return;
+
+    // Find undiscovered places within the proximity threshold
+    const now = Date.now();
+
+    places.forEach((place) => {
+      // Skip if already visited
+      if (place.isVisited === true) return;
+
+      // Skip if already notified recently (within cooldown period)
+      const lastNotified = notifiedPlaces[place.place_id] || 0;
+      if (now - lastNotified < NOTIFICATION_COOLDOWN) return;
+
+      // Calculate distance
+      const distance = haversineDistance(
+        userLocation.latitude,
+        userLocation.longitude,
+        place.geometry.location.lat,
+        place.geometry.location.lng
+      );
+
+      // Check if within notification threshold
+      if (distance <= PROXIMITY_NOTIFICATION_THRESHOLD) {
+        console.log(`User is near undiscovered place: ${place.name} (${distance}m)`);
+
+        // Update notified places with timestamp
+        setNotifiedPlaces((prev) => ({
+          ...prev,
+          [place.place_id]: now,
+        }));
+
+        // Show in-app notification
+        showInAppNotification(place);
+
+        // Send push notification (only if app is in background)
+        if (Math.random() > 0.7) {
+          // Randomly send push sometimes to avoid spamming
+          sendPushNotification(place);
+        }
+      }
+    });
+  }, [userLocation, places, journeyStarted, notifiedPlaces]);
 
   // Function to refresh nearby places
   const refreshNearbyPlaces = useCallback(
@@ -487,6 +689,19 @@ export default function Map() {
     return MARKER_COLORS.DEFAULT;
   };
 
+  // Generate a random notification message
+  const getNotificationMessage = (placeName) => {
+    const messages = [
+      `${placeName} is just around the corner!`,
+      `You're close to ${placeName}! Discover it now.`,
+      `Adventure awaits at nearby ${placeName}!`,
+      `New discovery opportunity: ${placeName} is close by!`,
+      `${placeName} is within walking distance. Check it out!`,
+    ];
+
+    return messages[Math.floor(Math.random() * messages.length)];
+  };
+
   return (
     <View style={styles.container}>
       <MapView
@@ -532,6 +747,23 @@ export default function Map() {
             fillColor={`${Colors.primary}10`}
           />
         )}
+
+        {/* Show proximity circles around undiscovered places */}
+        {places
+          .filter((place) => place.isVisited !== true)
+          .map((place) => (
+            <Circle
+              key={`proximity-${place.place_id}`}
+              center={{
+                latitude: place.geometry.location.lat,
+                longitude: place.geometry.location.lng,
+              }}
+              radius={PROXIMITY_NOTIFICATION_THRESHOLD}
+              strokeColor={Colors.primary}
+              strokeWidth={0.5}
+              fillColor={"rgba(255, 58, 117, 0.09)"}
+            />
+          ))}
 
         {markersToDisplay.map((place) => (
           <Marker
@@ -579,6 +811,81 @@ export default function Map() {
           />
         )}
       </MapView>
+
+      {/* In-app notification for nearby places */}
+      {notificationVisible && nearbyPlace && (
+        <Animated.View
+          style={[
+            styles.notificationContainer,
+            {
+              opacity: notificationOpacity,
+              transform: [{ translateY: notificationTranslateY }],
+            },
+          ]}
+        >
+          <View style={styles.notificationInner}>
+            <View style={styles.notificationIconContainer}>
+              <MaterialIcon name="location-on" size={24} color="#fff" />
+            </View>
+            <View style={styles.notificationContent}>
+              <Text style={styles.notificationTitle}>Nearby Discovery!</Text>
+              <Text style={styles.notificationText}>
+                {getNotificationMessage(nearbyPlace.name)}
+              </Text>
+            </View>
+            <View style={styles.notificationActions}>
+              <TouchableOpacity
+                style={styles.notificationAction}
+                onPress={() => handleNotificationResponse(nearbyPlace)}
+              >
+                <Text style={styles.notificationActionText}>Explore</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.notificationDismiss} onPress={dismissNotification}>
+                <MaterialIcon name="close" size={20} color="#999" />
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Animated.View>
+      )}
+
+      {/* Notification count badge (only shows when you have notifications) */}
+      {notificationCount > 0 && !notificationVisible && (
+        <TouchableOpacity
+          style={styles.notificationBadge}
+          onPress={() => {
+            // Find the closest unvisited place and show notification
+            if (places.length > 0 && userLocation) {
+              let closestPlace = null;
+              let minDistance = Infinity;
+
+              places.forEach((place) => {
+                if (place.isVisited !== true) {
+                  const distance = haversineDistance(
+                    userLocation.latitude,
+                    userLocation.longitude,
+                    place.geometry.location.lat,
+                    place.geometry.location.lng
+                  );
+
+                  if (distance < minDistance) {
+                    minDistance = distance;
+                    closestPlace = place;
+                  }
+                }
+              });
+
+              if (closestPlace) {
+                showInAppNotification(closestPlace);
+              }
+            }
+          }}
+        >
+          <FontAwesome name="bell" size={16} color="#fff" />
+          <View style={styles.badgeCount}>
+            <Text style={styles.badgeCountText}>{notificationCount}</Text>
+          </View>
+        </TouchableOpacity>
+      )}
 
       {showCard && selectedPlace && travelTime && (
         <ExploreCard
@@ -720,5 +1027,106 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     zIndex: 999,
+  },
+  // Notification styles
+  notificationContainer: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    paddingTop: Platform.OS === "ios" ? 45 : 15,
+    paddingHorizontal: 10,
+    zIndex: 1000,
+  },
+  notificationInner: {
+    backgroundColor: "white",
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 15,
+    flexDirection: "row",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 5,
+    elevation: 5,
+    minHeight: 80,
+  },
+  notificationIconContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: Colors.primary,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 12,
+  },
+  notificationContent: {
+    flex: 1,
+  },
+  notificationTitle: {
+    fontWeight: "bold",
+    fontSize: 16,
+    color: "#222",
+    marginBottom: 3,
+  },
+  notificationText: {
+    fontSize: 14,
+    color: "#555",
+  },
+  notificationActions: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  notificationAction: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    backgroundColor: Colors.primary,
+    borderRadius: 16,
+    marginRight: 8,
+  },
+  notificationActionText: {
+    color: "white",
+    fontWeight: "600",
+    fontSize: 13,
+  },
+  notificationDismiss: {
+    padding: 5,
+  },
+  notificationBadge: {
+    position: "absolute",
+    top: Platform.OS === "ios" ? 45 : 15,
+    right: 15,
+    backgroundColor: Colors.primary,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 3,
+    zIndex: 1000,
+  },
+  badgeCount: {
+    position: "absolute",
+    top: -5,
+    right: -5,
+    backgroundColor: Colors.danger,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 4,
+    borderWidth: 1.5,
+    borderColor: "white",
+  },
+  badgeCountText: {
+    color: "white",
+    fontSize: 10,
+    fontWeight: "bold",
   },
 });

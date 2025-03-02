@@ -1,6 +1,15 @@
 // components/Home/StatsSection.tsx
 import React, { useRef, useState, useEffect } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, Animated, Dimensions } from "react-native";
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Animated,
+  Dimensions,
+  Easing,
+  Platform,
+} from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { fetchUserStats } from "../../services/statsService";
@@ -16,6 +25,14 @@ const StatsSection = () => {
   const statsScrollX = useRef(new Animated.Value(0)).current;
   const statsListRef = useRef<Animated.FlatList<StatItem>>(null);
 
+  // Animation values
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const titleAnim = useRef(new Animated.Value(-20)).current;
+  const pulseAnim = useRef(new Animated.Value(0)).current;
+  const floatAnim = useRef(new Animated.Value(0)).current;
+  const rotateAnim = useRef(new Animated.Value(0)).current;
+  const shimmerAnim = useRef(new Animated.Value(0)).current;
+
   useEffect(() => {
     const loadUserStats = async () => {
       try {
@@ -30,33 +47,203 @@ const StatsSection = () => {
     };
 
     loadUserStats();
+
+    // Start animations
+    startAnimations();
   }, []);
 
+  const startAnimations = () => {
+    // Fade in and slide in animations
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 800,
+        useNativeDriver: true,
+        easing: Easing.out(Easing.cubic),
+      }),
+      Animated.timing(titleAnim, {
+        toValue: 0,
+        duration: 700,
+        useNativeDriver: true,
+        easing: Easing.out(Easing.back(100)),
+      }),
+    ]).start();
+
+    // Continuous pulse animation for icons
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 2000,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 0,
+          duration: 2000,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+
+    // Floating animation for background elements
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(floatAnim, {
+          toValue: 1,
+          duration: 3000,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+        }),
+        Animated.timing(floatAnim, {
+          toValue: 0,
+          duration: 3000,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+
+    // Rotation animation for some elements
+    Animated.loop(
+      Animated.timing(rotateAnim, {
+        toValue: 1,
+        duration: 12000,
+        easing: Easing.linear,
+        useNativeDriver: true,
+      })
+    ).start();
+
+    // Loading shimmer animation
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(shimmerAnim, {
+          toValue: 1,
+          duration: 1500,
+          useNativeDriver: true,
+          easing: Easing.inOut(Easing.sin),
+        }),
+        Animated.timing(shimmerAnim, {
+          toValue: 0,
+          duration: 1500,
+          useNativeDriver: true,
+          easing: Easing.inOut(Easing.sin),
+        }),
+      ])
+    ).start();
+  };
+
   const onStatsScroll = Animated.event([{ nativeEvent: { contentOffset: { x: statsScrollX } } }], {
-    useNativeDriver: false,
+    useNativeDriver: true,
   });
 
   // Placeholder card when no stats are available
   const renderEmptyStateCard = () => {
     return (
-      <TouchableOpacity
-        activeOpacity={0.9}
-        style={styles.statCardContainer}
-        onPress={() => {
-          /* Navigate to exploration screen */
-        }}
+      <Animated.View
+        style={[
+          styles.statCardContainer,
+          {
+            opacity: fadeAnim,
+            transform: [
+              {
+                scale: fadeAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0.9, 1],
+                }),
+              },
+              {
+                translateY: fadeAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [20, 0],
+                }),
+              },
+            ],
+          },
+        ]}
       >
-        <View style={styles.statCard}>
+        <TouchableOpacity
+          activeOpacity={0.9}
+          style={styles.statCard}
+          onPress={() => {
+            /* Navigate to exploration screen */
+          }}
+        >
           <LinearGradient
             colors={["#6A11CB" as const, "#2575FC" as const]}
             style={styles.statGradient}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
           >
+            {/* Animated background circles */}
+            <View style={styles.circlesContainer}>
+              <Animated.View
+                style={[
+                  styles.backgroundCircle,
+                  {
+                    width: 100,
+                    height: 100,
+                    top: -50,
+                    right: -20,
+                    opacity: 0.15,
+                    transform: [
+                      {
+                        translateY: floatAnim.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [0, -10],
+                        }),
+                      },
+                      {
+                        rotate: rotateAnim.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: ["0deg", "360deg"],
+                        }),
+                      },
+                    ],
+                  },
+                ]}
+              />
+              <Animated.View
+                style={[
+                  styles.backgroundCircle,
+                  {
+                    width: 40,
+                    height: 40,
+                    bottom: 20,
+                    left: 20,
+                    opacity: 0.1,
+                    transform: [
+                      {
+                        translateX: floatAnim.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [0, 8],
+                        }),
+                      },
+                    ],
+                  },
+                ]}
+              />
+            </View>
+
             <View style={styles.statContent}>
-              <View style={styles.iconContainer}>
+              <Animated.View
+                style={[
+                  styles.iconContainer,
+                  {
+                    transform: [
+                      {
+                        scale: pulseAnim.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [1, 1.12],
+                        }),
+                      },
+                    ],
+                  },
+                ]}
+              >
                 <Ionicons name="compass-outline" size={24} color="#fff" />
-              </View>
+              </Animated.View>
               <View style={styles.statInfo}>
                 <Text style={styles.statValue}>Start Exploring</Text>
                 <Text style={styles.statLabel}>
@@ -65,8 +252,8 @@ const StatsSection = () => {
               </View>
             </View>
           </LinearGradient>
-        </View>
-      </TouchableOpacity>
+        </TouchableOpacity>
+      </Animated.View>
     );
   };
 
@@ -103,7 +290,7 @@ const StatsSection = () => {
     return (
       <View style={styles.circlesContainer}>
         {style.circles.map((circle, idx) => (
-          <View
+          <Animated.View
             key={idx}
             style={[
               styles.backgroundCircle,
@@ -115,6 +302,29 @@ const StatsSection = () => {
                 left: circle.left,
                 bottom: circle.bottom,
                 opacity: circle.opacity,
+                transform: [
+                  {
+                    translateY: floatAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0, idx === 0 ? -8 : 8],
+                    }),
+                  },
+                  {
+                    translateX: floatAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0, idx === 0 ? 5 : -5],
+                    }),
+                  },
+                  {
+                    rotate:
+                      idx === 0
+                        ? rotateAnim.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: ["0deg", "360deg"],
+                          })
+                        : "0deg",
+                  },
+                ],
               },
             ]}
           />
@@ -130,18 +340,41 @@ const StatsSection = () => {
       (index + 1) * (STATS_CARD_WIDTH + SPACING * 2),
     ];
 
+    // Create animations for each effect
     const scale = statsScrollX.interpolate({
       inputRange,
       outputRange: [0.95, 1, 0.95],
       extrapolate: "clamp",
     });
 
+    const translateY = statsScrollX.interpolate({
+      inputRange,
+      outputRange: [8, 0, 8],
+      extrapolate: "clamp",
+    });
+
+    const cardOpacity = statsScrollX.interpolate({
+      inputRange,
+      outputRange: [0.85, 1, 0.85],
+      extrapolate: "clamp",
+    });
+
+    const rotate = statsScrollX.interpolate({
+      inputRange,
+      outputRange: ["-0.5deg", "0deg", "0.5deg"],
+      extrapolate: "clamp",
+    });
+
+    // Combine with fade anim
+    const combinedOpacity = Animated.multiply(fadeAnim, cardOpacity);
+
     return (
       <Animated.View
         style={[
           styles.statCardContainer,
           {
-            transform: [{ scale }],
+            opacity: combinedOpacity,
+            transform: [{ scale }, { translateY }, { rotate }],
           },
         ]}
       >
@@ -163,9 +396,23 @@ const StatsSection = () => {
 
             <View style={styles.statContent}>
               {/* Icon with white circular background */}
-              <View style={styles.iconContainer}>
+              <Animated.View
+                style={[
+                  styles.iconContainer,
+                  {
+                    transform: [
+                      {
+                        scale: pulseAnim.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [1, 1.12],
+                        }),
+                      },
+                    ],
+                  },
+                ]}
+              >
                 <Ionicons name={item.icon} size={24} color="#fff" />
-              </View>
+              </Animated.View>
 
               {/* Stat information */}
               <View style={styles.statInfo}>
@@ -179,14 +426,75 @@ const StatsSection = () => {
     );
   };
 
+  // Render loading state with animation
+  const renderLoadingState = () => {
+    return (
+      <Animated.View
+        style={[
+          styles.loadingContainer,
+          {
+            opacity: fadeAnim,
+          },
+        ]}
+      >
+        <Animated.View
+          style={[
+            styles.loadingShimmer,
+            {
+              opacity: shimmerAnim.interpolate({
+                inputRange: [0, 1],
+                outputRange: [0.5, 0.8],
+              }),
+              transform: [
+                {
+                  translateX: shimmerAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [-STATS_CARD_WIDTH, STATS_CARD_WIDTH],
+                  }),
+                },
+              ],
+            },
+          ]}
+        />
+        <Text style={styles.loadingText}>Loading your stats...</Text>
+      </Animated.View>
+    );
+  };
+
   return (
-    <View style={styles.statsContainer}>
-      <Text style={styles.sectionTitle}>Your Journey</Text>
+    <Animated.View
+      style={[
+        styles.statsContainer,
+        {
+          opacity: fadeAnim,
+          transform: [
+            {
+              translateY: fadeAnim.interpolate({
+                inputRange: [0, 1],
+                outputRange: [20, 0],
+              }),
+            },
+          ],
+        },
+      ]}
+    >
+      <Animated.Text
+        style={[
+          styles.sectionTitle,
+          {
+            transform: [
+              {
+                translateX: titleAnim,
+              },
+            ],
+          },
+        ]}
+      >
+        Your Journey
+      </Animated.Text>
 
       {isLoading ? (
-        <View style={styles.loadingContainer}>
-          <Text style={styles.loadingText}>Loading your stats...</Text>
-        </View>
+        renderLoadingState()
       ) : userStats.length > 0 ? (
         <Animated.FlatList<StatItem>
           ref={statsListRef}
@@ -206,7 +514,7 @@ const StatsSection = () => {
       ) : (
         <View style={styles.emptyStateContainer}>{renderEmptyStateCard()}</View>
       )}
-    </View>
+    </Animated.View>
   );
 };
 
@@ -231,17 +539,23 @@ const styles = StyleSheet.create({
     width: STATS_CARD_WIDTH,
     marginHorizontal: SPACING,
     alignItems: "center",
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.1,
+        shadowRadius: 10,
+      },
+      android: {
+        elevation: 4,
+      },
+    }),
   },
   statCard: {
     width: STATS_CARD_WIDTH,
     height: 120,
     borderRadius: 24,
     overflow: "hidden",
-    elevation: 3,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
   },
   statGradient: {
     width: "100%",
@@ -303,10 +617,23 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     height: 120,
     width: "100%",
+    overflow: "hidden",
+    position: "relative",
+    backgroundColor: "rgba(0,0,0,0.03)",
+    borderRadius: 24,
   },
   loadingText: {
     fontSize: 16,
     color: "#888",
+  },
+  loadingShimmer: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "#fff",
+    width: STATS_CARD_WIDTH * 2,
   },
 });
 

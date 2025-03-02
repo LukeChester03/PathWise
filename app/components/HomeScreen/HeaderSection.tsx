@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Text, StyleSheet, Image, Dimensions, ImageBackground } from "react-native";
+import { View, Text, StyleSheet, Image, Dimensions, StatusBar, Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 // Types
@@ -36,14 +36,19 @@ const HeaderSection: React.FC<HeaderSectionProps> = ({
   };
 
   return (
-    <View style={[styles.headerContainer, { paddingTop: insets.top }]}>
-      {/* Background Image */}
-      <View style={styles.backgroundContainer}>
-        <Image source={{ uri: backgroundImage }} style={styles.backgroundImage} blurRadius={5} />
+    <>
+      {/* Set StatusBar to transparent */}
+      <StatusBar translucent backgroundColor="transparent" barStyle="light-content" />
+
+      <View style={styles.headerContainer}>
+        {/* Background Image - Fixed positioning to cover the entire area */}
+        <Image source={{ uri: backgroundImage }} style={styles.backgroundImage} blurRadius={3} />
+
+        {/* Dark overlay for better text contrast */}
         <View style={styles.backgroundOverlay} />
 
-        {/* Header Content */}
-        <View style={styles.headerContent}>
+        {/* Header Content - Positioned with proper padding for safe area */}
+        <View style={[styles.headerContent, { paddingTop: insets.top + 20 }]}>
           {/* User Info */}
           <View style={styles.userInfoContainer}>
             {/* Avatar Container */}
@@ -59,31 +64,25 @@ const HeaderSection: React.FC<HeaderSectionProps> = ({
           </View>
         </View>
       </View>
-    </View>
+    </>
   );
 };
 
 const styles = StyleSheet.create({
   headerContainer: {
-    height: height * 0.25, // Slightly shorter for better proportions
+    height: height * 0.38, // Slightly shorter for better proportions
+    width: "100%",
     overflow: "hidden",
     position: "relative",
-    backgroundColor: "rgba(0,0,0,0.1)", // Subtle overlay for text readability
-    width: "100%",
-  },
-  backgroundContainer: {
-    position: "relative",
-    width: "100%",
-    height: "100%",
+    // Remove the backgroundColor that was causing the grey bar
   },
   backgroundImage: {
     position: "absolute",
     top: 0,
     left: 0,
-    right: 0,
-    bottom: 0,
-    resizeMode: "cover",
     width: "100%",
+    height: "100%",
+    resizeMode: "cover",
   },
   backgroundOverlay: {
     position: "absolute",
@@ -91,13 +90,12 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: "rgba(0,0,0,0.3)", // Darken and soften background
+    backgroundColor: "rgba(0,0,0,0.35)", // Slightly darker for better text readability
   },
   headerContent: {
     position: "relative",
     zIndex: 10,
     paddingHorizontal: 24,
-    alignItems: "flex-start",
     width: "100%",
     height: "100%",
     justifyContent: "center",
@@ -124,6 +122,8 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.3)",
     justifyContent: "center",
     alignItems: "center",
+    borderWidth: 2,
+    borderColor: "rgba(255,255,255,0.3)",
   },
   avatarPlaceholderText: {
     color: "white",
@@ -145,6 +145,9 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#fff",
     letterSpacing: 0.5,
+    textShadowColor: "rgba(0, 0, 0, 0.6)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
   },
 });
 
