@@ -24,7 +24,7 @@ interface RouteResponse {
 }
 
 // Distance threshold for driving vs walking (5km = 5000m)
-const DRIVING_DISTANCE_THRESHOLD = 5000;
+const DRIVING_DISTANCE_THRESHOLD = 2000;
 
 /**
  * Estimates the direct distance between two coordinates

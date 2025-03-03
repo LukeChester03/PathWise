@@ -62,9 +62,6 @@ const MARKER_COLORS = {
 // Define proximity thresholds for notifications
 const PROXIMITY_NOTIFICATION_THRESHOLD = 100; // 100 meters
 const NOTIFICATION_COOLDOWN = 600000; // 1 minute cooldown between notifications for the same place
-// Distance threshold for driving vs walking mode (5 kilometers)
-const DRIVING_DISTANCE_THRESHOLD = 5000; // 5000 meters
-
 export default function Map() {
   const [region, setRegion] = useState<Region | null>(null);
   const [places, setPlaces] = useState<Place[]>([]);
@@ -119,7 +116,7 @@ export default function Map() {
         name: "default",
         importance: Notifications.AndroidImportance.MAX,
         vibrationPattern: [0, 250, 250, 250],
-        lightColor: `Colors.primary/10`,
+        lightColor: "#d03f74",
       });
     }
 
