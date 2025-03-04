@@ -57,7 +57,7 @@ const MARKER_COLORS = {
 };
 // Define proximity thresholds for notifications
 const PROXIMITY_NOTIFICATION_THRESHOLD = 100; // 100 meters
-const NOTIFICATION_COOLDOWN = 600000; // 1 minute cooldown between notifications for the same place
+const NOTIFICATION_COOLDOWN = 600000; // 10 minutes cooldown between notifications for the same place
 
 // Define styles for the component
 const styles = StyleSheet.create({
@@ -252,6 +252,7 @@ export default function Map() {
   const notificationTranslateY = useRef(new Animated.Value(-100)).current;
   const [routeKey, setRouteKey] = useState(0);
   const [previousPosition, setPreviousPosition] = useState(null);
+  const [lastAnnouncedPosition, setLastAnnouncedPosition] = useState(null);
 
   // New turn-by-turn navigation state
   const [navigationSteps, setNavigationSteps] = useState([]);
@@ -261,9 +262,88 @@ export default function Map() {
   const [lastAnnouncedStep, setLastAnnouncedStep] = useState(-1);
   const [navigationVisible, setNavigationVisible] = useState(true);
   const [soundEnabled, setSoundEnabled] = useState(true);
+  const [hasSpokenInitialInstruction, setHasSpokenInitialInstruction] = useState<Boolean>(false);
+
+  // New state variables for improved navigation
+  const [lastAnnouncementTime, setLastAnnouncementTime] = useState(0);
+  const ANNOUNCEMENT_COOLDOWN = 20000; // 8 seconds minimum between announcements
+  const [locationUpdateCounter, setLocationUpdateCounter] = useState(0);
+  const LOCATION_UPDATE_THROTTLE = 3; // Only process every 3rd update
+  const [speechQueue, setSpeechQueue] = useState([]);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const INITIAL_NAVIGATION_DELAY = 20000; // Delay first instruction by 20 seconds
 
   const navigation = useNavigation();
   const mapRef = useRef(null);
+
+  // Process the speech queue whenever it changes
+  useEffect(() => {
+    processSpeechQueue();
+  }, [speechQueue]);
+
+  // Function to process the speech queue
+  const processSpeechQueue = useCallback(async () => {
+    if (speechQueue.length === 0 || isSpeaking || !soundEnabled) return;
+
+    setIsSpeaking(true);
+    const instruction = speechQueue[0];
+
+    try {
+      // Stop any currently speaking instruction
+      await Speech.stop();
+
+      // Play notification sound before speaking
+      try {
+        const { sound } = await Audio.Sound.createAsync(
+          require("../../assets/sounds/navigation-alert.mp3")
+        );
+
+        await sound.playAsync();
+
+        // Wait a moment before speaking
+        setTimeout(() => {
+          Speech.speak(instruction, {
+            language: "en-US",
+            pitch: 1.0,
+            rate: 0.9,
+            onDone: () => {
+              console.log("Finished speaking instruction");
+              // Remove the spoken instruction from queue and set speaking to false
+              setSpeechQueue((prev) => prev.slice(1));
+              setIsSpeaking(false);
+            },
+            onError: (error) => {
+              console.warn("Error speaking instruction:", error);
+              // Even on error, remove from queue and continue
+              setSpeechQueue((prev) => prev.slice(1));
+              setIsSpeaking(false);
+            },
+          });
+        }, 700);
+      } catch (soundError) {
+        console.warn("Error playing notification sound:", soundError);
+        // Fallback if sound file can't be loaded
+        Speech.speak(instruction, {
+          language: "en-US",
+          pitch: 1.0,
+          rate: 0.9,
+          onDone: () => {
+            setSpeechQueue((prev) => prev.slice(1));
+            setIsSpeaking(false);
+          },
+          onError: () => {
+            setSpeechQueue((prev) => prev.slice(1));
+            setIsSpeaking(false);
+          },
+        });
+      }
+    } catch (error) {
+      console.warn("Error with text-to-speech:", error);
+      // Recover from error
+      setSpeechQueue((prev) => prev.slice(1));
+      setIsSpeaking(false);
+    }
+  }, [speechQueue, isSpeaking, soundEnabled]);
 
   // Function to parse route instructions from Google Directions API response
   const parseRouteInstructions = (result) => {
@@ -302,6 +382,148 @@ export default function Map() {
     }
   };
 
+  // Update map camera to follow user with correct orientation
+  const updateMapCamera = (location, heading) => {
+    if (!mapRef.current || !journeyStarted) return;
+
+    const camera = {
+      center: {
+        latitude: location.latitude,
+        longitude: location.longitude,
+      },
+      pitch: 45, // Add some tilt for better navigation view
+      heading: heading || 0, // Use the calculated heading or default to north
+      altitude: 2000, // Adjust for desired zoom level
+      zoom: 17, // Close enough to see streets clearly
+    };
+
+    mapRef.current.animateCamera(camera, { duration: 1000 });
+  };
+
+  // Check if we should refresh places based on user movement
+  const checkAndRefreshPlaces = useCallback(
+    (newLocation) => {
+      // Don't try to refresh if initial loading isn't complete or if lastRefreshPosition isn't set
+      if (!initialLoadingComplete || !lastRefreshPosition) return;
+
+      const currentTime = Date.now();
+      const timeSinceLastRefresh = currentTime - lastRefreshTime;
+
+      // Only refresh if enough time has passed since the last refresh
+      if (timeSinceLastRefresh < MARKER_REFRESH_THRESHOLD) return;
+
+      const distance = haversineDistance(
+        lastRefreshPosition.latitude,
+        lastRefreshPosition.longitude,
+        newLocation.latitude,
+        newLocation.longitude
+      );
+
+      // If user has moved more than 50% of the circle radius, refresh places
+      if (distance > circleRadius * 0.5) {
+        refreshNearbyPlaces(newLocation.latitude, newLocation.longitude);
+      }
+    },
+    [lastRefreshPosition, lastRefreshTime, circleRadius, initialLoadingComplete]
+  );
+
+  // Function to refresh nearby places
+  const refreshNearbyPlaces = useCallback(
+    async (latitude, longitude) => {
+      if (isRefreshingPlaces) return;
+
+      try {
+        setIsRefreshingPlaces(true);
+
+        // Get places using the updated controller that returns places and furthestDistance
+        const { places: newPlaces, furthestDistance } = await fetchNearbyPlaces(
+          latitude,
+          longitude
+        );
+
+        // Set the circle radius based on the furthest place
+        setCircleRadius(furthestDistance);
+
+        if (newPlaces && newPlaces.length > 0) {
+          // Check which places have been visited before
+          const placesWithVisitedStatus = await checkVisitedPlaces(newPlaces);
+
+          // Keep selected place in the list if it exists
+          if (selectedPlace) {
+            const selectedPlaceExists = placesWithVisitedStatus.some(
+              (place) => place.place_id === selectedPlace.place_id
+            );
+
+            if (!selectedPlaceExists) {
+              // If the selected place isn't in the new list, add it
+              const selectedWithVisitedStatus = await checkVisitedPlaces([selectedPlace]);
+              setPlaces([...placesWithVisitedStatus, ...selectedWithVisitedStatus]);
+            } else {
+              setPlaces(placesWithVisitedStatus);
+            }
+          } else {
+            setPlaces(placesWithVisitedStatus);
+          }
+        } else if (newPlaces && newPlaces.length === 0) {
+          // If no places found, keep selected place if it exists
+          if (selectedPlace) {
+            const selectedWithVisitedStatus = await checkVisitedPlaces([selectedPlace]);
+            setPlaces(selectedWithVisitedStatus);
+          } else {
+            setPlaces([]);
+          }
+        }
+
+        setLastRefreshPosition({ latitude, longitude });
+        setLastRefreshTime(Date.now());
+        setLoading(false);
+
+        // Mark initial loading as complete
+        if (!initialLoadingComplete) {
+          setInitialLoadingComplete(true);
+        }
+      } catch (error) {
+        console.error("Error refreshing nearby places:", error);
+        setLoading(false);
+
+        // Still mark initial loading as complete even if there was an error
+        if (!initialLoadingComplete) {
+          setInitialLoadingComplete(true);
+        }
+      } finally {
+        setIsRefreshingPlaces(false);
+      }
+    },
+    [selectedPlace, isRefreshingPlaces, initialLoadingComplete]
+  );
+
+  // Setup detailed location tracking when journey starts
+  useEffect(() => {
+    if (journeyStarted && selectedPlace) {
+      // Reset previous position and heading
+      setPreviousPosition(null);
+      setUserHeading(null);
+      // Reset destination saved state whenever a new journey starts
+      setDestinationSaved(false);
+
+      // Initial map camera update without heading (will point north)
+      if (mapRef.current && userLocation) {
+        const initialCamera = {
+          center: {
+            latitude: userLocation.latitude,
+            longitude: userLocation.longitude,
+          },
+          pitch: 45,
+          heading: 0,
+          altitude: 100,
+          zoom: 30,
+        };
+
+        mapRef.current.animateCamera(initialCamera, { duration: 500 });
+      }
+    }
+  }, [journeyStarted]);
+
   // Function to determine which maneuver icon to show
   const getManeuverIcon = (maneuver) => {
     switch (maneuver) {
@@ -338,42 +560,18 @@ export default function Map() {
     }
   };
 
-  // Function to speak navigation instructions
-  const speakInstruction = async (instruction) => {
-    if (!soundEnabled) return;
+  // Updated function to speak navigation instructions using queue
+  const speakInstruction = useCallback(
+    (instruction) => {
+      if (!soundEnabled) return;
 
-    try {
-      // Stop any currently speaking instruction
-      Speech.stop();
-
-      // Play notification sound before speaking
-      try {
-        const { sound } = await Audio.Sound.createAsync(
-          require("../../assets/sounds/navigation-alert.mp3")
-        );
-
-        await sound.playAsync();
-
-        // Wait a moment before speaking
-        setTimeout(() => {
-          Speech.speak(instruction, {
-            language: "en-US",
-            pitch: 1.0,
-            rate: 0.9,
-          });
-        }, 500);
-      } catch (soundError) {
-        // Fallback if sound file can't be loaded, just speak the instruction
-        Speech.speak(instruction, {
-          language: "en-US",
-          pitch: 1.0,
-          rate: 0.9,
-        });
+      // Only add to queue if the instruction isn't already queued
+      if (!speechQueue.includes(instruction)) {
+        setSpeechQueue((prev) => [...prev, instruction]);
       }
-    } catch (error) {
-      console.warn("Error with text-to-speech:", error);
-    }
-  };
+    },
+    [soundEnabled, speechQueue]
+  );
 
   // Function to handle notification permissions
   const registerForPushNotificationsAsync = async () => {
@@ -408,6 +606,92 @@ export default function Map() {
     }
 
     return true;
+  };
+
+  const onStartJourney = async () => {
+    const hasPermission = await requestLocationPermission();
+    if (hasPermission) {
+      setShowCard(false);
+      setJourneyStarted(true);
+      setShowDetailsCard(true);
+      setDestinationReached(false);
+      setDestinationSaved(false); // Reset saved state when starting a new journey
+      setNavigationVisible(true); // Show navigation panel when journey starts
+
+      // Increment counter to force route redraw
+      setRouteUpdateCounter((prev) => prev + 1);
+    } else {
+      Alert.alert(
+        "Location Permission Required",
+        "We need location permission to guide you to your destination."
+      );
+    }
+  };
+
+  // Handle learn more action from destination card
+  const handleLearnMore = () => {
+    if (selectedPlace) {
+      // Logic with AI
+    }
+  };
+
+  // Handle dismissal of destination card
+  const handleDismissDestinationCard = () => {
+    setDestinationReached(false);
+    handleCancel(
+      setConfirmEndJourney,
+      setSelectedPlace,
+      setRouteCoordinates,
+      setTravelTime,
+      setDistance,
+      setShowArrow,
+      setShowDetailsCard,
+      setShowCard,
+      setJourneyStarted
+    );
+    setPreviousPosition(null);
+    setUserHeading(null);
+  };
+
+  const handleSwipeOff = () => {
+    setShowDetailsCard(false);
+    setShowArrow(true);
+  };
+
+  const handleArrowPress = () => {
+    setShowArrow(false);
+    setShowDetailsCard(true);
+  };
+
+  // Function to determine marker color based on status
+  const getMarkerColor = (place) => {
+    if (selectedPlace?.place_id === place.place_id) {
+      return MARKER_COLORS.SELECTED;
+    }
+    if (selectedPlace?.place_id === place.place_id && place.isVisited === true) {
+      return MARKER_COLORS.VISITED;
+    }
+    if (selectedPlace?.place_id === place.place_id && place.isVisited === false) {
+      return MARKER_COLORS.SELECTED;
+    }
+    // Only show blue if explicitly marked as visited in the database (strict equality)
+    if (place.isVisited === true) {
+      return MARKER_COLORS.VISITED;
+    }
+    return MARKER_COLORS.DEFAULT;
+  };
+
+  // Generate a random notification message
+  const getNotificationMessage = (placeName) => {
+    const messages = [
+      `${placeName} is just around the corner!`,
+      `You're close to ${placeName}! Discover it now.`,
+      `Adventure awaits at nearby ${placeName}!`,
+      `New discovery opportunity: ${placeName} is close by!`,
+      `${placeName} is within walking distance. Check it out!`,
+    ];
+
+    return messages[Math.floor(Math.random() * messages.length)];
   };
 
   // Function to show in-app notification
@@ -599,10 +883,11 @@ export default function Map() {
 
       // Clean up speech when component unmounts
       Speech.stop();
+      setSpeechQueue([]);
     };
   }, []);
 
-  // Update navigation instructions based on user location
+  // Updated navigation instructions based on user location with cooldown and throttling
   useEffect(() => {
     if (!userLocation || !journeyStarted || navigationSteps.length === 0) return;
 
@@ -626,16 +911,54 @@ export default function Map() {
       }
     }
 
-    // Determine if we should move to the next step
+    // Get current time to enforce cooldown
+    const now = Date.now();
+    const timeSinceLastAnnouncement = now - lastAnnouncementTime;
+    const canAnnounce = timeSinceLastAnnouncement > ANNOUNCEMENT_COOLDOWN;
+
+    // Calculate how far user has moved since last announcement
+    let distanceMoved = Infinity;
+    if (lastAnnouncedPosition) {
+      distanceMoved = haversineDistance(
+        userLocation.latitude,
+        userLocation.longitude,
+        lastAnnouncedPosition.latitude,
+        lastAnnouncedPosition.longitude
+      );
+    }
+
+    // Only allow announcements if user has moved at least 10 meters
+    const hasMovedEnough = distanceMoved > 10;
+
+    // Moving to a new step - announce only once when we first detect the step change
     if (closestStepIndex > stepIndex) {
       setCurrentStep(navigationSteps[closestStepIndex]);
       setStepIndex(closestStepIndex);
 
-      // Speak the new instruction if we haven't already
-      if (closestStepIndex !== lastAnnouncedStep) {
+      // Speak only when moving to a new step AND we haven't announced it yet
+      if (closestStepIndex !== lastAnnouncedStep && canAnnounce) {
+        console.log(`Speaking new instruction for step ${closestStepIndex}`);
         speakInstruction(navigationSteps[closestStepIndex].instructions);
         setLastAnnouncedStep(closestStepIndex);
+        setLastAnnouncementTime(now);
+        // Store position where announcement was made
+        setLastAnnouncedPosition({
+          latitude: userLocation.latitude,
+          longitude: userLocation.longitude,
+        });
       }
+    }
+    // First announcement only happens once at the beginning
+    else if (stepIndex === 0 && lastAnnouncedStep === -1 && canAnnounce) {
+      // This is the very first announcement for the initial step
+      speakInstruction(`Starting navigation. ${navigationSteps[0].instructions}`);
+      setLastAnnouncedStep(0);
+      setLastAnnouncementTime(now);
+      // Store position where announcement was made
+      setLastAnnouncedPosition({
+        latitude: userLocation.latitude,
+        longitude: userLocation.longitude,
+      });
     }
 
     // Update the distance to the next maneuver
@@ -654,20 +977,41 @@ export default function Map() {
         setNextStepDistance(`${Math.round(distanceToNextStep)} m`);
       }
 
-      // Announce "approaching" when close to maneuver
+      // Only announce "approaching" when:
+      // 1. We're in the right distance range
+      // 2. We're still on the same step to avoid duplication
+      // 3. Enough time has passed
+      // 4. User has moved at least 10 meters since last announcement
       if (
         distanceToNextStep < 50 &&
         distanceToNextStep > 20 &&
-        closestStepIndex === lastAnnouncedStep
+        closestStepIndex === lastAnnouncedStep &&
+        canAnnounce &&
+        hasMovedEnough
       ) {
         speakInstruction(
           `In ${Math.round(distanceToNextStep)} meters, ${
             navigationSteps[closestStepIndex].instructions
           }`
         );
+        setLastAnnouncementTime(now);
+        // Store position where announcement was made
+        setLastAnnouncedPosition({
+          latitude: userLocation.latitude,
+          longitude: userLocation.longitude,
+        });
       }
     }
-  }, [userLocation, journeyStarted, navigationSteps, stepIndex, lastAnnouncedStep]);
+  }, [
+    userLocation,
+    journeyStarted,
+    navigationSteps,
+    stepIndex,
+    lastAnnouncedStep,
+    lastAnnouncementTime,
+    lastAnnouncedPosition,
+    speakInstruction,
+  ]);
 
   // Check for nearby undiscovered places
   useEffect(() => {
@@ -714,76 +1058,6 @@ export default function Map() {
     });
   }, [userLocation, places, journeyStarted, notifiedPlaces]);
 
-  // Function to refresh nearby places
-  const refreshNearbyPlaces = useCallback(
-    async (latitude, longitude) => {
-      if (isRefreshingPlaces) return;
-
-      try {
-        setIsRefreshingPlaces(true);
-
-        // Get places using the updated controller that returns places and furthestDistance
-        const { places: newPlaces, furthestDistance } = await fetchNearbyPlaces(
-          latitude,
-          longitude
-        );
-
-        // Set the circle radius based on the furthest place
-        setCircleRadius(furthestDistance);
-
-        if (newPlaces && newPlaces.length > 0) {
-          // Check which places have been visited before
-          const placesWithVisitedStatus = await checkVisitedPlaces(newPlaces);
-
-          // Keep selected place in the list if it exists
-          if (selectedPlace) {
-            const selectedPlaceExists = placesWithVisitedStatus.some(
-              (place) => place.place_id === selectedPlace.place_id
-            );
-
-            if (!selectedPlaceExists) {
-              // If the selected place isn't in the new list, add it
-              const selectedWithVisitedStatus = await checkVisitedPlaces([selectedPlace]);
-              setPlaces([...placesWithVisitedStatus, ...selectedWithVisitedStatus]);
-            } else {
-              setPlaces(placesWithVisitedStatus);
-            }
-          } else {
-            setPlaces(placesWithVisitedStatus);
-          }
-        } else if (newPlaces && newPlaces.length === 0) {
-          // If no places found, keep selected place if it exists
-          if (selectedPlace) {
-            const selectedWithVisitedStatus = await checkVisitedPlaces([selectedPlace]);
-            setPlaces(selectedWithVisitedStatus);
-          } else {
-            setPlaces([]);
-          }
-        }
-
-        setLastRefreshPosition({ latitude, longitude });
-        setLastRefreshTime(Date.now());
-        setLoading(false);
-
-        // Mark initial loading as complete
-        if (!initialLoadingComplete) {
-          setInitialLoadingComplete(true);
-        }
-      } catch (error) {
-        console.error("Error refreshing nearby places:", error);
-        setLoading(false);
-
-        // Still mark initial loading as complete even if there was an error
-        if (!initialLoadingComplete) {
-          setInitialLoadingComplete(true);
-        }
-      } finally {
-        setIsRefreshingPlaces(false);
-      }
-    },
-    [selectedPlace, isRefreshingPlaces, initialLoadingComplete]
-  );
-
   // Calculate heading based on current and previous positions
   const calculateHeading = (prevLat, prevLng, currentLat, currentLng) => {
     // Convert to radians
@@ -802,240 +1076,6 @@ export default function Map() {
     return bearing;
   };
 
-  // Update map camera to follow user with correct orientation
-  const updateMapCamera = (location, heading) => {
-    if (!mapRef.current || !journeyStarted) return;
-
-    const camera = {
-      center: {
-        latitude: location.latitude,
-        longitude: location.longitude,
-      },
-      pitch: 45, // Add some tilt for better navigation view
-      heading: heading || 0, // Use the calculated heading or default to north
-      altitude: 2000, // Adjust for desired zoom level
-      zoom: 17, // Close enough to see streets clearly
-    };
-
-    mapRef.current.animateCamera(camera, { duration: 1000 });
-  };
-
-  // Check if we should refresh places based on user movement
-  const checkAndRefreshPlaces = useCallback(
-    (newLocation) => {
-      // Don't try to refresh if initial loading isn't complete or if lastRefreshPosition isn't set
-      if (!initialLoadingComplete || !lastRefreshPosition) return;
-
-      const currentTime = Date.now();
-      const timeSinceLastRefresh = currentTime - lastRefreshTime;
-
-      // Only refresh if enough time has passed since the last refresh
-      if (timeSinceLastRefresh < MARKER_REFRESH_THRESHOLD) return;
-
-      const distance = haversineDistance(
-        lastRefreshPosition.latitude,
-        lastRefreshPosition.longitude,
-        newLocation.latitude,
-        newLocation.longitude
-      );
-
-      // If user has moved more than 50% of the circle radius, refresh places
-      if (distance > circleRadius * 0.5) {
-        refreshNearbyPlaces(newLocation.latitude, newLocation.longitude);
-      }
-    },
-    [
-      lastRefreshPosition,
-      lastRefreshTime,
-      circleRadius,
-      refreshNearbyPlaces,
-      initialLoadingComplete,
-    ]
-  );
-
-  // Setup detailed location tracking when journey starts
-  useEffect(() => {
-    if (journeyStarted && selectedPlace) {
-      // Reset previous position and heading
-      setPreviousPosition(null);
-      setUserHeading(null);
-      // Reset destination saved state whenever a new journey starts
-      setDestinationSaved(false);
-
-      // Initial map camera update without heading (will point north)
-      if (mapRef.current && userLocation) {
-        const initialCamera = {
-          center: {
-            latitude: userLocation.latitude,
-            longitude: userLocation.longitude,
-          },
-          pitch: 45,
-          heading: 0,
-          altitude: 100,
-          zoom: 30,
-        };
-
-        mapRef.current.animateCamera(initialCamera, { duration: 500 });
-      }
-    }
-  }, [journeyStarted]);
-
-  // Update heading and refresh places based on movement
-  useEffect(() => {
-    if (!userLocation || !previousPosition) return;
-
-    // Calculate heading if we have a previous position
-    const heading = calculateHeading(
-      previousPosition.latitude,
-      previousPosition.longitude,
-      userLocation.latitude,
-      userLocation.longitude
-    );
-
-    // Only update heading if there's significant movement (to avoid jitter)
-    const distance = haversineDistance(
-      previousPosition.latitude,
-      previousPosition.longitude,
-      userLocation.latitude,
-      userLocation.longitude
-    );
-
-    if (distance > 2) {
-      // Only update heading if moved more than 2 meters
-      setUserHeading(heading);
-      if (journeyStarted) {
-        updateMapCamera(userLocation, heading);
-      }
-      setPreviousPosition({
-        latitude: userLocation.latitude,
-        longitude: userLocation.longitude,
-      });
-
-      // Check if we should refresh places (when not in journey mode)
-      if (!journeyStarted) {
-        checkAndRefreshPlaces(userLocation);
-      }
-    }
-  }, [userLocation, previousPosition, journeyStarted]);
-
-  // Check if destination reached
-  useEffect(() => {
-    // Only run this effect when we have all needed data and journey is active
-    if (!userLocation || !selectedPlace || !journeyStarted) return;
-
-    // Skip the check if destination already reached
-    if (destinationReached) return;
-
-    // Check if destination has been reached
-    const distanceToDestination = haversineDistance(
-      userLocation.latitude,
-      userLocation.longitude,
-      selectedPlace.geometry.location.lat,
-      selectedPlace.geometry.location.lng
-    );
-
-    console.log(
-      `Distance to destination: ${distanceToDestination}m (threshold: ${DESTINATION_REACHED_THRESHOLD}m)`
-    );
-
-    if (distanceToDestination <= DESTINATION_REACHED_THRESHOLD) {
-      console.log("Destination reached!");
-      setDestinationReached(true);
-      setShowDetailsCard(false);
-      setShowArrow(false);
-      setNavigationVisible(false);
-
-      // Announce arrival
-      if (soundEnabled) {
-        speakInstruction("You have arrived at your destination.");
-      }
-
-      // Only save to database if not already saved
-      if (!destinationSaved && journeyStarted) {
-        // Note: We're passing the complete selectedPlace object which contains all place details
-        // including rating, user_ratings_total, and reviews if available
-        handleDestinationReached(
-          selectedPlace,
-          (isNewPlace) => {
-            // Mark as saved to prevent duplicate entries
-            setDestinationSaved(true);
-
-            // If it's a new place, update places array to mark as visited
-            if (isNewPlace) {
-              setPlaces((prevPlaces) =>
-                prevPlaces.map((place) => {
-                  if (place.place_id === selectedPlace.place_id) {
-                    return { ...place, isVisited: true };
-                  }
-                  return place;
-                })
-              );
-            }
-          },
-          (error) => {
-            console.error("Failed to save destination to database:", error);
-            Alert.alert(
-              "Error",
-              "There was an error saving this discovery. Please try again later."
-            );
-          }
-        );
-      }
-    }
-  }, [
-    userLocation,
-    selectedPlace,
-    journeyStarted,
-    destinationReached,
-    destinationSaved,
-    soundEnabled,
-  ]);
-
-  const onStartJourney = async () => {
-    const hasPermission = await requestLocationPermission();
-    if (hasPermission) {
-      setShowCard(false);
-      setJourneyStarted(true);
-      setShowDetailsCard(true);
-      setDestinationReached(false);
-      setDestinationSaved(false); // Reset saved state when starting a new journey
-      setNavigationVisible(true); // Show navigation panel when journey starts
-
-      // Increment counter to force route redraw
-      setRouteUpdateCounter((prev) => prev + 1);
-    } else {
-      Alert.alert(
-        "Location Permission Required",
-        "We need location permission to guide you to your destination."
-      );
-    }
-  };
-
-  // Handle learn more action from destination card
-  const handleLearnMore = () => {
-    if (selectedPlace) {
-      // Logic with AI
-    }
-  };
-
-  // Handle dismissal of destination card
-  const handleDismissDestinationCard = () => {
-    setDestinationReached(false);
-    handleCancel(
-      setConfirmEndJourney,
-      setSelectedPlace,
-      setRouteCoordinates,
-      setTravelTime,
-      setDistance,
-      setShowArrow,
-      setShowDetailsCard,
-      setShowCard,
-      setJourneyStarted
-    );
-    setPreviousPosition(null);
-    setUserHeading(null);
-  };
-
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -1044,49 +1084,8 @@ export default function Map() {
     );
   }
 
-  const handleSwipeOff = () => {
-    setShowDetailsCard(false);
-    setShowArrow(true);
-  };
-
-  const handleArrowPress = () => {
-    setShowArrow(false);
-    setShowDetailsCard(true);
-  };
-
   // Only display the selected place marker if journey is started
   const markersToDisplay = journeyStarted && selectedPlace ? [selectedPlace] : places;
-
-  // Function to determine marker color based on status
-  const getMarkerColor = (place) => {
-    if (selectedPlace?.place_id === place.place_id) {
-      return MARKER_COLORS.SELECTED;
-    }
-    if (selectedPlace?.place_id === place.place_id && place.isVisited === true) {
-      return MARKER_COLORS.VISITED;
-    }
-    if (selectedPlace?.place_id === place.place_id && place.isVisited === false) {
-      return MARKER_COLORS.SELECTED;
-    }
-    // Only show blue if explicitly marked as visited in the database (strict equality)
-    if (place.isVisited === true) {
-      return MARKER_COLORS.VISITED;
-    }
-    return MARKER_COLORS.DEFAULT;
-  };
-
-  // Generate a random notification message
-  const getNotificationMessage = (placeName) => {
-    const messages = [
-      `${placeName} is just around the corner!`,
-      `You're close to ${placeName}! Discover it now.`,
-      `Adventure awaits at nearby ${placeName}!`,
-      `New discovery opportunity: ${placeName} is close by!`,
-      `${placeName} is within walking distance. Check it out!`,
-    ];
-
-    return messages[Math.floor(Math.random() * messages.length)];
-  };
 
   return (
     <View style={styles.container}>
@@ -1102,6 +1101,10 @@ export default function Map() {
         rotateEnabled={true}
         pitchEnabled={true}
         onUserLocationChange={(event) => {
+          // Throttle location updates
+          setLocationUpdateCounter((prev) => (prev + 1) % LOCATION_UPDATE_THROTTLE);
+          if (locationUpdateCounter !== 0) return;
+
           const { coordinate } = event.nativeEvent;
           if (coordinate) {
             // Update user location
@@ -1200,12 +1203,6 @@ export default function Map() {
                 if (steps.length > 0) {
                   setCurrentStep(steps[0]);
                   setStepIndex(0);
-
-                  // Speak the first instruction after a short delay
-                  setTimeout(() => {
-                    speakInstruction(`Starting navigation. ${steps[0].instructions}`);
-                    setLastAnnouncedStep(0);
-                  }, 1000);
                 }
 
                 console.log(`Route loaded with ${steps.length} navigation steps`);
@@ -1378,7 +1375,9 @@ export default function Map() {
               setLastAnnouncedStep(-1);
               setNavigationVisible(true);
 
-              // Stop any speaking instruction
+              // Clear speech queue and stop any speaking
+              setSpeechQueue([]);
+              setIsSpeaking(false);
               Speech.stop();
             }}
           >
