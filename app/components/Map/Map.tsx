@@ -51,6 +51,16 @@ const GOOGLE_MAPS_APIKEY = "AIzaSyDAGq_6eJGQpR3RcO0NrVOowel9-DxZkvA";
 const DESTINATION_REACHED_THRESHOLD = 30;
 const MARKER_REFRESH_THRESHOLD = 10000;
 const DEFAULT_CIRCLE_RADIUS = 500;
+const DEFAULT_ZOOM_LEVEL = 17;
+
+// CAMERA CONFIGURATION - Updated for stability
+const NAVIGATION_ZOOM_LEVEL = 18; // Reduced zoom level for better stability
+const NAVIGATION_PITCH = 45; // Reduced pitch for less disorienting view
+const MIN_HEADING_CHANGE = 15; // Increased to reduce small jitters (only update when significant change)
+const CAMERA_UPDATE_THROTTLE = 1000; // Increased from 500ms to reduce update frequency
+const HEADING_UPDATE_MIN_DISTANCE = 15; // Increased from 10m to reduce heading updates
+const INITIAL_ROUTE_OVERVIEW_DURATION = 3500; // Longer overview duration for better orientation
+const LOOK_AHEAD_DISTANCE = 70; // Fixed consistent look-ahead distance
 
 // Define colors for different marker states
 const MARKER_COLORS = {
@@ -62,169 +72,10 @@ const MARKER_COLORS = {
 const PROXIMITY_NOTIFICATION_THRESHOLD = 100; // 100 meters
 const NOTIFICATION_COOLDOWN = 600000; // 10 minutes cooldown between notifications for the same place
 
-// Define styles for the component
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  map: {
-    width: "100%",
-    height: "100%",
-  },
-  buttonContainer: {
-    position: "absolute",
-    bottom: 20,
-    left: 0,
-    right: 0,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  cancelButton: {
-    width: "50%",
-    backgroundColor: Colors.danger,
-    padding: 15,
-    borderRadius: 5,
-    alignItems: "center",
-  },
-  cancelButtonText: {
-    color: "white",
-    fontSize: 18,
-    fontWeight: "bold",
-  },
-  arrowContainer: {
-    position: "absolute",
-    top: 20,
-    alignSelf: "center",
-    backgroundColor: NeutralColors.white,
-    borderRadius: 50,
-    width: 40,
-    height: 40,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  destinationCardContainer: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    justifyContent: "center",
-    alignItems: "center",
-    zIndex: 999,
-  },
-  // Notification styles
-  notificationContainer: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    paddingTop: Platform.OS === "ios" ? 45 : 15,
-    paddingHorizontal: 10,
-    zIndex: 1000,
-  },
-  notificationInner: {
-    backgroundColor: "white",
-    borderRadius: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 15,
-    flexDirection: "row",
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 5,
-    elevation: 5,
-    minHeight: 80,
-  },
-  notificationIconContainer: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: Colors.primary,
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 12,
-  },
-  notificationContent: {
-    flex: 1,
-  },
-  notificationTitle: {
-    fontWeight: "bold",
-    fontSize: 16,
-    color: "#222",
-    marginBottom: 3,
-  },
-  notificationText: {
-    fontSize: 14,
-    color: "#555",
-  },
-  notificationActions: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  notificationAction: {
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    backgroundColor: Colors.primary,
-    borderRadius: 16,
-    marginRight: 8,
-  },
-  notificationActionText: {
-    color: "white",
-    fontWeight: "600",
-    fontSize: 13,
-  },
-  notificationDismiss: {
-    padding: 5,
-  },
-  notificationBadge: {
-    position: "absolute",
-    top: Platform.OS === "ios" ? 45 : 15,
-    right: 15,
-    backgroundColor: Colors.primary,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: "center",
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 3,
-    elevation: 3,
-    zIndex: 1000,
-  },
-  badgeCount: {
-    position: "absolute",
-    top: -5,
-    right: -5,
-    backgroundColor: Colors.danger,
-    minWidth: 18,
-    height: 18,
-    borderRadius: 9,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: 4,
-    borderWidth: 1.5,
-    borderColor: "white",
-  },
-  badgeCountText: {
-    color: "white",
-    fontSize: 10,
-    fontWeight: "bold",
-  },
-});
-
 export default function Map() {
   const [region, setRegion] = useState(null);
   const [places, setPlaces] = useState([]);
-  const [selectedPlace, setSelectedPlace] = useState<Place>(null);
+  const [selectedPlace, setSelectedPlace] = useState(null);
   const [routeCoordinates, setRouteCoordinates] = useState([]);
   const [travelTime, setTravelTime] = useState(null);
   const [distance, setDistance] = useState(null);
@@ -234,7 +85,7 @@ export default function Map() {
   const [journeyStarted, setJourneyStarted] = useState(false);
   const [confirmEndJourney, setConfirmEndJourney] = useState(false);
   const [userLocation, setUserLocation] = useState(null);
-  const [userHeading, setUserHeading] = useState(null);
+  const [userHeading, setUserHeading] = useState(0); // Initialize with North (0 degrees)
   const [locationWatcherCleanup, setLocationWatcherCleanup] = useState(null);
   const [destinationReached, setDestinationReached] = useState(false);
   const [showArrow, setShowArrow] = useState(false);
@@ -246,7 +97,6 @@ export default function Map() {
   const [destinationSaved, setDestinationSaved] = useState(false);
   const [travelMode, setTravelMode] = useState<TravelMode>("walking");
   const [routeUpdateCounter, setRouteUpdateCounter] = useState(0);
-  const [showProximityNotification, setShowProximityNotification] = useState(false);
   const [nearbyPlace, setNearbyPlace] = useState(null);
   const [notifiedPlaces, setNotifiedPlaces] = useState({});
   const [notificationCount, setNotificationCount] = useState(0);
@@ -254,10 +104,6 @@ export default function Map() {
   const notificationOpacity = useRef(new Animated.Value(0)).current;
   const notificationTranslateY = useRef(new Animated.Value(-100)).current;
   const [routeKey, setRouteKey] = useState(0);
-  const [previousPosition, setPreviousPosition] = useState(null);
-  const [lastAnnouncedPosition, setLastAnnouncedPosition] = useState(null);
-
-  // New turn-by-turn navigation state
   const [navigationSteps, setNavigationSteps] = useState([]);
   const [currentStep, setCurrentStep] = useState(null);
   const [nextStepDistance, setNextStepDistance] = useState(null);
@@ -265,28 +111,39 @@ export default function Map() {
   const [lastAnnouncedStep, setLastAnnouncedStep] = useState(-1);
   const [navigationVisible, setNavigationVisible] = useState(true);
   const [soundEnabled, setSoundEnabled] = useState(true);
-  const [hasSpokenInitialInstruction, setHasSpokenInitialInstruction] = useState<Boolean>(false);
-
-  //Discovered Card state variables
   const [showDiscoveredCard, setShowDiscoveredCard] = useState(false);
   const [visitedPlaceDetails, setVisitedPlaceDetails] = useState(null);
-
-  // New state variables for improved navigation
-  const [lastAnnouncementTime, setLastAnnouncementTime] = useState(0);
-  const ANNOUNCEMENT_COOLDOWN = 20000; // 8 seconds minimum between announcements
-  const [locationUpdateCounter, setLocationUpdateCounter] = useState(0);
-  const LOCATION_UPDATE_THROTTLE = 3; // Only process every 3rd update
   const [speechQueue, setSpeechQueue] = useState([]);
   const [isSpeaking, setIsSpeaking] = useState(false);
-  const INITIAL_NAVIGATION_DELAY = 20000; // Delay first instruction by 20 seconds
+  const [viewMode, setViewMode] = useState("follow"); // "follow" or "overview"
+
+  // Use refs for values that should not trigger re-renders
+  const mapRef = useRef(null);
+  const routeOverviewTimeoutRef = useRef(null);
+  const cameraUpdateTimeoutRef = useRef(null);
+  const previousPositionRef = useRef(null);
+  const lastAnnouncedPositionRef = useRef(null);
+  const destinationCoordinateRef = useRef(null);
+  const lastAnnouncementTimeRef = useRef(0);
+  const lastCameraUpdateTimeRef = useRef(0);
+  const locationUpdateCounterRef = useRef(0);
+  const cameraUpdatePendingRef = useRef(false);
+  const initialRouteLoadedRef = useRef(false);
+  const lastSignificantHeadingRef = useRef(0); // Track last significant heading to prevent jitter
+  const lastCameraHeadingRef = useRef(0); // Track last applied camera heading
+  const lastZoomLevelRef = useRef(NAVIGATION_ZOOM_LEVEL); // Track last zoom level
 
   const navigation = useNavigation();
-  const mapRef = useRef(null);
+
+  // Constants
+  const ANNOUNCEMENT_COOLDOWN = 20000; // 20 seconds between announcements
+  const LOCATION_UPDATE_THROTTLE = 3; // Process every 3rd update
+  const INITIAL_NAVIGATION_DELAY = 20000; // Delay first instruction
 
   // Process the speech queue whenever it changes
   useEffect(() => {
     processSpeechQueue();
-  }, [speechQueue]);
+  }, [speechQueue, soundEnabled]);
 
   // Function to process the speech queue
   const processSpeechQueue = useCallback(async () => {
@@ -389,23 +246,196 @@ export default function Map() {
     }
   };
 
-  // Update map camera to follow user with correct orientation
-  const updateMapCamera = (location, heading) => {
-    if (!mapRef.current || !journeyStarted) return;
+  // Calculate bearing between two points in degrees (0-360)
+  const calculateBearing = (lat1, lon1, lat2, lon2) => {
+    if (lat1 === lat2 && lon1 === lon2) {
+      return userHeading; // Return current heading if points are the same
+    }
 
-    const camera = {
-      center: {
-        latitude: location.latitude,
-        longitude: location.longitude,
-      },
-      pitch: 45, // Add some tilt for better navigation view
-      heading: heading || 0, // Use the calculated heading or default to north
-      altitude: 2000, // Adjust for desired zoom level
-      zoom: 17, // Close enough to see streets clearly
+    const toRad = (value) => (value * Math.PI) / 180;
+    const toDeg = (value) => (value * 180) / Math.PI;
+
+    const startLat = toRad(lat1);
+    const startLng = toRad(lon1);
+    const destLat = toRad(lat2);
+    const destLng = toRad(lon2);
+
+    const y = Math.sin(destLng - startLng) * Math.cos(destLat);
+    const x =
+      Math.cos(startLat) * Math.sin(destLat) -
+      Math.sin(startLat) * Math.cos(destLat) * Math.cos(destLng - startLng);
+    let brng = Math.atan2(y, x);
+    brng = toDeg(brng);
+    return (brng + 360) % 360;
+  };
+
+  // Calculate look-ahead coordinate based on current position, heading and distance
+  const calculateLookAheadPosition = (latitude, longitude, heading, distance) => {
+    if (!latitude || !longitude || heading === undefined || distance === undefined) {
+      return { latitude, longitude };
+    }
+
+    const R = 6371000; // Earth radius in meters
+    const d = distance / R; // Distance in radians
+    const bearingRad = (heading * Math.PI) / 180; // Convert bearing to radians
+
+    const lat1 = (latitude * Math.PI) / 180; // Current lat in radians
+    const lon1 = (longitude * Math.PI) / 180; // Current lon in radians
+
+    const lat2 = Math.asin(
+      Math.sin(lat1) * Math.cos(d) + Math.cos(lat1) * Math.sin(d) * Math.cos(bearingRad)
+    );
+
+    const lon2 =
+      lon1 +
+      Math.atan2(
+        Math.sin(bearingRad) * Math.sin(d) * Math.cos(lat1),
+        Math.cos(d) - Math.sin(lat1) * Math.sin(lat2)
+      );
+
+    // Convert back to degrees
+    return {
+      latitude: (lat2 * 180) / Math.PI,
+      longitude: (lon2 * 180) / Math.PI,
+    };
+  };
+
+  // Show route overview with improved stability
+  const showRouteOverview = useCallback(() => {
+    if (!mapRef.current || !userLocation || !destinationCoordinateRef.current) return;
+
+    // Set view mode to overview
+    setViewMode("overview");
+
+    // Calculate the distance between user and destination
+    const routeDistance = haversineDistance(
+      userLocation.latitude,
+      userLocation.longitude,
+      destinationCoordinateRef.current.latitude,
+      destinationCoordinateRef.current.longitude
+    );
+
+    // Calculate a midpoint slightly weighted toward destination
+    const bias = 0.6; // Consistent bias value for predictability
+    const midpoint = {
+      latitude:
+        userLocation.latitude * (1 - bias) + destinationCoordinateRef.current.latitude * bias,
+      longitude:
+        userLocation.longitude * (1 - bias) + destinationCoordinateRef.current.longitude * bias,
     };
 
-    mapRef.current.animateCamera(camera, { duration: 1000 });
-  };
+    // Fixed altitude based on distance - more consistent camera behavior
+    const altitude = Math.min(Math.max(2500, routeDistance * 2.5), 5000);
+
+    // Determine zoom level based on distance - more gradual transitions
+    const zoomLevel =
+      routeDistance > 5000 ? 12 : routeDistance > 2000 ? 13 : routeDistance > 1000 ? 14 : 15;
+
+    // Store the zoom level for smoother transitions back to navigation view
+    lastZoomLevelRef.current = zoomLevel;
+
+    // Create camera for overview - showing the whole route
+    const camera = {
+      center: midpoint,
+      heading: 0, // Always North up for overview
+      pitch: 0, // No pitch for consistency in overview
+      altitude: altitude,
+      zoom: zoomLevel,
+    };
+
+    // Log camera update for debugging
+    console.log("Updating camera to overview mode:", camera);
+
+    // Animate camera with longer duration for smoother transition
+    mapRef.current.animateCamera(camera, { duration: 1500 });
+
+    // Update the last camera update time to avoid immediate camera changes
+    lastCameraUpdateTimeRef.current = Date.now();
+  }, [userLocation]);
+
+  // Update camera to focus on user with stability improvements
+  const updateUserCamera = useCallback(
+    (location, heading, forceUpdate = false) => {
+      if (!mapRef.current || !journeyStarted || viewMode !== "follow") return;
+
+      if (!location) return;
+
+      // If a camera update is already pending, skip unless forced
+      if (cameraUpdatePendingRef.current && !forceUpdate) return;
+
+      // Throttle camera updates to prevent jerky motion
+      const now = Date.now();
+      if (!forceUpdate && now - lastCameraUpdateTimeRef.current < CAMERA_UPDATE_THROTTLE) {
+        // Schedule an update for later if we're throttling
+        if (!cameraUpdatePendingRef.current) {
+          cameraUpdatePendingRef.current = true;
+          cameraUpdateTimeoutRef.current = setTimeout(() => {
+            cameraUpdatePendingRef.current = false;
+            // Capture the latest location and heading when timer fires
+            if (userLocation && userHeading !== undefined) {
+              updateUserCamera(userLocation, userHeading, true);
+            }
+          }, CAMERA_UPDATE_THROTTLE);
+        }
+        return;
+      }
+
+      // Apply heading smoothing to reduce jitter
+      // Only significantly different headings trigger camera updates
+      const headingDifference = Math.abs(heading - lastCameraHeadingRef.current);
+      const smoothedHeading =
+        headingDifference > MIN_HEADING_CHANGE ? heading : lastCameraHeadingRef.current;
+
+      // Calculate look-ahead position with consistent distance
+      const lookAheadCoordinate = calculateLookAheadPosition(
+        location.latitude,
+        location.longitude,
+        smoothedHeading,
+        LOOK_AHEAD_DISTANCE
+      );
+
+      // Create camera configuration focused on user with consistent parameters
+      const camera = {
+        center: lookAheadCoordinate,
+        heading: smoothedHeading,
+        pitch: NAVIGATION_PITCH,
+        altitude: 1300, // Consistent altitude for stability
+        zoom: NAVIGATION_ZOOM_LEVEL,
+      };
+
+      // Log camera update for debugging
+      console.log("Updating camera to follow mode:", {
+        center: [lookAheadCoordinate.latitude.toFixed(5), lookAheadCoordinate.longitude.toFixed(5)],
+        heading: smoothedHeading.toFixed(1),
+        zoom: NAVIGATION_ZOOM_LEVEL,
+      });
+
+      // Animate camera with slower duration for smoother transition
+      mapRef.current.animateCamera(camera, { duration: 1200 });
+
+      // Update tracking variables
+      lastCameraUpdateTimeRef.current = now;
+      lastCameraHeadingRef.current = smoothedHeading;
+      cameraUpdatePendingRef.current = false;
+    },
+    [journeyStarted, viewMode]
+  );
+
+  // Toggle between navigation and overview modes with improved transitions
+  const toggleViewMode = useCallback(() => {
+    if (viewMode === "follow") {
+      // Switching to overview mode
+      showRouteOverview();
+    } else {
+      // Switching to follow mode - use a delay for smoother transition
+      setViewMode("follow");
+      setTimeout(() => {
+        if (userLocation && userHeading !== null) {
+          updateUserCamera(userLocation, userHeading, true);
+        }
+      }, 300); // Short delay for state update before camera change
+    }
+  }, [viewMode, userLocation, userHeading, showRouteOverview, updateUserCamera]);
 
   // Check if we should refresh places based on user movement
   const checkAndRefreshPlaces = useCallback(
@@ -506,30 +536,249 @@ export default function Map() {
 
   // Setup detailed location tracking when journey starts
   useEffect(() => {
-    if (journeyStarted && selectedPlace) {
-      // Reset previous position and heading
-      setPreviousPosition(null);
-      setUserHeading(null);
+    if (journeyStarted && selectedPlace && userLocation) {
       // Reset destination saved state whenever a new journey starts
       setDestinationSaved(false);
 
-      // Initial map camera update without heading (will point north)
-      if (mapRef.current && userLocation) {
-        const initialCamera = {
-          center: {
-            latitude: userLocation.latitude,
-            longitude: userLocation.longitude,
-          },
-          pitch: 45,
-          heading: 0,
-          altitude: 100,
-          zoom: 30,
-        };
+      // Set to follow mode by default
+      setViewMode("follow");
 
-        mapRef.current.animateCamera(initialCamera, { duration: 500 });
+      // Set destination coordinate for camera calculations
+      if (selectedPlace?.geometry?.location) {
+        destinationCoordinateRef.current = {
+          latitude: selectedPlace.geometry.location.lat,
+          longitude: selectedPlace.geometry.location.lng,
+        };
+      }
+
+      // If this is the first time showing a route, show overview first
+      if (!initialRouteLoadedRef.current && destinationCoordinateRef.current) {
+        initialRouteLoadedRef.current = true;
+
+        // Show overview first
+        showRouteOverview();
+
+        // Then switch to navigation view after a delay
+        if (routeOverviewTimeoutRef.current) {
+          clearTimeout(routeOverviewTimeoutRef.current);
+        }
+
+        routeOverviewTimeoutRef.current = setTimeout(() => {
+          // Switch to follow mode and focus on user
+          setViewMode("follow");
+
+          // Additional delay to ensure smooth transition
+          setTimeout(() => {
+            if (userLocation && userHeading !== null) {
+              updateUserCamera(userLocation, userHeading, true);
+            }
+          }, 300);
+        }, INITIAL_ROUTE_OVERVIEW_DURATION);
+      }
+    } else {
+      // Reset when journey ends
+      initialRouteLoadedRef.current = false;
+    }
+
+    // Cleanup on journey end
+    return () => {
+      if (routeOverviewTimeoutRef.current) {
+        clearTimeout(routeOverviewTimeoutRef.current);
+      }
+      if (cameraUpdateTimeoutRef.current) {
+        clearTimeout(cameraUpdateTimeoutRef.current);
+      }
+    };
+  }, [journeyStarted, selectedPlace, userLocation]);
+
+  // Main location update effect with improved stability
+  useEffect(() => {
+    if (!userLocation || !journeyStarted) return;
+
+    // Skip if no previous position yet
+    if (!previousPositionRef.current) {
+      previousPositionRef.current = { ...userLocation };
+      return;
+    }
+
+    // Only calculate new heading if we've moved enough distance
+    const distanceMoved = haversineDistance(
+      previousPositionRef.current.latitude,
+      previousPositionRef.current.longitude,
+      userLocation.latitude,
+      userLocation.longitude
+    );
+
+    if (distanceMoved >= HEADING_UPDATE_MIN_DISTANCE) {
+      // Calculate heading based on movement
+      const newHeading = calculateBearing(
+        previousPositionRef.current.latitude,
+        previousPositionRef.current.longitude,
+        userLocation.latitude,
+        userLocation.longitude
+      );
+
+      // Only update heading if it has changed significantly
+      // This reduces camera jitter from small variations
+      const headingDiff = Math.abs(newHeading - lastSignificantHeadingRef.current);
+      if (headingDiff > MIN_HEADING_CHANGE) {
+        setUserHeading(newHeading);
+        lastSignificantHeadingRef.current = newHeading;
+
+        // Update camera if in follow mode
+        if (viewMode === "follow") {
+          updateUserCamera(userLocation, newHeading, false);
+        }
+      }
+
+      // Update previous position for next calculation
+      previousPositionRef.current = { ...userLocation };
+
+      // Check if we should refresh places
+      checkAndRefreshPlaces(userLocation);
+
+      // Check for destination reached
+      if (destinationCoordinateRef.current && !destinationReached) {
+        const distanceToDestination = haversineDistance(
+          userLocation.latitude,
+          userLocation.longitude,
+          destinationCoordinateRef.current.latitude,
+          destinationCoordinateRef.current.longitude
+        );
+
+        if (distanceToDestination <= DESTINATION_REACHED_THRESHOLD) {
+          setDestinationReached(true);
+
+          // Vibrate to alert user
+          Vibration.vibrate([0, 200, 100, 200]);
+
+          // Speak notification
+          if (soundEnabled) {
+            const instruction = "You have reached your destination.";
+            setSpeechQueue((prev) => [...prev, instruction]);
+          }
+
+          // Handle marking place as visited
+          if (selectedPlace) {
+            handleDestinationReached(selectedPlace);
+          }
+        }
+      }
+
+      // Handle navigation steps
+      if (navigationSteps.length > 0) {
+        updateNavigationInstructions();
       }
     }
-  }, [journeyStarted]);
+  }, [userLocation, journeyStarted, navigationSteps]);
+
+  // Handle navigation instructions without creating dependence on too many states
+  const updateNavigationInstructions = useCallback(() => {
+    if (!userLocation || !journeyStarted || navigationSteps.length === 0) return;
+
+    // Find the closest upcoming step
+    let minDistance = Infinity;
+    let closestStepIndex = stepIndex;
+
+    // Only check from current step index onwards to avoid going backwards
+    for (let i = stepIndex; i < navigationSteps.length; i++) {
+      const step = navigationSteps[i];
+      const distanceToStep = haversineDistance(
+        userLocation.latitude,
+        userLocation.longitude,
+        step.endLocation.latitude,
+        step.endLocation.longitude
+      );
+
+      if (distanceToStep < minDistance) {
+        minDistance = distanceToStep;
+        closestStepIndex = i;
+      }
+    }
+
+    // Get current time to enforce cooldown
+    const now = Date.now();
+    const timeSinceLastAnnouncement = now - lastAnnouncementTimeRef.current;
+    const canAnnounce = timeSinceLastAnnouncement > ANNOUNCEMENT_COOLDOWN;
+
+    // Calculate how far user has moved since last announcement
+    let distanceMoved = Infinity;
+    if (lastAnnouncedPositionRef.current) {
+      distanceMoved = haversineDistance(
+        userLocation.latitude,
+        userLocation.longitude,
+        lastAnnouncedPositionRef.current.latitude,
+        lastAnnouncedPositionRef.current.longitude
+      );
+    }
+
+    // Only allow announcements if user has moved at least 10 meters
+    const hasMovedEnough = distanceMoved > 10;
+
+    // Moving to a new step - announce only once when we first detect the step change
+    if (closestStepIndex > stepIndex) {
+      setCurrentStep(navigationSteps[closestStepIndex]);
+      setStepIndex(closestStepIndex);
+
+      // Speak only when moving to a new step AND we haven't announced it yet
+      if (closestStepIndex !== lastAnnouncedStep && canAnnounce) {
+        const instruction = navigationSteps[closestStepIndex].instructions;
+        setSpeechQueue((prev) => [...prev, instruction]);
+        setLastAnnouncedStep(closestStepIndex);
+        lastAnnouncementTimeRef.current = now;
+        // Store position where announcement was made
+        lastAnnouncedPositionRef.current = { ...userLocation };
+      }
+    }
+    // First announcement only happens once at the beginning
+    else if (stepIndex === 0 && lastAnnouncedStep === -1 && canAnnounce) {
+      // This is the very first announcement for the initial step
+      const instruction = `Starting navigation. ${navigationSteps[0].instructions}`;
+      setSpeechQueue((prev) => [...prev, instruction]);
+      setLastAnnouncedStep(0);
+      lastAnnouncementTimeRef.current = now;
+      // Store position where announcement was made
+      lastAnnouncedPositionRef.current = { ...userLocation };
+    }
+
+    // Update the distance to the next maneuver
+    if (closestStepIndex < navigationSteps.length) {
+      const distanceToNextStep = haversineDistance(
+        userLocation.latitude,
+        userLocation.longitude,
+        navigationSteps[closestStepIndex].endLocation.latitude,
+        navigationSteps[closestStepIndex].endLocation.longitude
+      );
+
+      // Format the distance for display
+      if (distanceToNextStep > 1000) {
+        setNextStepDistance(`${(distanceToNextStep / 1000).toFixed(1)} km`);
+      } else {
+        setNextStepDistance(`${Math.round(distanceToNextStep)} m`);
+      }
+
+      // Only announce "approaching" when:
+      // 1. We're in the right distance range
+      // 2. We're still on the same step to avoid duplication
+      // 3. Enough time has passed
+      // 4. User has moved at least 10 meters since last announcement
+      if (
+        distanceToNextStep < 50 &&
+        distanceToNextStep > 20 &&
+        closestStepIndex === lastAnnouncedStep &&
+        canAnnounce &&
+        hasMovedEnough
+      ) {
+        const instruction = `In ${Math.round(distanceToNextStep)} meters, ${
+          navigationSteps[closestStepIndex].instructions
+        }`;
+        setSpeechQueue((prev) => [...prev, instruction]);
+        lastAnnouncementTimeRef.current = now;
+        // Store position where announcement was made
+        lastAnnouncedPositionRef.current = { ...userLocation };
+      }
+    }
+  }, [navigationSteps, userLocation, journeyStarted, stepIndex, lastAnnouncedStep]);
 
   // Function to determine which maneuver icon to show
   const getManeuverIcon = (maneuver) => {
@@ -566,19 +815,6 @@ export default function Map() {
         return <MaterialIcon name="directions" size={28} color="#fff" />;
     }
   };
-
-  // Updated function to speak navigation instructions using queue
-  const speakInstruction = useCallback(
-    (instruction) => {
-      if (!soundEnabled) return;
-
-      // Only add to queue if the instruction isn't already queued
-      if (!speechQueue.includes(instruction)) {
-        setSpeechQueue((prev) => [...prev, instruction]);
-      }
-    },
-    [soundEnabled, speechQueue]
-  );
 
   // Function to handle notification permissions
   const registerForPushNotificationsAsync = async () => {
@@ -625,8 +861,19 @@ export default function Map() {
       setDestinationReached(false);
       setDestinationSaved(false); // Reset saved state when starting a new journey
       setNavigationVisible(true); // Show navigation panel when journey starts
+      setViewMode("follow"); // Start in follow mode
 
-      // Increment counter to force route redraw
+      // Reset tracking state
+      previousPositionRef.current = null;
+      initialRouteLoadedRef.current = false;
+      lastSignificantHeadingRef.current = userHeading || 0;
+      lastCameraHeadingRef.current = userHeading || 0;
+
+      // Reset navigation state
+      setStepIndex(0);
+      setLastAnnouncedStep(-1);
+
+      // Force route redraw
       setRouteUpdateCounter((prev) => prev + 1);
     } else {
       Alert.alert(
@@ -657,8 +904,9 @@ export default function Map() {
       setShowCard,
       setJourneyStarted
     );
-    setPreviousPosition(null);
-    setUserHeading(null);
+    previousPositionRef.current = null;
+    destinationCoordinateRef.current = null;
+    initialRouteLoadedRef.current = false;
   };
 
   const handleSwipeOff = () => {
@@ -841,12 +1089,20 @@ export default function Map() {
         setTravelTime(duration);
         setDistance(distanceKm.toFixed(1) + " km");
 
+        // Set destination coordinate
+        if (place?.geometry?.location) {
+          destinationCoordinateRef.current = {
+            latitude: place.geometry.location.lat,
+            longitude: place.geometry.location.lng,
+          };
+        }
+
         // Set travel mode - restrict to just walking or driving
         if (routeTravelMode === "bicycling" || routeTravelMode === "transit") {
           // Map other modes to driving for simplicity
-          setTravelMode("driving" as TravelMode);
+          setTravelMode("driving");
         } else {
-          setTravelMode(routeTravelMode as TravelMode);
+          setTravelMode(routeTravelMode);
         }
 
         // Force route recalculation by updating the key
@@ -910,6 +1166,7 @@ export default function Map() {
     }
   };
 
+  // Initialize the map on component mount
   useEffect(() => {
     initializeMap();
 
@@ -933,151 +1190,23 @@ export default function Map() {
       // Clean up speech when component unmounts
       Speech.stop();
       setSpeechQueue([]);
+
+      if (routeOverviewTimeoutRef.current) {
+        clearTimeout(routeOverviewTimeoutRef.current);
+      }
+      if (cameraUpdateTimeoutRef.current) {
+        clearTimeout(cameraUpdateTimeoutRef.current);
+      }
     };
   }, []);
-
-  //Handlers for discovered card
-  const handleDismissDiscoveredCard = () => {
-    setShowDiscoveredCard(false);
-    setSelectedPlace(null);
-    setVisitedPlaceDetails(null);
-  };
-
-  const handleViewDiscoveredDetails = () => {
-    setShowDiscoveredCard(false);
-    // Here you can implement navigation to a detailed view
-    console.log("View details for:", selectedPlace?.name);
-  };
-
-  // Updated navigation instructions based on user location with cooldown and throttling
-  useEffect(() => {
-    if (!userLocation || !journeyStarted || navigationSteps.length === 0) return;
-
-    // Find the closest upcoming step
-    let minDistance = Infinity;
-    let closestStepIndex = stepIndex;
-
-    // Only check from current step index onwards to avoid going backwards
-    for (let i = stepIndex; i < navigationSteps.length; i++) {
-      const step = navigationSteps[i];
-      const distanceToStep = haversineDistance(
-        userLocation.latitude,
-        userLocation.longitude,
-        step.endLocation.latitude,
-        step.endLocation.longitude
-      );
-
-      if (distanceToStep < minDistance) {
-        minDistance = distanceToStep;
-        closestStepIndex = i;
-      }
-    }
-
-    // Get current time to enforce cooldown
-    const now = Date.now();
-    const timeSinceLastAnnouncement = now - lastAnnouncementTime;
-    const canAnnounce = timeSinceLastAnnouncement > ANNOUNCEMENT_COOLDOWN;
-
-    // Calculate how far user has moved since last announcement
-    let distanceMoved = Infinity;
-    if (lastAnnouncedPosition) {
-      distanceMoved = haversineDistance(
-        userLocation.latitude,
-        userLocation.longitude,
-        lastAnnouncedPosition.latitude,
-        lastAnnouncedPosition.longitude
-      );
-    }
-
-    // Only allow announcements if user has moved at least 10 meters
-    const hasMovedEnough = distanceMoved > 10;
-
-    // Moving to a new step - announce only once when we first detect the step change
-    if (closestStepIndex > stepIndex) {
-      setCurrentStep(navigationSteps[closestStepIndex]);
-      setStepIndex(closestStepIndex);
-
-      // Speak only when moving to a new step AND we haven't announced it yet
-      if (closestStepIndex !== lastAnnouncedStep && canAnnounce) {
-        console.log(`Speaking new instruction for step ${closestStepIndex}`);
-        speakInstruction(navigationSteps[closestStepIndex].instructions);
-        setLastAnnouncedStep(closestStepIndex);
-        setLastAnnouncementTime(now);
-        // Store position where announcement was made
-        setLastAnnouncedPosition({
-          latitude: userLocation.latitude,
-          longitude: userLocation.longitude,
-        });
-      }
-    }
-    // First announcement only happens once at the beginning
-    else if (stepIndex === 0 && lastAnnouncedStep === -1 && canAnnounce) {
-      // This is the very first announcement for the initial step
-      speakInstruction(`Starting navigation. ${navigationSteps[0].instructions}`);
-      setLastAnnouncedStep(0);
-      setLastAnnouncementTime(now);
-      // Store position where announcement was made
-      setLastAnnouncedPosition({
-        latitude: userLocation.latitude,
-        longitude: userLocation.longitude,
-      });
-    }
-
-    // Update the distance to the next maneuver
-    if (closestStepIndex < navigationSteps.length) {
-      const distanceToNextStep = haversineDistance(
-        userLocation.latitude,
-        userLocation.longitude,
-        navigationSteps[closestStepIndex].endLocation.latitude,
-        navigationSteps[closestStepIndex].endLocation.longitude
-      );
-
-      // Format the distance for display
-      if (distanceToNextStep > 1000) {
-        setNextStepDistance(`${(distanceToNextStep / 1000).toFixed(1)} km`);
-      } else {
-        setNextStepDistance(`${Math.round(distanceToNextStep)} m`);
-      }
-
-      // Only announce "approaching" when:
-      // 1. We're in the right distance range
-      // 2. We're still on the same step to avoid duplication
-      // 3. Enough time has passed
-      // 4. User has moved at least 10 meters since last announcement
-      if (
-        distanceToNextStep < 50 &&
-        distanceToNextStep > 20 &&
-        closestStepIndex === lastAnnouncedStep &&
-        canAnnounce &&
-        hasMovedEnough
-      ) {
-        speakInstruction(
-          `In ${Math.round(distanceToNextStep)} meters, ${
-            navigationSteps[closestStepIndex].instructions
-          }`
-        );
-        setLastAnnouncementTime(now);
-        // Store position where announcement was made
-        setLastAnnouncedPosition({
-          latitude: userLocation.latitude,
-          longitude: userLocation.longitude,
-        });
-      }
-    }
-  }, [
-    userLocation,
-    journeyStarted,
-    navigationSteps,
-    stepIndex,
-    lastAnnouncedStep,
-    lastAnnouncementTime,
-    lastAnnouncedPosition,
-    speakInstruction,
-  ]);
 
   // Check for nearby undiscovered places
   useEffect(() => {
     if (!userLocation || places.length === 0 || journeyStarted) return;
+
+    // Throttle this effect to prevent too frequent runs
+    locationUpdateCounterRef.current = (locationUpdateCounterRef.current + 1) % 5;
+    if (locationUpdateCounterRef.current !== 0) return;
 
     // Find undiscovered places within the proximity threshold
     const now = Date.now();
@@ -1118,7 +1247,20 @@ export default function Map() {
         }
       }
     });
-  }, [userLocation, places, journeyStarted, notifiedPlaces]);
+  }, [userLocation, places.length, journeyStarted]);
+
+  //Handlers for discovered card
+  const handleDismissDiscoveredCard = () => {
+    setShowDiscoveredCard(false);
+    setSelectedPlace(null);
+    setVisitedPlaceDetails(null);
+  };
+
+  const handleViewDiscoveredDetails = () => {
+    setShowDiscoveredCard(false);
+    // Here you can implement navigation to a detailed view
+    console.log("View details for:", selectedPlace?.name);
+  };
 
   if (loading) {
     return (
@@ -1141,13 +1283,16 @@ export default function Map() {
         showsPointsOfInterest={false}
         showsUserLocation
         provider={PROVIDER_DEFAULT}
-        followsUserLocation={journeyStarted}
+        followsUserLocation={false} // We'll handle camera updates manually
         rotateEnabled={true}
         pitchEnabled={true}
+        maxZoomLevel={19} // Limit max zoom to prevent erratic behavior
+        minZoomLevel={10} // Set minimum zoom level
         onUserLocationChange={(event) => {
           // Throttle location updates
-          setLocationUpdateCounter((prev) => (prev + 1) % LOCATION_UPDATE_THROTTLE);
-          if (locationUpdateCounter !== 0) return;
+          locationUpdateCounterRef.current =
+            (locationUpdateCounterRef.current + 1) % LOCATION_UPDATE_THROTTLE;
+          if (locationUpdateCounterRef.current !== 0) return;
 
           const { coordinate } = event.nativeEvent;
           if (coordinate) {
@@ -1160,14 +1305,6 @@ export default function Map() {
             };
 
             setUserLocation(locationUpdate);
-
-            // Initialize previous position if not set
-            if (!previousPosition) {
-              setPreviousPosition({
-                latitude: coordinate.latitude,
-                longitude: coordinate.longitude,
-              });
-            }
           }
         }}
       >
@@ -1181,22 +1318,19 @@ export default function Map() {
           />
         )}
 
-        {/* Show proximity circles around undiscovered places */}
-        {/* {places
-          .filter((place) => place.isVisited !== true)
-          .map((place) => (
-            <Circle
-              key={`proximity-${place.place_id}`}
-              center={{
-                latitude: place.geometry.location.lat,
-                longitude: place.geometry.location.lng,
-              }}
-              radius={PROXIMITY_NOTIFICATION_THRESHOLD}
-              strokeColor={Colors.primary}
-              strokeWidth={0.5}
-              fillColor={"rgba(255, 58, 117, 0.09)"}
-            />
-          ))} */}
+        {/* User direction indicator */}
+        {journeyStarted && userLocation && userHeading !== null && (
+          <Marker
+            coordinate={userLocation}
+            anchor={{ x: 0.5, y: 0.5 }}
+            rotation={userHeading}
+            flat={true}
+          >
+            <View style={styles.directionIndicator}>
+              <MaterialIcon name="navigation" size={24} color={Colors.primary} />
+            </View>
+          </Marker>
+        )}
 
         {markersToDisplay.map((place) => (
           <Marker
@@ -1212,7 +1346,7 @@ export default function Map() {
 
         {routeCoordinates.length > 0 && journeyStarted && (
           <MapViewDirections
-            key={`route-${routeKey}-${travelMode}`} // Force re-render when travel mode changes
+            key={`route-${routeKey}-${travelMode}`}
             origin={userLocation || region}
             resetOnChange={false}
             mode={travelMode.toUpperCase() as MapViewDirectionsMode}
@@ -1247,9 +1381,29 @@ export default function Map() {
                 if (steps.length > 0) {
                   setCurrentStep(steps[0]);
                   setStepIndex(0);
+                  setLastAnnouncedStep(-1); // Reset so we announce first step
                 }
 
                 console.log(`Route loaded with ${steps.length} navigation steps`);
+
+                // If journey has started and this is the first load, show overview
+                if (journeyStarted && !initialRouteLoadedRef.current) {
+                  initialRouteLoadedRef.current = true;
+                  showRouteOverview();
+
+                  // Then switch to navigation view after a delay
+                  if (routeOverviewTimeoutRef.current) {
+                    clearTimeout(routeOverviewTimeoutRef.current);
+                  }
+
+                  routeOverviewTimeoutRef.current = setTimeout(() => {
+                    setViewMode("follow");
+                    // Small additional delay to ensure smooth transition
+                    setTimeout(() => {
+                      updateUserCamera(userLocation, userHeading, true);
+                    }, 300);
+                  }, INITIAL_ROUTE_OVERVIEW_DURATION);
+                }
               }
             }}
             onError={(errorMessage) => {
@@ -1258,6 +1412,23 @@ export default function Map() {
           />
         )}
       </MapView>
+
+      {/* View mode toggle button */}
+      {journeyStarted && (
+        <TouchableOpacity
+          style={[
+            styles.viewModeButton,
+            viewMode === "overview" ? styles.viewModeButtonActive : {},
+          ]}
+          onPress={toggleViewMode}
+        >
+          <MaterialIcon
+            name={viewMode === "follow" ? "explore" : "navigation"}
+            size={24}
+            color="#fff"
+          />
+        </TouchableOpacity>
+      )}
 
       {/* In-app notification for nearby places */}
       {notificationVisible && nearbyPlace && (
@@ -1436,6 +1607,13 @@ export default function Map() {
               setIsSpeaking(false);
               Speech.stop();
               setRouteKey(0);
+
+              // Reset refs
+              destinationCoordinateRef.current = null;
+              initialRouteLoadedRef.current = false;
+              previousPositionRef.current = null;
+              lastSignificantHeadingRef.current = 0;
+              lastCameraHeadingRef.current = 0;
             }}
           >
             <Text style={styles.cancelButtonText}>End Journey</Text>
@@ -1462,3 +1640,187 @@ export default function Map() {
     </View>
   );
 }
+// Define styles for the component
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  map: {
+    width: "100%",
+    height: "100%",
+  },
+  buttonContainer: {
+    position: "absolute",
+    bottom: 20,
+    left: 0,
+    right: 0,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  cancelButton: {
+    width: "50%",
+    backgroundColor: Colors.danger,
+    padding: 15,
+    borderRadius: 5,
+    alignItems: "center",
+  },
+  cancelButtonText: {
+    color: "white",
+    fontSize: 18,
+    fontWeight: "bold",
+  },
+  arrowContainer: {
+    position: "absolute",
+    top: 20,
+    alignSelf: "center",
+    backgroundColor: NeutralColors.white,
+    borderRadius: 50,
+    width: 40,
+    height: 40,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  destinationCardContainer: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 999,
+  },
+  // Notification styles
+  notificationContainer: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    paddingTop: Platform.OS === "ios" ? 45 : 15,
+    paddingHorizontal: 10,
+    zIndex: 1000,
+  },
+  notificationInner: {
+    backgroundColor: "white",
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 15,
+    flexDirection: "row",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 5,
+    elevation: 5,
+    minHeight: 80,
+  },
+  notificationIconContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: Colors.primary,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 12,
+  },
+  notificationContent: {
+    flex: 1,
+  },
+  notificationTitle: {
+    fontWeight: "bold",
+    fontSize: 16,
+    color: "#222",
+    marginBottom: 3,
+  },
+  notificationText: {
+    fontSize: 14,
+    color: "#555",
+  },
+  notificationActions: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  notificationAction: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    backgroundColor: Colors.primary,
+    borderRadius: 16,
+    marginRight: 8,
+  },
+  notificationActionText: {
+    color: "white",
+    fontWeight: "600",
+    fontSize: 13,
+  },
+  notificationDismiss: {
+    padding: 5,
+  },
+  notificationBadge: {
+    position: "absolute",
+    top: Platform.OS === "ios" ? 45 : 15,
+    right: 15,
+    backgroundColor: Colors.primary,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 3,
+    zIndex: 1000,
+  },
+  badgeCount: {
+    position: "absolute",
+    top: -5,
+    right: -5,
+    backgroundColor: Colors.danger,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 4,
+    borderWidth: 1.5,
+    borderColor: "white",
+  },
+  badgeCountText: {
+    color: "white",
+    fontSize: 10,
+    fontWeight: "bold",
+  },
+  // New styles for navigation
+  directionIndicator: {
+    width: 40,
+    height: 40,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  viewModeButton: {
+    position: "absolute",
+    bottom: 80,
+    right: 15,
+    backgroundColor: Colors.primary,
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 3,
+  },
+  viewModeButtonActive: {
+    backgroundColor: Colors.secondary,
+  },
+});
