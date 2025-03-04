@@ -1340,6 +1340,7 @@ export default function Map() {
           travelTime={travelTime}
           onStartJourney={onStartJourney}
           visible={showCard}
+          rating={selectedPlace.rating}
           travelMode={travelMode}
           placeDescription={selectedPlace.description}
           placeImage={

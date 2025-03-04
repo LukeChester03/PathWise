@@ -338,7 +338,10 @@ const DiscoveredCard: React.FC<DiscoveredCardProps> = ({
               <View style={styles.bottomImageContent}>
                 <View style={styles.dateContainer}>
                   <Ionicons name="calendar-outline" size={14} color="rgba(255,255,255,0.9)" />
-                  <Text style={styles.dateText}>{formattedDate}</Text>
+                  <View style={styles.dateTextContainer}>
+                    <Text style={styles.dateLabel}>Discovered on</Text>
+                    <Text style={styles.dateText}>{formattedDate}</Text>
+                  </View>
                 </View>
                 <View style={styles.ratingContainer}>
                   <MaterialIcons name="star" size={18} color="#FFD700" />
@@ -576,12 +579,20 @@ const styles = StyleSheet.create({
   },
   dateContainer: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
+  },
+  dateTextContainer: {
+    marginLeft: 6,
+    flexDirection: "column",
+  },
+  dateLabel: {
+    fontSize: 11,
+    color: "rgba(255,255,255,0.8)",
+    fontWeight: "400",
   },
   dateText: {
     fontSize: 13,
     color: "rgba(255,255,255,0.9)",
-    marginLeft: 6,
     fontWeight: "500",
   },
   ratingContainer: {
