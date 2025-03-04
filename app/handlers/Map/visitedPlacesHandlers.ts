@@ -1,6 +1,9 @@
 // handlers/Map/visitedPlacesHandlers.js
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { saveVisitedPlace, isPlaceVisited } from "../../controllers/Map/visitedPlacesController";
 import { Alert } from "react-native";
+import { doc, getDoc } from "firebase/firestore";
+import { db, auth } from "../../config/firebaseConfig";
 
 /**
  * Handle when a user reaches a destination
@@ -68,5 +71,47 @@ export const checkVisitedPlaces = async (places) => {
     console.error("Error checking visited places:", error);
     // Return original places if there's an error
     return places.map((place) => ({ ...place, isVisited: false }));
+  }
+};
+
+export const getVisitedPlaceDetails = async (placeId, userId = null) => {
+  try {
+    const currentUser = userId || auth.currentUser?.uid;
+
+    if (!currentUser) {
+      console.log("No authenticated user found");
+      return null;
+    }
+
+    // Check directly in Firestore for this specific place
+    const placeDocRef = doc(db, "users", currentUser, "visitedPlaces", placeId);
+    const placeDoc = await getDoc(placeDocRef);
+
+    if (placeDoc.exists()) {
+      console.log(`Retrieved visited place details for ${placeId}`);
+      return {
+        ...placeDoc.data(),
+        id: placeId,
+        place_id: placeId,
+      };
+    }
+
+    // If not in Firestore, try local storage as fallback
+    const visitedPlacesJSON = await AsyncStorage.getItem("visitedPlaces");
+    if (visitedPlacesJSON) {
+      const visitedPlaces = JSON.parse(visitedPlacesJSON);
+
+      const localPlace = visitedPlaces.find((p) => p.place_id === placeId);
+      if (localPlace) {
+        console.log(`Retrieved visited place details from local storage for ${placeId}`);
+        return localPlace;
+      }
+    }
+
+    console.log(`No visited place found with ID: ${placeId}`);
+    return null;
+  } catch (error) {
+    console.error("Error fetching visited place details:", error);
+    return null;
   }
 };

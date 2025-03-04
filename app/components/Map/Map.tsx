@@ -42,7 +42,10 @@ import * as Notifications from "expo-notifications";
 import {
   handleDestinationReached,
   checkVisitedPlaces,
+  getVisitedPlaceDetails,
 } from "../../handlers/Map/visitedPlacesHandlers";
+import DiscoveredCard from "./DiscoveredCard";
+import { isPlaceVisited } from "../../controllers/Map/visitedPlacesController";
 
 const GOOGLE_MAPS_APIKEY = "AIzaSyDAGq_6eJGQpR3RcO0NrVOowel9-DxZkvA";
 const DESTINATION_REACHED_THRESHOLD = 30;
@@ -221,7 +224,7 @@ const styles = StyleSheet.create({
 export default function Map() {
   const [region, setRegion] = useState(null);
   const [places, setPlaces] = useState([]);
-  const [selectedPlace, setSelectedPlace] = useState(null);
+  const [selectedPlace, setSelectedPlace] = useState<Place>(null);
   const [routeCoordinates, setRouteCoordinates] = useState([]);
   const [travelTime, setTravelTime] = useState(null);
   const [distance, setDistance] = useState(null);
@@ -263,6 +266,10 @@ export default function Map() {
   const [navigationVisible, setNavigationVisible] = useState(true);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [hasSpokenInitialInstruction, setHasSpokenInitialInstruction] = useState<Boolean>(false);
+
+  //Discovered Card state variables
+  const [showDiscoveredCard, setShowDiscoveredCard] = useState(false);
+  const [visitedPlaceDetails, setVisitedPlaceDetails] = useState(null);
 
   // New state variables for improved navigation
   const [lastAnnouncementTime, setLastAnnouncementTime] = useState(0);
@@ -612,6 +619,7 @@ export default function Map() {
     const hasPermission = await requestLocationPermission();
     if (hasPermission) {
       setShowCard(false);
+      setShowDiscoveredCard(false);
       setJourneyStarted(true);
       setShowDetailsCard(true);
       setDestinationReached(false);
@@ -768,13 +776,53 @@ export default function Map() {
       return;
     }
 
-    const origin = `${userLocation?.latitude || region?.latitude},${
-      userLocation?.longitude || region?.longitude
-    }`;
-    const destination = `${place.geometry.location.lat},${place.geometry.location.lng}`;
+    // Set the selected place
+    setSelectedPlace(place);
 
     try {
-      setSelectedPlace(place);
+      // Check if this place is already visited and fetch details if necessary
+      const isVisited = await isPlaceVisited(place.place_id);
+
+      if (isVisited) {
+        console.log("Selected place has been discovered:", place.name);
+
+        // Fetch the visited place details from the controller
+        const visitedDetails = await getVisitedPlaceDetails(place.place_id);
+
+        if (visitedDetails) {
+          // Store the full details for use in the DiscoveredCard
+          setVisitedPlaceDetails(visitedDetails);
+          setShowDiscoveredCard(true);
+
+          // Still get route info for reference
+          await getRouteInfo(place);
+          return;
+        }
+      }
+
+      // If we get here, place is not visited or we couldn't get details
+      // Show the regular card based on standard isVisited flag
+      if (place.isVisited === true) {
+        setShowDiscoveredCard(true);
+      } else {
+        setShowCard(true);
+      }
+
+      // Always get route information
+      await getRouteInfo(place);
+    } catch (error) {
+      console.error("Error in place selection:", error);
+      Alert.alert("Error", "There was a problem processing this place.");
+    }
+  };
+
+  // Helper function to get route information
+  const getRouteInfo = async (place) => {
+    try {
+      const origin = `${userLocation?.latitude || region?.latitude},${
+        userLocation?.longitude || region?.longitude
+      }`;
+      const destination = `${place.geometry.location.lat},${place.geometry.location.lng}`;
 
       // Fetch route details with travel mode determination
       const routeResult = await fetchRoute(origin, destination);
@@ -804,13 +852,14 @@ export default function Map() {
         // Force route recalculation by updating the key
         setRouteKey((prev) => prev + 1);
 
-        setShowCard(true);
+        return true;
       } else {
-        Alert.alert("Route Error", "Could not calculate a route to this destination.");
+        console.warn("Could not calculate a route to this destination.");
+        return false;
       }
     } catch (error) {
       console.error("Error getting route:", error);
-      Alert.alert("Route Error", "There was a problem calculating the route.");
+      return false;
     }
   };
 
@@ -886,6 +935,19 @@ export default function Map() {
       setSpeechQueue([]);
     };
   }, []);
+
+  //Handlers for discovered card
+  const handleDismissDiscoveredCard = () => {
+    setShowDiscoveredCard(false);
+    setSelectedPlace(null);
+    setVisitedPlaceDetails(null);
+  };
+
+  const handleViewDiscoveredDetails = () => {
+    setShowDiscoveredCard(false);
+    // Here you can implement navigation to a detailed view
+    console.log("View details for:", selectedPlace?.name);
+  };
 
   // Updated navigation instructions based on user location with cooldown and throttling
   useEffect(() => {
@@ -1057,24 +1119,6 @@ export default function Map() {
       }
     });
   }, [userLocation, places, journeyStarted, notifiedPlaces]);
-
-  // Calculate heading based on current and previous positions
-  const calculateHeading = (prevLat, prevLng, currentLat, currentLng) => {
-    // Convert to radians
-    const startLat = (prevLat * Math.PI) / 180;
-    const startLng = (prevLng * Math.PI) / 180;
-    const destLat = (currentLat * Math.PI) / 180;
-    const destLng = (currentLng * Math.PI) / 180;
-
-    // Calculate heading
-    const y = Math.sin(destLng - startLng) * Math.cos(destLat);
-    const x =
-      Math.cos(startLat) * Math.sin(destLat) -
-      Math.sin(startLat) * Math.cos(destLat) * Math.cos(destLng - startLng);
-    let bearing = (Math.atan2(y, x) * 180) / Math.PI;
-    bearing = (bearing + 360) % 360; // Normalize to 0-360
-    return bearing;
-  };
 
   if (loading) {
     return (
@@ -1316,6 +1360,24 @@ export default function Map() {
               setShowDetailsCard
             )
           }
+        />
+      )}
+      {showDiscoveredCard && selectedPlace && (
+        <DiscoveredCard
+          onVisitAgain={onStartJourney}
+          placeName={visitedPlaceDetails.name}
+          placeDescription={visitedPlaceDetails.description || "A place you've already discovered."}
+          placeImage={
+            visitedPlaceDetails.photos && visitedPlaceDetails.photos.length > 0
+              ? `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photoreference=${selectedPlace.photos[0].photo_reference}&key=${GOOGLE_MAPS_APIKEY}`
+              : undefined
+          }
+          discoveryDate={visitedPlaceDetails.visitedAt}
+          rating={visitedPlaceDetails.rating}
+          description={visitedPlaceDetails.description}
+          onViewDetails={handleViewDiscoveredDetails}
+          onDismiss={handleDismissDiscoveredCard}
+          visible={showDiscoveredCard}
         />
       )}
 

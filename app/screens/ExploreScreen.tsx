@@ -118,7 +118,6 @@ const ExploreScreen = ({ navigation }) => {
             photos: data.photos || [],
             // Make sure rating info is included
             rating: data.rating || null,
-            user_ratings_total: data.user_ratings_total || null,
             // Date formatting
             visitedAt: data.visitedAt,
             visitDate: data.visitedAt ? new Date(data.visitedAt) : new Date(),

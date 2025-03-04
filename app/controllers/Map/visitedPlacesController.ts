@@ -40,7 +40,6 @@ export const saveVisitedPlace = async (place, userId = null) => {
       // Make sure ratings are included (if they exist)
       rating: placeData.rating || null,
       user_ratings_total: placeData.user_ratings_total || null,
-      reviews: placeData.reviews || [],
     };
 
     // Save to Firestore
