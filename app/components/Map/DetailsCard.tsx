@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from "react";
+import React, { useRef, useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -9,7 +9,7 @@ import {
   TouchableOpacity,
 } from "react-native";
 import { Colors, NeutralColors } from "../../constants/colours";
-import { Ionicons } from "@expo/vector-icons";
+import MaterialIcon from "react-native-vector-icons/MaterialIcons";
 import { TravelMode } from "../../types/MapTypes";
 
 interface DetailsCardProps {
@@ -17,8 +17,17 @@ interface DetailsCardProps {
   travelTime: string;
   distance: string;
   onSwipeOff: () => void;
-  travelMode: TravelMode; // Make this required, not optional
+  travelMode: TravelMode;
   onInfoPress?: () => void;
+
+  // Navigation properties
+  currentStep: any | null;
+  nextStepDistance: string | null;
+  navigationSteps: any[];
+  stepIndex: number;
+  soundEnabled: boolean;
+  setSoundEnabled: (enabled: boolean) => void;
+  getManeuverIcon: (maneuver: string) => React.ReactNode;
 }
 
 const DetailsCard: React.FC<DetailsCardProps> = ({
@@ -28,26 +37,42 @@ const DetailsCard: React.FC<DetailsCardProps> = ({
   onSwipeOff,
   travelMode,
   onInfoPress = () => {},
+
+  // Navigation properties
+  currentStep,
+  nextStepDistance,
+  navigationSteps,
+  stepIndex,
+  soundEnabled,
+  setSoundEnabled,
+  getManeuverIcon,
 }) => {
+  const [expanded, setExpanded] = useState(false);
   const pan = useRef(new Animated.ValueXY()).current;
   const shadowAnim = useRef(new Animated.Value(0.25)).current;
-
-  // Use a ref to remember the last mode to detect changes
-  const lastModeRef = useRef<TravelMode>(travelMode);
+  const cardHeightAnim = useRef(new Animated.Value(0)).current;
 
   // Track when travel mode changes
+  const lastModeRef = useRef<TravelMode>(travelMode);
   useEffect(() => {
     if (lastModeRef.current !== travelMode) {
-      console.log(`Travel mode changed from ${lastModeRef.current} to ${travelMode}`);
       lastModeRef.current = travelMode;
     }
   }, [travelMode]);
+
+  // Animate card height on expansion/collapse
+  useEffect(() => {
+    Animated.timing(cardHeightAnim, {
+      toValue: expanded ? 1 : 0,
+      duration: 250,
+      useNativeDriver: false,
+    }).start();
+  }, [expanded, cardHeightAnim]);
 
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
       onPanResponderGrant: () => {
-        // Increase shadow opacity when dragging starts
         Animated.timing(shadowAnim, {
           toValue: 0.5,
           duration: 100,
@@ -58,7 +83,6 @@ const DetailsCard: React.FC<DetailsCardProps> = ({
         useNativeDriver: false,
       }),
       onPanResponderRelease: (e, gestureState) => {
-        // Reset shadow opacity when dragging ends
         Animated.timing(shadowAnim, {
           toValue: 0.25,
           duration: 100,
@@ -66,17 +90,15 @@ const DetailsCard: React.FC<DetailsCardProps> = ({
         }).start();
 
         if (gestureState.dx < -100) {
-          // Swipe left to dismiss
           Animated.timing(pan, {
             toValue: { x: -500, y: 0 },
             duration: 200,
             useNativeDriver: false,
           }).start(() => {
-            onSwipeOff(); // Trigger the parent callback
-            pan.setValue({ x: 0, y: 0 }); // Reset position for reuse
+            onSwipeOff();
+            pan.setValue({ x: 0, y: 0 });
           });
         } else {
-          // Snap back to original position
           Animated.spring(pan, {
             toValue: { x: 0, y: 0 },
             useNativeDriver: false,
@@ -100,6 +122,12 @@ const DetailsCard: React.FC<DetailsCardProps> = ({
     }
   };
 
+  // Determine opacity for upcoming step (fade in when expanded)
+  const upcomingStepOpacity = cardHeightAnim.interpolate({
+    inputRange: [0, 0.7, 1],
+    outputRange: [0, 0, 1],
+  });
+
   return (
     <Animated.View
       style={[
@@ -111,34 +139,83 @@ const DetailsCard: React.FC<DetailsCardProps> = ({
       ]}
       {...panResponder.panHandlers}
     >
-      <Image
-        source={getTravelModeAsset()}
-        style={styles.gif}
-        key={`travel-${travelMode}`} // Force re-render when mode changes
-      />
-      <View style={styles.textContainer}>
-        <Text style={styles.title}>Travelling to {placeName}</Text>
-        <View style={styles.infoRow}>
-          <Text style={styles.info}>Time left: {travelTime}</Text>
-          <TouchableOpacity style={styles.infoIconButton} onPress={onInfoPress}>
-            <Ionicons name="information-circle" size={18} color={Colors.primary} />
-          </TouchableOpacity>
-        </View>
-        <View style={styles.infoRow}>
-          <Text style={styles.info}>Distance: {distance}</Text>
-          <View style={[styles.travelModeTag, { backgroundColor: Colors.primary }]}>
-            <Ionicons
-              name={travelMode === "driving" ? "car" : "walk"}
-              size={14}
-              color="white"
-              style={styles.travelModeIcon}
-            />
-            <Text style={styles.travelModeText}>
-              {travelMode === "driving" ? "Driving" : "Walking"}
-            </Text>
+      {/* Compact Info Section */}
+      <View style={styles.compactHeader}>
+        <Image source={getTravelModeAsset()} style={styles.gif} key={`travel-${travelMode}`} />
+
+        <View style={styles.mainInfo}>
+          <Text numberOfLines={1} style={styles.title}>
+            {placeName}
+          </Text>
+          <View style={styles.metrics}>
+            <Text style={styles.metric}>{distance}</Text>
+            <Text style={styles.dotSeparator}>•</Text>
+            <Text style={styles.metric}>{travelTime}</Text>
+
+            {/* Sound toggle is always visible but smaller */}
+            <TouchableOpacity
+              style={styles.soundToggle}
+              onPress={() => setSoundEnabled(!soundEnabled)}
+            >
+              <MaterialIcon
+                name={soundEnabled ? "volume-up" : "volume-off"}
+                size={18}
+                color={Colors.primary}
+              />
+            </TouchableOpacity>
           </View>
         </View>
+
+        {/* Expand/collapse button */}
+        <TouchableOpacity style={styles.expandButton} onPress={() => setExpanded(!expanded)}>
+          <MaterialIcon
+            name={expanded ? "keyboard-arrow-up" : "keyboard-arrow-down"}
+            size={20}
+            color={Colors.primary}
+          />
+        </TouchableOpacity>
       </View>
+
+      {/* Navigation section appears when expanded */}
+      {currentStep && (
+        <Animated.View
+          style={[
+            styles.navigationSection,
+            {
+              opacity: cardHeightAnim,
+              maxHeight: cardHeightAnim.interpolate({
+                inputRange: [0, 1],
+                outputRange: [0, 120],
+              }),
+              overflow: "hidden",
+            },
+          ]}
+        >
+          {/* Current direction */}
+          <View style={styles.currentStep}>
+            <View style={styles.iconContainer}>{getManeuverIcon(currentStep.maneuver)}</View>
+
+            <View style={styles.directionContainer}>
+              <Text style={styles.distance}>{nextStepDistance || currentStep.distance.text}</Text>
+              <Text numberOfLines={2} style={styles.instruction}>
+                {currentStep.instructions}
+              </Text>
+            </View>
+          </View>
+
+          {/* Upcoming direction */}
+          {stepIndex < navigationSteps.length - 1 && (
+            <Animated.View style={[styles.upcomingStep, { opacity: upcomingStepOpacity }]}>
+              <View style={styles.upcomingIconContainer}>
+                {getManeuverIcon(navigationSteps[stepIndex + 1].maneuver)}
+              </View>
+              <Text numberOfLines={1} style={styles.upcomingText}>
+                Then {navigationSteps[stepIndex + 1].instructions}
+              </Text>
+            </Animated.View>
+          )}
+        </Animated.View>
+      )}
     </Animated.View>
   );
 };
@@ -146,67 +223,110 @@ const DetailsCard: React.FC<DetailsCardProps> = ({
 const styles = StyleSheet.create({
   cardContainer: {
     position: "absolute",
-    top: 20,
-    left: 20,
-    flexDirection: "row",
+    top: 12,
+    // Center the card horizontally with these changes:
+    alignSelf: "center",
+    width: "65%", // Reduced from 80%
     backgroundColor: "white",
-    borderRadius: 10,
-    padding: 16,
+    borderRadius: 8,
     shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowRadius: 3.84,
-    elevation: 6,
+    shadowOffset: { width: 0, height: 1 },
+    shadowRadius: 3,
+    elevation: 4,
+    overflow: "hidden",
+  },
+  compactHeader: {
+    flexDirection: "row",
     alignItems: "center",
-    width: "70%",
+    padding: 10,
   },
   gif: {
-    width: 50,
-    height: 50,
-    marginRight: 16,
-    alignContent: "center",
-    justifyContent: "center",
+    width: 38,
+    height: 38,
+    marginRight: 10,
   },
-  textContainer: {
+  mainInfo: {
     flex: 1,
-    justifyContent: "center",
   },
   title: {
-    fontSize: 16,
-    fontWeight: "bold",
-    marginBottom: 8,
+    fontSize: 15,
+    fontWeight: "600",
     color: Colors.primary,
+    marginBottom: 3,
   },
-  infoRow: {
+  metrics: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 6,
   },
-  info: {
+  metric: {
     fontSize: 14,
     color: NeutralColors.gray600,
-    flex: 1,
   },
-  infoIconButton: {
-    padding: 4,
+  dotSeparator: {
+    fontSize: 14,
+    color: NeutralColors.gray400,
+    marginHorizontal: 4,
   },
-  travelModeTag: {
+  soundToggle: {
+    marginLeft: 8,
+  },
+  expandButton: {
+    padding: 6,
+  },
+  navigationSection: {
+    borderTopWidth: 1,
+    borderTopColor: "rgba(0,0,0,0.05)",
+    paddingHorizontal: 10,
+    paddingBottom: 10,
+  },
+  currentStep: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-    borderRadius: 12,
+    paddingTop: 10,
   },
-  travelModeIcon: {
-    marginRight: 4,
+  iconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: Colors.primary,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 10,
   },
-  travelModeText: {
-    color: "white",
-    fontSize: 12,
+  directionContainer: {
+    flex: 1,
+  },
+  distance: {
+    fontSize: 14,
     fontWeight: "600",
+    marginBottom: 2,
+  },
+  instruction: {
+    fontSize: 13,
+    color: NeutralColors.gray700,
+    lineHeight: 18,
+  },
+  upcomingStep: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 8,
+    backgroundColor: "rgba(0,0,0,0.03)",
+    padding: 8,
+    borderRadius: 8,
+  },
+  upcomingIconContainer: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: Colors.primary,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 8,
+  },
+  upcomingText: {
+    fontSize: 13,
+    color: NeutralColors.gray600,
+    flex: 1,
   },
 });
 
