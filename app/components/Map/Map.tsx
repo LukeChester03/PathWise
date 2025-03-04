@@ -1389,19 +1389,12 @@ export default function Map() {
           distance={distance}
           travelMode={travelMode}
           onSwipeOff={handleSwipeOff}
-          onInfoPress={() => {
-            Alert.alert(
-              "Route Information",
-              `This route uses ${travelMode} mode because the destination is ${
-                travelMode === "driving" ? "over" : "under"
-              } 5km away. Travel time: ${travelTime}, Distance: ${distance}`
-            );
-          }}
           // Add navigation properties:
           currentStep={currentStep}
           nextStepDistance={nextStepDistance}
           navigationSteps={navigationSteps}
           stepIndex={stepIndex}
+          autoShowUpcomingStep={true}
           soundEnabled={soundEnabled}
           setSoundEnabled={setSoundEnabled}
           getManeuverIcon={getManeuverIcon}
@@ -1442,6 +1435,7 @@ export default function Map() {
               setSpeechQueue([]);
               setIsSpeaking(false);
               Speech.stop();
+              setRouteKey(0);
             }}
           >
             <Text style={styles.cancelButtonText}>End Journey</Text>
