@@ -77,18 +77,19 @@ const useMapCamera = (): UseMapCameraReturn => {
       );
 
       // Calculate a midpoint slightly weighted toward destination
-      const bias = 0.6; // Consistent bias value for predictability
+      const bias = 0.5; // More balanced midpoint
       const midpoint = {
         latitude: userLocation.latitude * (1 - bias) + destinationCoordinate.latitude * bias,
         longitude: userLocation.longitude * (1 - bias) + destinationCoordinate.longitude * bias,
       };
 
-      // Fixed altitude based on distance - more consistent camera behavior
-      const altitude = Math.min(Math.max(2500, routeDistance * 2.5), 5000);
+      // Calculate a more appropriate altitude based on distance but much lower
+      // This will make the overview less high up
+      const altitude = Math.min(Math.max(500, routeDistance * 0.6), 2000);
 
-      // Determine zoom level based on distance - more gradual transitions
+      // Higher zoom levels for closer view of the route
       const zoomLevel =
-        routeDistance > 5000 ? 12 : routeDistance > 2000 ? 13 : routeDistance > 1000 ? 14 : 15;
+        routeDistance > 5000 ? 14 : routeDistance > 2000 ? 15 : routeDistance > 1000 ? 16 : 17;
 
       // Store the zoom level for smoother transitions back to navigation view
       lastZoomLevelRef.current = zoomLevel;
@@ -97,7 +98,7 @@ const useMapCamera = (): UseMapCameraReturn => {
       const camera: CameraConfig = {
         center: midpoint,
         heading: 0, // Always North up for overview
-        pitch: 0, // No pitch for consistency in overview
+        pitch: 5, // Slight pitch for better route visibility
         altitude: altitude,
         zoom: zoomLevel,
       };
@@ -106,7 +107,7 @@ const useMapCamera = (): UseMapCameraReturn => {
       console.log("Updating camera to overview mode:", camera);
 
       // Animate camera with longer duration for smoother transition
-      mapRef.current.animateCamera(camera, { duration: 1500 });
+      mapRef.current.animateCamera(camera, { duration: 1000 });
 
       // Update the last camera update time to avoid immediate camera changes
       lastCameraUpdateTimeRef.current = Date.now();
@@ -116,6 +117,7 @@ const useMapCamera = (): UseMapCameraReturn => {
 
   /**
    * Update camera to focus on user with stability improvements
+   * Now with closer zoom to user
    */
   const updateUserCamera = useCallback(
     (location: Coordinate, heading: number, forceUpdate = false, viewMode: string): boolean => {
@@ -146,32 +148,35 @@ const useMapCamera = (): UseMapCameraReturn => {
       const headingDifference = Math.abs(heading - lastCameraHeadingRef.current);
       const smoothedHeading = headingDifference > 15 ? heading : lastCameraHeadingRef.current;
 
-      // Calculate look-ahead position with consistent distance
+      // Calculate look-ahead position with shorter distance to keep camera closer
       const lookAheadCoordinate = calculateLookAheadPosition(
         location.latitude,
         location.longitude,
         smoothedHeading,
-        LOOK_AHEAD_DISTANCE
+        LOOK_AHEAD_DISTANCE * 0.7 // Reduced look ahead distance for closer view
       );
 
-      // Create camera configuration focused on user with consistent parameters
+      // Higher zoom level and lower altitude for a closer view
+      const closeUpZoom = NAVIGATION_ZOOM_LEVEL + 1;
+
+      // Create camera configuration focused on user with closer parameters
       const camera: CameraConfig = {
         center: lookAheadCoordinate,
         heading: smoothedHeading,
-        pitch: NAVIGATION_PITCH,
-        altitude: 1300, // Consistent altitude for stability
-        zoom: NAVIGATION_ZOOM_LEVEL,
+        pitch: NAVIGATION_PITCH + 5, // Increased pitch for better forward visibility
+        altitude: 100, // Lower altitude for closer view
+        zoom: closeUpZoom, // Higher zoom level
       };
 
       // Log camera update for debugging
       console.log("Updating camera to follow mode:", {
         center: [lookAheadCoordinate.latitude.toFixed(5), lookAheadCoordinate.longitude.toFixed(5)],
         heading: smoothedHeading.toFixed(1),
-        zoom: NAVIGATION_ZOOM_LEVEL,
+        zoom: closeUpZoom,
       });
 
       // Animate camera with slower duration for smoother transition
-      mapRef.current.animateCamera(camera, { duration: 1200 });
+      mapRef.current.animateCamera(camera, { duration: 600 });
 
       // Update tracking variables
       lastCameraUpdateTimeRef.current = now;
