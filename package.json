@@ -51,6 +51,7 @@
     "react": "18.3.1",
     "react-dom": "18.3.1",
     "react-native": "0.76.6",
+    "react-native-animatable": "^1.4.0",
     "react-native-compass-heading": "^2.0.1",
     "react-native-confetti": "^0.1.0",
     "react-native-fast-image": "^8.6.3",
