@@ -1,5 +1,6 @@
 // useMapCamera.ts - Hook for managing map camera behavior
-import { useRef, useCallback } from "react";
+import { useRef, useCallback, useEffect } from "react";
+import { Dimensions, Platform } from "react-native";
 import {
   NAVIGATION_ZOOM_LEVEL,
   NAVIGATION_PITCH,
@@ -45,6 +46,10 @@ export interface UseMapCameraReturn {
 }
 
 const useMapCamera = (): UseMapCameraReturn => {
+  // Get screen dimensions for responsive calculations
+  const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
+  const aspectRatio = screenWidth / screenHeight;
+
   // Refs for camera state management
   const mapRef = useRef<MapView>(null);
   const routeOverviewTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -56,8 +61,12 @@ const useMapCamera = (): UseMapCameraReturn => {
   const initialRouteLoadedRef = useRef<boolean>(false);
   const isTransitioningRef = useRef<boolean>(false);
 
+  // Platform-specific adjustments
+  const isPlatformIOS = Platform.OS === "ios";
+
   /**
    * Show route overview to display the entire route
+   * Uses fitToCoordinates for consistent display across devices
    */
   const showRouteOverview = useCallback(
     (
@@ -81,53 +90,90 @@ const useMapCamera = (): UseMapCameraReturn => {
         destinationCoordinate.longitude
       );
 
-      // Calculate a midpoint slightly weighted toward destination
-      const bias = 0.5; // More balanced midpoint
-      const midpoint = {
-        latitude: userLocation.latitude * (1 - bias) + destinationCoordinate.latitude * bias,
-        longitude: userLocation.longitude * (1 - bias) + destinationCoordinate.longitude * bias,
-      };
+      // Use fitToCoordinates to ensure the entire route is visible
+      // This is more reliable across different screen sizes
+      mapRef.current.fitToCoordinates([userLocation, destinationCoordinate], {
+        edgePadding: {
+          top: screenHeight * 0.2,
+          right: screenWidth * 0.2,
+          bottom: screenHeight * 0.2,
+          left: screenWidth * 0.2,
+        },
+        animated: true,
+      });
 
-      // Calculate a more appropriate altitude based on distance but much lower
-      // This will make the overview less high up
-      const altitude = Math.min(Math.max(500, routeDistance * 0.6), 2000);
+      // For devices where fitToCoordinates doesn't provide enough control,
+      // we can manually set additional camera parameters
+      setTimeout(() => {
+        if (mapRef.current) {
+          // Calculate appropriate zoom based on route distance and screen size
+          const zoomLevel = calculateAppropriateZoom(routeDistance, aspectRatio);
 
-      // Higher zoom levels for closer view of the route
-      const zoomLevel =
-        routeDistance > 5000 ? 14 : routeDistance > 2000 ? 15 : routeDistance > 1000 ? 16 : 17;
+          // Adjust pitch for better visibility
+          const pitch = isPlatformIOS ? 10 : 5;
 
-      // Store the zoom level for smoother transitions back to navigation view
-      lastZoomLevelRef.current = zoomLevel;
+          mapRef.current.animateCamera(
+            {
+              pitch: pitch,
+              heading: 0, // North up for overview
+            },
+            { duration: 500 }
+          );
 
-      // Create camera for overview - showing the whole route
-      const camera: CameraConfig = {
-        center: midpoint,
-        heading: 0, // Always North up for overview
-        pitch: 5, // Slight pitch for better route visibility
-        altitude: altitude,
-        zoom: zoomLevel,
-      };
-
-      // Log camera update for debugging
-      console.log("Updating camera to overview mode:", camera);
-
-      // Animate camera with longer duration for smoother transition
-      mapRef.current.animateCamera(camera, { duration: 1000 });
+          // Store the zoom level for reference
+          lastZoomLevelRef.current = zoomLevel;
+        }
+      }, 100);
 
       // Set transition state back to false after animation completes
+      // Increased timeout to account for the longer second animation
       setTimeout(() => {
         isTransitioningRef.current = false;
-      }, 1100);
+      }, 1600);
 
       // Update the last camera update time to avoid immediate camera changes
       lastCameraUpdateTimeRef.current = Date.now();
     },
-    []
+    [screenWidth, screenHeight, aspectRatio, isPlatformIOS]
   );
 
   /**
-   * Update camera to focus on user with stability improvements
-   * Now with closer zoom to user
+   * Calculate appropriate zoom level based on route distance and screen dimensions
+   */
+  const calculateAppropriateZoom = (distance: number, aspectRatio: number): number => {
+    // Base calculation adjusted for screen aspect ratio
+    let baseZoom = 15;
+
+    if (distance > 5000) {
+      baseZoom = 13;
+    } else if (distance > 2000) {
+      baseZoom = 14;
+    } else if (distance > 1000) {
+      baseZoom = 15;
+    } else {
+      baseZoom = 16;
+    }
+
+    // Apply platform-specific adjustments
+    if (isPlatformIOS) {
+      // iOS typically needs slightly different zoom levels
+      baseZoom = baseZoom + 0.5;
+    }
+
+    // Adjust for very wide or tall screens
+    if (aspectRatio > 2.0) {
+      // Very tall screen - increase zoom slightly
+      baseZoom += 0.5;
+    } else if (aspectRatio < 0.5) {
+      // Very wide screen - decrease zoom slightly
+      baseZoom -= 0.5;
+    }
+
+    return baseZoom;
+  };
+
+  /**
+   * Update camera to focus on user with improved responsiveness for different devices
    */
   const updateUserCamera = useCallback(
     (location: Coordinate, heading: number, forceUpdate = false, viewMode: string): boolean => {
@@ -163,41 +209,59 @@ const useMapCamera = (): UseMapCameraReturn => {
       const headingDifference = Math.abs(heading - lastCameraHeadingRef.current);
       const smoothedHeading = headingDifference > 15 ? heading : lastCameraHeadingRef.current;
 
-      // Calculate look-ahead position with shorter distance to keep camera closer
-      const lookAheadCoordinate = calculateLookAheadPosition(
-        location.latitude,
-        location.longitude,
-        smoothedHeading,
-        LOOK_AHEAD_DISTANCE * 0.7 // Reduced look ahead distance for closer view
-      );
+      // Focus directly on user's position instead of looking ahead
+      // We'll use the user's exact location to center the camera
+      const userCoordinate = {
+        latitude: location.latitude,
+        longitude: location.longitude,
+      };
 
-      // Higher zoom level and lower altitude for a closer view
-      const closeUpZoom = NAVIGATION_ZOOM_LEVEL + 1;
+      // Calculate device-appropriate zoom level
+      const deviceAdjustment = isPlatformIOS ? 0.5 : 0;
+      const closeUpZoom = NAVIGATION_ZOOM_LEVEL + 1 + deviceAdjustment;
 
-      // Create camera configuration focused on user with closer parameters
+      // Adjust altitude based on screen dimensions
+      const altitudeBase = 100;
+      const altitudeAdjustment = isPlatformIOS
+        ? aspectRatio > 1.8
+          ? 20
+          : 0
+        : aspectRatio > 1.8
+        ? 30
+        : 0;
+
+      // Create camera configuration focused directly on user with device-specific parameters
       const camera: CameraConfig = {
-        center: lookAheadCoordinate,
+        center: userCoordinate,
         heading: smoothedHeading,
-        pitch: NAVIGATION_PITCH + 5, // Increased pitch for better forward visibility
-        altitude: 100, // Lower altitude for closer view
-        zoom: closeUpZoom, // Higher zoom level
+        pitch: NAVIGATION_PITCH + (isPlatformIOS ? 5 : 8), // Platform-specific pitch
+        altitude: altitudeBase - altitudeAdjustment,
+        zoom: closeUpZoom,
       };
 
       // Log camera update for debugging
       console.log("Updating camera to follow mode:", {
-        center: [lookAheadCoordinate.latitude.toFixed(5), lookAheadCoordinate.longitude.toFixed(5)],
+        center: [userCoordinate.latitude.toFixed(5), userCoordinate.longitude.toFixed(5)],
         heading: smoothedHeading.toFixed(1),
         zoom: closeUpZoom,
+        altitude: altitudeBase - altitudeAdjustment,
+        platform: Platform.OS,
+        aspectRatio: aspectRatio.toFixed(2),
       });
 
       // Animate camera with slower duration for smoother transition
-      mapRef.current.animateCamera(camera, { duration: 600 });
+      mapRef.current.animateCamera(camera, {
+        duration: isPlatformIOS ? 800 : 600, // iOS often needs slightly slower animations
+      });
 
       // Set transition state back to false after animation completes if this was a forced update
       if (forceUpdate) {
-        setTimeout(() => {
-          isTransitioningRef.current = false;
-        }, 700);
+        setTimeout(
+          () => {
+            isTransitioningRef.current = false;
+          },
+          isPlatformIOS ? 900 : 700
+        );
       }
 
       // Update tracking variables
@@ -206,7 +270,7 @@ const useMapCamera = (): UseMapCameraReturn => {
       cameraUpdatePendingRef.current = false;
       return true; // Indicate that update was performed
     },
-    []
+    [aspectRatio, isPlatformIOS]
   );
 
   /**
