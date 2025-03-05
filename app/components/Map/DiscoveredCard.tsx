@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from "react";
+import React, { useRef, useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -27,6 +27,7 @@ interface DiscoveredCardProps {
   onDismiss: () => void;
   onVisitAgain?: () => void;
   visible?: boolean;
+  initialSavedState?: boolean; // Add prop for initial saved state
 }
 
 const { width, height } = Dimensions.get("window");
@@ -44,7 +45,11 @@ const DiscoveredCard: React.FC<DiscoveredCardProps> = ({
   onDismiss,
   onVisitAgain,
   visible = false,
+  initialSavedState = false,
 }) => {
+  // State for save functionality
+  const [isSaved, setIsSaved] = useState(initialSavedState);
+
   // Format the discovery date
   const formattedDate = new Date(discoveryDate).toLocaleDateString("en-US", {
     year: "numeric",
@@ -62,6 +67,8 @@ const DiscoveredCard: React.FC<DiscoveredCardProps> = ({
   const descriptionAnim = useRef(new Animated.Value(0)).current;
   const rotateAnim = useRef(new Animated.Value(0)).current;
   const imageOpacity = useRef(new Animated.Value(0)).current;
+  const saveButtonAnim = useRef(new Animated.Value(0)).current;
+  const saveScaleAnim = useRef(new Animated.Value(1)).current;
 
   // Animate in when component becomes visible
   useEffect(() => {
@@ -73,6 +80,7 @@ const DiscoveredCard: React.FC<DiscoveredCardProps> = ({
       descriptionAnim.setValue(0);
       rotateAnim.setValue(0);
       imageOpacity.setValue(0);
+      saveButtonAnim.setValue(0);
       primaryButtonScale.setValue(1);
       secondaryButtonScale.setValue(1);
 
@@ -100,6 +108,14 @@ const DiscoveredCard: React.FC<DiscoveredCardProps> = ({
           duration: 150,
           useNativeDriver: true,
           easing: Easing.out(Easing.ease),
+        }),
+
+        // Animate save button with other UI elements
+        Animated.timing(saveButtonAnim, {
+          toValue: 1,
+          duration: 200,
+          useNativeDriver: true,
+          easing: Easing.out(Easing.back(1.5)),
         }),
 
         // Animate content with staggered timing - 450ms total (150ms each with 50ms stagger)
@@ -144,6 +160,33 @@ const DiscoveredCard: React.FC<DiscoveredCardProps> = ({
       ).start();
     }
   }, [visible]);
+
+  // Handle save button press
+  const handleSavePress = () => {
+    // Create a nice animation for the save button
+    Animated.sequence([
+      Animated.spring(saveScaleAnim, {
+        toValue: 0.8,
+        friction: 3,
+        useNativeDriver: true,
+      }),
+      Animated.spring(saveScaleAnim, {
+        toValue: 1.2,
+        friction: 3,
+        useNativeDriver: true,
+      }),
+      Animated.spring(saveScaleAnim, {
+        toValue: 1,
+        friction: 3,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
+    // Toggle saved state
+    setIsSaved(!isSaved);
+
+    // Feedback is provided through the icon change and animation
+  };
 
   // Handle primary button press animations
   const handlePrimaryPressIn = () => {
@@ -268,6 +311,36 @@ const DiscoveredCard: React.FC<DiscoveredCardProps> = ({
           <TouchableOpacity style={styles.closeButton} onPress={handleDismiss} activeOpacity={0.7}>
             <Ionicons name="close" size={24} color="white" />
           </TouchableOpacity>
+
+          {/* Save button with feedback animation */}
+          <Animated.View
+            style={[
+              styles.saveButtonContainer,
+              {
+                opacity: saveButtonAnim,
+                transform: [{ scale: saveScaleAnim }],
+              },
+            ]}
+          >
+            <TouchableOpacity
+              style={styles.saveButton}
+              onPress={handleSavePress}
+              activeOpacity={0.7}
+            >
+              <Ionicons
+                name={isSaved ? "bookmark" : "bookmark-outline"}
+                size={22}
+                color={isSaved ? Colors.primary : "white"}
+              />
+            </TouchableOpacity>
+
+            {/* Visual feedback indicator - appears briefly when status changes */}
+            {isSaved && (
+              <Animated.View style={styles.savedIndicator}>
+                <View style={styles.savedIndicatorDot} />
+              </Animated.View>
+            )}
+          </Animated.View>
 
           {/* Header Image */}
           <View style={styles.imageContainer}>
@@ -515,6 +588,33 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.3)",
     justifyContent: "center",
     alignItems: "center",
+  },
+  saveButtonContainer: {
+    position: "absolute",
+    top: 12,
+    right: 56, // Position next to the close button
+    zIndex: 10,
+  },
+  saveButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "rgba(0,0,0,0.3)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  savedIndicator: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    width: 10,
+    height: 10,
+  },
+  savedIndicatorDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: Colors.primary,
   },
   imageContainer: {
     width: "100%",
