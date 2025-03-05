@@ -66,7 +66,7 @@ const useMapCamera = (): UseMapCameraReturn => {
 
   /**
    * Show route overview to display the entire route
-   * Uses fitToCoordinates for consistent display across devices
+   * Improved to prevent excessive zoom-out
    */
   const showRouteOverview = useCallback(
     (
@@ -90,46 +90,75 @@ const useMapCamera = (): UseMapCameraReturn => {
         destinationCoordinate.longitude
       );
 
-      // Use fitToCoordinates to ensure the entire route is visible
-      // This is more reliable across different screen sizes
+      console.log("Route distance:", routeDistance, "meters");
+
+      // Calculate a midpoint with a slight bias toward destination for better centering
+      const midpoint = {
+        latitude: userLocation.latitude * 0.5 + destinationCoordinate.latitude * 0.5,
+        longitude: userLocation.longitude * 0.5 + destinationCoordinate.longitude * 0.5,
+      };
+
+      // For very short routes, we want to keep a minimum reasonable padding
+      // For longer routes, we scale the padding based on distance
+      const edgePaddingPercent = Math.min(0.25, Math.max(0.15, routeDistance / 50000));
+
+      // Use fitToCoordinates with moderate padding
+      // Balanced approach between showing the route and not zooming out too far
       mapRef.current.fitToCoordinates([userLocation, destinationCoordinate], {
         edgePadding: {
-          top: screenHeight * 0.2,
-          right: screenWidth * 0.2,
-          bottom: screenHeight * 0.2,
-          left: screenWidth * 0.2,
+          top: screenHeight * edgePaddingPercent,
+          right: screenWidth * edgePaddingPercent,
+          bottom: screenHeight * edgePaddingPercent,
+          left: screenWidth * edgePaddingPercent,
         },
         animated: true,
       });
 
-      // For devices where fitToCoordinates doesn't provide enough control,
-      // we can manually set additional camera parameters
+      // After fitToCoordinates, apply additional camera adjustments with better control
       setTimeout(() => {
         if (mapRef.current) {
-          // Calculate appropriate zoom based on route distance and screen size
-          const zoomLevel = calculateAppropriateZoom(routeDistance, aspectRatio);
+          // Get current camera settings to make relative adjustments
+          mapRef.current.getCamera().then((currentCamera) => {
+            // Calculate a more appropriate zoom level based on distance
+            // This is a dynamic approach that prevents excessive zoom-out
+            const zoomLevel = calculateAppropriateZoom(routeDistance, aspectRatio);
 
-          // Adjust pitch for better visibility
-          const pitch = isPlatformIOS ? 10 : 5;
+            // Moderate pitch for better route visibility without excessive perspective
+            const pitch = isPlatformIOS ? 8 : 5;
 
-          mapRef.current.animateCamera(
-            {
-              pitch: pitch,
+            // New camera configuration that prioritizes keeping the route visible
+            // without excessive zoom-out
+            const camera = {
+              center: midpoint, // Use the calculated midpoint
               heading: 0, // North up for overview
-            },
-            { duration: 500 }
-          );
+              pitch: pitch,
+              zoom: currentCamera.zoom
+                ? // If the current zoom is more zoomed in than our target, keep it
+                  Math.max(currentCamera.zoom, zoomLevel)
+                : zoomLevel,
+              // Don't set altitude if we're setting zoom level
+            };
 
-          // Store the zoom level for reference
-          lastZoomLevelRef.current = zoomLevel;
+            console.log("Overview camera adjustment:", {
+              routeDistance,
+              targetZoom: zoomLevel,
+              actualZoom: camera.zoom,
+              platform: Platform.OS,
+            });
+
+            // Apply camera adjustments with a smooth animation
+            mapRef.current.animateCamera(camera, { duration: 700 });
+
+            // Store the zoom level for reference
+            lastZoomLevelRef.current = camera.zoom;
+          });
         }
-      }, 100);
+      }, 300); // Slightly longer delay to ensure fitToCoordinates completes
 
-      // Set transition state back to false after animation completes
-      // Increased timeout to account for the longer second animation
+      // Set transition state back to false after all animations complete
       setTimeout(() => {
         isTransitioningRef.current = false;
-      }, 1600);
+      }, 1200);
 
       // Update the last camera update time to avoid immediate camera changes
       lastCameraUpdateTimeRef.current = Date.now();
@@ -138,38 +167,59 @@ const useMapCamera = (): UseMapCameraReturn => {
   );
 
   /**
-   * Calculate appropriate zoom level based on route distance and screen dimensions
+   * Calculate appropriate zoom level based on route distance - revised for better scaling
    */
   const calculateAppropriateZoom = (distance: number, aspectRatio: number): number => {
-    // Base calculation adjusted for screen aspect ratio
-    let baseZoom = 15;
+    // Revised base zoom calculation with less aggressive scaling for distance
+    // Higher numbers mean more zoomed in
+    let baseZoom = 16; // Start at a reasonably zoomed in level
 
-    if (distance > 5000) {
+    // More graduated zoom levels for different distances
+    if (distance > 10000) {
+      // > 10km
       baseZoom = 13;
-    } else if (distance > 2000) {
+    } else if (distance > 5000) {
+      // 5-10km
+      baseZoom = 13.5;
+    } else if (distance > 3000) {
+      // 3-5km
       baseZoom = 14;
+    } else if (distance > 2000) {
+      // 2-3km
+      baseZoom = 14.5;
     } else if (distance > 1000) {
+      // 1-2km
       baseZoom = 15;
-    } else {
+    } else if (distance > 500) {
+      // 500m-1km
+      baseZoom = 15.5;
+    } else if (distance > 250) {
+      // 250-500m
       baseZoom = 16;
+    } else {
+      // < 250m
+      baseZoom = 16.5; // Closer zoom for very short distances
     }
 
-    // Apply platform-specific adjustments
+    // Platform-specific adjustments
     if (isPlatformIOS) {
-      // iOS typically needs slightly different zoom levels
-      baseZoom = baseZoom + 0.5;
+      // iOS typically renders maps differently
+      baseZoom += 0.2;
     }
 
-    // Adjust for very wide or tall screens
+    // Adjust for very wide or tall screens, but with smaller adjustments
     if (aspectRatio > 2.0) {
-      // Very tall screen - increase zoom slightly
-      baseZoom += 0.5;
+      // Very tall screen
+      baseZoom += 0.3;
     } else if (aspectRatio < 0.5) {
-      // Very wide screen - decrease zoom slightly
-      baseZoom -= 0.5;
+      // Very wide screen
+      baseZoom -= 0.3;
     }
 
-    return baseZoom;
+    // Add some small random variation to prevent getting stuck at edge cases
+    const smallVariation = Math.random() * 0.2 - 0.1;
+
+    return baseZoom + smallVariation;
   };
 
   /**
@@ -296,6 +346,7 @@ const useMapCamera = (): UseMapCameraReturn => {
 
   /**
    * Setup initial route overview and follow transition
+   * Modified to start in follow mode with immediate view of the user
    */
   const setupInitialRouteView = useCallback(
     (
@@ -308,29 +359,25 @@ const useMapCamera = (): UseMapCameraReturn => {
         initialRouteLoadedRef.current = true;
         isTransitioningRef.current = true;
 
-        // Show overview first
-        showRouteOverview(userLocation, destinationCoordinate, setViewMode);
+        // Start immediately in follow mode
+        setViewMode("follow");
 
-        // Then switch to navigation view after a delay
-        if (routeOverviewTimeoutRef.current) {
-          clearTimeout(routeOverviewTimeoutRef.current);
-        }
+        // Force an immediate camera update to focus on user
+        setTimeout(() => {
+          // Ensure we update the camera to focus on the user
+          updateUserCamera(userLocation, userHeading, true, "follow");
 
-        routeOverviewTimeoutRef.current = setTimeout(() => {
-          // Switch to follow mode
-          setViewMode("follow");
-
-          // Reset transition state after follow mode is set
+          // Reset transition state after the initial camera setup
           setTimeout(() => {
             isTransitioningRef.current = false;
           }, 700);
-        }, INITIAL_ROUTE_OVERVIEW_DURATION);
+        }, 300);
 
         return true;
       }
       return false;
     },
-    [showRouteOverview]
+    [updateUserCamera]
   );
 
   /**

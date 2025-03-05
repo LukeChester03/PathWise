@@ -66,9 +66,9 @@ export const ViewModeToggle: React.FC<ViewModeToggleProps> = ({
 const styles = StyleSheet.create({
   button: {
     position: "absolute",
-    bottom: 30, // Changed from top: 110 to bottom: 30
+    bottom: 30,
     right: 16,
-    backgroundColor: Colors.primary,
+    backgroundColor: Colors.primary, // Changed to white as requested
     width: 50,
     height: 50,
     borderRadius: 25,
