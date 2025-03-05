@@ -30,6 +30,7 @@ const GRID_ITEM_WIDTH = (width - 48) / 2; // 2 columns with margins
 const MyJourneyScreen = () => {
   const navigation = useNavigation<MyJourneyScreenNavigationProp>();
   const route = useRoute<MyJourneyScreenRouteProp>();
+  // We're using all stats now, including zeros
   const stats: StatItem[] = route.params?.stats || [];
 
   // Animation values
@@ -68,6 +69,9 @@ const MyJourneyScreen = () => {
 
   // Function to render a stat card in the grid
   const renderStatCard = (item: StatItem, index: number) => {
+    // Format stat value with appropriate styling
+    const displayValue = typeof item.value === "number" && item.value === 0 ? "0" : item.value;
+
     return (
       <Animated.View
         key={item.id}
@@ -102,7 +106,7 @@ const MyJourneyScreen = () => {
             <Ionicons name={item.icon} size={24} color="#fff" />
           </View>
           <View style={styles.statInfo}>
-            <Text style={styles.statValue}>{item.value}</Text>
+            <Text style={styles.statValue}>{displayValue}</Text>
             <Text style={styles.statLabel}>{item.label}</Text>
           </View>
         </LinearGradient>
@@ -110,12 +114,13 @@ const MyJourneyScreen = () => {
     );
   };
 
-  // Render the journey summary stats
+  // Render the journey summary stats - including zeros
   const renderJourneySummary = () => {
     // Find the specific stats we want to highlight
     const totalPlaces = stats.find((s) => s.label === "Places Discovered")?.value || 0;
     const totalCountries = stats.find((s) => s.label === "Countries Visited")?.value || 0;
     const explorerLevel = stats.find((s) => s.label.includes("Level"))?.value || "Level 1";
+    const xpPoints = stats.find((s) => s.label === "Explorer Score")?.value || 0;
 
     return (
       <Animated.View
@@ -138,7 +143,8 @@ const MyJourneyScreen = () => {
         <Text style={styles.summaryText}>
           You've discovered <Text style={styles.highlightText}>{totalPlaces}</Text> places across{" "}
           <Text style={styles.highlightText}>{totalCountries}</Text> countries, earning you the rank
-          of <Text style={styles.highlightText}>{explorerLevel}</Text>.
+          of <Text style={styles.highlightText}>{explorerLevel}</Text> with{" "}
+          <Text style={styles.highlightText}>{xpPoints}</Text> XP.
         </Text>
       </Animated.View>
     );
@@ -172,7 +178,7 @@ const MyJourneyScreen = () => {
         {/* Journey Summary */}
         {renderJourneySummary()}
 
-        {/* Stats Grid */}
+        {/* Stats Grid - Show all stats, including zeros */}
         <View style={styles.gridContainer}>
           {stats.map((item, index) => renderStatCard(item, index))}
         </View>

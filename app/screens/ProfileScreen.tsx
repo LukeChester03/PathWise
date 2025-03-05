@@ -22,7 +22,8 @@ import Header from "../components/Global/Header";
 import { LinearGradient } from "expo-linear-gradient";
 import { Colors, NeutralColors } from "../constants/colours";
 import { Ionicons, MaterialCommunityIcons, FontAwesome5 } from "@expo/vector-icons";
-import { fetchUserStats } from "../services/statsService";
+import { fetchUserStats, fetchUserLevelInfo } from "../services/statsService";
+import { EXPLORATION_LEVELS } from "../types/StatTypes";
 import { StatItem } from "../types/StatTypes";
 
 const { width, height } = Dimensions.get("window");
@@ -32,7 +33,16 @@ const ProfileScreen = () => {
   const [isSettingsVisible, setIsSettingsVisible] = useState(false);
   const settingsAnimation = useRef(new Animated.Value(width)).current;
   const [allUserStats, setAllUserStats] = useState<StatItem[]>([]);
-  const [randomStats, setRandomStats] = useState<StatItem[]>([]);
+  const [displayedStats, setDisplayedStats] = useState<StatItem[]>([]);
+  const [levelInfo, setLevelInfo] = useState({
+    level: 1,
+    xp: 0,
+    title: "Beginner Explorer",
+    nextLevelXP: 100,
+    progress: 0,
+    xpNeeded: 100,
+    xpProgress: 0,
+  });
 
   // Animation values
   const fadeIn = useRef(new Animated.Value(0)).current;
@@ -40,6 +50,7 @@ const ProfileScreen = () => {
   const scaleAvatar = useRef(new Animated.Value(0.8)).current;
   const rotateGear = useRef(new Animated.Value(0)).current;
   const progressAnim = useRef(new Animated.Value(0)).current;
+  const levelUpScale = useRef(new Animated.Value(1)).current;
 
   // Stats animation values
   const statsScale = useRef([
@@ -58,9 +69,6 @@ const ProfileScreen = () => {
     familyName: auth.currentUser?.displayName?.split(" ")[1] || "Doe",
     email: auth.currentUser?.email || "john.doe@example.com",
     avatar: null, // Replace with user's avatar URL if available
-    level: 3,
-    xp: 230,
-    xpToNextLevel: 500,
     joinDate: "Jan 2023",
     achievements: [
       {
@@ -101,21 +109,57 @@ const ProfileScreen = () => {
     ],
   };
 
-  // Function to get a random selection of stats
-  const getRandomStats = useCallback((stats: StatItem[], count: number = 4) => {
+  // Function to get meaningful stats
+  const getMeaningfulStats = useCallback((stats: StatItem[], count: number = 4) => {
     if (!stats || stats.length === 0) return [];
 
-    // Create a copy of the stats array and shuffle it
-    const shuffled = [...stats].sort(() => 0.5 - Math.random());
+    // Helper function to check if a stat has meaningful content
+    const isStatMeaningful = (stat: StatItem): boolean => {
+      if (typeof stat.value === "number") {
+        return stat.value > 0;
+      }
+      if (typeof stat.value === "string") {
+        // Check for "Level X" format (always show current level)
+        if (stat.value.startsWith("Level ")) {
+          return true;
+        }
+        // Check for distance values
+        if (stat.value.endsWith("km") || stat.value.endsWith("m")) {
+          return stat.value !== "0 km" && stat.value !== "0 m";
+        }
+        // Filter out empty values
+        return !["None yet", "0", "0.0"].includes(stat.value);
+      }
+      return false;
+    };
 
-    // Return the first 'count' elements or all if there are fewer
-    return shuffled.slice(0, Math.min(count, shuffled.length));
+    // Filter stats that have meaningful content
+    const meaningfulStats = stats.filter(isStatMeaningful);
+
+    // If we don't have enough stats, just return what we have
+    return meaningfulStats.slice(0, count);
   }, []);
 
   // Navigate to the journey screen with all stats
   const navigateToJourneyScreen = () => {
-    // @ts-ignore
+    // Include all stats, even those with zero values
     navigation.navigate("MyJourney", { stats: allUserStats });
+  };
+
+  // Animate the level up effect
+  const animateLevelUp = () => {
+    Animated.sequence([
+      Animated.timing(levelUpScale, {
+        toValue: 1.3,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+      Animated.timing(levelUpScale, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+    ]).start();
   };
 
   useEffect(() => {
@@ -123,13 +167,28 @@ const ProfileScreen = () => {
     const loadStats = async () => {
       try {
         const stats = await fetchUserStats();
+        const userLevelInfo = await fetchUserLevelInfo();
+
+        if (userLevelInfo) {
+          setLevelInfo(userLevelInfo);
+
+          // Animate progress bar
+          Animated.timing(progressAnim, {
+            toValue: userLevelInfo.progress / 100,
+            duration: 1500,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: false,
+          }).start();
+        }
+
         setAllUserStats(stats);
-        // Get a random selection of 4 stats
-        setRandomStats(getRandomStats(stats, 4));
+
+        // Get only meaningful stats
+        setDisplayedStats(getMeaningfulStats(stats, 4));
       } catch (error) {
         console.error("Error fetching stats:", error);
         setAllUserStats([]);
-        setRandomStats([]);
+        setDisplayedStats([]);
       }
     };
 
@@ -185,14 +244,8 @@ const ProfileScreen = () => {
       })
     ).start();
 
-    // Animate progress bar
-    const progressPercentage = userData.xp / userData.xpToNextLevel;
-    Animated.timing(progressAnim, {
-      toValue: progressPercentage,
-      duration: 1500,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: false,
-    }).start();
+    // Trigger level up animation
+    animateLevelUp();
   }, []);
 
   // Handle logout
@@ -242,6 +295,15 @@ const ProfileScreen = () => {
     inputRange: [0, 1],
     outputRange: ["0%", "100%"],
   });
+
+  // Determine if we should show the stats section at all
+  const hasStats = displayedStats.length > 0;
+
+  // Get level icon
+  const getLevelIcon = (level: number) => {
+    const levelData = EXPLORATION_LEVELS.find((l) => l.level === level);
+    return levelData ? levelData.icon : "🔍";
+  };
 
   return (
     <ScreenWithNavBar>
@@ -311,7 +373,11 @@ const ProfileScreen = () => {
                 <Animated.View
                   style={[styles.levelBadge, { transform: [{ scale: badgeTransform }] }]}
                 >
-                  <Text style={styles.levelText}>{userData.level}</Text>
+                  <Animated.Text
+                    style={[styles.levelText, { transform: [{ scale: levelUpScale }] }]}
+                  >
+                    {levelInfo.level}
+                  </Animated.Text>
                 </Animated.View>
               </Animated.View>
             </View>
@@ -322,12 +388,19 @@ const ProfileScreen = () => {
             <Text style={styles.userEmail}>{userData.email}</Text>
             <Text style={styles.joinDate}>Member since {userData.joinDate}</Text>
 
+            {/* Explorer Rank */}
+            <View style={styles.explorerRankContainer}>
+              <Text style={styles.explorerTitle}>
+                {getLevelIcon(levelInfo.level)} {levelInfo.title}
+              </Text>
+            </View>
+
             {/* Level Progress */}
             <View style={styles.levelContainer}>
               <View style={styles.levelHeader}>
-                <Text style={styles.levelTitle}>Level {userData.level}</Text>
+                <Text style={styles.levelTitle}>Level {levelInfo.level}</Text>
                 <Text style={styles.levelProgress}>
-                  {userData.xp}/{userData.xpToNextLevel} XP
+                  {levelInfo.xpProgress}/{levelInfo.xpNeeded} XP
                 </Text>
               </View>
               <View style={styles.progressBarBackground}>
@@ -341,55 +414,116 @@ const ProfileScreen = () => {
                 </Animated.View>
               </View>
               <Text style={styles.levelInfo}>
-                {userData.xpToNextLevel - userData.xp} XP to Level {userData.level + 1}
+                {levelInfo.xpNeeded - levelInfo.xpProgress} XP to Level {levelInfo.level + 1}
               </Text>
             </View>
           </Animated.View>
 
           {/* Stats Section with Grid Icon */}
+          {hasStats && (
+            <View style={styles.sectionContainer}>
+              <View style={styles.sectionTitleContainer}>
+                <View style={styles.sectionTitleLeft}>
+                  <Ionicons
+                    name="stats-chart"
+                    size={20}
+                    color={Colors.primary}
+                    style={styles.sectionIcon}
+                  />
+                  <Text style={styles.sectionTitle}>Your Stats</Text>
+                </View>
+
+                {/* Grid icon to navigate to full stats */}
+                {allUserStats.length > displayedStats.length && (
+                  <TouchableOpacity
+                    style={styles.gridButton}
+                    onPress={navigateToJourneyScreen}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons name="grid-outline" size={22} color={Colors.primary} />
+                  </TouchableOpacity>
+                )}
+              </View>
+
+              <View style={styles.statsGrid}>
+                {displayedStats.map((stat, index) => (
+                  <Animated.View
+                    key={stat.id}
+                    style={[
+                      styles.statItem,
+                      {
+                        transform: [{ scale: statsScale[index] || statsScale[0] }],
+                        opacity: statsScale[index] || statsScale[0],
+                      },
+                    ]}
+                  >
+                    <LinearGradient
+                      colors={stat.gradientColors}
+                      style={styles.statIconContainer}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                    >
+                      <Ionicons name={stat.icon} size={22} color="#fff" />
+                    </LinearGradient>
+                    <Text style={styles.statValue}>{stat.value}</Text>
+                    <Text style={styles.statLabel}>{stat.label}</Text>
+                  </Animated.View>
+                ))}
+              </View>
+            </View>
+          )}
+
+          {/* XP Insights Section */}
           <View style={styles.sectionContainer}>
             <View style={styles.sectionTitleContainer}>
               <View style={styles.sectionTitleLeft}>
                 <Ionicons
-                  name="stats-chart"
+                  name="flash"
                   size={20}
                   color={Colors.primary}
                   style={styles.sectionIcon}
                 />
-                <Text style={styles.sectionTitle}>Your Stats</Text>
+                <Text style={styles.sectionTitle}>XP Insights</Text>
               </View>
-
-              {/* Grid icon to navigate to full stats */}
-              <TouchableOpacity
-                style={styles.gridButton}
-                onPress={navigateToJourneyScreen}
-                activeOpacity={0.7}
-              >
-                <Ionicons name="grid-outline" size={22} color={Colors.primary} />
-              </TouchableOpacity>
             </View>
 
-            <View style={styles.statsGrid}>
-              {randomStats.map((stat, index) => (
-                <Animated.View
-                  key={stat.id}
-                  style={[
-                    styles.statItem,
-                    { transform: [{ scale: statsScale[index] }], opacity: statsScale[index] },
-                  ]}
-                >
-                  <LinearGradient
-                    colors={stat.gradientColors}
-                    style={styles.statIconContainer}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                  >
-                    <Ionicons name={stat.icon} size={22} color="#fff" />
-                  </LinearGradient>
-                  <Text style={styles.statValue}>{stat.value}</Text>
-                  <Text style={styles.statLabel}>{stat.label}</Text>
-                </Animated.View>
-              ))}
+            <View style={styles.xpInfoContainer}>
+              <Text style={styles.xpInfoText}>
+                Your explorer score is <Text style={styles.xpHighlight}>{levelInfo.xp} XP</Text>.
+                Earn more XP by discovering new places, visiting different countries, and
+                maintaining your daily streak.
+              </Text>
+
+              <View style={styles.xpTipsContainer}>
+                <Text style={styles.xpTipsTitle}>Quick XP Tips:</Text>
+                <View style={styles.xpTip}>
+                  <Ionicons
+                    name="earth-outline"
+                    size={16}
+                    color={Colors.primary}
+                    style={styles.xpTipIcon}
+                  />
+                  <Text style={styles.xpTipText}>Visit a new country: +50 XP</Text>
+                </View>
+                <View style={styles.xpTip}>
+                  <Ionicons
+                    name="map-outline"
+                    size={16}
+                    color={Colors.primary}
+                    style={styles.xpTipIcon}
+                  />
+                  <Text style={styles.xpTipText}>Discover a new place: +10 XP</Text>
+                </View>
+                <View style={styles.xpTip}>
+                  <Ionicons
+                    name="flame-outline"
+                    size={16}
+                    color={Colors.primary}
+                    style={styles.xpTipIcon}
+                  />
+                  <Text style={styles.xpTipText}>Maintain daily streak: +5 XP/day</Text>
+                </View>
+              </View>
             </View>
           </View>
 
@@ -673,7 +807,15 @@ const styles = StyleSheet.create({
   joinDate: {
     fontSize: 12,
     color: NeutralColors.gray500,
-    marginBottom: 20,
+    marginBottom: 14,
+  },
+  explorerRankContainer: {
+    marginBottom: 16,
+  },
+  explorerTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: Colors.primary,
   },
   levelContainer: {
     width: "100%",
@@ -788,6 +930,42 @@ const styles = StyleSheet.create({
   statLabel: {
     fontSize: 14,
     color: NeutralColors.gray600,
+  },
+  xpInfoContainer: {
+    padding: 6,
+  },
+  xpInfoText: {
+    fontSize: 15,
+    lineHeight: 22,
+    color: "#444",
+    marginBottom: 16,
+  },
+  xpHighlight: {
+    fontWeight: "bold",
+    color: Colors.primary,
+  },
+  xpTipsContainer: {
+    padding: 12,
+    backgroundColor: "rgba(74, 144, 226, 0.08)",
+    borderRadius: 12,
+  },
+  xpTipsTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#333",
+    marginBottom: 8,
+  },
+  xpTip: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 6,
+  },
+  xpTipIcon: {
+    marginRight: 8,
+  },
+  xpTipText: {
+    fontSize: 14,
+    color: "#555",
   },
   achievementsContainer: {
     marginTop: 8,

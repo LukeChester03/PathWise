@@ -1,213 +1,209 @@
-import React, { useRef, useState, useEffect } from "react";
+// components/Places/PlacesCarousel.tsx
+import React from "react";
 import {
   View,
   Text,
   StyleSheet,
-  Image,
-  TouchableOpacity,
-  Animated,
+  FlatList,
   Dimensions,
+  TouchableOpacity,
+  Image,
   Platform,
-  Easing,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { Colors, NeutralColors } from "../../constants/colours";
-import { getPlaceCardImageUrl } from "../../utils/mapImageUtils";
 
 const { width } = Dimensions.get("window");
-const VISIBLE_NEXT_CARD = width * 0.25; // How much of the next card to show (about 1/4 of the card)
-const PLACE_CARD_WIDTH = width * 0.75; // Card takes up 75% of screen width
-const PLACE_CARD_HEIGHT = 200;
-const SPACING = 10; // Reduced spacing between cards
+const CARD_WIDTH = width * 0.75;
+const CARD_HEIGHT = 200;
+const SPACING = 12;
 
-const PlacesCarousel = ({ places, onPlacePress }) => {
-  const scrollX = useRef(new Animated.Value(0)).current;
-  const flatListRef = useRef(null);
-  const [activeIndex, setActiveIndex] = useState(0);
+interface PlaceCardProps {
+  place_id?: string;
+  id?: string;
+  name?: string;
+  vicinity?: string;
+  formatted_address?: string;
+  photos?: Array<{ photo_reference?: string }>;
+  rating?: number;
+  visitedAt?: string | Date;
+  visitDate?: string | Date;
+  [key: string]: any; // Allow other properties
+}
 
-  // For the first-time entry animation
-  const entryAnimation = useRef(new Animated.Value(0)).current;
+interface PlacesCarouselProps {
+  places?: PlaceCardProps[];
+  onPlacePress: (placeId: string, place: PlaceCardProps) => void;
+}
 
-  useEffect(() => {
-    // Run entry animation when component mounts
-    Animated.timing(entryAnimation, {
-      toValue: 1,
-      duration: 800,
-      useNativeDriver: true,
-      easing: Easing.out(Easing.cubic),
-    }).start();
-  }, []);
+const PlacesCarousel: React.FC<PlacesCarouselProps> = ({ places = [], onPlacePress }) => {
+  // Ensure we have valid places to render
+  const validPlaces = Array.isArray(places)
+    ? places.filter((place) => place && (place.place_id || place.id))
+    : [];
 
-  // Update active index when scrolling
-  useEffect(() => {
-    const listener = scrollX.addListener(({ value }) => {
-      const index = Math.round(value / (PLACE_CARD_WIDTH + SPACING));
-      if (index !== activeIndex && index >= 0 && index < places.length) {
-        setActiveIndex(index);
-      }
-    });
+  if (validPlaces.length === 0) {
+    return (
+      <View style={styles.emptyContainer}>
+        <Text style={styles.emptyText}>No places available</Text>
+      </View>
+    );
+  }
 
-    return () => {
-      scrollX.removeListener(listener);
-    };
-  }, [scrollX, activeIndex, places.length]);
+  const renderPlaceCard = ({ item }: { item: PlaceCardProps }) => {
+    // Guard against null/undefined items
+    if (!item) return null;
 
-  const renderPlaceCard = ({ item, index }) => {
-    // Calculate the input range for animations
-    const inputRange = [
-      (index - 1) * (PLACE_CARD_WIDTH + SPACING),
-      index * (PLACE_CARD_WIDTH + SPACING),
-      (index + 1) * (PLACE_CARD_WIDTH + SPACING),
-    ];
+    // Ensure we have a valid ID
+    const placeId =
+      item.place_id || item.id || `place-${Math.random().toString(36).substring(2, 9)}`;
 
-    // Scale animation based on scroll position
-    const scale = scrollX.interpolate({
-      inputRange,
-      outputRange: [0.92, 1, 0.92],
-      extrapolate: "clamp",
-    });
+    // Ensure name is valid
+    const name = item.name || "Unnamed Place";
 
-    // Opacity animation based on scroll position
-    const opacity = scrollX.interpolate({
-      inputRange,
-      outputRange: [0.7, 1, 0.7],
-      extrapolate: "clamp",
-    });
+    // Handle address/vicinity
+    const address = item.vicinity || item.formatted_address || "No address available";
 
-    // Parallax effect for image
-    const translateX = scrollX.interpolate({
-      inputRange,
-      outputRange: [20, 0, -20],
-      extrapolate: "clamp",
-    });
+    // Handle photo - first try to get a valid photo reference, fallback to placeholder
+    const photo =
+      item.photos && item.photos.length > 0 && item.photos[0]?.photo_reference
+        ? `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photoreference=${item.photos[0].photo_reference}&key=AIzaSyDAGq_6eJGQpR3RcO0NrVOowel9-DxZkvA`
+        : `https://via.placeholder.com/400x200/f0f0f0/666666?text=${encodeURIComponent(
+            name.substring(0, 15)
+          )}`;
 
-    // Entry animation calculation
-    const entryTranslate = entryAnimation.interpolate({
-      inputRange: [0, 1],
-      outputRange: [200, 0],
-    });
+    // Handle rating safely
+    const rating = typeof item.rating === "number" ? item.rating : null;
 
-    const entryOpacity = entryAnimation.interpolate({
-      inputRange: [0, 0.3, 1],
-      outputRange: [0, 0.5, 1],
-    });
+    // Create safe date object or fallback
+    let visitDate: Date | null = null;
+    if (item.visitedAt) {
+      visitDate = item.visitedAt instanceof Date ? item.visitedAt : new Date(item.visitedAt);
+    } else if (item.visitDate) {
+      visitDate = item.visitDate instanceof Date ? item.visitDate : new Date(item.visitDate);
+    }
+
+    // Check if date is valid
+    if (visitDate && isNaN(visitDate.getTime())) {
+      visitDate = null;
+    }
 
     return (
-      <Animated.View
-        style={[
-          styles.placeCardContainer,
-          {
-            transform: [{ scale }, { translateY: entryTranslate }],
-            opacity: Animated.multiply(opacity, entryOpacity),
-          },
-        ]}
+      <TouchableOpacity
+        style={styles.card}
+        activeOpacity={0.9}
+        onPress={() => onPlacePress(placeId, item)}
       >
-        <TouchableOpacity
-          style={styles.placeCard}
-          onPress={() => onPlacePress(item.place_id)}
-          activeOpacity={0.95}
-        >
-          {/* Image with parallax effect */}
-          <Animated.View style={styles.imageContainer}>
-            <Animated.Image
-              source={{ uri: getPlaceCardImageUrl(item, 600, 320) }}
-              style={[
-                styles.placeImage,
-                {
-                  transform: [{ translateX }],
-                },
-              ]}
-            />
-          </Animated.View>
+        <Image source={{ uri: photo }} style={styles.cardImage} />
 
-          {/* Gradient overlay */}
-          <LinearGradient
-            colors={["rgba(0,0,0,0)", "rgba(0,0,0,0.8)"]}
-            style={styles.cardGradient}
-          />
+        <LinearGradient colors={["transparent", "rgba(0,0,0,0.9)"]} style={styles.cardGradient} />
 
-          {/* Content area */}
-          <View style={styles.cardContent}>
-            <View style={styles.cardHeader}>
-              <Text style={styles.placeName} numberOfLines={2}>
-                {item.name}
-              </Text>
-              {item.rating && (
-                <View style={styles.ratingContainer}>
-                  <Ionicons name="star" size={14} color="#FFD700" />
-                  <Text style={styles.ratingText}>{item.rating.toFixed(1)}</Text>
-                </View>
-              )}
-            </View>
-
-            {/* Category/type badges */}
-            {item.types && (
-              <View style={styles.typeContainer}>
-                {item.types.slice(0, 2).map((type, i) => (
-                  <View key={i} style={styles.typeBadge}>
-                    <Text style={styles.typeText}>{type.replace(/_/g, " ")}</Text>
-                  </View>
-                ))}
-              </View>
-            )}
+        {rating !== null && (
+          <View style={styles.ratingBadge}>
+            <Ionicons name="star" size={12} color="#FFD700" style={{ marginRight: 2 }} />
+            <Text style={styles.ratingText}>{rating.toFixed(1)}</Text>
           </View>
-        </TouchableOpacity>
-      </Animated.View>
+        )}
+
+        <View style={styles.cardContent}>
+          <Text style={styles.cardTitle} numberOfLines={1}>
+            {name}
+          </Text>
+
+          <Text style={styles.cardSubtitle} numberOfLines={1}>
+            {address}
+          </Text>
+
+          {visitDate && (
+            <View style={styles.visitedBadge}>
+              <Ionicons
+                name="checkmark-circle"
+                size={12}
+                color="#4CD964"
+                style={{ marginRight: 2 }}
+              />
+              <Text style={styles.visitedText}>Visited {formatVisitDate(visitDate)}</Text>
+            </View>
+          )}
+        </View>
+      </TouchableOpacity>
     );
   };
 
+  // Helper to format visit date
+  const formatVisitDate = (date: Date): string => {
+    try {
+      if (!date || isNaN(date.getTime())) {
+        return "";
+      }
+
+      const now = new Date();
+      // Calculate difference in milliseconds
+      const diffTime = Math.abs(now.getTime() - date.getTime());
+      // Convert to days
+      const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+      if (diffDays === 0) return "Today";
+      if (diffDays === 1) return "Yesterday";
+      if (diffDays < 7) return `${diffDays} days ago`;
+      if (diffDays < 30) {
+        const weeks = Math.floor(diffDays / 7);
+        return `${weeks} ${weeks === 1 ? "week" : "weeks"} ago`;
+      }
+
+      return date.toLocaleDateString();
+    } catch (error) {
+      console.error("Error formatting date:", error);
+      return "";
+    }
+  };
+
   return (
-    <View style={styles.container}>
-      <Animated.FlatList
-        ref={flatListRef}
-        data={places}
-        keyExtractor={(item) => item.place_id.toString()}
-        renderItem={renderPlaceCard}
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.carouselContent}
-        snapToInterval={PLACE_CARD_WIDTH + SPACING}
-        decelerationRate="fast"
-        onScroll={Animated.event([{ nativeEvent: { contentOffset: { x: scrollX } } }], {
-          useNativeDriver: false,
-        })}
-        scrollEventThrottle={16}
-        snapToAlignment="center"
-        bounces={true}
-      />
-    </View>
+    <FlatList
+      data={validPlaces}
+      keyExtractor={(item) =>
+        item && (item.place_id || item.id)
+          ? (item.place_id || item.id).toString()
+          : `place-${Math.random().toString(36).substring(2, 9)}`
+      }
+      renderItem={renderPlaceCard}
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={styles.carouselContainer}
+      snapToInterval={CARD_WIDTH + SPACING}
+      decelerationRate="fast"
+      snapToAlignment="center"
+    />
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    marginBottom: 20,
-  },
-  carouselContent: {
-    // This properly centers the first card and shows about 1/4 of the next card
-    paddingHorizontal: (width - PLACE_CARD_WIDTH - VISIBLE_NEXT_CARD) / 2,
+  carouselContainer: {
     paddingVertical: 8,
+    paddingRight: SPACING,
   },
-  placeCardContainer: {
-    width: PLACE_CARD_WIDTH,
-    height: PLACE_CARD_HEIGHT,
-    marginRight: SPACING,
-  },
-  placeCard: {
-    width: "100%",
-    height: "100%",
-    borderRadius: 20,
+  card: {
+    width: CARD_WIDTH,
+    height: CARD_HEIGHT,
+    marginLeft: SPACING,
+    borderRadius: 16,
     overflow: "hidden",
-    position: "relative",
+    backgroundColor: "#f0f0f0",
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 6,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
   },
-  imageContainer: {
+  cardImage: {
     width: "100%",
-    height: "100%",
-    overflow: "hidden",
-  },
-  placeImage: {
-    width: "110%", // Slightly larger for parallax effect
     height: "100%",
     resizeMode: "cover",
   },
@@ -216,8 +212,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    height: "100%",
-    borderRadius: 20,
+    height: "60%",
   },
   cardContent: {
     position: "absolute",
@@ -226,61 +221,56 @@ const styles = StyleSheet.create({
     right: 0,
     padding: 16,
   },
-  cardHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    marginBottom: 6,
-  },
-  placeName: {
+  cardTitle: {
     fontSize: 18,
     fontWeight: "bold",
     color: "#fff",
-    flex: 1,
-    marginRight: 8,
+    marginBottom: 4,
   },
-  placeInfo: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 10,
-  },
-  infoIcon: {
-    marginRight: 4,
-  },
-  placeVicinity: {
+  cardSubtitle: {
     fontSize: 14,
-    color: "rgba(255, 255, 255, 0.9)",
-    flex: 1,
+    color: "rgba(255, 255, 255, 0.8)",
+    marginBottom: 8,
   },
-  ratingContainer: {
+  ratingBadge: {
+    position: "absolute",
+    top: 12,
+    right: 12,
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    backgroundColor: "rgba(0, 0, 0, 0.6)",
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 12,
   },
   ratingText: {
-    fontSize: 12,
     color: "#fff",
-    fontWeight: "600",
-    marginLeft: 4,
+    fontSize: 12,
+    fontWeight: "bold",
   },
-  typeContainer: {
+  visitedBadge: {
     flexDirection: "row",
-  },
-  typeBadge: {
+    alignItems: "center",
     backgroundColor: "rgba(255, 255, 255, 0.2)",
-    paddingHorizontal: 10,
+    paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 12,
-    marginRight: 8,
+    alignSelf: "flex-start",
   },
-  typeText: {
-    color: "white",
+  visitedText: {
+    color: "#fff",
     fontSize: 12,
-    fontWeight: "500",
-    textTransform: "capitalize",
+  },
+  emptyContainer: {
+    height: CARD_HEIGHT,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#f9f9f9",
+    borderRadius: 16,
+  },
+  emptyText: {
+    fontSize: 16,
+    color: NeutralColors.gray500,
   },
 });
 

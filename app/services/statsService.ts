@@ -13,8 +13,17 @@ import {
 } from "firebase/firestore";
 import { auth, db } from "../config/firebaseConfig";
 import { StatItem, UserStatsData, EXPLORATION_LEVELS, STAT_COLORS } from "../types/StatTypes";
-// Remove or install expo-location if needed
-// import * as Location from "expo-location";
+import {
+  awardVisitXP,
+  awardStreakXP,
+  checkPlacesMilestone,
+  checkCountriesMilestone,
+  checkContinentsMilestone,
+  awardDistanceXP,
+  awardNewCategoryXP,
+  calculateLevelFromXP,
+  getLevelTitle,
+} from "./Levelling/xpService";
 
 // Constants
 const DAY_IN_MS = 86400000; // 24 hours in milliseconds
@@ -156,6 +165,12 @@ function countContinents(countries: string[]): number {
  * Calculate exploration score based on various factors
  */
 function calculateExplorationScore(statsData: UserStatsData): number {
+  // If we already have an exploration score, use that as the base
+  if (statsData.explorationScore) {
+    return statsData.explorationScore;
+  }
+
+  // Otherwise, calculate from scratch for backward compatibility
   let score = 0;
 
   // Base points from places and countries
@@ -185,31 +200,6 @@ function calculateExplorationScore(statsData: UserStatsData): number {
 }
 
 /**
- * Get exploration level based on score
- */
-function getExplorationLevel(score: number): number {
-  let level = 1;
-
-  for (const levelData of EXPLORATION_LEVELS) {
-    if (score >= levelData.requiredScore) {
-      level = levelData.level;
-    } else {
-      break;
-    }
-  }
-
-  return level;
-}
-
-/**
- * Get level title based on level number
- */
-function getLevelTitle(level: number): string {
-  const levelData = EXPLORATION_LEVELS.find((l) => l.level === level);
-  return levelData ? levelData.title : "Unknown";
-}
-
-/**
  * Fetches the user's stats from Firestore with extended stats
  */
 export const fetchUserStats = async (): Promise<StatItem[]> => {
@@ -228,9 +218,9 @@ export const fetchUserStats = async (): Promise<StatItem[]> => {
       const statsData = statsDoc.data() as UserStatsData;
 
       // Calculate exploration level if not already calculated
-      if (!statsData.explorationLevel) {
+      if (!statsData.explorationLevel || !statsData.explorationScore) {
         const score = calculateExplorationScore(statsData);
-        const level = getExplorationLevel(score);
+        const level = calculateLevelFromXP(score);
 
         // Update the exploration level and score in Firebase
         await updateDoc(statsDocRef, {
@@ -510,15 +500,21 @@ export const updateDayStreak = async (): Promise<number> => {
     const timeDifference = now.getTime() - lastLogin.getTime();
 
     let newStreak = statsData.dayStreak || 0;
+    let streakUpdated = false;
 
     if (timeDifference > DAY_IN_MS * 2) {
       // If more than 2 days since last login, reset streak
       newStreak = 1;
       console.log("Streak reset: More than 2 days since last login");
+      streakUpdated = true;
     } else if (timeDifference > DAY_IN_MS) {
       // If between 1-2 days, increment streak
       newStreak += 1;
       console.log("Streak incremented: New day login");
+      streakUpdated = true;
+
+      // Award XP for streak
+      await awardStreakXP(newStreak);
     } else {
       // Same day login, no streak change
       console.log("Same day login, streak unchanged");
@@ -585,12 +581,15 @@ export const processVisitedPlace = async (placeData: {
     // Check if this is a new country
     const isNewCountry = !visitedCountries.includes(placeData.country);
 
+    // Check if this is a new category
+    const category = placeData.category || "Other";
+    const isNewCategory = !Object.keys(visitedCategories).includes(category);
+
     // Update city stats
     const city = placeData.city || "Unknown";
     visitedCities[city] = (visitedCities[city] || 0) + 1;
 
     // Update category stats
-    const category = placeData.category || "Other";
     visitedCategories[category] = (visitedCategories[category] || 0) + 1;
 
     // Find top city and category
@@ -644,6 +643,7 @@ export const processVisitedPlace = async (placeData: {
     const visitDate = visitTime instanceof Date ? visitTime : visitTime.toDate();
     const dayOfWeek = visitDate.getDay(); // 0 = Sunday, 6 = Saturday
     const hourOfDay = visitDate.getHours(); // 0-23
+    const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
 
     if (weekdayVisits[dayOfWeek] !== undefined) {
       weekdayVisits[dayOfWeek]++;
@@ -732,18 +732,29 @@ export const processVisitedPlace = async (placeData: {
       console.log(`New country visited: ${placeData.country}`);
     }
 
-    // Calculate new exploration score and level
-    const newStatsData = { ...statsData, ...updates };
-    const score = calculateExplorationScore(newStatsData);
-    const level = getExplorationLevel(score);
+    // Award XP for this visit
+    await awardVisitXP(isNewCountry, isWeekend);
 
-    // Include score and level in updates
-    updates.explorationScore = score;
+    // Award XP for new category if applicable
+    if (isNewCategory) {
+      await awardNewCategoryXP(category);
+    }
 
-    // Check if level up happened
-    if (level > (statsData.explorationLevel || 1)) {
-      updates.explorationLevel = level;
-      console.log(`Level up! New level: ${level} - ${getLevelTitle(level)}`);
+    // Award XP for distance traveled
+    if (newDistance > 0) {
+      await awardDistanceXP(newDistance, (statsData.distanceTraveled || 0) + newDistance);
+    }
+
+    // Check milestones and award XP for them
+    await checkPlacesMilestone(updates.placesDiscovered);
+
+    if (isNewCountry) {
+      await checkCountriesMilestone(updates.countriesVisited);
+
+      // Check if continent milestone was reached
+      if (continents > (statsData.continentsVisited || 0)) {
+        await checkContinentsMilestone(continents);
+      }
     }
 
     // Update stats
@@ -913,6 +924,9 @@ export const unlockAchievement = async (
       lastUpdated: new Date(),
     });
 
+    // Award XP for the achievement - standard 50 XP
+    await awardVisitXP(false, false);
+
     console.log(`Achievement unlocked: ${achievementName}`);
     return true;
   } catch (error) {
@@ -1006,5 +1020,73 @@ export const checkAndAwardMilestones = async (): Promise<string[]> => {
   } catch (error) {
     console.error("Error checking milestones:", error);
     return [];
+  }
+};
+
+/**
+ * Get user's current XP and level information
+ */
+export const fetchUserLevelInfo = async () => {
+  try {
+    const currentUser = auth.currentUser;
+    if (!currentUser) {
+      return null;
+    }
+
+    const statsDocRef = doc(db, "userStats", currentUser.uid);
+    const statsDoc = await getDoc(statsDocRef);
+
+    if (!statsDoc.exists()) {
+      await createDefaultUserStatsDocument(currentUser.uid);
+      return {
+        level: 1,
+        xp: 0,
+        title: "Beginner Explorer",
+        nextLevelXP: 100,
+        progress: 0,
+      };
+    }
+
+    const statsData = statsDoc.data() as UserStatsData;
+
+    const currentLevel = statsData.explorationLevel || 1;
+    const currentXP = statsData.explorationScore || 0;
+
+    // Find current and next level data
+    const currentLevelData = EXPLORATION_LEVELS.find((level) => level.level === currentLevel);
+    const nextLevelData = EXPLORATION_LEVELS.find((level) => level.level === currentLevel + 1);
+
+    // If at max level or missing data
+    if (!currentLevelData || !nextLevelData) {
+      return {
+        level: currentLevel,
+        xp: currentXP,
+        title: getLevelTitle(currentLevel),
+        nextLevelXP: 0,
+        progress: 100,
+      };
+    }
+
+    // Calculate XP needed for next level
+    const nextLevelXP = nextLevelData.requiredScore;
+    const currentLevelXP = currentLevelData.requiredScore;
+    const xpNeeded = nextLevelXP - currentLevelXP;
+    const xpProgress = currentXP - currentLevelXP;
+    const progress = Math.min(Math.round((xpProgress / xpNeeded) * 100), 100);
+
+    return {
+      level: currentLevel,
+      xp: currentXP,
+      title: currentLevelData.title,
+      nextLevelXP: nextLevelXP,
+      progress: progress,
+      xpForCurrentLevel: currentLevelXP,
+      xpForNextLevel: nextLevelXP,
+      xpNeeded: xpNeeded,
+      xpProgress: xpProgress,
+    };
+  } catch (error) {
+    console.error("Error fetching user level info:", error);
+    return null;
   }
 };
