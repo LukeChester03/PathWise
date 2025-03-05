@@ -22,7 +22,7 @@ interface ExploreCardProps {
   placeDescription?: string;
   placeImage?: string;
   travelTime: string;
-  rating?: number;
+  rating?: string | number;
   onStartJourney: () => void;
   onCancel: () => void;
   visible?: boolean;
@@ -345,7 +345,11 @@ const ExploreCard: React.FC<ExploreCardProps> = ({
                 </View>
                 <View style={styles.ratingContainer}>
                   <MaterialIcons name="star" size={18} color="#FFD700" />
-                  <Text style={styles.ratingText}>{rating.toFixed(1)}</Text>
+                  {typeof rating === "number" ? (
+                    <Text style={styles.ratingText}>{rating.toFixed(1)}</Text>
+                  ) : (
+                    <Text style={styles.ratingText}>{rating || "No Rating"}</Text>
+                  )}
                 </View>
               </View>
             </Animated.View>
