@@ -201,7 +201,7 @@ const MyJourneyScreen = () => {
 
           <TouchableOpacity
             style={styles.exploreButton}
-            onPress={() => navigation.navigate("Explore")}
+            onPress={() => navigation.navigate("Discover")}
           >
             <LinearGradient
               colors={["#4a6aff", "#2948ff"]}
