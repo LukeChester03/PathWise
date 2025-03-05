@@ -31,9 +31,7 @@
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
-      "@react-native-firebase/app",
-      "@react-native-firebase/auth",
-      "@react-native-firebase/crashlytics",
+      "./manifest-fix-plugin.js",
       "expo-router",
       [
         "expo-splash-screen",
@@ -53,7 +51,10 @@
           "android": {
             "compileSdkVersion": 35,
             "targetSdkVersion": 34,
-            "buildToolsVersion": "34.0.0"
+            "buildToolsVersion": "34.0.0",
+            "kotlinVersion": "1.8.0",
+            "androidXCore": "1.10.0",
+            "androidXFragment": "1.5.0"
           }
         }
       ]
