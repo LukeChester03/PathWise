@@ -41,6 +41,7 @@ export interface UseMapCameraReturn {
   initialRouteLoadedRef: React.MutableRefObject<boolean>;
   lastCameraHeadingRef: React.MutableRefObject<number>;
   cameraUpdateTimeoutRef: React.MutableRefObject<NodeJS.Timeout | null>;
+  isTransitioningRef: React.MutableRefObject<boolean>;
 }
 
 const useMapCamera = (): UseMapCameraReturn => {
@@ -53,6 +54,7 @@ const useMapCamera = (): UseMapCameraReturn => {
   const lastCameraHeadingRef = useRef<number>(0);
   const lastZoomLevelRef = useRef<number>(NAVIGATION_ZOOM_LEVEL);
   const initialRouteLoadedRef = useRef<boolean>(false);
+  const isTransitioningRef = useRef<boolean>(false);
 
   /**
    * Show route overview to display the entire route
@@ -64,6 +66,9 @@ const useMapCamera = (): UseMapCameraReturn => {
       setViewMode: (mode: string) => void
     ): void => {
       if (!mapRef.current || !userLocation || !destinationCoordinate) return;
+
+      // Set transition state to true
+      isTransitioningRef.current = true;
 
       // Set view mode to overview
       setViewMode("overview");
@@ -109,6 +114,11 @@ const useMapCamera = (): UseMapCameraReturn => {
       // Animate camera with longer duration for smoother transition
       mapRef.current.animateCamera(camera, { duration: 1000 });
 
+      // Set transition state back to false after animation completes
+      setTimeout(() => {
+        isTransitioningRef.current = false;
+      }, 1100);
+
       // Update the last camera update time to avoid immediate camera changes
       lastCameraUpdateTimeRef.current = Date.now();
     },
@@ -127,6 +137,11 @@ const useMapCamera = (): UseMapCameraReturn => {
 
       // If a camera update is already pending, skip unless forced
       if (cameraUpdatePendingRef.current && !forceUpdate) return false;
+
+      // Set transition state to true for forced updates (like mode switches)
+      if (forceUpdate) {
+        isTransitioningRef.current = true;
+      }
 
       // Throttle camera updates to prevent jerky motion
       const now = Date.now();
@@ -178,6 +193,13 @@ const useMapCamera = (): UseMapCameraReturn => {
       // Animate camera with slower duration for smoother transition
       mapRef.current.animateCamera(camera, { duration: 600 });
 
+      // Set transition state back to false after animation completes if this was a forced update
+      if (forceUpdate) {
+        setTimeout(() => {
+          isTransitioningRef.current = false;
+        }, 700);
+      }
+
       // Update tracking variables
       lastCameraUpdateTimeRef.current = now;
       lastCameraHeadingRef.current = smoothedHeading;
@@ -220,6 +242,7 @@ const useMapCamera = (): UseMapCameraReturn => {
     ): boolean => {
       if (!initialRouteLoadedRef.current && destinationCoordinate) {
         initialRouteLoadedRef.current = true;
+        isTransitioningRef.current = true;
 
         // Show overview first
         showRouteOverview(userLocation, destinationCoordinate, setViewMode);
@@ -232,6 +255,11 @@ const useMapCamera = (): UseMapCameraReturn => {
         routeOverviewTimeoutRef.current = setTimeout(() => {
           // Switch to follow mode
           setViewMode("follow");
+
+          // Reset transition state after follow mode is set
+          setTimeout(() => {
+            isTransitioningRef.current = false;
+          }, 700);
         }, INITIAL_ROUTE_OVERVIEW_DURATION);
 
         return true;
@@ -262,6 +290,7 @@ const useMapCamera = (): UseMapCameraReturn => {
     initialRouteLoadedRef.current = false;
     lastCameraHeadingRef.current = 0;
     cameraUpdatePendingRef.current = false;
+    isTransitioningRef.current = false;
     cleanupCameraTimeouts();
   }, [cleanupCameraTimeouts]);
 
@@ -276,6 +305,7 @@ const useMapCamera = (): UseMapCameraReturn => {
     initialRouteLoadedRef,
     lastCameraHeadingRef,
     cameraUpdateTimeoutRef,
+    isTransitioningRef,
   };
 };
 

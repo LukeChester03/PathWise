@@ -18,13 +18,8 @@ import useMapPlaces from "../../hooks/Map/useMapPlaces";
 import useMapNavigation from "../../hooks/Map/useMapNavigation";
 
 // Import UI components
-import {
-  ViewModeToggle,
-  CardToggleArrow,
-  EndJourneyButton,
-  DirectionIndicator,
-} from "./MapControls";
-
+import { CardToggleArrow, EndJourneyButton, DirectionIndicator } from "./MapControls";
+import { ViewModeToggle } from "./ViewModeToggle";
 // Import cards
 import ExploreCard from "./ExploreCard";
 import DetailsCard from "./DetailsCard";
@@ -393,7 +388,6 @@ const Map: React.FC = () => {
         initialRegion={location.region || undefined}
         customMapStyle={customMapStyle}
         showsPointsOfInterest={false}
-        showsUserLocation
         provider={PROVIDER_DEFAULT}
         followsUserLocation={false} // We'll handle camera updates manually
         rotateEnabled={true}
@@ -418,6 +412,17 @@ const Map: React.FC = () => {
           }
         }}
       >
+        {location.userLocation && location.userHeading !== null && (
+          <Marker
+            coordinate={location.userLocation}
+            anchor={{ x: 0.5, y: 0.5 }}
+            rotation={location.userHeading}
+            flat={true}
+            zIndex={1000} // Make sure it's above other markers
+          >
+            <DirectionIndicator />
+          </Marker>
+        )}
         {/* Display radius circle around user location */}
         {location.userLocation && (
           <Circle
