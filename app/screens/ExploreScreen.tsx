@@ -103,30 +103,43 @@ const ExploreScreen = ({ navigation }) => {
         setMyPlaces([]);
       } else {
         // Transform Firestore documents to place objects
-        const userPlacesData = querySnapshot.docs.map((doc) => {
-          const data = doc.data();
+        const userPlacesData = querySnapshot.docs
+          .filter((doc) => {
+            // Filter out the initialization document
+            const data = doc.data();
+            return !data._isInitDocument;
+          })
+          .map((doc) => {
+            const data = doc.data();
 
-          // Include ALL properties including rating
-          return {
-            ...data, // Keep all original properties
-            id: doc.id,
-            place_id: data.place_id,
-            name: data.name,
-            vicinity: data.vicinity || "",
-            description: data.description || "",
-            geometry: data.geometry,
-            photos: data.photos || [],
-            // Make sure rating info is included
-            rating: data.rating || null,
-            // Date formatting
-            visitedAt: data.visitedAt,
-            visitDate: data.visitedAt ? new Date(data.visitedAt) : new Date(),
-          };
-        });
+            // Include ALL properties including rating
+            return {
+              ...data, // Keep all original properties
+              id: doc.id,
+              place_id: data.place_id || doc.id,
+              name: data.name,
+              vicinity: data.vicinity || "",
+              description: data.description || "",
+              geometry: data.geometry,
+              photos: data.photos || [],
+              // Make sure rating info is included
+              rating: data.rating || null,
+              // Date formatting
+              visitedAt: data.visitedAt,
+              visitDate: data.visitedAt ? new Date(data.visitedAt) : new Date(),
+              isVisited: true, // Explicitly mark as visited
+            };
+          });
 
-        console.log(`Found ${userPlacesData.length} places in Firestore`);
-        setMyPlaces(userPlacesData);
-        setNoMyPlacesFound(false);
+        console.log(`Found ${userPlacesData.length} places in Firestore (excluding init doc)`);
+
+        if (userPlacesData.length === 0) {
+          setNoMyPlacesFound(true);
+          setMyPlaces([]);
+        } else {
+          setMyPlaces(userPlacesData);
+          setNoMyPlacesFound(false);
+        }
       }
 
       setLoadingMyPlaces(false);

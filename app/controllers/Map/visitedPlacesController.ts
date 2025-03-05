@@ -65,7 +65,10 @@ const normalizePlaceData = (place: any) => {
  */
 export const isPlaceVisited = async (placeId: string): Promise<boolean> => {
   try {
-    if (!placeId) return false;
+    if (!placeId) {
+      console.log("Cannot check if visited: no placeId provided");
+      return false;
+    }
 
     const currentUser = auth.currentUser;
     if (!currentUser) {
@@ -77,16 +80,23 @@ export const isPlaceVisited = async (placeId: string): Promise<boolean> => {
     const placeDocRef = doc(db, "users", currentUser.uid, "visitedPlaces", placeId);
     const placeDoc = await getDoc(placeDocRef);
 
-    // If place exists in Firestore, it's been visited
+    // If place exists in Firestore and isn't the initialization document, it's been visited
     if (placeDoc.exists()) {
-      return true;
+      const data = placeDoc.data();
+      // Skip the initialization document
+      if (data && !data._isInitDocument) {
+        return true;
+      }
     }
 
-    // If not in Firestore, try local storage (legacy support)
+    // If not in Firestore, try local storage as fallback
     const visitedPlacesJSON = await AsyncStorage.getItem("visitedPlaces");
     if (visitedPlacesJSON) {
       const visitedPlaces = JSON.parse(visitedPlacesJSON);
-      return visitedPlaces.some((place: any) => place.place_id === placeId);
+      const isVisitedLocal = visitedPlaces.some((place: any) => place.place_id === placeId);
+      if (isVisitedLocal) {
+        return true;
+      }
     }
 
     return false;
@@ -101,6 +111,7 @@ export const isPlaceVisited = async (placeId: string): Promise<boolean> => {
  * @param place The place to save as visited
  * @returns Boolean indicating success
  */
+// controllers/Map/visitedPlacesController.ts - saveVisitedPlace function (only need to modify this function)
 export const saveVisitedPlace = async (place: any): Promise<boolean> => {
   try {
     // Validate input
@@ -121,10 +132,12 @@ export const saveVisitedPlace = async (place: any): Promise<boolean> => {
       return false;
     }
 
+    console.log(`Attempting to save place: ${place.name} (ID: ${placeId})`);
+
     // Check if already visited to avoid duplicates
     const alreadyVisited = await isPlaceVisited(placeId);
     if (alreadyVisited) {
-      console.log(`Place ${place.name || "Unknown"} already visited, not saving`);
+      console.log(`Place ${place.name || "Unknown"} already visited, not saving again`);
       return true; // Consider this a success since the end state is as expected
     }
 
@@ -133,11 +146,13 @@ export const saveVisitedPlace = async (place: any): Promise<boolean> => {
     const normalizedPlace = normalizePlaceData({
       ...place,
       visitedAt: visitTime.toISOString(),
+      isVisited: true, // Explicitly set this flag
     });
 
     // Save to Firestore
     const placeDocRef = doc(db, "users", currentUser.uid, "visitedPlaces", placeId);
     await setDoc(placeDocRef, normalizedPlace);
+    console.log(`Successfully saved place to Firestore: ${placeId}`);
 
     // Also update in local storage for legacy support
     try {
@@ -148,6 +163,7 @@ export const saveVisitedPlace = async (place: any): Promise<boolean> => {
       if (!visitedPlaces.some((p: any) => p.place_id === placeId)) {
         visitedPlaces.push(normalizedPlace);
         await AsyncStorage.setItem("visitedPlaces", JSON.stringify(visitedPlaces));
+        console.log(`Added place to local storage cache: ${placeId}`);
       }
     } catch (localStorageError) {
       console.warn("Error updating local storage:", localStorageError);
@@ -173,7 +189,7 @@ export const saveVisitedPlace = async (place: any): Promise<boolean> => {
       showXPAward(10, `Discovered ${normalizedPlace.name}`);
     }, 500);
 
-    console.log(`Saved ${normalizedPlace.name} as visited`);
+    console.log(`Successfully saved ${normalizedPlace.name} as visited`);
     return true;
   } catch (error) {
     console.error("Error saving visited place:", error);

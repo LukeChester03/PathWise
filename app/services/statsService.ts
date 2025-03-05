@@ -1044,6 +1044,8 @@ export const fetchUserLevelInfo = async () => {
         title: "Beginner Explorer",
         nextLevelXP: 100,
         progress: 0,
+        xpNeeded: 100, // Added required property
+        xpProgress: 0, // Added required property
       };
     }
 
@@ -1064,6 +1066,8 @@ export const fetchUserLevelInfo = async () => {
         title: getLevelTitle(currentLevel),
         nextLevelXP: 0,
         progress: 100,
+        xpNeeded: 0, // Added required property
+        xpProgress: 0, // Added required property
       };
     }
 

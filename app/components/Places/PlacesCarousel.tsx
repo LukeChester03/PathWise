@@ -29,24 +29,55 @@ interface PlaceCardProps {
   rating?: number;
   visitedAt?: string | Date;
   visitDate?: string | Date;
+  isVisited?: boolean;
   [key: string]: any; // Allow other properties
 }
 
 interface PlacesCarouselProps {
   places?: PlaceCardProps[];
   onPlacePress: (placeId: string, place: PlaceCardProps) => void;
+  showOnlyVisited?: boolean; // New prop to control filtering
+  sectionType?: "visited" | "nearby" | "saved"; // Section type to adjust behavior
 }
 
-const PlacesCarousel: React.FC<PlacesCarouselProps> = ({ places = [], onPlacePress }) => {
-  // Ensure we have valid places to render
+const PlacesCarousel: React.FC<PlacesCarouselProps> = ({
+  places = [],
+  onPlacePress,
+  showOnlyVisited = false,
+  sectionType = "nearby",
+}) => {
+  // Filter based on valid ID and visited status if required
   const validPlaces = Array.isArray(places)
-    ? places.filter((place) => place && (place.place_id || place.id))
+    ? places.filter((place) => {
+        // Always ensure we have a valid ID
+        if (!place || (!place.place_id && !place.id)) return false;
+
+        // For visited/saved sections, strictly enforce visit status
+        if (
+          (sectionType === "visited" || sectionType === "saved") &&
+          !(place.isVisited === true || place.visitedAt || place.visitDate)
+        ) {
+          return false;
+        }
+
+        // For nearby locations with showOnlyVisited, filter by visit status
+        if (sectionType === "nearby" && showOnlyVisited) {
+          return place.isVisited === true || place.visitedAt || place.visitDate;
+        }
+
+        // Otherwise include the place
+        return true;
+      })
     : [];
 
   if (validPlaces.length === 0) {
     return (
       <View style={styles.emptyContainer}>
-        <Text style={styles.emptyText}>No places available</Text>
+        <Text style={styles.emptyText}>
+          {sectionType === "visited" || sectionType === "saved"
+            ? "No visited places yet"
+            : "No places available"}
+        </Text>
       </View>
     );
   }
@@ -76,12 +107,17 @@ const PlacesCarousel: React.FC<PlacesCarouselProps> = ({ places = [], onPlacePre
     // Handle rating safely
     const rating = typeof item.rating === "number" ? item.rating : null;
 
+    // Check if the place has been visited (using multiple possible indicators)
+    const isVisited = item.isVisited === true || !!item.visitedAt || !!item.visitDate;
+
     // Create safe date object or fallback
     let visitDate: Date | null = null;
-    if (item.visitedAt) {
-      visitDate = item.visitedAt instanceof Date ? item.visitedAt : new Date(item.visitedAt);
-    } else if (item.visitDate) {
-      visitDate = item.visitDate instanceof Date ? item.visitDate : new Date(item.visitDate);
+    if (isVisited) {
+      if (item.visitedAt) {
+        visitDate = item.visitedAt instanceof Date ? item.visitedAt : new Date(item.visitedAt);
+      } else if (item.visitDate) {
+        visitDate = item.visitDate instanceof Date ? item.visitDate : new Date(item.visitDate);
+      }
     }
 
     // Check if date is valid
@@ -91,13 +127,20 @@ const PlacesCarousel: React.FC<PlacesCarouselProps> = ({ places = [], onPlacePre
 
     return (
       <TouchableOpacity
-        style={styles.card}
+        style={[styles.card, isVisited && styles.visitedCard]}
         activeOpacity={0.9}
         onPress={() => onPlacePress(placeId, item)}
       >
         <Image source={{ uri: photo }} style={styles.cardImage} />
 
         <LinearGradient colors={["transparent", "rgba(0,0,0,0.9)"]} style={styles.cardGradient} />
+
+        {/* Show "Visited" indicator in the top left for better visibility */}
+        {isVisited && (
+          <View style={styles.visitedIndicator}>
+            <Ionicons name="checkmark-circle" size={16} color="#4CD964" />
+          </View>
+        )}
 
         {rating !== null && (
           <View style={styles.ratingBadge}>
@@ -115,14 +158,9 @@ const PlacesCarousel: React.FC<PlacesCarouselProps> = ({ places = [], onPlacePre
             {address}
           </Text>
 
-          {visitDate && (
+          {isVisited && visitDate && (
             <View style={styles.visitedBadge}>
-              <Ionicons
-                name="checkmark-circle"
-                size={12}
-                color="#4CD964"
-                style={{ marginRight: 2 }}
-              />
+              <Ionicons name="time-outline" size={12} color="#4CD964" style={{ marginRight: 2 }} />
               <Text style={styles.visitedText}>Visited {formatVisitDate(visitDate)}</Text>
             </View>
           )}
@@ -201,6 +239,20 @@ const styles = StyleSheet.create({
         elevation: 3,
       },
     }),
+  },
+  visitedCard: {
+    // Add subtle visual indicator for visited places
+    borderWidth: 2,
+    borderColor: Colors.primary + "40", // Primary color with transparency
+  },
+  visitedIndicator: {
+    position: "absolute",
+    top: 12,
+    left: 12,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    borderRadius: 12,
+    padding: 4,
+    zIndex: 10,
   },
   cardImage: {
     width: "100%",

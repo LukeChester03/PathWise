@@ -14,7 +14,7 @@ import {
   ImageBackground,
 } from "react-native";
 import { signOut } from "firebase/auth";
-import { auth } from "../config/firebaseConfig";
+import { auth, db } from "../config/firebaseConfig";
 import { useNavigation, NavigationProp } from "@react-navigation/native";
 import { RootStackParamList } from "../navigation/types";
 import ScreenWithNavBar from "../components/Global/ScreenWithNavbar";
@@ -23,6 +23,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Colors, NeutralColors } from "../constants/colours";
 import { Ionicons, MaterialCommunityIcons, FontAwesome5 } from "@expo/vector-icons";
 import { fetchUserStats, fetchUserLevelInfo } from "../services/statsService";
+import { fetchUserProfile, UserProfile } from "../services/userService"; // Import existing service
 import { EXPLORATION_LEVELS } from "../types/StatTypes";
 import { StatItem } from "../types/StatTypes";
 
@@ -44,6 +45,14 @@ const ProfileScreen = () => {
     xpProgress: 0,
   });
 
+  // User profile state
+  const [userProfile, setUserProfile] = useState<UserProfile & { joinDate: string }>({
+    name: "User",
+    email: auth.currentUser?.email || "",
+    profileImage: null,
+    joinDate: "Jan 2023",
+  });
+
   // Animation values
   const fadeIn = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(50)).current;
@@ -63,13 +72,8 @@ const ProfileScreen = () => {
   // Badge animation value
   const badgeBounce = useRef(new Animated.Value(0)).current;
 
-  // User data (would be fetched from Firebase in a real app)
+  // User achievements data
   const userData = {
-    firstName: auth.currentUser?.displayName?.split(" ")[0] || "John",
-    familyName: auth.currentUser?.displayName?.split(" ")[1] || "Doe",
-    email: auth.currentUser?.email || "john.doe@example.com",
-    avatar: null, // Replace with user's avatar URL if available
-    joinDate: "Jan 2023",
     achievements: [
       {
         id: 1,
@@ -163,6 +167,23 @@ const ProfileScreen = () => {
   };
 
   useEffect(() => {
+    // Load user profile using the existing service
+    const loadUserProfile = async () => {
+      try {
+        const profile = await fetchUserProfile(navigation);
+
+        // Update user profile state with the data from the service
+        setUserProfile({
+          name: profile.name || "User",
+          email: profile.email || auth.currentUser?.email || "",
+          profileImage: profile.profileImage || null,
+          joinDate: "Jan 2023", // This could be fetched from Firestore if available
+        });
+      } catch (error) {
+        console.error("Error loading user profile:", error);
+      }
+    };
+
     // Fetch user stats from Firebase
     const loadStats = async () => {
       try {
@@ -192,6 +213,8 @@ const ProfileScreen = () => {
       }
     };
 
+    // Load both user profile and stats
+    loadUserProfile();
     loadStats();
 
     // Start animations when component mounts
@@ -305,6 +328,17 @@ const ProfileScreen = () => {
     return levelData ? levelData.icon : "🔍";
   };
 
+  // Function to get initials from name for avatar placeholder
+  const getInitials = (name: string) => {
+    if (!name) return "U";
+    return name
+      .split(" ")
+      .map((part) => part[0])
+      .join("")
+      .toUpperCase()
+      .slice(0, 2);
+  };
+
   return (
     <ScreenWithNavBar>
       <SafeAreaView style={styles.safeArea}>
@@ -355,8 +389,8 @@ const ProfileScreen = () => {
           >
             <View style={styles.avatarContainer}>
               <Animated.View style={{ transform: [{ scale: scaleAvatar }] }}>
-                {userData.avatar ? (
-                  <Image source={{ uri: userData.avatar }} style={styles.avatar} />
+                {userProfile.profileImage ? (
+                  <Image source={{ uri: userProfile.profileImage }} style={styles.avatar} />
                 ) : (
                   <LinearGradient
                     colors={["#6a11cb", "#2575fc"]}
@@ -364,10 +398,7 @@ const ProfileScreen = () => {
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 1 }}
                   >
-                    <Text style={styles.avatarText}>
-                      {userData.firstName.charAt(0)}
-                      {userData.familyName.charAt(0)}
-                    </Text>
+                    <Text style={styles.avatarText}>{getInitials(userProfile.name)}</Text>
                   </LinearGradient>
                 )}
                 <Animated.View
@@ -382,11 +413,9 @@ const ProfileScreen = () => {
               </Animated.View>
             </View>
 
-            <Text style={styles.userName}>
-              {userData.firstName} {userData.familyName}
-            </Text>
-            <Text style={styles.userEmail}>{userData.email}</Text>
-            <Text style={styles.joinDate}>Member since {userData.joinDate}</Text>
+            <Text style={styles.userName}>{userProfile.name}</Text>
+            <Text style={styles.userEmail}>{userProfile.email}</Text>
+            <Text style={styles.joinDate}>Member since {userProfile.joinDate}</Text>
 
             {/* Explorer Rank */}
             <View style={styles.explorerRankContainer}>

@@ -469,7 +469,7 @@ const DiscoveredLocationsSection = ({ navigateToScreen }) => {
             </View>
           </View>
 
-          {/* "Click to explore" text at the bottom */}
+          {/* "Click to explore" text at the bottom - FIXED to use scaleX instead of width */}
           <Animated.View
             style={[
               styles.clickPromptContainer,
@@ -485,10 +485,16 @@ const DiscoveredLocationsSection = ({ navigateToScreen }) => {
               style={[
                 styles.clickPromptLine,
                 {
-                  width: fadeAnimation.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [0, 30],
-                  }),
+                  width: 30, // Fixed width of 30
+                  transform: [
+                    {
+                      scaleX: fadeAnimation.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [0, 1], // Scale from 0 to full width
+                      }),
+                    },
+                  ],
+                  transformOrigin: "left", // Make it grow from left to right
                 },
               ]}
             />
@@ -497,10 +503,16 @@ const DiscoveredLocationsSection = ({ navigateToScreen }) => {
               style={[
                 styles.clickPromptLine,
                 {
-                  width: fadeAnimation.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [0, 30],
-                  }),
+                  width: 30, // Fixed width of 30
+                  transform: [
+                    {
+                      scaleX: fadeAnimation.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [0, 1], // Scale from 0 to full width
+                      }),
+                    },
+                  ],
+                  transformOrigin: "right", // Make it grow from right to left
                 },
               ]}
             />

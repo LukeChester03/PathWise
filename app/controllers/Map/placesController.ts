@@ -17,13 +17,196 @@ const NON_TOURIST_TYPES = [
   "parking",
   "pharmacy",
   "bank",
+  "atm",
+  "hospital",
+  "doctor",
+  "dentist",
+  "salon",
+  "school",
+  "subway_station",
+  "train_station",
+  "bus_station",
+  "shopping_mall",
+  "convenience_store",
+  "supermarket",
+  "laundry",
+  "post_office",
+  "political",
+  "real_estate_agency",
+  "storage",
+  "hardware_store",
+  "car_dealer",
+  "car_rental",
+  "car_repair",
+  "car_wash",
+  "electrician",
+  "plumber",
+  "local_government_office",
 ];
 
+// Types that strongly indicate tourist attractions
+const TOURIST_TYPES = [
+  "tourist_attraction",
+  "museum",
+  "aquarium",
+  "art_gallery",
+  "zoo",
+  "landmark",
+  "castle",
+  "historic",
+  "monument",
+  "amusement_park",
+  "national_park",
+  "natural_feature",
+  "park",
+  "point_of_interest",
+  "church",
+  "mosque",
+  "temple",
+  "cathedral",
+  "synagogue",
+  "archaeological_site",
+  "unesco_site",
+];
+
+// Keywords strongly associated with tourist attractions
+const TOURIST_KEYWORDS = [
+  "attraction",
+  "landmark",
+  "culture",
+  "heritage",
+  "nature",
+  "park",
+  "historical",
+  "monument",
+  "tourism",
+  "famous",
+  "castle",
+  "palace",
+  "scenic",
+  "viewpoint",
+  "artwork",
+  "gallery",
+  "exhibit",
+  "tour",
+  "statue",
+  "cathedral",
+  "temple",
+  "ruins",
+  "ancient",
+  "trail",
+  "overlook",
+  "viewpoint",
+  "festival",
+  "national",
+  "memorial",
+  "historic",
+];
+
+// Standard descriptions by place type for when no editorial summary is available
+const STANDARD_DESCRIPTIONS = {
+  museum: "A cultural museum showcasing significant exhibits and artifacts worth exploring.",
+  art_gallery: "An art gallery featuring creative works by artists from around the world.",
+  park: "A scenic park offering natural beauty and outdoor recreation opportunities.",
+  historic: "A historic site with significant cultural and historical importance.",
+  monument: "A notable monument commemorating an important person or event.",
+  church: "A beautiful church with architectural and historical significance.",
+  mosque: "A mosque with cultural and religious significance in the local community.",
+  temple: "A temple of cultural and spiritual significance worth visiting.",
+  castle: "A historic castle with architectural prominence and historical stories.",
+  palace: "A magnificent palace showcasing historical grandeur and cultural heritage.",
+  zoo: "A zoo featuring diverse wildlife from around the world.",
+  aquarium: "An aquarium showcasing marine life and aquatic ecosystems.",
+  amusement_park: "An amusement park offering entertainment and exciting attractions.",
+  natural_feature: "A natural landmark with scenic beauty and ecological significance.",
+  tourist_attraction: "A popular tourist destination with cultural or historical significance.",
+  point_of_interest: "A noteworthy location with unique features worth discovering.",
+  default: "A popular destination worth exploring during your visit.",
+};
+
 // Maximum number of places to fetch
-const MAX_PLACES = 20;
+const MAX_PLACES = 40;
 
 // Default search radius when ranking by distance is not available
 const DEFAULT_RADIUS = 50000;
+
+// Minimum rating threshold for tourist attractions (0-5 scale)
+const MIN_RATING_THRESHOLD = 3.5;
+
+// Minimum number of reviews for added credibility
+const MIN_REVIEWS_COUNT = 5;
+
+/**
+ * Get appropriate description based on place type
+ */
+const getPlaceDescription = (place: any): string => {
+  if (place.types) {
+    for (const type of place.types) {
+      if (STANDARD_DESCRIPTIONS[type]) {
+        return STANDARD_DESCRIPTIONS[type];
+      }
+    }
+  }
+  return STANDARD_DESCRIPTIONS.default;
+};
+
+/**
+ * Calculate a tourism score for a place to identify legitimate attractions
+ * Higher score = more likely to be a genuine tourist attraction
+ */
+const calculateTourismScore = (place: any): number => {
+  let score = 0;
+
+  // Base score from types
+  const hasValidTouristType = place.types.some((type: string) => TOURIST_TYPES.includes(type));
+
+  if (hasValidTouristType) {
+    score += 30; // High base score for having tourist-specific types
+
+    // Give extra points for specific high-value tourist types
+    if (place.types.includes("tourist_attraction")) score += 15;
+    if (place.types.includes("museum")) score += 10;
+    if (place.types.includes("landmark")) score += 10;
+    if (place.types.includes("historic")) score += 10;
+    if (place.types.includes("natural_feature")) score += 8;
+    if (place.types.includes("park")) score += 5;
+  }
+
+  // Boost for higher ratings
+  if (place.rating) {
+    score += (place.rating - 3) * 10; // Rating boost (3.0=0, 4.0=10, 5.0=20)
+  }
+
+  // Boost for having photos (tourist attractions usually have photos)
+  if (place.photos && place.photos.length > 0) {
+    score += Math.min(place.photos.length * 2, 10); // Up to 10 points for photos
+  }
+
+  // Boost for having many reviews
+  if (place.user_ratings_total) {
+    score += Math.min(Math.log(place.user_ratings_total) * 3, 15); // Logarithmic scale, up to 15 points
+  }
+
+  // Check if name contains tourist keywords
+  const nameLower = place.name.toLowerCase();
+  let keywordMatches = 0;
+
+  for (const keyword of TOURIST_KEYWORDS) {
+    if (nameLower.includes(keyword.toLowerCase())) {
+      keywordMatches++;
+    }
+  }
+
+  // Add points for keyword matches in name
+  score += keywordMatches * 3;
+
+  // Boost for being a prominent place (Google often gives prominence to major attractions)
+  if (place.business_status === "OPERATIONAL" && place.plus_code) {
+    score += 5;
+  }
+
+  return score;
+};
 
 export const fetchNearbyPlaces = async (
   latitude: number,
@@ -44,41 +227,30 @@ export const fetchNearbyPlaces = async (
       };
     }
 
-    // First try with rankby=distance (no radius parameter allowed)
+    // Built a richer query with more tourist-specific types and keywords
     const response = await fetch(
-      `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${latitude},${longitude}&type=tourist_attraction|museum|park|point_of_interest|art_gallery|church|natural_feature&keyword=attraction|landmark|culture|heritage|nature|park&rankby=distance&key=AIzaSyDAGq_6eJGQpR3RcO0NrVOowel9-DxZkvA`
+      `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${latitude},${longitude}&type=tourist_attraction|museum|park|point_of_interest|art_gallery|church|natural_feature|historic|monument|landmark|amusement_park|aquarium|zoo&keyword=attraction|landmark|culture|heritage|nature|park|historical|famous|viewpoint|scenic&rankby=distance&key=AIzaSyDAGq_6eJGQpR3RcO0NrVOowel9-DxZkvA`
     );
 
     const data = await response.json();
 
-    // If we get ZERO_RESULTS, try a broader search with radius instead
-    // if (data.status === "ZERO_RESULTS") {
-    //   console.log("No nearby places found with rankby=distance, trying with radius instead");
+    // If initial search fails, try broader search with radius
+    if (data.status !== "OK" || !data.results || data.results.length < 5) {
+      console.log("Few or no results found with initial search, trying with radius parameter");
 
-    //   // Try a broader search with radius parameter
-    //   const radiusResponse = await fetch(
-    //     `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${latitude},${longitude}&radius=${DEFAULT_RADIUS}&type=tourist_attraction,museum,park&keyword=tourist,attraction,sightseeing&key=AIzaSyDAGq_6eJGQpR3RcO0NrVOowel9-DxZkvA`
-    //   );
+      // Try a broader search with radius parameter
+      const radiusResponse = await fetch(
+        `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${latitude},${longitude}&radius=20000&type=tourist_attraction|museum|park|landmark|historic&keyword=tourist|attraction|sightseeing|visit&key=AIzaSyDAGq_6eJGQpR3RcO0NrVOowel9-DxZkvA`
+      );
 
-    //   const radiusData = await radiusResponse.json();
+      const radiusData = await radiusResponse.json();
 
-    //   // If still no results, return empty array with default radius
-    //   if (
-    //     radiusData.status === "ZERO_RESULTS" ||
-    //     !radiusData.results ||
-    //     radiusData.results.length === 0
-    //   ) {
-    //     console.log("No tourist attractions found in this area");
-    //     return {
-    //       places: [],
-    //       furthestDistance: DEFAULT_RADIUS, // Default 500m radius if no places found
-    //     };
-    //   }
-
-    //   // Use the results from the radius search
-    //   data.results = radiusData.results;
-    //   data.status = radiusData.status;
-    // }
+      // If we got valid results, use them
+      if (radiusData.status === "OK" && radiusData.results && radiusData.results.length > 0) {
+        data.results = radiusData.results;
+        data.status = radiusData.status;
+      }
+    }
 
     if (data.status !== "OK" && data.status !== "ZERO_RESULTS") {
       console.error("API Error:", data.status, data.error_message || "Unknown API error");
@@ -96,11 +268,41 @@ export const fetchNearbyPlaces = async (
       };
     }
 
-    // Additional filtering to ensure only tourist destinations
+    // Enhanced filtering to ensure only quality tourist destinations
     const filteredResults = data.results
       .filter((place: any) => {
-        // Make sure it's not a business, restaurant, etc.
-        return !place.types.some((type: string) => NON_TOURIST_TYPES.includes(type));
+        // 1. Make sure it's not in our exclusion list
+        const hasBlockedType = place.types.some((type: string) => NON_TOURIST_TYPES.includes(type));
+
+        if (hasBlockedType) return false;
+
+        // 2. Calculate tourism score for ranking
+        place.tourismScore = calculateTourismScore(place);
+
+        // 3. Filter based on minimum criteria:
+        // - Either has a good rating (above threshold)
+        // - Or has a strong tourism score
+        // - If rating exists, it must not be too low
+        return (
+          (place.rating && place.rating >= MIN_RATING_THRESHOLD) ||
+          place.tourismScore >= 40 ||
+          (place.rating === undefined && place.tourismScore >= 30) ||
+          (!place.rating && place.tourismScore >= 30)
+        );
+      })
+      // Sort by tourism score and rating to get best attractions first
+      .sort((a: any, b: any) => {
+        // Primary sort by tourism score
+        const scoreDiff = b.tourismScore - a.tourismScore;
+
+        // Secondary sort by rating (if scores are close)
+        if (Math.abs(scoreDiff) < 10) {
+          const aRating = a.rating || 0;
+          const bRating = b.rating || 0;
+          return bRating - aRating;
+        }
+
+        return scoreDiff;
       })
       // Limit to MAX_PLACES
       .slice(0, MAX_PLACES);
@@ -122,7 +324,7 @@ export const fetchNearbyPlaces = async (
     });
 
     // Add 100 meters buffer to the furthest distance
-    furthestDistance = Math.max(furthestDistance + 100, DEFAULT_RADIUS); // At least DEFAULT_RADIUS radius
+    furthestDistance = Math.max(furthestDistance + 100, 1000); // At least 1km radius
 
     // Get details for each place
     const placesWithDetails: Place[] = await Promise.all(
@@ -147,12 +349,14 @@ export const fetchNearbyPlaces = async (
             place.geometry.location.lng
           );
 
-          // Combine the place data with the details
+          // Use editorial summary if available, otherwise use standard description based on place type
+          const description =
+            detailsData.result.editorial_summary?.overview || getPlaceDescription(place);
+
+          // Create the enhanced place object with all the details
           return {
             ...place,
-            description:
-              detailsData.result.editorial_summary?.overview ||
-              "A popular tourist destination worth exploring.",
+            description: description,
             address: detailsData.result.formatted_address,
             phone: detailsData.result.formatted_phone_number,
             website: detailsData.result.website,
@@ -176,13 +380,13 @@ export const fetchNearbyPlaces = async (
           return {
             ...place,
             distance: distance,
-            description: "A tourist attraction worth exploring.",
+            description: getPlaceDescription(place),
           };
         }
       })
     );
 
-    // Sort places by distance
+    // Final sort by distance for the UI display
     placesWithDetails.sort((a: Place, b: Place) => {
       return (a.distance || 0) - (b.distance || 0);
     });
@@ -205,7 +409,7 @@ export const fetchNearbyPlaces = async (
 export const fetchPlaceById = async (placeId: string): Promise<Place | null> => {
   try {
     const detailsResponse = await fetch(
-      `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=formatted_address,name,rating,photos,url,website,formatted_phone_number,opening_hours,reviews,editorial_summary,geometry&key=AIzaSyDAGq_6eJGQpR3RcO0NrVOowel9-DxZkvA`
+      `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=formatted_address,name,rating,photos,url,website,formatted_phone_number,opening_hours,reviews,editorial_summary,geometry,types&key=AIzaSyDAGq_6eJGQpR3RcO0NrVOowel9-DxZkvA`
     );
 
     const detailsData = await detailsResponse.json();
@@ -214,13 +418,15 @@ export const fetchPlaceById = async (placeId: string): Promise<Place | null> => 
       throw new Error(`Could not fetch details for place ID: ${placeId}`);
     }
 
+    // Use editorial summary if available, otherwise use standard description
+    const description =
+      detailsData.result.editorial_summary?.overview || getPlaceDescription(detailsData.result);
+
     return {
       place_id: placeId,
       name: detailsData.result.name,
       geometry: detailsData.result.geometry,
-      description:
-        detailsData.result.editorial_summary?.overview ||
-        "A popular tourist destination worth exploring.",
+      description: description,
       address: detailsData.result.formatted_address,
       phone: detailsData.result.formatted_phone_number,
       website: detailsData.result.website,
@@ -228,6 +434,7 @@ export const fetchPlaceById = async (placeId: string): Promise<Place | null> => 
       photos: detailsData.result.photos,
       openingHours: detailsData.result.opening_hours,
       reviews: detailsData.result.reviews,
+      types: detailsData.result.types,
     };
   } catch (error: any) {
     console.error("Error fetching place details:", error);
