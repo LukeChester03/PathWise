@@ -4,22 +4,26 @@
     "slug": "PathWise",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "../adaptive/images/logo.png",
     "scheme": "myapp",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
-
     "ios": {
       "config": {
         "googleMapsApiKey": "AIzaSyDAGq_6eJGQpR3RcO0NrVOowel9-DxZkvA"
       },
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.lukechester03.PathWise",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
-      }
+      },
+      "package": "com.lukechester03.PathWise",
+      "googleServicesFile": "./google-services.json"
     },
     "web": {
       "bundler": "metro",
@@ -47,15 +51,23 @@
             "useFrameworks": "static"
           },
           "android": {
-            "compileSdkVersion": 33,
-            "targetSdkVersion": 33,
-            "buildToolsVersion": "33.0.0"
+            "compileSdkVersion": 35,
+            "targetSdkVersion": 34,
+            "buildToolsVersion": "34.0.0"
           }
         }
       ]
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "3d1a0ff8-70e7-4a3e-ba1b-6b95ea45c05c"
+      }
     }
   }
 }
