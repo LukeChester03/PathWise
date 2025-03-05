@@ -37,6 +37,7 @@ export const handleStartJourney = async (
   requestLocationPermission: () => Promise<boolean>,
   setShowCard: (show: boolean) => void,
   setShowDetailCard: (showDetail: boolean) => void,
+  setShowDiscoveredCard: (showDiscovered: boolean) => void,
   setJourneyStarted: (started: boolean) => void,
   setShowArrow: (showArrow: boolean) => void,
   setIsMapFocused: (focused: boolean) => void,
@@ -48,6 +49,7 @@ export const handleStartJourney = async (
     setShowCard(false);
     setShowDetailCard(true);
     setShowArrow(false);
+    setShowDiscoveredCard(false);
     setJourneyStarted(true);
     setIsMapFocused(true); // Focus on user location when journey starts
     if (mapRef.current && userLocation) {

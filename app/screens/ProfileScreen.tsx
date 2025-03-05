@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -20,9 +20,10 @@ import { RootStackParamList } from "../navigation/types";
 import ScreenWithNavBar from "../components/Global/ScreenWithNavbar";
 import Header from "../components/Global/Header";
 import { LinearGradient } from "expo-linear-gradient";
-import LottieView from "lottie-react-native";
 import { Colors, NeutralColors } from "../constants/colours";
 import { Ionicons, MaterialCommunityIcons, FontAwesome5 } from "@expo/vector-icons";
+import { fetchUserStats } from "../services/statsService";
+import { StatItem } from "../types/StatTypes";
 
 const { width, height } = Dimensions.get("window");
 
@@ -30,6 +31,8 @@ const ProfileScreen = () => {
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
   const [isSettingsVisible, setIsSettingsVisible] = useState(false);
   const settingsAnimation = useRef(new Animated.Value(width)).current;
+  const [allUserStats, setAllUserStats] = useState<StatItem[]>([]);
+  const [randomStats, setRandomStats] = useState<StatItem[]>([]);
 
   // Animation values
   const fadeIn = useRef(new Animated.Value(0)).current;
@@ -59,12 +62,6 @@ const ProfileScreen = () => {
     xp: 230,
     xpToNextLevel: 500,
     joinDate: "Jan 2023",
-    stats: {
-      placesVisited: 24,
-      countriesVisited: 3,
-      reviewsWritten: 12,
-      photosUploaded: 38,
-    },
     achievements: [
       {
         id: 1,
@@ -104,7 +101,40 @@ const ProfileScreen = () => {
     ],
   };
 
+  // Function to get a random selection of stats
+  const getRandomStats = useCallback((stats: StatItem[], count: number = 4) => {
+    if (!stats || stats.length === 0) return [];
+
+    // Create a copy of the stats array and shuffle it
+    const shuffled = [...stats].sort(() => 0.5 - Math.random());
+
+    // Return the first 'count' elements or all if there are fewer
+    return shuffled.slice(0, Math.min(count, shuffled.length));
+  }, []);
+
+  // Navigate to the journey screen with all stats
+  const navigateToJourneyScreen = () => {
+    // @ts-ignore
+    navigation.navigate("MyJourney", { stats: allUserStats });
+  };
+
   useEffect(() => {
+    // Fetch user stats from Firebase
+    const loadStats = async () => {
+      try {
+        const stats = await fetchUserStats();
+        setAllUserStats(stats);
+        // Get a random selection of 4 stats
+        setRandomStats(getRandomStats(stats, 4));
+      } catch (error) {
+        console.error("Error fetching stats:", error);
+        setAllUserStats([]);
+        setRandomStats([]);
+      }
+    };
+
+    loadStats();
+
     // Start animations when component mounts
     Animated.sequence([
       Animated.parallel([
@@ -316,90 +346,50 @@ const ProfileScreen = () => {
             </View>
           </Animated.View>
 
-          {/* Stats Section */}
+          {/* Stats Section with Grid Icon */}
           <View style={styles.sectionContainer}>
             <View style={styles.sectionTitleContainer}>
-              <Ionicons
-                name="stats-chart"
-                size={20}
-                color={Colors.primary}
-                style={styles.sectionIcon}
-              />
-              <Text style={styles.sectionTitle}>Your Stats</Text>
+              <View style={styles.sectionTitleLeft}>
+                <Ionicons
+                  name="stats-chart"
+                  size={20}
+                  color={Colors.primary}
+                  style={styles.sectionIcon}
+                />
+                <Text style={styles.sectionTitle}>Your Stats</Text>
+              </View>
+
+              {/* Grid icon to navigate to full stats */}
+              <TouchableOpacity
+                style={styles.gridButton}
+                onPress={navigateToJourneyScreen}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="grid-outline" size={22} color={Colors.primary} />
+              </TouchableOpacity>
             </View>
 
             <View style={styles.statsGrid}>
-              <Animated.View
-                style={[
-                  styles.statItem,
-                  { transform: [{ scale: statsScale[0] }], opacity: statsScale[0] },
-                ]}
-              >
-                <LinearGradient
-                  colors={["#00CDAC", "#02AAB0"]}
-                  style={styles.statIconContainer}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
+              {randomStats.map((stat, index) => (
+                <Animated.View
+                  key={stat.id}
+                  style={[
+                    styles.statItem,
+                    { transform: [{ scale: statsScale[index] }], opacity: statsScale[index] },
+                  ]}
                 >
-                  <Ionicons name="location" size={20} color="#fff" />
-                </LinearGradient>
-                <Text style={styles.statValue}>{userData.stats.placesVisited}</Text>
-                <Text style={styles.statLabel}>Places</Text>
-              </Animated.View>
-
-              <Animated.View
-                style={[
-                  styles.statItem,
-                  { transform: [{ scale: statsScale[1] }], opacity: statsScale[1] },
-                ]}
-              >
-                <LinearGradient
-                  colors={["#4776E6", "#8E54E9"]}
-                  style={styles.statIconContainer}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                >
-                  <Ionicons name="earth" size={20} color="#fff" />
-                </LinearGradient>
-                <Text style={styles.statValue}>{userData.stats.countriesVisited}</Text>
-                <Text style={styles.statLabel}>Countries</Text>
-              </Animated.View>
-
-              <Animated.View
-                style={[
-                  styles.statItem,
-                  { transform: [{ scale: statsScale[2] }], opacity: statsScale[2] },
-                ]}
-              >
-                <LinearGradient
-                  colors={["#FF5858", "#F09819"]}
-                  style={styles.statIconContainer}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                >
-                  <Ionicons name="star" size={20} color="#fff" />
-                </LinearGradient>
-                <Text style={styles.statValue}>{userData.stats.reviewsWritten}</Text>
-                <Text style={styles.statLabel}>Reviews</Text>
-              </Animated.View>
-
-              <Animated.View
-                style={[
-                  styles.statItem,
-                  { transform: [{ scale: statsScale[3] }], opacity: statsScale[3] },
-                ]}
-              >
-                <LinearGradient
-                  colors={["#5691c8", "#457fca"]}
-                  style={styles.statIconContainer}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                >
-                  <Ionicons name="image" size={20} color="#fff" />
-                </LinearGradient>
-                <Text style={styles.statValue}>{userData.stats.photosUploaded}</Text>
-                <Text style={styles.statLabel}>Photos</Text>
-              </Animated.View>
+                  <LinearGradient
+                    colors={stat.gradientColors}
+                    style={styles.statIconContainer}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                  >
+                    <Ionicons name={stat.icon} size={22} color="#fff" />
+                  </LinearGradient>
+                  <Text style={styles.statValue}>{stat.value}</Text>
+                  <Text style={styles.statLabel}>{stat.label}</Text>
+                </Animated.View>
+              ))}
             </View>
           </View>
 
@@ -738,7 +728,12 @@ const styles = StyleSheet.create({
   sectionTitleContainer: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "space-between",
     marginBottom: 18,
+  },
+  sectionTitleLeft: {
+    flexDirection: "row",
+    alignItems: "center",
   },
   sectionIcon: {
     marginRight: 8,
@@ -747,6 +742,14 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "bold",
     color: "#333",
+  },
+  gridButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(74, 144, 226, 0.1)",
+    justifyContent: "center",
+    alignItems: "center",
   },
   statsGrid: {
     flexDirection: "row",

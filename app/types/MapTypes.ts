@@ -145,6 +145,109 @@ export interface NearbyPlacesResponse {
   furthestDistance: number;
 }
 
+export interface Coordinate {
+  latitude: number;
+  longitude: number;
+}
+
+export interface Region extends Coordinate {
+  latitudeDelta: number;
+  longitudeDelta: number;
+}
+
+// Place data types
+export interface PlaceLocation {
+  lat: number;
+  lng: number;
+}
+
+export interface PlacePhoto {
+  height: number;
+  width: number;
+  html_attributions: string[];
+  photo_reference: string;
+}
+
+export interface VisitedPlaceDetails extends Place {
+  visitedAt: string;
+}
+
+// Navigation types
+export interface NavigationDistance {
+  text: string;
+  value: number;
+}
+
+export interface NavigationDuration {
+  text: string;
+  value: number;
+}
+
+export interface NavigationStep {
+  id: number;
+  instructions: string;
+  distance: NavigationDistance;
+  duration: NavigationDuration;
+  maneuver: string;
+  startLocation: Coordinate;
+  endLocation: Coordinate;
+}
+
+export interface RouteInfo {
+  coords: Coordinate[];
+  duration: string;
+  distance: number;
+  travelMode: TravelMode;
+}
+
+// Camera types
+export interface CameraConfig {
+  center: Coordinate;
+  heading: number;
+  pitch: number;
+  altitude: number;
+  zoom: number;
+}
+
+// Notification types
+export interface NotifiedPlaces {
+  [placeId: string]: number; // Map of place IDs to notification timestamps
+}
+
+// Props types for UI components
+export interface ViewModeToggleProps {
+  viewMode: string;
+  onToggle: () => void;
+}
+
+export interface CardToggleArrowProps {
+  onPress: () => void;
+}
+
+export interface EndJourneyButtonProps {
+  onPress: () => void;
+}
+
+export interface InAppNotificationProps {
+  visible: boolean;
+  place: Place | null;
+  notificationOpacity: any; // Animated.Value
+  notificationTranslateY: any; // Animated.Value
+  onExplore: (place: Place) => void;
+  onDismiss: () => void;
+}
+
+export interface NotificationBadgeProps {
+  count: number;
+  onPress: () => void;
+}
+
+// PlaceSelection result
+export interface PlaceSelectionResult {
+  isDiscovered: boolean;
+  details?: VisitedPlaceDetails | null;
+}
+
 // Travel mode types that match both our app and the Google Maps API
 export type TravelMode = "walking" | "driving" | "bicycling" | "transit";
 

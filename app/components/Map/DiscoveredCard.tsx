@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from "react";
+import React, { useRef, useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -15,35 +15,48 @@ import {
 import { Colors, NeutralColors } from "../../constants/colours";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
-import { TravelMode } from "../../types/MapTypes";
 
-interface ExploreCardProps {
+interface DiscoveredCardProps {
   placeName: string;
   placeDescription?: string;
   placeImage?: string;
-  travelTime: string;
-  rating?: string | number;
-  onStartJourney: () => void;
-  onCancel: () => void;
+  discoveryDate: string;
+  rating: number;
+  description: string;
+  onViewDetails?: () => void;
+  onDismiss: () => void;
+  onVisitAgain?: () => void;
   visible?: boolean;
-  travelMode?: TravelMode;
+  initialSavedState?: boolean; // Add prop for initial saved state
 }
 
 const { width, height } = Dimensions.get("window");
 const HEADER_HEIGHT = Platform.OS === "ios" ? 44 : 56; // Approximate header height
 const NAVBAR_HEIGHT = 60; // Approximate navbar height
 
-const ExploreCard: React.FC<ExploreCardProps> = ({
+const DiscoveredCard: React.FC<DiscoveredCardProps> = ({
   placeName,
   placeDescription,
   placeImage,
-  travelTime,
-  rating, // Default rating if not provided
-  onStartJourney,
-  onCancel,
+  discoveryDate,
+  rating = 0,
+  description,
+  onViewDetails,
+  onDismiss,
+  onVisitAgain,
   visible = false,
-  travelMode = "walking", // Default to walking if not provided
+  initialSavedState = false,
 }) => {
+  // State for save functionality
+  const [isSaved, setIsSaved] = useState(initialSavedState);
+
+  // Format the discovery date
+  const formattedDate = new Date(discoveryDate).toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+
   // Animation values
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.9)).current;
@@ -54,13 +67,8 @@ const ExploreCard: React.FC<ExploreCardProps> = ({
   const descriptionAnim = useRef(new Animated.Value(0)).current;
   const rotateAnim = useRef(new Animated.Value(0)).current;
   const imageOpacity = useRef(new Animated.Value(0)).current;
-  const compassRotate = useRef(new Animated.Value(0)).current;
-
-  // Calculate compass rotation
-  const spin = compassRotate.interpolate({
-    inputRange: [0, 1],
-    outputRange: ["0deg", "360deg"],
-  });
+  const saveButtonAnim = useRef(new Animated.Value(0)).current;
+  const saveScaleAnim = useRef(new Animated.Value(1)).current;
 
   // Animate in when component becomes visible
   useEffect(() => {
@@ -72,18 +80,9 @@ const ExploreCard: React.FC<ExploreCardProps> = ({
       descriptionAnim.setValue(0);
       rotateAnim.setValue(0);
       imageOpacity.setValue(0);
+      saveButtonAnim.setValue(0);
       primaryButtonScale.setValue(1);
       secondaryButtonScale.setValue(1);
-
-      // Start continuous compass rotation
-      Animated.loop(
-        Animated.timing(compassRotate, {
-          toValue: 1,
-          duration: 5000,
-          useNativeDriver: true,
-          easing: Easing.linear,
-        })
-      ).start();
 
       // Animation sequence - all completed in under a second
       Animated.sequence([
@@ -109,6 +108,14 @@ const ExploreCard: React.FC<ExploreCardProps> = ({
           duration: 150,
           useNativeDriver: true,
           easing: Easing.out(Easing.ease),
+        }),
+
+        // Animate save button with other UI elements
+        Animated.timing(saveButtonAnim, {
+          toValue: 1,
+          duration: 200,
+          useNativeDriver: true,
+          easing: Easing.out(Easing.back(1.5)),
         }),
 
         // Animate content with staggered timing - 450ms total (150ms each with 50ms stagger)
@@ -154,6 +161,33 @@ const ExploreCard: React.FC<ExploreCardProps> = ({
     }
   }, [visible]);
 
+  // Handle save button press
+  const handleSavePress = () => {
+    // Create a nice animation for the save button
+    Animated.sequence([
+      Animated.spring(saveScaleAnim, {
+        toValue: 0.8,
+        friction: 3,
+        useNativeDriver: true,
+      }),
+      Animated.spring(saveScaleAnim, {
+        toValue: 1.2,
+        friction: 3,
+        useNativeDriver: true,
+      }),
+      Animated.spring(saveScaleAnim, {
+        toValue: 1,
+        friction: 3,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
+    // Toggle saved state
+    setIsSaved(!isSaved);
+
+    // Feedback is provided through the icon change and animation
+  };
+
   // Handle primary button press animations
   const handlePrimaryPressIn = () => {
     Animated.spring(primaryButtonScale, {
@@ -192,14 +226,23 @@ const ExploreCard: React.FC<ExploreCardProps> = ({
     }).start();
   };
 
-  // Handle start journey
-  const handleStartJourney = () => {
-    animateOut(() => onStartJourney());
+  // Handle view details
+  const handleViewDetails = () => {
+    if (onViewDetails) {
+      animateOut(() => onViewDetails());
+    }
   };
 
-  // Handle cancel
-  const handleCancel = () => {
-    animateOut(() => onCancel());
+  // Handle visit again
+  const handleVisitAgain = () => {
+    if (onVisitAgain) {
+      animateOut(() => onVisitAgain());
+    }
+  };
+
+  // Handle dismiss
+  const handleDismiss = () => {
+    animateOut(() => onDismiss());
   };
 
   // Animate out and call callback when complete
@@ -239,15 +282,6 @@ const ExploreCard: React.FC<ExploreCardProps> = ({
     ]).start(callback);
   };
 
-  // Travel mode icon and label
-  const getTravelModeIcon = () => {
-    return travelMode === "driving" ? "car-outline" : "walk-outline";
-  };
-
-  const getTravelModeLabel = () => {
-    return travelMode === "driving" ? "Driving" : "Walking";
-  };
-
   if (!visible) return null;
 
   return (
@@ -274,9 +308,39 @@ const ExploreCard: React.FC<ExploreCardProps> = ({
           ]}
         >
           {/* Close button */}
-          <TouchableOpacity style={styles.closeButton} onPress={handleCancel} activeOpacity={0.7}>
+          <TouchableOpacity style={styles.closeButton} onPress={handleDismiss} activeOpacity={0.7}>
             <Ionicons name="close" size={24} color="white" />
           </TouchableOpacity>
+
+          {/* Save button with feedback animation */}
+          <Animated.View
+            style={[
+              styles.saveButtonContainer,
+              {
+                opacity: saveButtonAnim,
+                transform: [{ scale: saveScaleAnim }],
+              },
+            ]}
+          >
+            <TouchableOpacity
+              style={styles.saveButton}
+              onPress={handleSavePress}
+              activeOpacity={0.7}
+            >
+              <Ionicons
+                name={isSaved ? "bookmark" : "bookmark-outline"}
+                size={22}
+                color={isSaved ? Colors.primary : "white"}
+              />
+            </TouchableOpacity>
+
+            {/* Visual feedback indicator - appears briefly when status changes */}
+            {isSaved && (
+              <Animated.View style={styles.savedIndicator}>
+                <View style={styles.savedIndicatorDot} />
+              </Animated.View>
+            )}
+          </Animated.View>
 
           {/* Header Image */}
           <View style={styles.imageContainer}>
@@ -303,20 +367,26 @@ const ExploreCard: React.FC<ExploreCardProps> = ({
               style={styles.imageGradient}
             />
 
-            {/* Badge on image */}
+            {/* Badge and Rating on image */}
             <View style={styles.imageOverlayContent}>
               <Animated.View
                 style={[
                   styles.badgeContainer,
                   {
-                    transform: [{ scale: badgePulse }],
+                    transform: [
+                      { scale: badgePulse },
+                      {
+                        rotate: rotateAnim.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: ["-5deg", "0deg"],
+                        }),
+                      },
+                    ],
                   },
                 ]}
               >
-                <Animated.View style={{ transform: [{ rotate: spin }] }}>
-                  <Ionicons name="compass" size={14} color="white" />
-                </Animated.View>
-                <Text style={styles.badgeText}>New Discovery</Text>
+                <Ionicons name="trophy" size={14} color="white" />
+                <Text style={styles.badgeText}>Discovered</Text>
               </Animated.View>
             </View>
 
@@ -339,17 +409,16 @@ const ExploreCard: React.FC<ExploreCardProps> = ({
             >
               <Text style={styles.titleText}>{placeName}</Text>
               <View style={styles.bottomImageContent}>
-                <View style={styles.tagContainer}>
-                  <Ionicons name="location-outline" size={14} color="rgba(255,255,255,0.9)" />
-                  <Text style={styles.tagText}>Explore</Text>
+                <View style={styles.dateContainer}>
+                  <Ionicons name="calendar-outline" size={14} color="rgba(255,255,255,0.9)" />
+                  <View style={styles.dateTextContainer}>
+                    <Text style={styles.dateLabel}>Discovered on</Text>
+                    <Text style={styles.dateText}>{formattedDate}</Text>
+                  </View>
                 </View>
                 <View style={styles.ratingContainer}>
                   <MaterialIcons name="star" size={18} color="#FFD700" />
-                  {typeof rating === "number" ? (
-                    <Text style={styles.ratingText}>{rating.toFixed(1)}</Text>
-                  ) : (
-                    <Text style={styles.ratingText}>{rating || "No Rating"}</Text>
-                  )}
+                  <Text style={styles.ratingText}>{rating.toFixed(1)}</Text>
                 </View>
               </View>
             </Animated.View>
@@ -372,11 +441,11 @@ const ExploreCard: React.FC<ExploreCardProps> = ({
               },
             ]}
           >
-            {/* Place Description */}
-            {placeDescription && (
-              <Animated.Text
+            {/* Description */}
+            {description && (
+              <Animated.View
                 style={[
-                  styles.description,
+                  styles.descriptionContainer,
                   {
                     opacity: descriptionAnim,
                     transform: [
@@ -390,96 +459,88 @@ const ExploreCard: React.FC<ExploreCardProps> = ({
                   },
                 ]}
               >
-                {placeDescription}
-              </Animated.Text>
+                <Text style={styles.descriptionTitle}>Description</Text>
+                <View style={styles.descriptionRow}>
+                  <Ionicons
+                    name="checkmark-circle"
+                    size={16}
+                    color={Colors.primary}
+                    style={styles.descriptionIcon}
+                  />
+                  <Text style={styles.descriptionText}>{description}</Text>
+                </View>
+              </Animated.View>
             )}
 
-            {/* Travel Info Card */}
-            <Animated.View
-              style={[
-                styles.travelInfoCard,
-                {
-                  opacity: descriptionAnim,
-                  transform: [
-                    {
-                      translateY: descriptionAnim.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [20, 0],
-                      }),
-                    },
-                  ],
-                },
-              ]}
-            >
-              <Ionicons name="time-outline" size={22} color={Colors.primary} />
-              <View style={styles.travelInfoTextContainer}>
-                <Text style={styles.travelInfoLabel}>Travel time</Text>
-                <View style={styles.travelValueContainer}>
-                  <Text style={styles.travelInfoValue}>{travelTime}</Text>
-                  <View style={styles.travelModeContainer}>
-                    <Ionicons name={getTravelModeIcon()} size={16} color={NeutralColors.white} />
-                    <Text style={styles.travelModeText}>{getTravelModeLabel()}</Text>
-                  </View>
-                </View>
-              </View>
-            </Animated.View>
-
             {/* Action Buttons */}
-            <View style={styles.buttonGroup}>
-              {/* Start Journey Button */}
-              <Animated.View
-                style={{
-                  transform: [
-                    { scale: primaryButtonScale },
-                    {
-                      translateY: contentAnim.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [10, 0],
-                      }),
-                    },
-                  ],
-                  opacity: contentAnim,
-                  marginBottom: 12,
-                }}
-              >
-                <TouchableOpacity
-                  style={styles.primaryButton}
-                  onPress={handleStartJourney}
-                  onPressIn={handlePrimaryPressIn}
-                  onPressOut={handlePrimaryPressOut}
-                  activeOpacity={0.9}
+            {onViewDetails && (
+              <View style={styles.buttonGroup}>
+                {/* Learn More Button */}
+                <Animated.View
+                  style={{
+                    transform: [
+                      { scale: primaryButtonScale },
+                      {
+                        translateY: contentAnim.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [10, 0],
+                        }),
+                      },
+                    ],
+                    opacity: contentAnim,
+                    marginBottom: 12,
+                  }}
                 >
-                  <Ionicons name="navigate" size={18} color="white" style={styles.buttonIcon} />
-                  <Text style={styles.primaryButtonText}>Start Journey</Text>
-                </TouchableOpacity>
-              </Animated.View>
+                  <TouchableOpacity
+                    style={styles.primaryButton}
+                    onPress={handleViewDetails}
+                    onPressIn={handlePrimaryPressIn}
+                    onPressOut={handlePrimaryPressOut}
+                    activeOpacity={0.9}
+                  >
+                    <Ionicons
+                      name="information-circle-outline"
+                      size={18}
+                      color="white"
+                      style={styles.buttonIcon}
+                    />
+                    <Text style={styles.primaryButtonText}>Learn More</Text>
+                  </TouchableOpacity>
+                </Animated.View>
 
-              {/* Maybe Later Button */}
-              <Animated.View
-                style={{
-                  transform: [
-                    { scale: secondaryButtonScale },
-                    {
-                      translateY: contentAnim.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [10, 0],
-                      }),
-                    },
-                  ],
-                  opacity: contentAnim,
-                }}
-              >
-                <TouchableOpacity
-                  style={styles.secondaryButton}
-                  onPress={handleCancel}
-                  onPressIn={handleSecondaryPressIn}
-                  onPressOut={handleSecondaryPressOut}
-                  activeOpacity={0.8}
+                {/* Visit Again Button */}
+                <Animated.View
+                  style={{
+                    transform: [
+                      { scale: secondaryButtonScale },
+                      {
+                        translateY: contentAnim.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [10, 0],
+                        }),
+                      },
+                    ],
+                    opacity: contentAnim,
+                  }}
                 >
-                  <Text style={styles.secondaryButtonText}>Maybe Later</Text>
-                </TouchableOpacity>
-              </Animated.View>
-            </View>
+                  <TouchableOpacity
+                    style={styles.secondaryButton}
+                    onPress={handleVisitAgain}
+                    onPressIn={handleSecondaryPressIn}
+                    onPressOut={handleSecondaryPressOut}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons
+                      name="compass-outline"
+                      size={18}
+                      color={Colors.primary}
+                      style={styles.buttonIcon}
+                    />
+                    <Text style={styles.secondaryButtonText}>Visit Again</Text>
+                  </TouchableOpacity>
+                </Animated.View>
+              </View>
+            )}
           </Animated.View>
         </Animated.View>
       </Animated.View>
@@ -528,6 +589,33 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
+  saveButtonContainer: {
+    position: "absolute",
+    top: 12,
+    right: 56, // Position next to the close button
+    zIndex: 10,
+  },
+  saveButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "rgba(0,0,0,0.3)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  savedIndicator: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    width: 10,
+    height: 10,
+  },
+  savedIndicatorDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: Colors.primary,
+  },
   imageContainer: {
     width: "100%",
     height: 220,
@@ -557,7 +645,7 @@ const styles = StyleSheet.create({
   badgeContainer: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: Colors.primary,
+    backgroundColor: Colors.secondary,
     paddingVertical: 6,
     paddingHorizontal: 10,
     borderRadius: 20,
@@ -589,14 +677,22 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
   },
-  tagContainer: {
+  dateContainer: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
   },
-  tagText: {
+  dateTextContainer: {
+    marginLeft: 6,
+    flexDirection: "column",
+  },
+  dateLabel: {
+    fontSize: 11,
+    color: "rgba(255,255,255,0.8)",
+    fontWeight: "400",
+  },
+  dateText: {
     fontSize: 13,
     color: "rgba(255,255,255,0.9)",
-    marginLeft: 6,
     fontWeight: "500",
   },
   ratingContainer: {
@@ -616,52 +712,31 @@ const styles = StyleSheet.create({
   contentContainer: {
     padding: 20,
   },
-  description: {
-    fontSize: 16,
-    lineHeight: 24,
-    color: NeutralColors.gray600,
-    marginBottom: 20,
-  },
-  travelInfoCard: {
-    flexDirection: "row",
-    alignItems: "center",
+  descriptionContainer: {
     backgroundColor: NeutralColors.gray100,
     padding: 16,
     borderRadius: 12,
     marginBottom: 24,
   },
-  travelInfoTextContainer: {
-    marginLeft: 12,
-    flex: 1,
-  },
-  travelInfoLabel: {
-    fontSize: 14,
-    color: NeutralColors.gray500,
-  },
-  travelValueContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginTop: 4,
-  },
-  travelInfoValue: {
+  descriptionTitle: {
     fontSize: 16,
     fontWeight: "700",
-    color: NeutralColors.black,
+    color: NeutralColors.gray800,
+    marginBottom: 12,
   },
-  travelModeContainer: {
+  descriptionRow: {
     flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: Colors.primary,
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-    borderRadius: 12,
+    alignItems: "flex-start",
   },
-  travelModeText: {
-    fontSize: 12,
-    color: NeutralColors.white,
-    fontWeight: "600",
-    marginLeft: 4,
+  descriptionIcon: {
+    marginTop: 2,
+  },
+  descriptionText: {
+    fontSize: 15,
+    color: NeutralColors.gray700,
+    marginLeft: 8,
+    flex: 1,
+    lineHeight: 22,
   },
   buttonGroup: {
     marginTop: 4,
@@ -681,10 +756,13 @@ const styles = StyleSheet.create({
   },
   secondaryButton: {
     backgroundColor: "transparent",
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     paddingVertical: 12,
     borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Colors.primary,
   },
   buttonIcon: {
     marginRight: 8,
@@ -695,10 +773,10 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   secondaryButtonText: {
+    color: Colors.primary,
     fontSize: 16,
-    color: NeutralColors.gray500,
     fontWeight: "500",
   },
 });
 
-export default ExploreCard;
+export default DiscoveredCard;

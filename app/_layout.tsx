@@ -8,6 +8,7 @@ import LearnScreen from "./screens/LearnScreen";
 import MapScreen from "./screens/MapScreen";
 import LandingScreen from "./screens/LandingScreen";
 import ViewAllScreen from "./screens/ViewAllScreen";
+import MyJourneyScreen from "./screens/MyJourneyScreen";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -25,6 +26,7 @@ export default function Layout() {
       <Stack.Screen name="Discover" component={MapScreen} />
       <Stack.Screen name="Landing" component={LandingScreen} />
       <Stack.Screen name="ViewAll" component={ViewAllScreen} />
+      <Stack.Screen name="MyJourney" component={MyJourneyScreen} />
     </Stack.Navigator>
   );
 }

@@ -40,7 +40,7 @@ const DiscoveredLocationsSection = ({ navigateToScreen }) => {
 
   useEffect(() => {
     fetchUserDiscoveredLocations();
-
+    fadeAnimation.setValue(0.6);
     // Start the entrance animations
     Animated.parallel([
       Animated.timing(fadeAnimation, {
