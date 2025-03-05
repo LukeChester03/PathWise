@@ -1,9 +1,9 @@
-// useMapNavigation.ts - Hook for handling navigation instructions and speech
+// useMapNavigation.ts - Updated with fixed audio handling
 import { useState, useRef, useCallback, useEffect } from "react";
 import * as Speech from "expo-speech";
 import { Audio } from "expo-av";
 import { haversineDistance } from "../../utils/mapUtils";
-import { ANNOUNCEMENT_COOLDOWN } from "../../constants/Map/mapConstants";
+import { ANNOUNCEMENT_COOLDOWN, INITIAL_NAVIGATION_DELAY } from "../../constants/Map/mapConstants";
 import { Coordinate, NavigationStep } from "../../types/MapTypes";
 
 export interface UseMapNavigationReturn {
@@ -35,14 +35,55 @@ const useMapNavigation = (): UseMapNavigationReturn => {
   const [speechQueue, setSpeechQueue] = useState<string[]>([]);
   const [isSpeaking, setIsSpeaking] = useState<boolean>(false);
 
+  // Add a journey active state
+  const [isJourneyActive, setIsJourneyActive] = useState<boolean>(false);
+  const initialInstructionGivenRef = useRef<boolean>(false);
+
   // Refs for tracking navigation state
   const lastAnnouncedPositionRef = useRef<Coordinate | null>(null);
   const lastAnnouncementTimeRef = useRef<number>(0);
+  const audioInitializedRef = useRef<boolean>(false);
+
+  // Initialize audio system
+  useEffect(() => {
+    const initAudio = async () => {
+      if (audioInitializedRef.current) return;
+
+      try {
+        await Audio.setAudioModeAsync({
+          playsInSilentModeIOS: true,
+          staysActiveInBackground: true,
+          shouldDuckAndroid: true,
+        });
+
+        console.log("Audio system initialized successfully");
+        audioInitializedRef.current = true;
+      } catch (error) {
+        console.error("Failed to initialize audio:", error);
+      }
+    };
+
+    initAudio();
+
+    // Clean up on unmount
+    return () => {
+      Speech.stop();
+    };
+  }, []);
 
   /**
    * Process the speech queue whenever it changes
    */
   const processSpeechQueue = useCallback(async (): Promise<void> => {
+    // Skip speech processing if journey is not active
+    if (!isJourneyActive) {
+      // Clear queue if journey inactive
+      if (speechQueue.length > 0) {
+        setSpeechQueue([]);
+      }
+      return;
+    }
+
     if (speechQueue.length === 0 || isSpeaking || !soundEnabled) return;
 
     setIsSpeaking(true);
@@ -59,9 +100,17 @@ const useMapNavigation = (): UseMapNavigationReturn => {
         );
 
         await sound.playAsync();
+        console.log("Playing notification sound for instruction:", instruction);
 
         // Wait a moment before speaking
         setTimeout(() => {
+          // Check again if journey is still active before speaking
+          if (!isJourneyActive) {
+            setIsSpeaking(false);
+            setSpeechQueue([]);
+            return;
+          }
+
           Speech.speak(instruction, {
             language: "en-US",
             pitch: 1.0,
@@ -83,19 +132,24 @@ const useMapNavigation = (): UseMapNavigationReturn => {
       } catch (soundError) {
         console.warn("Error playing notification sound:", soundError);
         // Fallback if sound file can't be loaded
-        Speech.speak(instruction, {
-          language: "en-US",
-          pitch: 1.0,
-          rate: 0.9,
-          onDone: () => {
-            setSpeechQueue((prev) => prev.slice(1));
-            setIsSpeaking(false);
-          },
-          onError: () => {
-            setSpeechQueue((prev) => prev.slice(1));
-            setIsSpeaking(false);
-          },
-        });
+        if (isJourneyActive) {
+          Speech.speak(instruction, {
+            language: "en-US",
+            pitch: 1.0,
+            rate: 0.9,
+            onDone: () => {
+              setSpeechQueue((prev) => prev.slice(1));
+              setIsSpeaking(false);
+            },
+            onError: () => {
+              setSpeechQueue((prev) => prev.slice(1));
+              setIsSpeaking(false);
+            },
+          });
+        } else {
+          setIsSpeaking(false);
+          setSpeechQueue([]);
+        }
       }
     } catch (error) {
       console.warn("Error with text-to-speech:", error);
@@ -103,22 +157,23 @@ const useMapNavigation = (): UseMapNavigationReturn => {
       setSpeechQueue((prev) => prev.slice(1));
       setIsSpeaking(false);
     }
-  }, [speechQueue, isSpeaking, soundEnabled]);
+  }, [speechQueue, isSpeaking, soundEnabled, isJourneyActive]);
 
   // Process speech queue when it changes
   useEffect(() => {
     processSpeechQueue();
-  }, [processSpeechQueue, speechQueue, soundEnabled]);
+  }, [processSpeechQueue, speechQueue, soundEnabled, isJourneyActive]);
 
   /**
    * Add instruction to speech queue
    */
   const speak = useCallback(
     (instruction: string): void => {
-      if (!instruction || !soundEnabled) return;
+      if (!instruction || !soundEnabled || !isJourneyActive) return;
+      console.log("Adding to speech queue:", instruction);
       setSpeechQueue((prev) => [...prev, instruction]);
     },
-    [soundEnabled]
+    [soundEnabled, isJourneyActive]
   );
 
   /**
@@ -126,7 +181,42 @@ const useMapNavigation = (): UseMapNavigationReturn => {
    */
   const updateNavigationInstructions = useCallback(
     (userLocation: Coordinate, journeyStarted: boolean): boolean => {
+      // Update journey active state
+      if (journeyStarted !== isJourneyActive) {
+        setIsJourneyActive(journeyStarted);
+
+        // If journey just ended, clear speech queue and stop speaking
+        if (!journeyStarted) {
+          setSpeechQueue([]);
+          Speech.stop();
+          setIsSpeaking(false);
+          initialInstructionGivenRef.current = false;
+          console.log("Journey ended - cleared speech queue");
+          return false;
+        } else {
+          console.log("Journey started");
+        }
+      }
+
       if (!userLocation || !journeyStarted || navigationSteps.length === 0) return false;
+
+      // Initial instruction with delay
+      if (journeyStarted && !initialInstructionGivenRef.current && navigationSteps.length > 0) {
+        // Set timeout to give initial instruction after delay
+        setTimeout(() => {
+          if (isJourneyActive && navigationSteps.length > 0) {
+            const instruction = `Starting navigation. ${navigationSteps[0].instructions}`;
+            console.log("Giving initial instruction with delay:", instruction);
+            speak(instruction);
+            setLastAnnouncedStep(0);
+            lastAnnouncementTimeRef.current = Date.now();
+            initialInstructionGivenRef.current = true;
+            lastAnnouncedPositionRef.current = { ...userLocation };
+          }
+        }, INITIAL_NAVIGATION_DELAY);
+
+        return false;
+      }
 
       // Find the closest upcoming step
       let minDistance = Infinity;
@@ -164,18 +254,20 @@ const useMapNavigation = (): UseMapNavigationReturn => {
         );
       }
 
-      // Only allow announcements if user has moved at least 10 meters
-      const hasMovedEnough = distanceMoved > 10;
+      // Only allow announcements if user has moved at least 20 meters (increased from 10)
+      const hasMovedEnough = distanceMoved > 20;
       let announcementMade = false;
 
       // Moving to a new step - announce only once when we first detect the step change
       if (closestStepIndex > stepIndex) {
+        console.log(`Moving to new step: ${closestStepIndex} from ${stepIndex}`);
         setCurrentStep(navigationSteps[closestStepIndex]);
         setStepIndex(closestStepIndex);
 
-        // Speak only when moving to a new step AND we haven't announced it yet
+        // Speak only when moving to a new step AND we haven't announced it yet AND cooldown passed
         if (closestStepIndex !== lastAnnouncedStep && canAnnounce) {
           const instruction = navigationSteps[closestStepIndex].instructions;
+          console.log("Announcing new step:", instruction);
           speak(instruction);
           setLastAnnouncedStep(closestStepIndex);
           lastAnnouncementTimeRef.current = now;
@@ -183,17 +275,6 @@ const useMapNavigation = (): UseMapNavigationReturn => {
           lastAnnouncedPositionRef.current = { ...userLocation };
           announcementMade = true;
         }
-      }
-      // First announcement only happens once at the beginning
-      else if (stepIndex === 0 && lastAnnouncedStep === -1 && canAnnounce) {
-        // This is the very first announcement for the initial step
-        const instruction = `Starting navigation. ${navigationSteps[0].instructions}`;
-        speak(instruction);
-        setLastAnnouncedStep(0);
-        lastAnnouncementTimeRef.current = now;
-        // Store position where announcement was made
-        lastAnnouncedPositionRef.current = { ...userLocation };
-        announcementMade = true;
       }
 
       // Update the distance to the next maneuver
@@ -212,32 +293,31 @@ const useMapNavigation = (): UseMapNavigationReturn => {
           setNextStepDistance(`${Math.round(distanceToNextStep)} m`);
         }
 
-        // Only announce "approaching" when:
-        // 1. We're in the right distance range
-        // 2. We're still on the same step to avoid duplication
-        // 3. Enough time has passed
-        // 4. User has moved at least 10 meters since last announcement
-        if (
-          distanceToNextStep < 50 &&
-          distanceToNextStep > 20 &&
-          closestStepIndex === lastAnnouncedStep &&
-          canAnnounce &&
-          hasMovedEnough
-        ) {
-          const instruction = `In ${Math.round(distanceToNextStep)} meters, ${
-            navigationSteps[closestStepIndex].instructions
-          }`;
-          speak(instruction);
-          lastAnnouncementTimeRef.current = now;
-          // Store position where announcement was made
-          lastAnnouncedPositionRef.current = { ...userLocation };
-          announcementMade = true;
+        // Announce approaching maneuver at key distances
+        // More structured approach to avoid strange announcement points
+        if (canAnnounce && hasMovedEnough) {
+          // Only announce at specific distance thresholds
+          if (distanceToNextStep <= 100 && distanceToNextStep >= 90) {
+            const instruction = `In 100 meters, ${navigationSteps[closestStepIndex].instructions}`;
+            console.log("Announcing 100m approach:", instruction);
+            speak(instruction);
+            lastAnnouncementTimeRef.current = now;
+            lastAnnouncedPositionRef.current = { ...userLocation };
+            announcementMade = true;
+          } else if (distanceToNextStep <= 50 && distanceToNextStep >= 40) {
+            const instruction = `In 50 meters, ${navigationSteps[closestStepIndex].instructions}`;
+            console.log("Announcing 50m approach:", instruction);
+            speak(instruction);
+            lastAnnouncementTimeRef.current = now;
+            lastAnnouncedPositionRef.current = { ...userLocation };
+            announcementMade = true;
+          }
         }
       }
 
       return announcementMade;
     },
-    [navigationSteps, stepIndex, lastAnnouncedStep, speak]
+    [navigationSteps, stepIndex, lastAnnouncedStep, speak, isJourneyActive]
   );
 
   /**
@@ -253,6 +333,7 @@ const useMapNavigation = (): UseMapNavigationReturn => {
       setCurrentStep(steps[0]);
       setStepIndex(0);
       setLastAnnouncedStep(-1); // Reset so we announce first step
+      initialInstructionGivenRef.current = false;
     }
 
     console.log(`Route loaded with ${steps.length} navigation steps`);
@@ -263,9 +344,21 @@ const useMapNavigation = (): UseMapNavigationReturn => {
    * Announce destination reached
    */
   const announceDestinationReached = useCallback((): void => {
+    if (!isJourneyActive) return;
+
+    // Clear any existing queue
+    setSpeechQueue([]);
+    Speech.stop();
+
     const instruction = "You have reached your destination.";
+    console.log("Announcing destination reached");
     speak(instruction);
-  }, [speak]);
+
+    // After destination announcement, consider journey over
+    setTimeout(() => {
+      setIsJourneyActive(false);
+    }, 5000);
+  }, [speak, isJourneyActive]);
 
   /**
    * Reset navigation state
@@ -276,11 +369,15 @@ const useMapNavigation = (): UseMapNavigationReturn => {
     setStepIndex(0);
     setLastAnnouncedStep(-1);
     setNavigationVisible(true);
+    setIsJourneyActive(false);
+    initialInstructionGivenRef.current = false;
 
     // Clear speech queue and stop any speaking
     setSpeechQueue([]);
     setIsSpeaking(false);
     Speech.stop();
+
+    console.log("Navigation reset complete");
   }, []);
 
   /**
@@ -324,13 +421,6 @@ const useMapNavigation = (): UseMapNavigationReturn => {
     []
   );
 
-  // Clean up on unmount
-  useEffect(() => {
-    return () => {
-      Speech.stop();
-    };
-  }, []);
-
   return {
     navigationSteps,
     currentStep,
@@ -349,5 +439,4 @@ const useMapNavigation = (): UseMapNavigationReturn => {
   };
 };
 
-// Make sure to properly export the hook as a function
 export default useMapNavigation;

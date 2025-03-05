@@ -27,9 +27,9 @@ export const PROXIMITY_NOTIFICATION_THRESHOLD = 100; // 100 meters
 export const NOTIFICATION_COOLDOWN = 600000; // 10 minutes cooldown
 
 // Navigation constants
-export const ANNOUNCEMENT_COOLDOWN = 20000; // 20 seconds between announcements
+export const ANNOUNCEMENT_COOLDOWN = 2000; // 20 seconds between announcements
 export const LOCATION_UPDATE_THROTTLE = 3; // Process every 3rd update
-export const INITIAL_NAVIGATION_DELAY = 20000; // Delay first instruction
+export const INITIAL_NAVIGATION_DELAY = 2000; // Delay first instruction
 
 // Define travel mode type
 export type MapViewDirectionsMode = "DRIVING" | "WALKING" | "BICYCLING" | "TRANSIT";

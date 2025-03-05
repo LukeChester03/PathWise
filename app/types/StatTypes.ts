@@ -1,44 +1,39 @@
-// types/index.ts
+// types/StatTypes.ts
+import { Timestamp } from "firebase/firestore";
 
-// Specific icon types for Ionicons
 export type StatIcon =
-  | "compass-outline"
   | "map-outline"
   | "earth-outline"
   | "flame-outline"
-  | "star-outline";
+  | "star-outline"
+  | "compass-outline";
 
-// Define the structure of a single stat item
 export interface StatItem {
   id: number;
   icon: StatIcon;
   value: number;
   label: string;
-  gradientColors: [string, string];
+  gradientColors: [string, string]; // Tuple of two colors
 }
 
-// Define the structure of user stats in the database
 export interface UserStatsData {
-  placesDiscovered?: number;
-  countriesVisited?: number;
-  dayStreak?: number;
-  achievementsEarned?: number;
-  lastUpdated?: Date;
+  placesDiscovered: number;
+  countriesVisited: number;
+  dayStreak: number;
+  achievementsEarned: number;
+  lastUpdated: Date | Timestamp;
+  lastLogin?: Date | Timestamp;
+  visitedCountries?: string[]; // Array of visited country names
+  processedPlaceIds?: string[]; // Array of processed place IDs to prevent duplicates
 }
 
-// Optional: Define a type for potential stat categories
-export type StatCategory =
-  | "Places Discovered"
-  | "Countries Visited"
-  | "Day Streak"
-  | "Achievements Earned";
-
-// Optional: Interface for stat tracking metadata
-export interface StatMetadata {
-  category: StatCategory;
-  description: string;
-  icon: StatIcon;
-  gradient: {
-    colors: [string, string];
+export interface VisitedPlace {
+  placeId: string;
+  name: string;
+  country: string;
+  location: {
+    latitude: number;
+    longitude: number;
   };
+  visitedAt: Date | Timestamp;
 }

@@ -3,6 +3,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { db, auth } from "../../config/firebaseConfig"; // Import from your existing Firebase config
 import { collection, doc, setDoc, getDocs, getDoc } from "firebase/firestore";
 import { Place, PlaceDetails } from "../../types/MapTypes";
+import { processVisitedPlace } from "../../services/statsService"; // Import the stats service function
 
 /**
  * Save a visited place to the database, preserving all properties from Place or PlaceDetails
@@ -48,6 +49,52 @@ export const saveVisitedPlace = async (place, userId = null) => {
 
     // Also save to AsyncStorage for offline access
     await saveVisitedPlaceLocally(visitedPlace);
+
+    // Update stats with the newly visited place
+    try {
+      // Extract country information - using address_components if available
+      let country = "Unknown";
+
+      if (placeData.address_components) {
+        // Try to find country in address components
+        const countryComponent = placeData.address_components.find((component) =>
+          component.types.includes("country")
+        );
+
+        if (countryComponent) {
+          country = countryComponent.long_name || countryComponent.short_name;
+        }
+      } else if (placeData.formatted_address) {
+        // Try to extract country from formatted address (last part often contains country)
+        const addressParts = placeData.formatted_address.split(",");
+        if (addressParts.length > 0) {
+          country = addressParts[addressParts.length - 1].trim();
+        }
+      } else if (placeData.vicinity) {
+        // Last resort - vicinity might have location info
+        country = placeData.vicinity;
+      }
+
+      // Get coordinates
+      const location = {
+        latitude: placeData.geometry?.location?.lat || 0,
+        longitude: placeData.geometry?.location?.lng || 0,
+      };
+
+      // Process the place visit for stats
+      await processVisitedPlace({
+        placeId: placeData.place_id,
+        name: placeData.name,
+        country: country,
+        latitude: location.latitude,
+        longitude: location.longitude,
+      });
+
+      console.log(`Updated stats for visit to ${placeData.name} in ${country}`);
+    } catch (statsError) {
+      // If stats update fails, still consider the save successful
+      console.error("Error updating stats for place visit:", statsError);
+    }
 
     console.log(`Successfully saved place ${placeData.name} to database`);
     return true;

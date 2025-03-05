@@ -12,7 +12,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { fetchUserStats } from "../../services/statsService";
+import { fetchUserStats, initStatsSystem } from "../../services/statsService";
 import { StatItem } from "../../types/StatTypes";
 
 const { width } = Dimensions.get("window");
@@ -33,16 +33,47 @@ const StatsSection = () => {
   const rotateAnim = useRef(new Animated.Value(0)).current;
   const shimmerAnim = useRef(new Animated.Value(0)).current;
 
+  // Cleanup function reference
+  const cleanupRef = useRef<(() => void) | null>(null);
+
+  // Load stats and set up listeners
   useEffect(() => {
+    let isMounted = true;
+
     const loadUserStats = async () => {
       try {
+        setIsLoading(true);
         const stats = await fetchUserStats();
-        setUserStats(stats);
+        if (isMounted) {
+          setUserStats(stats);
+
+          // Initialize stats system - daily streak and listeners
+          try {
+            const cleanup = await initStatsSystem(() => {
+              // This callback is called whenever stats change
+              refreshStats();
+            });
+
+            // Store cleanup function for later
+            if (isMounted) {
+              cleanupRef.current = cleanup;
+            } else if (cleanup) {
+              // If component unmounted during async operation, clean up immediately
+              cleanup();
+            }
+          } catch (initError) {
+            console.error("Error initializing stats system:", initError);
+          }
+        }
       } catch (error) {
         console.error("Error fetching user stats:", error);
-        setUserStats([]);
+        if (isMounted) {
+          setUserStats([]);
+        }
       } finally {
-        setIsLoading(false);
+        if (isMounted) {
+          setIsLoading(false);
+        }
       }
     };
 
@@ -50,7 +81,27 @@ const StatsSection = () => {
 
     // Start animations
     startAnimations();
+
+    // Cleanup when component unmounts
+    return () => {
+      isMounted = false;
+      if (cleanupRef.current) {
+        cleanupRef.current();
+        cleanupRef.current = null;
+      }
+    };
   }, []);
+
+  // Function to refresh stats data
+  const refreshStats = async () => {
+    try {
+      console.log("Refreshing stats...");
+      const updatedStats = await fetchUserStats();
+      setUserStats(updatedStats);
+    } catch (error) {
+      console.error("Error refreshing stats:", error);
+    }
+  };
 
   const startAnimations = () => {
     // Fade in and slide in animations
@@ -382,7 +433,7 @@ const StatsSection = () => {
           activeOpacity={0.9}
           style={styles.statCard}
           onPress={() => {
-            /* Optional: Add navigation or action */
+            // Optional: Navigate to detailed stats view
           }}
         >
           <LinearGradient

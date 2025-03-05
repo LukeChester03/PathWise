@@ -16,8 +16,8 @@ import { Colors, NeutralColors } from "../../constants/colours";
 import { getPlaceCardImageUrl } from "../../utils/mapImageUtils";
 
 const { width } = Dimensions.get("window");
-const VISIBLE_NEXT_CARD = width * 0.5; // How much of the next card to show (about 1/4 of the card)
-const PLACE_CARD_WIDTH = width * 0.5; // Card takes up 75% of screen width
+const VISIBLE_NEXT_CARD = width * 0.25; // How much of the next card to show (about 1/4 of the card)
+const PLACE_CARD_WIDTH = width * 0.75; // Card takes up 75% of screen width
 const PLACE_CARD_HEIGHT = 200;
 const SPACING = 10; // Reduced spacing between cards
 
@@ -216,7 +216,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    height: "60%",
+    height: "100%",
     borderRadius: 20,
   },
   cardContent: {
