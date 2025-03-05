@@ -11,24 +11,6 @@ import {
 } from "../../types/MapTypes";
 
 /**
- * View mode toggle button (follow/overview)
- */
-export const ViewModeToggle: React.FC<ViewModeToggleProps> = ({ viewMode, onToggle }) => {
-  return (
-    <TouchableOpacity
-      style={[styles.viewModeButton, viewMode === "overview" ? styles.viewModeButtonActive : {}]}
-      onPress={onToggle}
-    >
-      <MaterialIcon
-        name={viewMode === "follow" ? "explore" : "navigation"}
-        size={24}
-        color="#fff"
-      />
-    </TouchableOpacity>
-  );
-};
-
-/**
  * Card toggle arrow
  */
 export const CardToggleArrow: React.FC<CardToggleArrowProps> = ({ onPress }) => {

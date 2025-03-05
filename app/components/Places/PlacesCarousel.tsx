@@ -16,10 +16,10 @@ import { Colors, NeutralColors } from "../../constants/colours";
 import { getPlaceCardImageUrl } from "../../utils/mapImageUtils";
 
 const { width } = Dimensions.get("window");
-const PLACE_CARD_WIDTH = width * 0.8;
+const VISIBLE_NEXT_CARD = width * 0.5; // How much of the next card to show (about 1/4 of the card)
+const PLACE_CARD_WIDTH = width * 0.5; // Card takes up 75% of screen width
 const PLACE_CARD_HEIGHT = 200;
-const SPACING = 16;
-const VISIBLE_ITEMS = 3; // Number of items visible in the carousel
+const SPACING = 10; // Reduced spacing between cards
 
 const PlacesCarousel = ({ places, onPlacePress }) => {
   const scrollX = useRef(new Animated.Value(0)).current;
@@ -64,7 +64,7 @@ const PlacesCarousel = ({ places, onPlacePress }) => {
     // Scale animation based on scroll position
     const scale = scrollX.interpolate({
       inputRange,
-      outputRange: [0.9, 1, 0.9],
+      outputRange: [0.92, 1, 0.92],
       extrapolate: "clamp",
     });
 
@@ -174,11 +174,7 @@ const PlacesCarousel = ({ places, onPlacePress }) => {
         })}
         scrollEventThrottle={16}
         snapToAlignment="center"
-        initialNumToRender={VISIBLE_ITEMS}
-        maxToRenderPerBatch={VISIBLE_ITEMS}
-        windowSize={VISIBLE_ITEMS}
         bounces={true}
-        pagingEnabled
       />
     </View>
   );
@@ -189,7 +185,8 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   carouselContent: {
-    paddingHorizontal: SPACING,
+    // This properly centers the first card and shows about 1/4 of the next card
+    paddingHorizontal: (width - PLACE_CARD_WIDTH - VISIBLE_NEXT_CARD) / 2,
     paddingVertical: 8,
   },
   placeCardContainer: {

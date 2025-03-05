@@ -37,8 +37,6 @@ interface DetailsCardProps {
   soundEnabled: boolean;
   setSoundEnabled: (enabled: boolean) => void;
   getManeuverIcon: (maneuver: string) => React.ReactNode;
-
-  // Auto-show properties
   autoShowUpcomingStep?: boolean;
 }
 
