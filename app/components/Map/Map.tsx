@@ -503,7 +503,7 @@ const Map: React.FC = () => {
         customMapStyle={customMapStyle}
         showsPointsOfInterest={false}
         provider={PROVIDER_DEFAULT}
-        followsUserLocation={false} // We'll handle camera updates manually
+        followsUserLocation={false}
         rotateEnabled={true}
         pitchEnabled={true}
         onUserLocationChange={(event) => {
@@ -532,7 +532,7 @@ const Map: React.FC = () => {
             anchor={{ x: 0.5, y: 0.5 }}
             rotation={location.userHeading}
             flat={true}
-            zIndex={1000} // Make sure it's above other markers
+            zIndex={1000}
           >
             <DirectionIndicator />
           </Marker>
@@ -630,35 +630,37 @@ const Map: React.FC = () => {
 
       {/* Cards and UI elements */}
       {showCard && places.selectedPlace && places.travelTime && (
-        <ExploreCard
-          placeName={places.selectedPlace.name}
-          travelTime={places.travelTime}
-          onStartJourney={onStartJourney}
-          visible={showCard}
-          rating={
-            places.selectedPlace.rating != undefined ? places.selectedPlace.rating : "No Ratings"
-          }
-          travelMode={places.travelMode}
-          placeDescription={places.selectedPlace.description}
-          placeImage={
-            places.selectedPlace.photos && places.selectedPlace.photos.length > 0
-              ? `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photoreference=${places.selectedPlace.photos[0].photo_reference}&key=${GOOGLE_MAPS_APIKEY}`
-              : undefined
-          }
-          onCancel={() =>
-            handleCancel(
-              setConfirmEndJourney,
-              places.setSelectedPlace,
-              setRouteCoordinates,
-              setTravelTime,
-              setDistance,
-              setShowCard,
-              setJourneyStarted,
-              setShowArrow,
-              setShowDetailsCard
-            )
-          }
-        />
+        <View style={styles.cardOverlayContainer}>
+          <ExploreCard
+            placeName={places.selectedPlace.name}
+            travelTime={places.travelTime}
+            onStartJourney={onStartJourney}
+            visible={showCard}
+            rating={
+              places.selectedPlace.rating != undefined ? places.selectedPlace.rating : "No Ratings"
+            }
+            travelMode={places.travelMode}
+            placeDescription={places.selectedPlace.description}
+            placeImage={
+              places.selectedPlace.photos && places.selectedPlace.photos.length > 0
+                ? `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photoreference=${places.selectedPlace.photos[0].photo_reference}&key=${GOOGLE_MAPS_APIKEY}`
+                : undefined
+            }
+            onCancel={() =>
+              handleCancel(
+                setConfirmEndJourney,
+                places.setSelectedPlace,
+                setRouteCoordinates,
+                setTravelTime,
+                setDistance,
+                setShowCard,
+                setJourneyStarted,
+                setShowArrow,
+                setShowDetailsCard
+              )
+            }
+          />
+        </View>
       )}
 
       {showDiscoveredCard && places.selectedPlace && (
@@ -745,6 +747,17 @@ const styles = StyleSheet.create({
     height: "100%",
   },
   destinationCardContainer: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 999,
+  },
+  cardOverlayContainer: {
     position: "absolute",
     top: 0,
     left: 0,
