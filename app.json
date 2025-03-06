@@ -52,9 +52,13 @@
             "compileSdkVersion": 35,
             "targetSdkVersion": 34,
             "buildToolsVersion": "34.0.0",
-            "kotlinVersion": "1.8.0",
+            "kotlinVersion": "1.7.20",
             "androidXCore": "1.10.0",
-            "androidXFragment": "1.5.0"
+            "androidXFragment": "1.5.0",
+            "enableProguardInReleaseBuilds": false,
+            "extraProperties": {
+              "android.kotlinOptions.suppressKotlinVersionCompatibilityCheck": "true"
+            }
           }
         }
       ]
