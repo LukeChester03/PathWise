@@ -441,7 +441,17 @@ const ExploreCard: React.FC<ExploreCardProps> = ({
               ],
               opacity: contentAnim,
             }}
-          ></Animated.View>
+          >
+            {/* <TouchableOpacity
+              style={styles.secondaryButton}
+              onPress={handleDismiss}
+              onPressIn={handleSecondaryPressIn}
+              onPressOut={handleSecondaryPressOut}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.secondaryButtonText}>Maybe Later</Text>
+            </TouchableOpacity> */}
+          </Animated.View>
         </View>
       </Animated.View>
     </Animated.View>
@@ -452,7 +462,7 @@ const styles = StyleSheet.create({
   cardContainer: {
     width: width * 0.9,
     maxWidth: 400,
-    maxHeight: height * 0.65,
+    maxHeight: height - (HEADER_HEIGHT + NAVBAR_HEIGHT + StatusBar.currentHeight) - 160,
     backgroundColor: "white",
     borderRadius: 16,
     overflow: "hidden",
@@ -476,7 +486,7 @@ const styles = StyleSheet.create({
   },
   imageContainer: {
     width: "100%",
-    height: 220,
+    height: 200,
     position: "relative",
   },
   headerImage: {
