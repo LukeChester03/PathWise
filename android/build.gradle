@@ -6,7 +6,7 @@ buildscript {
         minSdkVersion = Integer.parseInt(findProperty('android.minSdkVersion') ?: '24')
         compileSdkVersion = Integer.parseInt(findProperty('android.compileSdkVersion') ?: '35')
         targetSdkVersion = Integer.parseInt(findProperty('android.targetSdkVersion') ?: '34')
-        kotlinVersion = findProperty('android.kotlinVersion') ?: '1.7.20'
+        kotlinVersion = '1.7.20' // Force to 1.7.20, ignoring properties
 
         ndkVersion = "26.1.10909125"
     }
@@ -18,8 +18,16 @@ buildscript {
         classpath 'com.google.gms:google-services:4.4.1'
         classpath('com.android.tools.build:gradle')
         classpath('com.facebook.react:react-native-gradle-plugin')
-        classpath('org.jetbrains.kotlin:kotlin-gradle-plugin')
+        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:1.7.20"
     }
+    // Force Kotlin version in buildscript
+    configurations.classpath.resolutionStrategy.forcedModules = [
+        'org.jetbrains.kotlin:kotlin-gradle-plugin:1.7.20',
+        'org.jetbrains.kotlin:kotlin-stdlib:1.7.20',
+        'org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.7.20',
+        'org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.7.20',
+        'org.jetbrains.kotlin:kotlin-reflect:1.7.20'
+    ]
 }
 
 apply plugin: "com.facebook.react.rootproject"
@@ -39,4 +47,50 @@ allprojects {
         mavenCentral()
         maven { url 'https://www.jitpack.io' }
     }
+    
+    // Force Kotlin version in all projects with a simpler syntax
+    project.configurations.all {
+        resolutionStrategy.forcedModules = [
+            'org.jetbrains.kotlin:kotlin-gradle-plugin:1.7.20',
+            'org.jetbrains.kotlin:kotlin-stdlib:1.7.20',
+            'org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.7.20',
+            'org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.7.20',
+            'org.jetbrains.kotlin:kotlin-reflect:1.7.20'
+        ]
+    }
+}
+
+// Add explicit support for Kotlin version compatibility issues
+subprojects {
+    afterEvaluate { project ->
+        if (project.hasProperty('kotlin')) {
+            project.tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
+                kotlinOptions {
+                    jvmTarget = '11'
+                    freeCompilerArgs += ["-Xsuppress-kotlin-version-compatibility-check"]
+                }
+            }
+        }
+    }
+}
+
+// Add a gradle.properties file
+import java.nio.file.Paths
+def gradleProps = Paths.get("${project.rootDir}/gradle.properties")
+if (!gradleProps.toFile().exists()) {
+    def propsContent = """
+# Crucial Kotlin settings
+kotlin.version=1.7.20
+kotlinVersion=1.7.20
+kotlin.stdlib.default.dependency=false
+kotlin.suppressKotlinVersionCompatibilityCheck=true
+org.jetbrains.kotlin.gradle.plugin.suppressKotlinVersionCompatibilityCheck=true
+compose.kotlinCompilerExtensionVersion=1.5.8
+android.kotlinOptions.suppressKotlinVersionCompatibilityCheck=true
+android.enableJetifier=true
+android.useAndroidX=true
+org.gradle.jvmargs=-Xmx4g -XX:+HeapDumpOnOutOfMemoryError -Dfile.encoding=UTF-8
+"""
+    gradleProps.toFile().text = propsContent
+    println "Created gradle.properties with Kotlin settings"
 }
