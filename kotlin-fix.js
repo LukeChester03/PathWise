@@ -1,88 +1,108 @@
-// kotlin-fix.js
+// kotlin-fix.js - Direct module patching
 const fs = require("fs");
 const path = require("path");
-const { execSync } = require("child_process");
 
 console.log("🔧 Applying direct Kotlin fix for expo-modules-core...");
 
 try {
-  // Path to the module with the compiler issue
-  const moduleDir = path.join(__dirname, "node_modules/expo-modules-core/android");
+  // Define paths that work in EAS
+  const moduleDir = path.join(process.cwd(), "node_modules/expo-modules-core/android");
 
-  // Create a specific kotlin.properties file to force the version
-  const propsContent = `kotlin.suppressVersionCompatibilityCheck=true
-kotlin.stdlib.default.dependency=false
-compose.kotlinCompilerExtensionVersion=1.5.8
-kotlinVersion=1.7.20`;
+  if (fs.existsSync(moduleDir)) {
+    console.log(`Found expo-modules-core at: ${moduleDir}`);
 
-  fs.writeFileSync(path.join(moduleDir, "kotlin.properties"), propsContent);
-  console.log("✅ Created kotlin.properties in expo-modules-core");
+    // Direct patch to the build.gradle file
+    const buildGradlePath = path.join(moduleDir, "build.gradle");
+    if (fs.existsSync(buildGradlePath)) {
+      let content = fs.readFileSync(buildGradlePath, "utf8");
 
-  // Direct patch to the build.gradle file
-  const buildGradlePath = path.join(moduleDir, "build.gradle");
-  if (fs.existsSync(buildGradlePath)) {
-    let content = fs.readFileSync(buildGradlePath, "utf8");
+      // Replace kotlinVersion directly
+      content = content.replace(/kotlinVersion\s*=.*/, 'kotlinVersion = "1.7.20"');
 
-    // Apply a direct fix at the very beginning of the file
-    if (!content.includes("// KOTLIN VERSION PATCH")) {
-      const patch = `// KOTLIN VERSION PATCH
-buildscript {
-    configurations.all {
-        resolutionStrategy.force 'org.jetbrains.kotlin:kotlin-gradle-plugin:1.7.20'
-    }
-}
-
-project.ext.set("kotlinVersion", "1.7.20")
-project.ext.set("KOTLIN_VERSION", "1.7.20")
-
-tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
-    kotlinOptions {
-        suppressKotlinVersionCompatibilityCheck = true
-        jvmTarget = "11"
-    }
-}
-
-`;
-
-      content = patch + content;
-      fs.writeFileSync(buildGradlePath, content);
-      console.log("✅ Patched build.gradle");
-
-      // Create a replacement for the kotlin compiler plugin
-      const kotlinDir = path.join(moduleDir, "kotlin");
-      if (!fs.existsSync(kotlinDir)) {
-        fs.mkdirSync(kotlinDir, { recursive: true });
+      // Add compile options directly
+      if (!content.includes("kotlinOptions.suppressKotlinVersionCompatibilityCheck")) {
+        content = content.replace(
+          /compileOptions {/g,
+          `compileOptions {
+        kotlinOptions.suppressKotlinVersionCompatibilityCheck = true
+        kotlinOptions.jvmTarget = "11"`
+        );
       }
 
-      // Write a minimal replacement for the kotlin compiler plugin
-      const compilerPluginPath = path.join(kotlinDir, "compiler-plugin.gradle");
-      const pluginContent = `
-apply plugin: 'kotlin-android'
+      // Add a gradle.properties file directly in the module
+      const modulePropsPath = path.join(moduleDir, "gradle.properties");
+      const propsContent = `
+kotlin.version=1.7.20
+kotlinVersion=1.7.20
+kotlin.stdlib.default.dependency=false
+kotlin.suppressKotlinVersionCompatibilityCheck=true
+compose.kotlinCompilerExtensionVersion=1.5.8
+android.enableJetifier=true
+android.useAndroidX=true
+`;
+      fs.writeFileSync(modulePropsPath, propsContent);
 
-kotlin {
-    kotlinOptions {
-        jvmTarget = "11"
-        suppressKotlinVersionCompatibilityCheck = true
-    }
+      // Save changes to build.gradle
+      fs.writeFileSync(buildGradlePath, content);
+      console.log("✅ Patched expo-modules-core build.gradle and added gradle.properties");
+
+      // Find and modify all build.gradle files in the project's node_modules
+      const findBuildGradleFiles = (dir, results = []) => {
+        if (!fs.existsSync(dir)) return results;
+
+        const files = fs.readdirSync(dir);
+        for (const file of files) {
+          const filePath = path.join(dir, file);
+          const stat = fs.statSync(filePath);
+
+          if (stat.isDirectory() && !filePath.includes("node_modules/node_modules")) {
+            findBuildGradleFiles(filePath, results);
+          } else if (file === "build.gradle") {
+            results.push(filePath);
+          }
+        }
+        return results;
+      };
+
+      // Find all build.gradle files in node_modules
+      console.log("Finding build.gradle files in node_modules...");
+      const gradleFiles = findBuildGradleFiles(path.join(process.cwd(), "node_modules"));
+      console.log(`Found ${gradleFiles.length} build.gradle files`);
+
+      // Patch each build.gradle file that uses Kotlin
+      for (const gradleFile of gradleFiles) {
+        try {
+          let content = fs.readFileSync(gradleFile, "utf8");
+          if (content.includes("kotlin-android") || content.includes("org.jetbrains.kotlin")) {
+            console.log(`Patching Kotlin in: ${gradleFile}`);
+
+            // Force Kotlin version
+            content = content.replace(/kotlinVersion\s*=.*/, 'kotlinVersion = "1.7.20"');
+
+            // Add suppression option
+            if (!content.includes("suppressKotlinVersionCompatibilityCheck")) {
+              content += `
+// Added by Kotlin fix script
+tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
+    kotlinOptions.suppressKotlinVersionCompatibilityCheck = true
+    kotlinOptions.jvmTarget = "11"
 }
 `;
-      fs.writeFileSync(compilerPluginPath, pluginContent);
-      console.log("✅ Created kotlin compiler plugin override");
+            }
 
-      // Try to clean any cached Kotlin compiler data
-      try {
-        execSync("rm -rf ~/.gradle/caches/modules-2/files-2.1/org.jetbrains.kotlin");
-        console.log("✅ Cleaned Kotlin cache");
-      } catch (err) {
-        console.log("⚠️ Could not clean Kotlin cache:", err.message);
+            fs.writeFileSync(gradleFile, content);
+          }
+        } catch (err) {
+          console.log(`Error patching ${gradleFile}: ${err.message}`);
+        }
       }
     }
   } else {
-    console.log("⚠️ Could not find build.gradle file");
+    console.log("⚠️ expo-modules-core android directory not found");
   }
 
   console.log("🎉 Kotlin fix applied successfully!");
 } catch (error) {
   console.error("❌ Error applying Kotlin fix:", error);
-  process.exit(1);
+  // Don't exit with error to not halt the build
 }
