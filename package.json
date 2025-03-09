@@ -113,13 +113,12 @@
   ],
   "resolutions": {
     "kotlin": "1.7.20",
-    "org.jetbrains.kotlin/*": "1.7.20",
     "@expo/config-plugins": "latest",
     "expo-modules-core": "2.2.2",
-    "androidx-compose-compiler-extension": "1.5.8"
+    "punycode": "2.3.1"
   },
   "overrides": {
     "kotlin": "1.7.20",
-    "org.jetbrains.kotlin/*": "1.7.20"
+    "punycode": "2.3.1"
   }
 }
