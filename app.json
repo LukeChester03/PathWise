@@ -59,7 +59,9 @@
             "androidXFragment": "1.5.0",
             "enableProguardInReleaseBuilds": false,
             "extraProperties": {
-              "android.kotlinOptions.suppressKotlinVersionCompatibilityCheck": "true"
+              "android.kotlinOptions.suppressKotlinVersionCompatibilityCheck": "true",
+              "compose.kotlinCompilerExtensionVersion": "1.5.8",
+              "kotlin.suppressKotlinVersionCompatibilityCheck": "true"
             }
           }
         }

@@ -18,13 +18,11 @@
         "env": {
           "KOTLIN_VERSION": "1.7.20"
         },
-        "buildType": "apk"
+        "buildType": "apk",
+        "prebuildCommand": "node fix-kotlin-version.js"
       },
       "ios": {
-        "buildConfiguration": "Release",
-        "env": {
-          "KOTLIN_VERSION": "1.7.20"
-        }
+        "buildConfiguration": "Release"
       }
     }
   },
