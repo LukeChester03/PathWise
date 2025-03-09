@@ -47,7 +47,15 @@
         "expo-build-properties",
         {
           "ios": {
-            "useFrameworks": "static"
+            "config": {
+              "googleMapsApiKey": "AIzaSyDAGq_6eJGQpR3RcO0NrVOowel9-DxZkvA"
+            },
+            "supportsTablet": false,
+            "bundleIdentifier": "com.lukechester03.PathWise",
+            "infoPlist": {
+              "ITSAppUsesNonExemptEncryption": false
+            },
+            "googleServicesFile": "./GoogleService-Info.plist"
           },
           "android": {
             "compileSdkVersion": 35,
