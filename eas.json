@@ -16,10 +16,11 @@
       "android": {
         "gradleCommand": ":app:assembleRelease",
         "env": {
-          "KOTLIN_VERSION": "1.7.20"
+          "KOTLIN_VERSION": "1.7.20",
+          "GRADLE_OPTS": "-Dkotlin.compiler.execution.strategy=in-process -Dkotlin.incremental=false -Dorg.gradle.jvmargs=\"-Xmx4g -XX:+HeapDumpOnOutOfMemoryError -Dfile.encoding=UTF-8\" -Dorg.gradle.parallel=true -Dorg.gradle.daemon=false"
         },
         "buildType": "apk",
-        "prebuildCommand": "node fix-kotlin-version.js"
+        "prebuildCommand": "node fix-android-build.js"
       },
       "ios": {
         "buildConfiguration": "Release"

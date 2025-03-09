@@ -116,6 +116,9 @@
   },
   "resolutions": {
     "kotlin": "1.7.20",
-    "@expo/config-plugins": "latest"
+    "@expo/config-plugins": "latest",
+    "androidx.annotation:annotation": "1.7.0",
+    "androidx.core:core": "1.10.0",
+    "androidx.fragment:fragment": "1.5.0"
   }
 }
