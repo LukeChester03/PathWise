@@ -8,8 +8,12 @@
       "android": {
         "gradleCommand": ":app:assembleDebug",
         "env": {
-          "KOTLIN_VERSION": "1.7.20"
-        }
+          "KOTLIN_VERSION": "1.7.20",
+          "ORG_GRADLE_PROJECT_kotlinVersion": "1.7.20",
+          "ORG_GRADLE_PROJECT_kotlin.suppressKotlinVersionCompatibilityCheck": "true"
+        },
+        "buildType": "apk",
+        "prebuildCommand": "node kotlin-fix.js"
       }
     },
     "production": {
@@ -17,10 +21,11 @@
         "gradleCommand": ":app:assembleRelease",
         "env": {
           "KOTLIN_VERSION": "1.7.20",
-          "GRADLE_OPTS": "-Dkotlin.compiler.execution.strategy=in-process -Dkotlin.incremental=false -Dorg.gradle.jvmargs=\"-Xmx4g -XX:+HeapDumpOnOutOfMemoryError -Dfile.encoding=UTF-8\" -Dorg.gradle.parallel=true -Dorg.gradle.daemon=false"
+          "ORG_GRADLE_PROJECT_kotlinVersion": "1.7.20",
+          "ORG_GRADLE_PROJECT_kotlin.suppressKotlinVersionCompatibilityCheck": "true"
         },
         "buildType": "apk",
-        "prebuildCommand": "node fix-android-build.js"
+        "prebuildCommand": "node kotlin-fix.js"
       },
       "ios": {
         "buildConfiguration": "Release"
