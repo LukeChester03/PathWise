@@ -11,6 +11,21 @@
           "KOTLIN_VERSION": "1.7.20"
         }
       }
+    },
+    "production": {
+      "android": {
+        "gradleCommand": ":app:assembleRelease",
+        "env": {
+          "KOTLIN_VERSION": "1.7.20"
+        },
+        "buildType": "apk"
+      },
+      "ios": {
+        "buildConfiguration": "Release",
+        "env": {
+          "KOTLIN_VERSION": "1.7.20"
+        }
+      }
     }
   },
   "submit": {
