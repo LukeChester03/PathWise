@@ -12,14 +12,16 @@
       "config": {
         "googleMapsApiKey": "AIzaSyDAGq_6eJGQpR3RcO0NrVOowel9-DxZkvA"
       },
-      "supportsTablet": true
+      "supportsTablet": false,
+      "googleServicesFile": "./GoogleService-Info.plist"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "com.lukechester03.PathWise"
+      "package": "com.lukechester03.PathWise",
+      "googleServicesFile": "./google-services.json"
     },
     "web": {
       "bundler": "metro",
@@ -49,7 +51,12 @@
           "android": {
             "compileSdkVersion": 33,
             "targetSdkVersion": 33,
-            "buildToolsVersion": "33.0.0"
+            "buildToolsVersion": "33.0.0",
+            "kotlinVersion": "1.7.20",
+            "extraProperties": {
+              "android.kotlinOptions.suppressKotlinVersionCompatibilityCheck": "true",
+              "kotlin.suppressKotlinVersionCompatibilityCheck": "true"
+            }
           }
         }
       ]
