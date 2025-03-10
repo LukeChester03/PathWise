@@ -16,6 +16,9 @@
       "googleServicesFile": "./GoogleService-Info.plist"
     },
     "android": {
+      "config": {
+        "googleMapsApiKey": "AIzaSyDAGq_6eJGQpR3RcO0NrVOowel9-DxZkvA"
+      },
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
@@ -49,15 +52,23 @@
             "useFrameworks": "static"
           },
           "android": {
-            "compileSdkVersion": 33,
-            "targetSdkVersion": 33,
-            "buildToolsVersion": "33.0.0"
+            "compileSdkVersion": 35,
+            "targetSdkVersion": 35,
+            "buildToolsVersion": "35.0.0"
           }
         }
       ]
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "3d1a0ff8-70e7-4a3e-ba1b-6b95ea45c05c"
+      }
     }
   }
 }
