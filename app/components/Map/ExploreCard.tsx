@@ -257,11 +257,7 @@ const ExploreCard: React.FC<ExploreCardProps> = ({
             },
           ]}
         >
-          <Image
-            source={placeImage ? { uri: placeImage } : require("../../assets/discover.png")}
-            style={styles.headerImage}
-            defaultSource={require("../../assets/discover.png")}
-          />
+          <Image source={{ uri: placeImage }} style={styles.headerImage} />
           <LinearGradient
             colors={["transparent", "rgba(0,0,0,0.7)"]}
             style={styles.imageGradient}
