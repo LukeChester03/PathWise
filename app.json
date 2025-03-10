@@ -15,7 +15,8 @@
       "bundleIdentifier": "com.lukechester03.PathWise",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
-      }
+      },
+      "googleServicesFile": "./GoogleService-Info.plist"
     },
     "android": {
       "adaptiveIcon": {
