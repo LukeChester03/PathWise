@@ -1,0 +1,19 @@
+{
+  "cli": {
+    "version": ">= 15.0.12",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "development": {
+      "android": {
+        "gradleCommand": ":app:assembleDebug",
+        "env": {
+          "KOTLIN_VERSION": "1.7.20"
+        }
+      }
+    }
+  },
+  "submit": {
+    "production": {}
+  }
+}

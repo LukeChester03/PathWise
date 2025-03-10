@@ -1,5 +1,5 @@
-// Map.tsx - Main component that integrates map functionality
-import React, { useEffect, useState, useCallback } from "react";
+// Map.tsx - Updated with dynamic place updates and auto-detection for nearby places
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import MapView, { PROVIDER_DEFAULT, Circle, Marker } from "react-native-maps";
 import { View, StyleSheet, ActivityIndicator, Vibration, Alert } from "react-native";
 import MapViewDirections from "react-native-maps-directions";
@@ -7,6 +7,7 @@ import MaterialIcon from "react-native-vector-icons/MaterialIcons";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
 import { handleCancel } from "../../handlers/Map/mapHandlers";
 import { handleDestinationReached } from "../../handlers/Map/visitedPlacesHandlers";
+import { saveVisitedPlace } from "../../controllers/Map/visitedPlacesController"; // Add this import
 import { Colors, NeutralColors } from "../../constants/colours";
 import { customMapStyle } from "../../constants/mapStyle";
 import { useNavigation } from "expo-router";
@@ -27,7 +28,6 @@ import DestinationCard from "./DestinationCard";
 import DiscoveredCard from "./DiscoveredCard";
 
 // Import utils and constants
-// import * as mapUtils from "../../utils/mapUtils";
 import {
   GOOGLE_MAPS_APIKEY,
   DESTINATION_REACHED_THRESHOLD,
@@ -51,10 +51,13 @@ const Map: React.FC = () => {
   const [destinationSaved, setDestinationSaved] = useState<boolean>(false);
   const [viewMode, setViewMode] = useState<string>("follow"); // "follow" or "overview"
 
-  // Add the missing state variables
+  // Route state variables
   const [routeCoordinates, setRouteCoordinates] = useState<Coordinate[]>([]);
   const [travelTime, setTravelTime] = useState<string | null>(null);
   const [distance, setDistance] = useState<string | null>(null);
+
+  // Add a ref to track if destination save was attempted
+  const destinationSaveAttemptedRef = useRef<boolean>(false);
 
   // Navigation hook
   const navigation = useNavigation();
@@ -124,28 +127,46 @@ const Map: React.FC = () => {
    * Update user heading and check for destination when location changes
    */
   useEffect(() => {
-    if (!location.userLocation || !journeyStarted) return;
+    if (!location.userLocation) return;
 
     // Update user heading based on movement
     const headingUpdated = location.updateHeadingFromMovement(location.userLocation);
 
     // If heading was updated and we're in follow mode, update the camera
-    if (headingUpdated && viewMode === "follow") {
+    if (headingUpdated && viewMode === "follow" && journeyStarted) {
       camera.updateUserCamera(location.userLocation, location.userHeading, false, viewMode);
     }
 
-    // Check for nearby places that might need refreshing
+    // Check for nearby places that might need refreshing (dynamic updates based on movement)
     places.checkAndRefreshPlaces(location.userLocation);
 
-    // Check if we've reached the destination
-    if (places.destinationCoordinateRef.current && !destinationReached) {
-      const reached = location.checkDestinationReached(
-        places.destinationCoordinateRef.current,
-        DESTINATION_REACHED_THRESHOLD
+    // If journey started, check if we've reached the destination
+    if (journeyStarted && places.destinationCoordinateRef.current && !destinationReached) {
+      // Calculate distance to destination
+      const distanceToDestination = mapUtils.haversineDistance(
+        location.userLocation.latitude,
+        location.userLocation.longitude,
+        places.destinationCoordinateRef.current.latitude,
+        places.destinationCoordinateRef.current.longitude
       );
 
+      console.log(
+        `Distance to destination: ${distanceToDestination.toFixed(
+          2
+        )}m, Threshold: ${DESTINATION_REACHED_THRESHOLD}m`
+      );
+
+      // Explicitly use 20 meters as the threshold
+      const reachThreshold = Math.min(DESTINATION_REACHED_THRESHOLD, 20);
+
+      const reached = distanceToDestination <= reachThreshold;
+
       if (reached) {
+        console.log(`Destination reached! Distance: ${distanceToDestination.toFixed(2)}m`);
         setDestinationReached(true);
+
+        // Reset the save attempt ref
+        destinationSaveAttemptedRef.current = false;
 
         // Vibrate to alert user
         Vibration.vibrate([0, 200, 100, 200]);
@@ -153,18 +174,63 @@ const Map: React.FC = () => {
         // Announce destination reached
         mapNavigation.announceDestinationReached();
 
-        // Mark place as visited
+        // Mark place as visited with both methods
         if (places.selectedPlace) {
+          console.log(`Saving place to database: ${places.selectedPlace.name}`);
+
+          // Method 1: Use the handler
           handleDestinationReached(places.selectedPlace);
+
+          // Method 2: Direct save as a backup
+          saveVisitedPlace({
+            ...places.selectedPlace,
+            isVisited: true,
+            visitedAt: new Date().toISOString(),
+          })
+            .then((success) => {
+              console.log(`Direct save result: ${success ? "Success" : "Failed"}`);
+              if (success) {
+                setDestinationSaved(true);
+              }
+            })
+            .catch((err) => console.error("Error during direct save:", err));
         }
       }
     }
 
-    // Update navigation instructions
-    if (mapNavigation.navigationSteps.length > 0) {
+    // Update navigation instructions if journey started
+    if (journeyStarted && mapNavigation.navigationSteps.length > 0) {
       mapNavigation.updateNavigationInstructions(location.userLocation, journeyStarted);
     }
-  }, [location.userLocation, journeyStarted]);
+  }, [location.userLocation]);
+
+  // Add a separate effect to ensure place is saved when destination is reached
+  useEffect(() => {
+    // If destination is reached but not saved yet, try again
+    if (
+      destinationReached &&
+      places.selectedPlace &&
+      !destinationSaved &&
+      !destinationSaveAttemptedRef.current
+    ) {
+      destinationSaveAttemptedRef.current = true;
+      console.log(`Retry saving place to database: ${places.selectedPlace.name}`);
+
+      // Try direct save again
+      saveVisitedPlace({
+        ...places.selectedPlace,
+        isVisited: true,
+        visitedAt: new Date().toISOString(),
+      })
+        .then((success) => {
+          console.log(`Retry save result: ${success ? "Success" : "Failed"}`);
+          if (success) {
+            setDestinationSaved(true);
+          }
+        })
+        .catch((err) => console.error("Error during retry save:", err));
+    }
+  }, [destinationReached, places.selectedPlace, destinationSaved]);
 
   /**
    * Setup initial route overview when journey starts
@@ -198,6 +264,7 @@ const Map: React.FC = () => {
     setDestinationReached(false);
     setDestinationSaved(false);
     setViewMode("follow");
+    destinationSaveAttemptedRef.current = false;
 
     // Reset tracking state
     location.resetLocationTracking();
@@ -230,13 +297,53 @@ const Map: React.FC = () => {
   };
 
   /**
-   * Handle place selection
+   * Handle place selection with auto-detection for proximity
    */
   const handlePlaceSelection = async (place: Place) => {
     const result = await places.handlePlaceSelection(place, location.userLocation, location.region);
 
     if (result) {
-      if (result.isDiscovered) {
+      // Check if the user is already at this place - use 20 meters threshold
+      if (result.isAlreadyAt) {
+        console.log(`User is already at ${place.name}, showing destination reached directly`);
+
+        // Skip the journey start UI flow and go directly to destination reached
+        setDestinationReached(true);
+        destinationSaveAttemptedRef.current = false; // FIXED LINE
+        setShowDiscoveredCard(false);
+        setShowCard(false);
+        setJourneyStarted(true); // Set this to true for UI state to work properly
+
+        // Mark place as visited - ensure this happens with multiple methods
+        if (places.selectedPlace) {
+          console.log(`Direct destination reached: Saving ${places.selectedPlace.name}`);
+
+          // Call handler
+          handleDestinationReached(places.selectedPlace);
+
+          // Also try direct save
+          saveVisitedPlace({
+            ...places.selectedPlace,
+            isVisited: true,
+            visitedAt: new Date().toISOString(),
+          })
+            .then((success) => {
+              console.log(`Already at location save result: ${success ? "Success" : "Failed"}`);
+              if (success) {
+                setDestinationSaved(true);
+              }
+            })
+            .catch((err) => console.error("Error during save at current location:", err));
+        }
+
+        // Vibrate to alert user
+        Vibration.vibrate([0, 200, 100, 200]);
+
+        // Announce destination reached
+        mapNavigation.announceDestinationReached();
+      }
+      // Otherwise show normal UI flow
+      else if (result.isDiscovered) {
         setShowDiscoveredCard(true);
       } else {
         setShowCard(true);
@@ -256,6 +363,8 @@ const Map: React.FC = () => {
    */
   const handleDismissDestinationCard = () => {
     setDestinationReached(false);
+    setDestinationSaved(false);
+    destinationSaveAttemptedRef.current = false;
     handleCancel(
       setConfirmEndJourney,
       places.setSelectedPlace,
@@ -343,6 +452,11 @@ const Map: React.FC = () => {
     // Reset navigation state
     mapNavigation.resetNavigation();
 
+    // Reset destination tracking
+    setDestinationReached(false);
+    setDestinationSaved(false);
+    destinationSaveAttemptedRef.current = false;
+
     // Reset refs and state
     places.destinationCoordinateRef.current = null;
     camera.initialRouteLoadedRef.current = false;
@@ -389,7 +503,7 @@ const Map: React.FC = () => {
         customMapStyle={customMapStyle}
         showsPointsOfInterest={false}
         provider={PROVIDER_DEFAULT}
-        followsUserLocation={false} // We'll handle camera updates manually
+        followsUserLocation={false}
         rotateEnabled={true}
         pitchEnabled={true}
         onUserLocationChange={(event) => {
@@ -418,7 +532,7 @@ const Map: React.FC = () => {
             anchor={{ x: 0.5, y: 0.5 }}
             rotation={location.userHeading}
             flat={true}
-            zIndex={1000} // Make sure it's above other markers
+            zIndex={1000}
           >
             <DirectionIndicator />
           </Marker>
@@ -516,35 +630,37 @@ const Map: React.FC = () => {
 
       {/* Cards and UI elements */}
       {showCard && places.selectedPlace && places.travelTime && (
-        <ExploreCard
-          placeName={places.selectedPlace.name}
-          travelTime={places.travelTime}
-          onStartJourney={onStartJourney}
-          visible={showCard}
-          rating={
-            places.selectedPlace.rating != undefined ? places.selectedPlace.rating : "No Ratings"
-          }
-          travelMode={places.travelMode}
-          placeDescription={places.selectedPlace.description}
-          placeImage={
-            places.selectedPlace.photos && places.selectedPlace.photos.length > 0
-              ? `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photoreference=${places.selectedPlace.photos[0].photo_reference}&key=${GOOGLE_MAPS_APIKEY}`
-              : undefined
-          }
-          onCancel={() =>
-            handleCancel(
-              setConfirmEndJourney,
-              places.setSelectedPlace,
-              setRouteCoordinates,
-              setTravelTime,
-              setDistance,
-              setShowCard,
-              setJourneyStarted,
-              setShowArrow,
-              setShowDetailsCard
-            )
-          }
-        />
+        <View style={styles.cardOverlayContainer}>
+          <ExploreCard
+            placeName={places.selectedPlace.name}
+            travelTime={places.travelTime}
+            onStartJourney={onStartJourney}
+            visible={showCard}
+            rating={
+              places.selectedPlace.rating != undefined ? places.selectedPlace.rating : "No Ratings"
+            }
+            travelMode={places.travelMode}
+            placeDescription={places.selectedPlace.description}
+            placeImage={
+              places.selectedPlace.photos && places.selectedPlace.photos.length > 0
+                ? `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photoreference=${places.selectedPlace.photos[0].photo_reference}&key=${GOOGLE_MAPS_APIKEY}`
+                : undefined
+            }
+            onCancel={() =>
+              handleCancel(
+                setConfirmEndJourney,
+                places.setSelectedPlace,
+                setRouteCoordinates,
+                setTravelTime,
+                setDistance,
+                setShowCard,
+                setJourneyStarted,
+                setShowArrow,
+                setShowDetailsCard
+              )
+            }
+          />
+        </View>
       )}
 
       {showDiscoveredCard && places.selectedPlace && (
@@ -596,7 +712,7 @@ const Map: React.FC = () => {
 
       {journeyStarted && !destinationReached && <EndJourneyButton onPress={handleEndJourney} />}
 
-      {destinationReached && places.selectedPlace && (
+      {journeyStarted && destinationReached && places.selectedPlace && (
         <View style={styles.destinationCardContainer}>
           <DestinationCard
             discoveryDate={new Date().toISOString()}
@@ -631,6 +747,17 @@ const styles = StyleSheet.create({
     height: "100%",
   },
   destinationCardContainer: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 999,
+  },
+  cardOverlayContainer: {
     position: "absolute",
     top: 0,
     left: 0,

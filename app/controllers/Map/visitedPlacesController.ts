@@ -1,208 +1,372 @@
-// controllers/Database/visitedPlacesController.js
+// controllers/Map/visitedPlacesController.ts
+import { doc, getDoc, setDoc, collection, query, orderBy, getDocs } from "firebase/firestore";
+import { db, auth } from "../../config/firebaseConfig";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { db, auth } from "../../config/firebaseConfig"; // Import from your existing Firebase config
-import { collection, doc, setDoc, getDocs, getDoc } from "firebase/firestore";
-import { Place, PlaceDetails } from "../../types/MapTypes";
-import { processVisitedPlace } from "../../services/statsService"; // Import the stats service function
+import { processVisitedPlace } from "../../services/statsService";
+import { showXPAward } from "../../components/Levelling/XPNotificationsManager";
 
 /**
- * Save a visited place to the database, preserving all properties from Place or PlaceDetails
- * @param {Place | PlaceDetails['result']} place - The place object to save
- * @param {string} userId - The user ID (optional, will use current user if not provided)
- * @returns {Promise<boolean>} - True if successful, false otherwise
+ * Helper function to ensure all place data is normalized and safe for Firestore
  */
-export const saveVisitedPlace = async (place, userId = null) => {
-  try {
-    // Get the current user if userId is not provided
-    const currentUser = userId || auth.currentUser?.uid;
+const normalizePlaceData = (place: any) => {
+  // Create a clean place object with all required fields
+  return {
+    // Essential identification
+    place_id: place.place_id || place.id || `place-${Date.now()}`,
+    id: place.id || place.place_id || `place-${Date.now()}`,
 
-    if (!currentUser) {
-      console.error("No user is currently logged in");
+    // Basic information
+    name: place.name || "Unnamed Place",
+    vicinity: place.vicinity || place.formatted_address || "",
+    formatted_address: place.formatted_address || place.vicinity || "",
+
+    // Location data - ensure it has proper structure
+    geometry: {
+      location: {
+        lat: place.geometry?.location?.lat || 0,
+        lng: place.geometry?.location?.lng || 0,
+      },
+    },
+
+    // Optional fields with defaults
+    description: place.description || place.editorial_summary?.overview || "",
+    types: Array.isArray(place.types) ? place.types : [],
+    rating: typeof place.rating === "number" ? place.rating : null,
+    user_ratings_total: place.user_ratings_total || 0,
+    photos: Array.isArray(place.photos) ? place.photos : [],
+
+    // Contact and other details
+    formatted_phone_number: place.formatted_phone_number || place.phone || "",
+    website: place.website || "",
+    url: place.url || "",
+
+    // Metadata about the visit
+    visitedAt: place.visitedAt || new Date().toISOString(),
+    visitDate: place.visitedAt || new Date().toISOString(),
+    isVisited: true,
+
+    // Additional useful data
+    country: extractCountryFromPlace(place) || "Unknown",
+    city: extractCityFromPlace(place) || "Unknown",
+    category: extractCategoryFromPlace(place) || "Other",
+
+    // For backward compatibility
+    location: {
+      latitude: place.geometry?.location?.lat || 0,
+      longitude: place.geometry?.location?.lng || 0,
+    },
+  };
+};
+
+/**
+ * Check if a place has already been visited
+ * @param placeId The ID of the place to check
+ * @returns Boolean indicating whether the place has been visited
+ */
+export const isPlaceVisited = async (placeId: string): Promise<boolean> => {
+  try {
+    if (!placeId) {
+      console.log("Cannot check if visited: no placeId provided");
       return false;
     }
 
-    // Create a place object that maintains all existing properties
-    const placeData = "result" in place ? place.result : place;
-
-    // Log the place object to verify rating data is present
-    console.log("Saving place with rating:", placeData.rating);
-
-    // Ensure we have all the required fields and preserve all existing properties
-    const visitedPlace = {
-      ...placeData, // Keep all existing properties
-      // Add metadata about the visit
-      visitedAt: new Date().toISOString(),
-      userId: currentUser,
-
-      // Ensure critical fields exist (as fallbacks)
-      place_id: placeData.place_id,
-      name: placeData.name,
-
-      // Make sure ratings are included (if they exist)
-      rating: placeData.rating || null,
-      user_ratings_total: placeData.user_ratings_total || null,
-    };
-
-    // Save to Firestore
-    const userVisitedPlacesRef = collection(db, "users", currentUser, "visitedPlaces");
-    await setDoc(doc(userVisitedPlacesRef, placeData.place_id), visitedPlace);
-
-    // Also save to AsyncStorage for offline access
-    await saveVisitedPlaceLocally(visitedPlace);
-
-    // Update stats with the newly visited place
-    try {
-      // Extract country information - using address_components if available
-      let country = "Unknown";
-
-      if (placeData.address_components) {
-        // Try to find country in address components
-        const countryComponent = placeData.address_components.find((component) =>
-          component.types.includes("country")
-        );
-
-        if (countryComponent) {
-          country = countryComponent.long_name || countryComponent.short_name;
-        }
-      } else if (placeData.formatted_address) {
-        // Try to extract country from formatted address (last part often contains country)
-        const addressParts = placeData.formatted_address.split(",");
-        if (addressParts.length > 0) {
-          country = addressParts[addressParts.length - 1].trim();
-        }
-      } else if (placeData.vicinity) {
-        // Last resort - vicinity might have location info
-        country = placeData.vicinity;
-      }
-
-      // Get coordinates
-      const location = {
-        latitude: placeData.geometry?.location?.lat || 0,
-        longitude: placeData.geometry?.location?.lng || 0,
-      };
-
-      // Process the place visit for stats
-      await processVisitedPlace({
-        placeId: placeData.place_id,
-        name: placeData.name,
-        country: country,
-        latitude: location.latitude,
-        longitude: location.longitude,
-      });
-
-      console.log(`Updated stats for visit to ${placeData.name} in ${country}`);
-    } catch (statsError) {
-      // If stats update fails, still consider the save successful
-      console.error("Error updating stats for place visit:", statsError);
+    const currentUser = auth.currentUser;
+    if (!currentUser) {
+      console.log("No user logged in, can't check if place is visited");
+      return false;
     }
 
-    console.log(`Successfully saved place ${placeData.name} to database`);
-    return true;
+    // Check if place exists in Firestore
+    const placeDocRef = doc(db, "users", currentUser.uid, "visitedPlaces", placeId);
+    const placeDoc = await getDoc(placeDocRef);
+
+    // If place exists in Firestore and isn't the initialization document, it's been visited
+    if (placeDoc.exists()) {
+      const data = placeDoc.data();
+      // Skip the initialization document
+      if (data && !data._isInitDocument) {
+        return true;
+      }
+    }
+
+    // If not in Firestore, try local storage as fallback
+    const visitedPlacesJSON = await AsyncStorage.getItem("visitedPlaces");
+    if (visitedPlacesJSON) {
+      const visitedPlaces = JSON.parse(visitedPlacesJSON);
+      const isVisitedLocal = visitedPlaces.some((place: any) => place.place_id === placeId);
+      if (isVisitedLocal) {
+        return true;
+      }
+    }
+
+    return false;
   } catch (error) {
-    console.error("Error saving visited place to database:", error);
+    console.error("Error checking if place visited:", error);
     return false;
   }
 };
 
 /**
- * Get all visited places for a user
- * @param {string} userId - The user ID (optional, will use current user if not provided)
- * @returns {Promise<Array>} - Array of visited places
+ * Save a place as visited and update stats
+ * @param place The place to save as visited
+ * @returns Boolean indicating success
  */
-export const getVisitedPlaces = async (userId = null) => {
+// controllers/Map/visitedPlacesController.ts - saveVisitedPlace function (only need to modify this function)
+export const saveVisitedPlace = async (place: any): Promise<boolean> => {
   try {
-    // Get the current user if userId is not provided
-    const currentUser = userId || auth.currentUser?.uid;
+    // Validate input
+    if (!place) {
+      console.error("Cannot save null place");
+      return false;
+    }
 
+    const placeId = place.place_id || place.id;
+    if (!placeId) {
+      console.error("Cannot save place without an ID");
+      return false;
+    }
+
+    const currentUser = auth.currentUser;
     if (!currentUser) {
-      console.error("No user is currently logged in");
+      console.log("No user logged in, can't save visited place");
+      return false;
+    }
+
+    console.log(`Attempting to save place: ${place.name} (ID: ${placeId})`);
+
+    // Check if already visited to avoid duplicates
+    const alreadyVisited = await isPlaceVisited(placeId);
+    if (alreadyVisited) {
+      console.log(`Place ${place.name || "Unknown"} already visited, not saving again`);
+      return true; // Consider this a success since the end state is as expected
+    }
+
+    // Normalize place data to ensure consistent format
+    const visitTime = new Date();
+    const normalizedPlace = normalizePlaceData({
+      ...place,
+      visitedAt: visitTime.toISOString(),
+      isVisited: true, // Explicitly set this flag
+    });
+
+    // Save to Firestore
+    const placeDocRef = doc(db, "users", currentUser.uid, "visitedPlaces", placeId);
+    await setDoc(placeDocRef, normalizedPlace);
+    console.log(`Successfully saved place to Firestore: ${placeId}`);
+
+    // Also update in local storage for legacy support
+    try {
+      const visitedPlacesJSON = await AsyncStorage.getItem("visitedPlaces");
+      let visitedPlaces = visitedPlacesJSON ? JSON.parse(visitedPlacesJSON) : [];
+
+      // Add to local storage without duplicates
+      if (!visitedPlaces.some((p: any) => p.place_id === placeId)) {
+        visitedPlaces.push(normalizedPlace);
+        await AsyncStorage.setItem("visitedPlaces", JSON.stringify(visitedPlaces));
+        console.log(`Added place to local storage cache: ${placeId}`);
+      }
+    } catch (localStorageError) {
+      console.warn("Error updating local storage:", localStorageError);
+      // Continue even if local storage fails
+    }
+
+    // Process this place for user stats
+    await processVisitedPlace({
+      placeId: normalizedPlace.place_id,
+      name: normalizedPlace.name,
+      country: normalizedPlace.country,
+      city: normalizedPlace.city,
+      category: normalizedPlace.category,
+      latitude: normalizedPlace.geometry.location.lat,
+      longitude: normalizedPlace.geometry.location.lng,
+      visitedAt: visitTime,
+      stayDuration: 30, // Default 30 minutes
+      photosTaken: normalizedPlace.photos ? normalizedPlace.photos.length : 0,
+    });
+
+    // Show XP notification with a tiny delay to ensure XP notification system is ready
+    setTimeout(() => {
+      showXPAward(10, `Discovered ${normalizedPlace.name}`);
+    }, 500);
+
+    console.log(`Successfully saved ${normalizedPlace.name} as visited`);
+    return true;
+  } catch (error) {
+    console.error("Error saving visited place:", error);
+    return false;
+  }
+};
+
+/**
+ * Get all places visited by the user
+ * @returns Array of visited places
+ */
+export const getVisitedPlaces = async (): Promise<any[]> => {
+  try {
+    const currentUser = auth.currentUser;
+    if (!currentUser) {
+      console.log("No user logged in, can't get visited places");
       return [];
     }
 
-    // Try to get from Firestore first
-    const userVisitedPlacesRef = collection(db, "users", currentUser, "visitedPlaces");
-    const snapshot = await getDocs(userVisitedPlacesRef);
+    // Get from Firestore
+    const visitedPlacesRef = collection(db, "users", currentUser.uid, "visitedPlaces");
+    const query_ = query(visitedPlacesRef, orderBy("visitedAt", "desc"));
+    const snapshot = await getDocs(query_);
 
-    if (!snapshot.empty) {
-      return snapshot.docs.map((doc) => doc.data());
+    if (snapshot.empty) {
+      console.log("No visited places found in Firestore");
+
+      // Try local storage as fallback
+      const visitedPlacesJSON = await AsyncStorage.getItem("visitedPlaces");
+      if (visitedPlacesJSON) {
+        const parsedPlaces = JSON.parse(visitedPlacesJSON);
+        return parsedPlaces.map((place: any) => normalizePlaceData(place));
+      }
+
+      return [];
     }
 
-    // If Firestore call fails or returns empty, try to get from AsyncStorage
-    return await getVisitedPlacesLocally();
-  } catch (error) {
-    console.error("Error getting visited places from database:", error);
+    // Convert to array of normalized places
+    const visitedPlaces = snapshot.docs.map((doc) => {
+      const data = doc.data();
+      return normalizePlaceData({
+        ...data,
+        id: doc.id,
+        place_id: doc.id,
+      });
+    });
 
-    // Attempt to get from local storage as a fallback
-    return await getVisitedPlacesLocally();
+    return visitedPlaces;
+  } catch (error) {
+    console.error("Error getting visited places:", error);
+
+    // Try local storage as fallback
+    try {
+      const visitedPlacesJSON = await AsyncStorage.getItem("visitedPlaces");
+      if (visitedPlacesJSON) {
+        const parsedPlaces = JSON.parse(visitedPlacesJSON);
+        return parsedPlaces.map((place: any) => normalizePlaceData(place));
+      }
+    } catch (e) {
+      console.error("Error getting visited places from local storage:", e);
+    }
+
+    return [];
   }
 };
 
 /**
- * Check if a place has been visited before
- * @param {string} placeId - The place ID to check
- * @param {string} userId - The user ID (optional, will use current user if not provided)
- * @returns {Promise<boolean>} - True if visited, false otherwise
+ * Extract country from place details
  */
-export const isPlaceVisited = async (placeId, userId = null) => {
-  try {
-    const currentUser = userId || auth.currentUser?.uid;
+function extractCountryFromPlace(place: any): string {
+  // Try to extract from address components
+  if (place.address_components && Array.isArray(place.address_components)) {
+    const countryComponent = place.address_components.find(
+      (component: any) => component.types && component.types.includes("country")
+    );
+    if (countryComponent) {
+      return countryComponent.long_name;
+    }
+  }
 
-    if (!currentUser) {
-      console.log("No authenticated user found");
-      return false;
+  // Try to extract from formatted address
+  if (place.formatted_address) {
+    const addressParts = place.formatted_address.split(",");
+    if (addressParts.length > 1) {
+      return addressParts[addressParts.length - 1].trim();
+    }
+  }
+
+  // Default country
+  return "Unknown";
+}
+
+/**
+ * Extract city from place details
+ */
+function extractCityFromPlace(place: any): string {
+  // Try to extract from address components
+  if (place.address_components && Array.isArray(place.address_components)) {
+    const cityComponent = place.address_components.find(
+      (component: any) =>
+        component.types &&
+        (component.types.includes("locality") ||
+          component.types.includes("administrative_area_level_1"))
+    );
+    if (cityComponent) {
+      return cityComponent.long_name;
+    }
+  }
+
+  // Try to extract from formatted address or vicinity
+  if (place.vicinity) {
+    const parts = place.vicinity.split(",");
+    if (parts.length > 0) {
+      return parts[0].trim();
+    }
+  }
+
+  // Default
+  return "Unknown";
+}
+
+/**
+ * Extract category from place details
+ */
+function extractCategoryFromPlace(place: any): string {
+  if (place.types && Array.isArray(place.types) && place.types.length > 0) {
+    // Map common Google Place types to more user-friendly categories
+    const typeMapping: { [key: string]: string } = {
+      restaurant: "Restaurant",
+      cafe: "Café",
+      bar: "Bar",
+      lodging: "Accommodation",
+      hotel: "Accommodation",
+      museum: "Cultural",
+      art_gallery: "Cultural",
+      park: "Nature",
+      tourist_attraction: "Sightseeing",
+      shopping_mall: "Shopping",
+      store: "Shopping",
+      amusement_park: "Entertainment",
+      stadium: "Entertainment",
+      airport: "Transport",
+      train_station: "Transport",
+      church: "Religious",
+      mosque: "Religious",
+      temple: "Religious",
+      hospital: "Healthcare",
+      pharmacy: "Healthcare",
+      school: "Education",
+      university: "Education",
+      library: "Education",
+      bakery: "Food",
+      grocery_store: "Food",
+      gym: "Sports",
+      beach: "Nature",
+      mountain: "Nature",
+      forest: "Nature",
+      night_club: "Entertainment",
+      movie_theater: "Entertainment",
+      theater: "Entertainment",
+    };
+
+    // Try to match with known types
+    for (const type of place.types) {
+      if (typeMapping[type]) {
+        return typeMapping[type];
+      }
     }
 
-    // Check directly in Firestore for this specific place
-    const placeDocRef = doc(db, "users", currentUser, "visitedPlaces", placeId);
-    const placeDoc = await getDoc(placeDocRef);
-
-    // Return true if the document exists, false otherwise
-    const exists = placeDoc.exists();
-
-    // Log for debugging
-    console.log(`Checking if place ${placeId} is visited: ${exists}`);
-
-    return exists;
-  } catch (error) {
-    console.error("Error checking if place is visited:", error);
-    return false;
+    // If no match, use first type with underscores converted to spaces
+    return place.types[0]
+      .replace(/_/g, " ")
+      .split(" ")
+      .map((word: string) => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(" ");
   }
-};
 
-// Helper function to save visited places to AsyncStorage
-const saveVisitedPlaceLocally = async (place) => {
-  try {
-    // Get existing visited places
-    const visitedPlacesJSON = await AsyncStorage.getItem("visitedPlaces");
-    let visitedPlaces = visitedPlacesJSON ? JSON.parse(visitedPlacesJSON) : [];
-
-    // Check if place already exists
-    const existingIndex = visitedPlaces.findIndex((p) => p.place_id === place.place_id);
-
-    if (existingIndex >= 0) {
-      // Update existing place
-      visitedPlaces[existingIndex] = place;
-    } else {
-      // Add new place
-      visitedPlaces.push(place);
-    }
-
-    // Save back to AsyncStorage
-    await AsyncStorage.setItem("visitedPlaces", JSON.stringify(visitedPlaces));
-    return true;
-  } catch (error) {
-    console.error("Error saving visited place to local storage:", error);
-    return false;
-  }
-};
-
-// Helper function to get visited places from AsyncStorage
-const getVisitedPlacesLocally = async () => {
-  try {
-    const visitedPlacesJSON = await AsyncStorage.getItem("visitedPlaces");
-    return visitedPlacesJSON ? JSON.parse(visitedPlacesJSON) : [];
-  } catch (error) {
-    console.error("Error getting visited places from local storage:", error);
-    return [];
-  }
-};
+  // Default
+  return "Other";
+}

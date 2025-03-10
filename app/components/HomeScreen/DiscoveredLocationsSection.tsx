@@ -92,35 +92,46 @@ const DiscoveredLocationsSection = ({ navigateToScreen }) => {
       const visitedPlaces = await getVisitedPlaces();
 
       // Process the visited places to match our component's data structure
-      const formattedLocations = visitedPlaces.map((place) => {
-        // Create a clean city string by limiting length
-        let cityText = place.vicinity || place.formatted_address || "Unknown location";
-        if (cityText.length > 25) {
-          cityText = cityText.substring(0, 22) + "...";
-        }
+      const formattedLocations = visitedPlaces
+        .filter((place) => place && place.place_id) // Filter out any invalid places
+        .map((place) => {
+          // Create a clean city string by limiting length
+          let cityText = place.vicinity || place.formatted_address || "Unknown location";
+          if (cityText.length > 25) {
+            cityText = cityText.substring(0, 22) + "...";
+          }
 
-        // Generate placeholder images with location name if no photo is available
-        const placeholderImage = `https://via.placeholder.com/400x300/f0f0f0/666666?text=${encodeURIComponent(
-          place.name.substring(0, 15)
-        )}`;
+          // Ensure place.name exists and is a string
+          const placeName = typeof place.name === "string" ? place.name : "Unnamed Place";
 
-        return {
-          id: place.place_id,
-          name: place.name.length > 20 ? place.name.substring(0, 18) + "..." : place.name,
-          city: cityText,
-          // Use photos array if available or fallback to a placeholder
-          image:
-            place.photos && place.photos.length > 0
-              ? `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photoreference=${place.photos[0].photo_reference}&key=AIzaSyDAGq_6eJGQpR3RcO0NrVOowel9-DxZkvA`
-              : placeholderImage,
-          // Format the visit date
-          date: formatVisitDate(place.visitedAt),
-          // Include the full place data for potential use
-          placeData: place,
-          // Add rating if available
-          rating: place.rating || null,
-        };
-      });
+          // Generate placeholder images with location name if no photo is available
+          const placeholderImage = `https://via.placeholder.com/400x300/f0f0f0/666666?text=${encodeURIComponent(
+            placeName.substring(0, 15)
+          )}`;
+
+          // Ensure we have a valid id for the list item
+          const id =
+            place.place_id ||
+            place.id ||
+            `place-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+
+          return {
+            id: id,
+            name: placeName.length > 20 ? placeName.substring(0, 18) + "..." : placeName,
+            city: cityText,
+            // Use photos array if available or fallback to a placeholder
+            image:
+              place.photos && place.photos.length > 0 && place.photos[0].photo_reference
+                ? `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photoreference=${place.photos[0].photo_reference}&key=AIzaSyDAGq_6eJGQpR3RcO0NrVOowel9-DxZkvA`
+                : placeholderImage,
+            // Format the visit date
+            date: formatVisitDate(place.visitedAt),
+            // Include the full place data for potential use
+            placeData: place,
+            // Add rating if available
+            rating: place.rating || null,
+          };
+        });
 
       setDiscoveredLocations(formattedLocations);
       setLoading(false);
@@ -134,23 +145,35 @@ const DiscoveredLocationsSection = ({ navigateToScreen }) => {
   // Helper function to format visit date
   const formatVisitDate = (visitedAt) => {
     if (!visitedAt) return "Unknown date";
-    const visitDate = new Date(visitedAt);
-    const now = new Date();
-    // Get time in milliseconds and convert to days
-    const diffTime = Math.abs(now.getTime() - visitDate.getTime());
-    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
 
-    if (diffDays === 0) {
-      return "Today";
-    } else if (diffDays === 1) {
-      return "Yesterday";
-    } else if (diffDays < 7) {
-      return `${diffDays} days ago`;
-    } else if (diffDays < 30) {
-      const weeks = Math.floor(diffDays / 7);
-      return `${weeks} ${weeks === 1 ? "week" : "weeks"} ago`;
-    } else {
-      return visitDate.toLocaleDateString();
+    try {
+      const visitDate = new Date(visitedAt);
+
+      // Check if the date is valid
+      if (isNaN(visitDate.getTime())) {
+        return "Unknown date";
+      }
+
+      const now = new Date();
+      // Get time in milliseconds and convert to days
+      const diffTime = Math.abs(now.getTime() - visitDate.getTime());
+      const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+      if (diffDays === 0) {
+        return "Today";
+      } else if (diffDays === 1) {
+        return "Yesterday";
+      } else if (diffDays < 7) {
+        return `${diffDays} days ago`;
+      } else if (diffDays < 30) {
+        const weeks = Math.floor(diffDays / 7);
+        return `${weeks} ${weeks === 1 ? "week" : "weeks"} ago`;
+      } else {
+        return visitDate.toLocaleDateString();
+      }
+    } catch (error) {
+      console.error("Error formatting date:", error);
+      return "Unknown date";
     }
   };
 
@@ -446,7 +469,7 @@ const DiscoveredLocationsSection = ({ navigateToScreen }) => {
             </View>
           </View>
 
-          {/* "Click to explore" text at the bottom */}
+          {/* "Click to explore" text at the bottom - FIXED to use scaleX instead of width */}
           <Animated.View
             style={[
               styles.clickPromptContainer,
@@ -462,10 +485,16 @@ const DiscoveredLocationsSection = ({ navigateToScreen }) => {
               style={[
                 styles.clickPromptLine,
                 {
-                  width: fadeAnimation.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [0, 30],
-                  }),
+                  width: 30, // Fixed width of 30
+                  transform: [
+                    {
+                      scaleX: fadeAnimation.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [0, 1], // Scale from 0 to full width
+                      }),
+                    },
+                  ],
+                  transformOrigin: "left", // Make it grow from left to right
                 },
               ]}
             />
@@ -474,10 +503,16 @@ const DiscoveredLocationsSection = ({ navigateToScreen }) => {
               style={[
                 styles.clickPromptLine,
                 {
-                  width: fadeAnimation.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [0, 30],
-                  }),
+                  width: 30, // Fixed width of 30
+                  transform: [
+                    {
+                      scaleX: fadeAnimation.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [0, 1], // Scale from 0 to full width
+                      }),
+                    },
+                  ],
+                  transformOrigin: "right", // Make it grow from right to left
                 },
               ]}
             />
@@ -557,16 +592,25 @@ const DiscoveredLocationsSection = ({ navigateToScreen }) => {
       return renderErrorState();
     }
 
-    if (discoveredLocations.length === 0) {
+    if (!discoveredLocations || discoveredLocations.length === 0) {
       return renderEmptyState();
     }
 
-    const dataWithViewAll = [...discoveredLocations, { id: "ViewAll" }];
+    // Make sure all items have a valid id for the keyExtractor
+    const dataWithViewAll = [
+      ...discoveredLocations.map((location) => ({
+        ...location,
+        id: location.id || `fallback-${Math.random().toString(36).substring(2, 9)}`,
+      })),
+      { id: "ViewAll" },
+    ];
 
     return (
       <Animated.FlatList
         data={dataWithViewAll}
-        keyExtractor={(item) => item.id.toString()}
+        keyExtractor={(item) =>
+          item && item.id ? item.id.toString() : `key-${Math.random().toString(36).substring(2, 9)}`
+        }
         renderItem={renderLocationCard}
         horizontal
         showsHorizontalScrollIndicator={false}

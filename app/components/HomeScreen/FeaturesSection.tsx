@@ -478,32 +478,44 @@ const FeaturesSection: React.FC<FeaturesSectionProps> = ({ navigateToScreen }) =
                     },
                   ]}
                 >
+                  {/* FIXED: Using transform: scaleX instead of animated width */}
                   <Animated.View
                     style={[
                       styles.tapPromptLine,
                       {
                         backgroundColor: "white",
                         opacity: 0.3,
-                        width: scrollX.interpolate({
-                          inputRange,
-                          outputRange: [15, 20, 15],
-                          extrapolate: "clamp",
-                        }),
+                        width: 20, // Fixed max width
+                        transform: [
+                          {
+                            scaleX: scrollX.interpolate({
+                              inputRange,
+                              outputRange: [0.75, 1, 0.75], // 15/20 = 0.75
+                              extrapolate: "clamp",
+                            }),
+                          },
+                        ],
                       },
                     ]}
                   />
                   <Text style={styles.tapPromptText}>tap to explore</Text>
+                  {/* FIXED: Using transform: scaleX instead of animated width */}
                   <Animated.View
                     style={[
                       styles.tapPromptLine,
                       {
                         backgroundColor: "white",
                         opacity: 0.3,
-                        width: scrollX.interpolate({
-                          inputRange,
-                          outputRange: [15, 20, 15],
-                          extrapolate: "clamp",
-                        }),
+                        width: 20, // Fixed max width
+                        transform: [
+                          {
+                            scaleX: scrollX.interpolate({
+                              inputRange,
+                              outputRange: [0.75, 1, 0.75], // 15/20 = 0.75
+                              extrapolate: "clamp",
+                            }),
+                          },
+                        ],
                       },
                     ]}
                   />
@@ -681,7 +693,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   tapPromptLine: {
-    width: 20,
     height: 1,
   },
   tapPromptText: {

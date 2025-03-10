@@ -19,6 +19,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { StatItem } from "../types/StatTypes";
 import { RootStackParamList } from "../navigation/types";
 import { Colors } from "../constants/colours";
+import Header from "../components/Global/Header"; // Import the global Header component
 
 type MyJourneyScreenNavigationProp = NativeStackNavigationProp<RootStackParamList>;
 type MyJourneyScreenRouteProp = RouteProp<RootStackParamList, "MyJourney">;
@@ -30,6 +31,7 @@ const GRID_ITEM_WIDTH = (width - 48) / 2; // 2 columns with margins
 const MyJourneyScreen = () => {
   const navigation = useNavigation<MyJourneyScreenNavigationProp>();
   const route = useRoute<MyJourneyScreenRouteProp>();
+  // We're using all stats now, including zeros
   const stats: StatItem[] = route.params?.stats || [];
 
   // Animation values
@@ -68,6 +70,9 @@ const MyJourneyScreen = () => {
 
   // Function to render a stat card in the grid
   const renderStatCard = (item: StatItem, index: number) => {
+    // Format stat value with appropriate styling
+    const displayValue = typeof item.value === "number" && item.value === 0 ? "0" : item.value;
+
     return (
       <Animated.View
         key={item.id}
@@ -102,7 +107,7 @@ const MyJourneyScreen = () => {
             <Ionicons name={item.icon} size={24} color="#fff" />
           </View>
           <View style={styles.statInfo}>
-            <Text style={styles.statValue}>{item.value}</Text>
+            <Text style={styles.statValue}>{displayValue}</Text>
             <Text style={styles.statLabel}>{item.label}</Text>
           </View>
         </LinearGradient>
@@ -110,12 +115,13 @@ const MyJourneyScreen = () => {
     );
   };
 
-  // Render the journey summary stats
+  // Render the journey summary stats - including zeros
   const renderJourneySummary = () => {
     // Find the specific stats we want to highlight
     const totalPlaces = stats.find((s) => s.label === "Places Discovered")?.value || 0;
     const totalCountries = stats.find((s) => s.label === "Countries Visited")?.value || 0;
     const explorerLevel = stats.find((s) => s.label.includes("Level"))?.value || "Level 1";
+    const xpPoints = stats.find((s) => s.label === "Explorer Score")?.value || 0;
 
     return (
       <Animated.View
@@ -138,31 +144,29 @@ const MyJourneyScreen = () => {
         <Text style={styles.summaryText}>
           You've discovered <Text style={styles.highlightText}>{totalPlaces}</Text> places across{" "}
           <Text style={styles.highlightText}>{totalCountries}</Text> countries, earning you the rank
-          of <Text style={styles.highlightText}>{explorerLevel}</Text>.
+          of <Text style={styles.highlightText}>{explorerLevel}</Text> with{" "}
+          <Text style={styles.highlightText}>{xpPoints}</Text> XP.
         </Text>
       </Animated.View>
     );
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" />
+    <View style={styles.container}>
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
-      {/* Header */}
-      <Animated.View
-        style={[
-          styles.header,
-          {
-            opacity: fadeAnim,
-          },
-        ]}
-      >
-        <TouchableOpacity style={styles.backButton} onPress={handleGoBack}>
-          <Ionicons name="arrow-back" size={24} color={Colors.primary} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>My Journey</Text>
-        <View style={styles.headerRight} />
-      </Animated.View>
+      {/* Global Header Component */}
+      <Header
+        title="My Journey"
+        subtitle="Your exploration statistics"
+        showIcon={true}
+        iconName="analytics"
+        iconColor={Colors.primary}
+        showBackButton={true}
+        onBackPress={handleGoBack}
+        showHelp={false}
+        customStyles={styles.headerStyles}
+      />
 
       <ScrollView
         style={styles.scrollView}
@@ -172,7 +176,7 @@ const MyJourneyScreen = () => {
         {/* Journey Summary */}
         {renderJourneySummary()}
 
-        {/* Stats Grid */}
+        {/* Stats Grid - Show all stats, including zeros */}
         <View style={styles.gridContainer}>
           {stats.map((item, index) => renderStatCard(item, index))}
         </View>
@@ -215,7 +219,7 @@ const MyJourneyScreen = () => {
           </TouchableOpacity>
         </Animated.View>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 };
 
@@ -224,40 +228,9 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#f8f9fa",
   },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: "#fff",
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 3,
-      },
-      android: {
-        elevation: 3,
-      },
-    }),
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "rgba(0,0,0,0.05)",
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: Colors.primary,
-  },
-  headerRight: {
-    width: 40,
+  headerStyles: {
+    // Any custom styles for the header
+    marginBottom: 0,
   },
   scrollView: {
     flex: 1,
@@ -265,12 +238,13 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 16,
     paddingBottom: 30,
+    paddingTop: 10, // Add some padding since we now have the global header
   },
   journeySummary: {
     backgroundColor: "#fff",
     borderRadius: 16,
     padding: 20,
-    marginTop: 20,
+    marginTop: 10, // Adjusted from 20 to account for the header
     marginBottom: 16,
     ...Platform.select({
       ios: {

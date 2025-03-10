@@ -13,34 +13,55 @@ import { db, auth } from "../../config/firebaseConfig";
  */
 export const handleDestinationReached = async (
   place,
-  onSuccess = (isNewPlace: boolean) => {},
-  onError = (error: Error) => {}
+  onSuccess = (isNewPlace) => {},
+  onError = (error) => {}
 ) => {
   try {
-    // Check if this place has already been visited
-    const alreadyVisited = await isPlaceVisited(place.place_id);
-
-    if (alreadyVisited) {
-      console.log(`Place ${place.name} has already been visited`);
-      onSuccess(false); // Success but not a new place
-      return;
+    if (!place || !place.place_id) {
+      console.error("Invalid place object in handleDestinationReached");
+      onError(new Error("Invalid place data"));
+      return false;
     }
 
+    console.log(`Handling destination reached: ${place.name} (${place.place_id})`);
+
+    // Ensure place has isVisited flag set
+    const placeToSave = {
+      ...place,
+      isVisited: true,
+      visitedAt: place.visitedAt || new Date().toISOString(),
+    };
+
     // Save the visited place to the database
-    const success = await saveVisitedPlace(place);
+    console.log(`Saving visited place: ${placeToSave.name}`);
+    const success = await saveVisitedPlace(placeToSave);
 
     if (success) {
-      console.log(`Successfully saved destination ${place.name} to visited places`);
-      //   Alert.alert("New Discovery!", `${place.name} has been added to your discoveries.`, [
-      //     { text: "Great!", onPress: () => onSuccess(true) },
-      //   ]);
+      console.log(`Successfully saved destination ${placeToSave.name} to visited places`);
+      onSuccess(true);
+      return true;
     } else {
-      console.error(`Failed to save destination ${place.name} to visited places`);
-      onError(new Error(`Failed to save destination ${place.name}`));
+      console.error(`Failed to save destination ${placeToSave.name} to visited places`);
+
+      // Try one more time with a delay
+      setTimeout(async () => {
+        console.log(`Retrying save for: ${placeToSave.name}`);
+        const retrySuccess = await saveVisitedPlace(placeToSave);
+        if (retrySuccess) {
+          console.log(`Retry successful for: ${placeToSave.name}`);
+          onSuccess(true);
+        } else {
+          console.error(`Retry also failed for: ${placeToSave.name}`);
+          onError(new Error(`Failed to save destination ${placeToSave.name}`));
+        }
+      }, 1000);
+
+      return false;
     }
   } catch (error) {
     console.error("Error in handleDestinationReached:", error);
     onError(error instanceof Error ? error : new Error(String(error)));
+    return false;
   }
 };
 

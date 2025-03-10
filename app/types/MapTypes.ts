@@ -245,6 +245,7 @@ export interface NotificationBadgeProps {
 // PlaceSelection result
 export interface PlaceSelectionResult {
   isDiscovered: boolean;
+  isAlreadyAt: boolean;
   details?: VisitedPlaceDetails | null;
 }
 

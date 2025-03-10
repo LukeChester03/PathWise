@@ -32,7 +32,9 @@ export const getCurrentLocation = async (): Promise<Region | null> => {
   }
 
   try {
-    const location = await Location.getCurrentPositionAsync({});
+    const location = await Location.getCurrentPositionAsync({
+      accuracy: Location.Accuracy.High,
+    });
     const { latitude, longitude } = location.coords;
     return {
       latitude,
@@ -67,7 +69,7 @@ export const watchUserLocation = async (
     const subscription = await Location.watchPositionAsync(
       {
         accuracy: Location.Accuracy.High,
-        distanceInterval: 20,
+        distanceInterval: 5, // Update every 5 meters (more frequent than the 10m threshold)
         timeInterval: 1000,
       },
       (location) => {

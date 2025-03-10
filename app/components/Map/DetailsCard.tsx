@@ -438,7 +438,7 @@ const DetailsCard: React.FC<DetailsCardProps> = ({
             </View>
 
             {/* Upcoming direction */}
-            {stepIndex < navigationSteps.length - 1 && (
+            {/* {stepIndex < navigationSteps.length - 1 && (
               <Animated.View style={[styles.upcomingStep, { opacity: upcomingStepOpacity }]}>
                 <View
                   style={[
@@ -455,7 +455,7 @@ const DetailsCard: React.FC<DetailsCardProps> = ({
                   Then {navigationSteps[stepIndex + 1].instructions}
                 </Text>
               </Animated.View>
-            )}
+            )} */}
           </Animated.View>
         )}
 

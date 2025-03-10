@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from "react";
+import React, { useRef, useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -9,12 +9,11 @@ import {
   Animated,
   Easing,
   StatusBar,
-  SafeAreaView,
   Platform,
 } from "react-native";
 import { Colors, NeutralColors } from "../../constants/colours";
 import { LinearGradient } from "expo-linear-gradient";
-import { Ionicons, MaterialIcons } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
 import { TravelMode } from "../../types/MapTypes";
 
 interface ExploreCardProps {
@@ -22,27 +21,27 @@ interface ExploreCardProps {
   placeDescription?: string;
   placeImage?: string;
   travelTime: string;
-  rating?: string | number;
   onStartJourney: () => void;
   onCancel: () => void;
   visible?: boolean;
   travelMode?: TravelMode;
+  rating?: number | string;
 }
 
 const { width, height } = Dimensions.get("window");
-const HEADER_HEIGHT = Platform.OS === "ios" ? 44 : 56; // Approximate header height
-const NAVBAR_HEIGHT = 60; // Approximate navbar height
+const HEADER_HEIGHT = Platform.OS === "ios" ? 44 : 56;
+const NAVBAR_HEIGHT = 60;
 
 const ExploreCard: React.FC<ExploreCardProps> = ({
   placeName,
   placeDescription,
   placeImage,
   travelTime,
-  rating, // Default rating if not provided
   onStartJourney,
   onCancel,
   visible = false,
   travelMode = "walking", // Default to walking if not provided
+  rating = 0,
 }) => {
   // Animation values
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -54,13 +53,6 @@ const ExploreCard: React.FC<ExploreCardProps> = ({
   const descriptionAnim = useRef(new Animated.Value(0)).current;
   const rotateAnim = useRef(new Animated.Value(0)).current;
   const imageOpacity = useRef(new Animated.Value(0)).current;
-  const compassRotate = useRef(new Animated.Value(0)).current;
-
-  // Calculate compass rotation
-  const spin = compassRotate.interpolate({
-    inputRange: [0, 1],
-    outputRange: ["0deg", "360deg"],
-  });
 
   // Animate in when component becomes visible
   useEffect(() => {
@@ -74,16 +66,6 @@ const ExploreCard: React.FC<ExploreCardProps> = ({
       imageOpacity.setValue(0);
       primaryButtonScale.setValue(1);
       secondaryButtonScale.setValue(1);
-
-      // Start continuous compass rotation
-      Animated.loop(
-        Animated.timing(compassRotate, {
-          toValue: 1,
-          duration: 5000,
-          useNativeDriver: true,
-          easing: Easing.linear,
-        })
-      ).start();
 
       // Animation sequence - all completed in under a second
       Animated.sequence([
@@ -197,8 +179,8 @@ const ExploreCard: React.FC<ExploreCardProps> = ({
     animateOut(() => onStartJourney());
   };
 
-  // Handle cancel
-  const handleCancel = () => {
+  // Handle dismiss
+  const handleDismiss = () => {
     animateOut(() => onCancel());
   };
 
@@ -251,262 +233,236 @@ const ExploreCard: React.FC<ExploreCardProps> = ({
   if (!visible) return null;
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <Animated.View
-        style={[
-          styles.overlay,
-          {
-            opacity: fadeAnim,
-            backgroundColor: fadeAnim.interpolate({
-              inputRange: [0, 1],
-              outputRange: ["rgba(0,0,0,0)", "rgba(0,0,0,0.75)"],
-            }),
-          },
-        ]}
-      >
-        <Animated.View
+    <Animated.View
+      style={[
+        styles.cardContainer,
+        {
+          opacity: fadeAnim,
+          transform: [{ scale: scaleAnim }],
+        },
+      ]}
+    >
+      {/* Close button */}
+      <TouchableOpacity style={styles.closeButton} onPress={handleDismiss} activeOpacity={0.7}>
+        <Ionicons name="close" size={24} color="white" />
+      </TouchableOpacity>
+
+      {/* Header Image */}
+      <View style={styles.imageContainer}>
+        <Animated.Image
+          source={placeImage ? { uri: placeImage } : require("../../assets/discover.png")}
           style={[
-            styles.cardContainer,
+            styles.headerImage,
             {
-              opacity: fadeAnim,
-              transform: [{ scale: scaleAnim }],
+              opacity: imageOpacity,
+              transform: [
+                {
+                  scale: imageOpacity.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [1.05, 1],
+                  }),
+                },
+              ],
             },
           ]}
-        >
-          {/* Close button */}
-          <TouchableOpacity style={styles.closeButton} onPress={handleCancel} activeOpacity={0.7}>
-            <Ionicons name="close" size={24} color="white" />
-          </TouchableOpacity>
+          defaultSource={require("../../assets/discover.png")}
+        />
+        <LinearGradient colors={["transparent", "rgba(0,0,0,0.8)"]} style={styles.imageGradient} />
 
-          {/* Header Image */}
-          <View style={styles.imageContainer}>
-            <Animated.Image
-              source={placeImage ? { uri: placeImage } : require("../../assets/discover.png")}
-              style={[
-                styles.headerImage,
-                {
-                  opacity: imageOpacity,
-                  transform: [
-                    {
-                      scale: imageOpacity.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [1.05, 1],
-                      }),
-                    },
-                  ],
-                },
-              ]}
-              defaultSource={require("../../assets/discover.png")}
-            />
-            <LinearGradient
-              colors={["transparent", "rgba(0,0,0,0.8)"]}
-              style={styles.imageGradient}
-            />
-
-            {/* Badge on image */}
-            <View style={styles.imageOverlayContent}>
-              <Animated.View
-                style={[
-                  styles.badgeContainer,
-                  {
-                    transform: [{ scale: badgePulse }],
-                  },
-                ]}
-              >
-                <Animated.View style={{ transform: [{ rotate: spin }] }}>
-                  <Ionicons name="compass" size={14} color="white" />
-                </Animated.View>
-                <Text style={styles.badgeText}>New Discovery</Text>
-              </Animated.View>
-            </View>
-
-            {/* Title on image */}
-            <Animated.View
-              style={[
-                styles.titleContainer,
-                {
-                  opacity: contentAnim,
-                  transform: [
-                    {
-                      translateY: contentAnim.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [20, 0],
-                      }),
-                    },
-                  ],
-                },
-              ]}
-            >
-              <Text style={styles.titleText}>{placeName}</Text>
-              <View style={styles.bottomImageContent}>
-                <View style={styles.tagContainer}>
-                  <Ionicons name="location-outline" size={14} color="rgba(255,255,255,0.9)" />
-                  <Text style={styles.tagText}>Explore</Text>
-                </View>
-                <View style={styles.ratingContainer}>
-                  <MaterialIcons name="star" size={18} color="#FFD700" />
-                  {typeof rating === "number" ? (
-                    <Text style={styles.ratingText}>{rating.toFixed(1)}</Text>
-                  ) : (
-                    <Text style={styles.ratingText}>{rating || "No Rating"}</Text>
-                  )}
-                </View>
-              </View>
-            </Animated.View>
-          </View>
-
-          {/* Content */}
+        {/* Badge on image */}
+        <View style={styles.imageOverlayContent}>
           <Animated.View
             style={[
-              styles.contentContainer,
+              styles.badgeContainer,
               {
-                opacity: contentAnim,
                 transform: [
+                  { scale: badgePulse },
                   {
-                    translateY: contentAnim.interpolate({
+                    rotate: rotateAnim.interpolate({
                       inputRange: [0, 1],
-                      outputRange: [15, 0],
+                      outputRange: ["-5deg", "0deg"],
                     }),
                   },
                 ],
               },
             ]}
           >
-            {/* Place Description */}
-            {placeDescription && (
-              <Animated.Text
-                style={[
-                  styles.description,
-                  {
-                    opacity: descriptionAnim,
-                    transform: [
-                      {
-                        translateY: descriptionAnim.interpolate({
-                          inputRange: [0, 1],
-                          outputRange: [20, 0],
-                        }),
-                      },
-                    ],
-                  },
-                ]}
-              >
-                {placeDescription}
-              </Animated.Text>
-            )}
+            <Ionicons name="compass" size={14} color="white" />
+            <Text style={styles.badgeText}>New Discovery</Text>
+          </Animated.View>
+        </View>
 
-            {/* Travel Info Card */}
-            <Animated.View
-              style={[
-                styles.travelInfoCard,
+        {/* Title on image */}
+        <Animated.View
+          style={[
+            styles.titleContainer,
+            {
+              opacity: contentAnim,
+              transform: [
                 {
-                  opacity: descriptionAnim,
-                  transform: [
-                    {
-                      translateY: descriptionAnim.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [20, 0],
-                      }),
-                    },
-                  ],
+                  translateY: contentAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [20, 0],
+                  }),
                 },
-              ]}
-            >
-              <Ionicons name="time-outline" size={22} color={Colors.primary} />
-              <View style={styles.travelInfoTextContainer}>
-                <Text style={styles.travelInfoLabel}>Travel time</Text>
-                <View style={styles.travelValueContainer}>
-                  <Text style={styles.travelInfoValue}>{travelTime}</Text>
-                  <View style={styles.travelModeContainer}>
-                    <Ionicons name={getTravelModeIcon()} size={16} color={NeutralColors.white} />
-                    <Text style={styles.travelModeText}>{getTravelModeLabel()}</Text>
-                  </View>
-                </View>
-              </View>
-            </Animated.View>
+              ],
+            },
+          ]}
+        >
+          <Text style={styles.titleText}>{placeName}</Text>
+          {typeof rating !== "string" && rating > 0 && (
+            <View style={styles.ratingContainer}>
+              <Ionicons name="star" size={18} color="#FFD700" />
+              <Text style={styles.ratingText}>{rating.toFixed(1)}</Text>
+            </View>
+          )}
+        </Animated.View>
+      </View>
 
-            {/* Action Buttons */}
-            <View style={styles.buttonGroup}>
-              {/* Start Journey Button */}
-              <Animated.View
-                style={{
-                  transform: [
-                    { scale: primaryButtonScale },
-                    {
-                      translateY: contentAnim.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [10, 0],
-                      }),
-                    },
-                  ],
-                  opacity: contentAnim,
-                  marginBottom: 12,
-                }}
-              >
-                <TouchableOpacity
-                  style={styles.primaryButton}
-                  onPress={handleStartJourney}
-                  onPressIn={handlePrimaryPressIn}
-                  onPressOut={handlePrimaryPressOut}
-                  activeOpacity={0.9}
-                >
-                  <Ionicons name="navigate" size={18} color="white" style={styles.buttonIcon} />
-                  <Text style={styles.primaryButtonText}>Start Journey</Text>
-                </TouchableOpacity>
-              </Animated.View>
-
-              {/* Maybe Later Button */}
-              <Animated.View
-                style={{
-                  transform: [
-                    { scale: secondaryButtonScale },
-                    {
-                      translateY: contentAnim.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [10, 0],
-                      }),
-                    },
-                  ],
-                  opacity: contentAnim,
-                }}
-              >
-                <TouchableOpacity
-                  style={styles.secondaryButton}
-                  onPress={handleCancel}
-                  onPressIn={handleSecondaryPressIn}
-                  onPressOut={handleSecondaryPressOut}
-                  activeOpacity={0.8}
-                >
-                  <Text style={styles.secondaryButtonText}>Maybe Later</Text>
-                </TouchableOpacity>
-              </Animated.View>
+      {/* Content */}
+      <Animated.View
+        style={[
+          styles.contentContainer,
+          {
+            opacity: contentAnim,
+            transform: [
+              {
+                translateY: contentAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [15, 0],
+                }),
+              },
+            ],
+          },
+        ]}
+      >
+        {/* Place Description */}
+        {placeDescription && (
+          <Animated.View
+            style={[
+              styles.descriptionContainer,
+              {
+                opacity: descriptionAnim,
+                transform: [
+                  {
+                    translateY: descriptionAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [20, 0],
+                    }),
+                  },
+                ],
+              },
+            ]}
+          >
+            <Text style={styles.descriptionTitle}>Description</Text>
+            <View style={styles.descriptionRow}>
+              <Ionicons
+                name="information-circle"
+                size={16}
+                color={Colors.primary}
+                style={styles.descriptionIcon}
+              />
+              <Text style={styles.descriptionText}>{placeDescription}</Text>
             </View>
           </Animated.View>
+        )}
+
+        {/* Travel Info Card */}
+        <Animated.View
+          style={[
+            styles.travelInfoCard,
+            {
+              opacity: contentAnim,
+              transform: [
+                {
+                  translateY: contentAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [20, 0],
+                  }),
+                },
+              ],
+            },
+          ]}
+        >
+          <Ionicons name="time-outline" size={22} color={Colors.primary} />
+          <View style={styles.travelInfoTextContainer}>
+            <Text style={styles.travelInfoLabel}>Travel time</Text>
+            <View style={styles.travelValueContainer}>
+              <Text style={styles.travelInfoValue}>{travelTime}</Text>
+              <View style={styles.travelModeContainer}>
+                <Ionicons name={getTravelModeIcon()} size={16} color={NeutralColors.white} />
+                <Text style={styles.travelModeText}>{getTravelModeLabel()}</Text>
+              </View>
+            </View>
+          </View>
         </Animated.View>
+
+        {/* Action Buttons */}
+        <View style={styles.buttonGroup}>
+          {/* Start Journey Button */}
+          <Animated.View
+            style={{
+              transform: [
+                { scale: primaryButtonScale },
+                {
+                  translateY: contentAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [10, 0],
+                  }),
+                },
+              ],
+              opacity: contentAnim,
+              marginBottom: 12,
+            }}
+          >
+            <TouchableOpacity
+              style={styles.primaryButton}
+              onPress={handleStartJourney}
+              onPressIn={handlePrimaryPressIn}
+              onPressOut={handlePrimaryPressOut}
+              activeOpacity={0.9}
+            >
+              <Ionicons name="navigate" size={18} color="white" style={styles.buttonIcon} />
+              <Text style={styles.primaryButtonText}>Start Journey</Text>
+            </TouchableOpacity>
+          </Animated.View>
+
+          {/* Maybe Later Button */}
+          <Animated.View
+            style={{
+              transform: [
+                { scale: secondaryButtonScale },
+                {
+                  translateY: contentAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [10, 0],
+                  }),
+                },
+              ],
+              opacity: contentAnim,
+            }}
+          >
+            {/* <TouchableOpacity
+              style={styles.secondaryButton}
+              onPress={handleDismiss}
+              onPressIn={handleSecondaryPressIn}
+              onPressOut={handleSecondaryPressOut}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.secondaryButtonText}>Maybe Later</Text>
+            </TouchableOpacity> */}
+          </Animated.View>
+        </View>
       </Animated.View>
-    </SafeAreaView>
+    </Animated.View>
   );
 };
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    zIndex: 1000,
-  },
-  overlay: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 16,
-  },
   cardContainer: {
     width: width * 0.9,
     maxWidth: 400,
-    maxHeight: height - (HEADER_HEIGHT + NAVBAR_HEIGHT + StatusBar.currentHeight || 0) - 32,
+    maxHeight: height - (HEADER_HEIGHT + NAVBAR_HEIGHT + StatusBar.currentHeight) - 80,
     backgroundColor: "white",
     borderRadius: 16,
     overflow: "hidden",
@@ -530,7 +486,7 @@ const styles = StyleSheet.create({
   },
   imageContainer: {
     width: "100%",
-    height: 220,
+    height: 200,
     position: "relative",
   },
   headerImage: {
@@ -574,30 +530,18 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     padding: 16,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-end",
   },
   titleText: {
     fontSize: 24,
     fontWeight: "800",
     color: "white",
-    marginBottom: 8,
+    flex: 1,
     textShadowColor: "rgba(0, 0, 0, 0.5)",
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 4,
-  },
-  bottomImageContent: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  tagContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  tagText: {
-    fontSize: 13,
-    color: "rgba(255,255,255,0.9)",
-    marginLeft: 6,
-    fontWeight: "500",
   },
   ratingContainer: {
     flexDirection: "row",
@@ -616,18 +560,38 @@ const styles = StyleSheet.create({
   contentContainer: {
     padding: 20,
   },
-  description: {
+  descriptionContainer: {
+    backgroundColor: NeutralColors.gray100,
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 24,
+  },
+  descriptionTitle: {
     fontSize: 16,
-    lineHeight: 24,
-    color: NeutralColors.gray600,
-    marginBottom: 20,
+    fontWeight: "700",
+    color: NeutralColors.gray800,
+    marginBottom: 12,
+  },
+  descriptionRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+  },
+  descriptionIcon: {
+    marginTop: 2,
+  },
+  descriptionText: {
+    fontSize: 15,
+    color: NeutralColors.gray700,
+    marginLeft: 8,
+    flex: 1,
+    lineHeight: 22,
   },
   travelInfoCard: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: NeutralColors.gray100,
     padding: 16,
-    borderRadius: 12,
+    borderRadius: 16,
     marginBottom: 24,
   },
   travelInfoTextContainer: {
@@ -681,6 +645,7 @@ const styles = StyleSheet.create({
   },
   secondaryButton: {
     backgroundColor: "transparent",
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     paddingVertical: 12,
@@ -695,8 +660,8 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   secondaryButtonText: {
-    fontSize: 16,
     color: NeutralColors.gray500,
+    fontSize: 16,
     fontWeight: "500",
   },
 });
