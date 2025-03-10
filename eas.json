@@ -1,6 +1,6 @@
 {
   "cli": {
-    "version": ">= 15.0.12",
+    "version": ">= 7.0.0",
     "appVersionSource": "remote"
   },
   "build": {
@@ -12,8 +12,7 @@
           "ORG_GRADLE_PROJECT_kotlinVersion": "1.7.20",
           "ORG_GRADLE_PROJECT_kotlin.suppressKotlinVersionCompatibilityCheck": "true"
         },
-        "buildType": "apk",
-        "prebuildCommand": "node kotlin-fix.js"
+        "buildType": "apk"
       }
     },
     "production": {
@@ -24,8 +23,7 @@
           "ORG_GRADLE_PROJECT_kotlinVersion": "1.7.20",
           "ORG_GRADLE_PROJECT_kotlin.suppressKotlinVersionCompatibilityCheck": "true"
         },
-        "buildType": "apk",
-        "prebuildCommand": "node kotlin-fix.js"
+        "buildType": "apk"
       },
       "ios": {
         "buildConfiguration": "Release"
