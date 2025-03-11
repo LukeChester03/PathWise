@@ -462,7 +462,7 @@ const styles = StyleSheet.create({
   cardContainer: {
     width: width * 0.9,
     maxWidth: 400,
-    maxHeight: height - (HEADER_HEIGHT + NAVBAR_HEIGHT + StatusBar.currentHeight) - 160,
+    maxHeight: height - (HEADER_HEIGHT + NAVBAR_HEIGHT + StatusBar.currentHeight) - 80,
     backgroundColor: "white",
     borderRadius: 16,
     overflow: "hidden",
