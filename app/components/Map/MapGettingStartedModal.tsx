@@ -1,4 +1,4 @@
-import React, { useRef } from "react";
+import React, { useRef, useEffect } from "react";
 import {
   View,
   Text,
@@ -15,11 +15,20 @@ import { Colors, NeutralColors } from "../../constants/colours";
 
 const { width, height } = Dimensions.get("window");
 
-const MapGettingStartedModal = ({ visible, onClose }) => {
+// Define prop interface for the component
+interface MapGettingStartedModalProps {
+  visible: boolean;
+  onClose: () => void;
+}
+
+// Specify icon name type for more precise typing
+type IoniconsName = React.ComponentProps<typeof Ionicons>["name"];
+
+const MapGettingStartedModal: React.FC<MapGettingStartedModalProps> = ({ visible, onClose }) => {
   const slideAnim = useRef(new Animated.Value(height)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (visible) {
       Animated.parallel([
         Animated.timing(slideAnim, {
@@ -49,7 +58,12 @@ const MapGettingStartedModal = ({ visible, onClose }) => {
     }
   }, [visible, slideAnim, fadeAnim]);
 
-  const renderStep = (icon, title, description, color = Colors.primary) => {
+  const renderStep = (
+    icon: IoniconsName,
+    title: string,
+    description: string,
+    color: string = Colors.primary
+  ): JSX.Element => {
     return (
       <View style={styles.stepContainer}>
         <View style={[styles.stepIconContainer, { backgroundColor: `${color}15` }]}>
@@ -63,7 +77,11 @@ const MapGettingStartedModal = ({ visible, onClose }) => {
     );
   };
 
-  const renderTipItem = (title, icon, color = Colors.primary) => {
+  const renderTipItem = (
+    title: string,
+    icon: IoniconsName,
+    color: string = Colors.primary
+  ): JSX.Element => {
     return (
       <View style={styles.tipItem}>
         <View style={[styles.tipIconContainer, { backgroundColor: `${color}15` }]}>

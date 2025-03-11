@@ -13,7 +13,6 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { EXPLORATION_LEVELS } from "../../types/StatTypes";
-import Confetti from "react-native-confetti";
 
 const { width } = Dimensions.get("window");
 
@@ -108,8 +107,6 @@ const LevelUpModal: React.FC<LevelUpModalProps> = ({ visible, level, onClose }) 
   return (
     <Modal transparent visible={visible} animationType="fade" onRequestClose={handleClose}>
       <View style={styles.modalOverlay}>
-        <Confetti ref={confettiRef} />
-
         <Animated.View
           style={[
             styles.modalContainer,

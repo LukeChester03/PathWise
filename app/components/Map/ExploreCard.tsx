@@ -43,6 +43,18 @@ const ExploreCard: React.FC<ExploreCardProps> = ({
   travelMode = "walking", // Default to walking if not provided
   rating = 0,
 }) => {
+  // Helper function for safe rating display
+  const getFormattedRating = (rating: number | string | undefined): string => {
+    if (rating === undefined) return "0.0";
+
+    if (typeof rating === "string") {
+      const numRating = parseFloat(rating);
+      return isNaN(numRating) ? "0.0" : numRating.toFixed(1);
+    }
+
+    return rating.toFixed(1);
+  };
+
   // Animation values
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.9)).current;
@@ -310,12 +322,13 @@ const ExploreCard: React.FC<ExploreCardProps> = ({
           ]}
         >
           <Text style={styles.titleText}>{placeName}</Text>
-          {typeof rating !== "string" && rating > 0 && (
+          {(typeof rating === "number" && rating > 0) ||
+          (typeof rating === "string" && parseFloat(rating) > 0) ? (
             <View style={styles.ratingContainer}>
               <Ionicons name="star" size={18} color="#FFD700" />
-              <Text style={styles.ratingText}>{rating.toFixed(1)}</Text>
+              <Text style={styles.ratingText}>{getFormattedRating(rating)}</Text>
             </View>
-          )}
+          ) : null}
         </Animated.View>
       </View>
 
@@ -462,7 +475,7 @@ const styles = StyleSheet.create({
   cardContainer: {
     width: width * 0.9,
     maxWidth: 400,
-    maxHeight: height - (HEADER_HEIGHT + NAVBAR_HEIGHT + StatusBar.currentHeight) - 80,
+    maxHeight: height - (HEADER_HEIGHT + NAVBAR_HEIGHT + (StatusBar.currentHeight ?? 0)) - 80,
     backgroundColor: "white",
     borderRadius: 16,
     overflow: "hidden",

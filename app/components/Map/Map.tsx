@@ -577,7 +577,7 @@ const Map: React.FC = () => {
         {places.routeCoordinates.length > 0 && journeyStarted && (
           <MapViewDirections
             key={`route-${places.routeKey}-${places.travelMode}`}
-            origin={location.userLocation || location.region}
+            origin={location.userLocation as Coordinate}
             resetOnChange={false}
             mode={places.travelMode.toUpperCase() as MapViewDirectionsMode}
             destination={{
@@ -608,7 +608,11 @@ const Map: React.FC = () => {
                 mapNavigation.setNavigationStepsFromRoute(steps);
 
                 // If journey has started and this is the first load, show overview
-                if (journeyStarted && !camera.initialRouteLoadedRef.current) {
+                if (
+                  journeyStarted &&
+                  !camera.initialRouteLoadedRef.current &&
+                  location.userLocation
+                ) {
                   camera.setupInitialRouteView(
                     location.userLocation,
                     places.destinationCoordinateRef.current,

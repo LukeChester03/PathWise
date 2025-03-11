@@ -20,19 +20,19 @@ interface DiscoveredCardProps {
   placeName: string;
   placeDescription?: string;
   placeImage?: string;
-  discoveryDate: string;
-  rating: number;
-  description: string;
+  discoveryDate?: string;
+  rating?: number | string;
+  description?: string;
   onViewDetails?: () => void;
   onDismiss: () => void;
   onVisitAgain?: () => void;
   visible?: boolean;
-  initialSavedState?: boolean; // Add prop for initial saved state
+  initialSavedState?: boolean;
 }
 
 const { width, height } = Dimensions.get("window");
-const HEADER_HEIGHT = Platform.OS === "ios" ? 44 : 56; // Approximate header height
-const NAVBAR_HEIGHT = 60; // Approximate navbar height
+const HEADER_HEIGHT = Platform.OS === "ios" ? 44 : 56;
+const NAVBAR_HEIGHT = 60;
 
 const DiscoveredCard: React.FC<DiscoveredCardProps> = ({
   placeName,
@@ -50,12 +50,26 @@ const DiscoveredCard: React.FC<DiscoveredCardProps> = ({
   // State for save functionality
   const [isSaved, setIsSaved] = useState(initialSavedState);
 
-  // Format the discovery date
-  const formattedDate = new Date(discoveryDate).toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
+  // Format the discovery date - Fixed to handle undefined values
+  const formattedDate = discoveryDate
+    ? new Date(discoveryDate).toLocaleDateString("en-US", {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      })
+    : "Recently";
+
+  // Helper function for safe rating display - Fixed to handle all types
+  const getFormattedRating = (rating: number | string | undefined): string => {
+    if (rating === undefined) return "0.0";
+
+    if (typeof rating === "string") {
+      const numRating = parseFloat(rating);
+      return isNaN(numRating) ? "0.0" : numRating.toFixed(1);
+    }
+
+    return rating.toFixed(1);
+  };
 
   // Animation values
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -418,7 +432,7 @@ const DiscoveredCard: React.FC<DiscoveredCardProps> = ({
                 </View>
                 <View style={styles.ratingContainer}>
                   <MaterialIcons name="star" size={18} color="#FFD700" />
-                  <Text style={styles.ratingText}>{rating.toFixed(1)}</Text>
+                  <Text style={styles.ratingText}>{getFormattedRating(rating)}</Text>
                 </View>
               </View>
             </Animated.View>
@@ -567,7 +581,7 @@ const styles = StyleSheet.create({
   cardContainer: {
     width: width * 0.9,
     maxWidth: 400,
-    maxHeight: height - (HEADER_HEIGHT + NAVBAR_HEIGHT + StatusBar.currentHeight || 0) - 32,
+    maxHeight: height - (HEADER_HEIGHT + NAVBAR_HEIGHT + (StatusBar.currentHeight || 0)) - 32,
     backgroundColor: "white",
     borderRadius: 16,
     overflow: "hidden",

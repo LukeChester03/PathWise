@@ -15,14 +15,24 @@ import { Ionicons } from "@expo/vector-icons";
 
 const { width, height } = Dimensions.get("window");
 
-const DestinationCard = ({
+interface DestinationCardProps {
+  placeName: string;
+  placeImage?: string;
+  discoveryDate?: string;
+  onLearnMorePress: () => void;
+  onDismiss: () => void;
+  visible?: boolean;
+  initialSavedState?: boolean;
+}
+
+const DestinationCard: React.FC<DestinationCardProps> = ({
   placeName,
   placeImage,
   discoveryDate,
   onLearnMorePress,
   onDismiss,
   visible = false,
-  initialSavedState = false, // Add prop for initial saved state
+  initialSavedState = false,
 }) => {
   // State for save functionality
   const [isSaved, setIsSaved] = useState(initialSavedState);

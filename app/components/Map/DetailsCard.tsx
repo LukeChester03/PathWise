@@ -192,7 +192,7 @@ const DetailsCard: React.FC<DetailsCardProps> = ({
   };
 
   // Handle title text layout to check if ellipsized
-  const onTextLayout = (e) => {
+  const onTextLayout = (e: { nativeEvent: { lines: string | any[] } }) => {
     // Check if text is ellipsized (more than 1 line)
     const linesCount = e.nativeEvent.lines.length;
     setIsTitleEllipsized(linesCount > 1);
@@ -278,7 +278,7 @@ const DetailsCard: React.FC<DetailsCardProps> = ({
   });
 
   // Handle card layout to get dimensions
-  const handleCardLayout = (event) => {
+  const handleCardLayout = (event: { nativeEvent: { layout: { width: any } } }) => {
     const { width } = event.nativeEvent.layout;
     if (width !== cardWidth) {
       setCardWidth(width);
