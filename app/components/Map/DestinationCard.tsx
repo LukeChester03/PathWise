@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from "react";
+import React, { useRef, useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -22,7 +22,11 @@ const DestinationCard = ({
   onLearnMorePress,
   onDismiss,
   visible = false,
+  initialSavedState = false, // Add prop for initial saved state
 }) => {
+  // State for save functionality
+  const [isSaved, setIsSaved] = useState(initialSavedState);
+
   // Animation values
   const modalAnim = useRef(new Animated.Value(0)).current;
   const cardScaleAnim = useRef(new Animated.Value(0.8)).current;
@@ -31,6 +35,8 @@ const DestinationCard = ({
   const badgeAnim = useRef(new Animated.Value(0)).current;
   const celebrationAnim = useRef(new Animated.Value(0)).current;
   const buttonsAnim = useRef(new Animated.Value(0)).current;
+  const saveIconAnim = useRef(new Animated.Value(0)).current;
+  const saveScaleAnim = useRef(new Animated.Value(1)).current;
 
   // Animation for celebration emoji bounce
   const celebrationBounce = useRef(new Animated.Value(0)).current;
@@ -55,6 +61,7 @@ const DestinationCard = ({
       badgeAnim.setValue(0);
       celebrationAnim.setValue(0);
       buttonsAnim.setValue(0);
+      saveIconAnim.setValue(0);
 
       // Start animations in sequence
       Animated.sequence([
@@ -82,7 +89,7 @@ const DestinationCard = ({
           easing: Easing.out(Easing.back(1.5)),
         }),
 
-        // Parallel animations for badge and content
+        // Parallel animations for badge, save icon, and content
         Animated.parallel([
           // Badge animation (rotate in)
           Animated.timing(badgeAnim, {
@@ -90,6 +97,14 @@ const DestinationCard = ({
             duration: 500,
             useNativeDriver: true,
             easing: Easing.out(Easing.back(2)),
+          }),
+
+          // Save icon animation
+          Animated.timing(saveIconAnim, {
+            toValue: 1,
+            duration: 500,
+            useNativeDriver: true,
+            easing: Easing.out(Easing.back(1.5)),
           }),
 
           // Celebration icon animation
@@ -120,6 +135,33 @@ const DestinationCard = ({
       ]).start();
     }
   }, [visible]);
+
+  // Handle save button press
+  const handleSavePress = () => {
+    // Animate the save icon when pressed
+    Animated.sequence([
+      Animated.spring(saveScaleAnim, {
+        toValue: 0.8,
+        friction: 3,
+        useNativeDriver: true,
+      }),
+      Animated.spring(saveScaleAnim, {
+        toValue: 1.2,
+        friction: 3,
+        useNativeDriver: true,
+      }),
+      Animated.spring(saveScaleAnim, {
+        toValue: 1,
+        friction: 3,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
+    // Toggle saved state
+    setIsSaved(!isSaved);
+
+    // Feedback is provided through the icon change and animation
+  };
 
   // Button press animation hooks
   const learnBtnScale = useRef(new Animated.Value(1)).current;
@@ -283,6 +325,44 @@ const DestinationCard = ({
               </Animated.View>
             </View>
           </Animated.View>
+
+          {/* Save for Later Button */}
+          <Animated.View
+            style={[
+              styles.saveButtonContainer,
+              {
+                opacity: saveIconAnim,
+                transform: [
+                  { scale: saveScaleAnim },
+                  {
+                    translateY: saveIconAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [-10, 0],
+                    }),
+                  },
+                ],
+              },
+            ]}
+          >
+            <TouchableOpacity
+              style={styles.saveButton}
+              onPress={handleSavePress}
+              activeOpacity={0.8}
+            >
+              <Ionicons
+                name={isSaved ? "bookmark" : "bookmark-outline"}
+                size={20}
+                color={isSaved ? Colors.primary : "#334155"}
+              />
+            </TouchableOpacity>
+
+            {/* Visual feedback indicator */}
+            {isSaved && (
+              <View style={styles.savedIndicator}>
+                <View style={styles.savedIndicatorDot} />
+              </View>
+            )}
+          </Animated.View>
         </Animated.View>
 
         {/* Content container */}
@@ -440,6 +520,8 @@ const DestinationCard = ({
           </Animated.View>
         </View>
       </Animated.View>
+
+      {/* Toast will appear here */}
     </Animated.View>
   );
 };
@@ -487,7 +569,7 @@ const styles = StyleSheet.create({
   badgeContainer: {
     position: "absolute",
     top: 16,
-    right: 16,
+    right: 64, // Moved right to make room for save button
   },
   badge: {
     width: 36,
@@ -501,6 +583,38 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 4,
     elevation: 4,
+  },
+  saveButtonContainer: {
+    position: "absolute",
+    top: 16,
+    right: 16,
+    zIndex: 10,
+  },
+  saveButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "white",
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  savedIndicator: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    width: 10,
+    height: 10,
+  },
+  savedIndicatorDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: Colors.primary,
   },
   content: {
     padding: 24,

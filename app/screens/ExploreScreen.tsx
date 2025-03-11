@@ -103,31 +103,43 @@ const ExploreScreen = ({ navigation }) => {
         setMyPlaces([]);
       } else {
         // Transform Firestore documents to place objects
-        const userPlacesData = querySnapshot.docs.map((doc) => {
-          const data = doc.data();
+        const userPlacesData = querySnapshot.docs
+          .filter((doc) => {
+            // Filter out the initialization document
+            const data = doc.data();
+            return !data._isInitDocument;
+          })
+          .map((doc) => {
+            const data = doc.data();
 
-          // Include ALL properties including rating
-          return {
-            ...data, // Keep all original properties
-            id: doc.id,
-            place_id: data.place_id,
-            name: data.name,
-            vicinity: data.vicinity || "",
-            description: data.description || "",
-            geometry: data.geometry,
-            photos: data.photos || [],
-            // Make sure rating info is included
-            rating: data.rating || null,
-            user_ratings_total: data.user_ratings_total || null,
-            // Date formatting
-            visitedAt: data.visitedAt,
-            visitDate: data.visitedAt ? new Date(data.visitedAt) : new Date(),
-          };
-        });
+            // Include ALL properties including rating
+            return {
+              ...data, // Keep all original properties
+              id: doc.id,
+              place_id: data.place_id || doc.id,
+              name: data.name,
+              vicinity: data.vicinity || "",
+              description: data.description || "",
+              geometry: data.geometry,
+              photos: data.photos || [],
+              // Make sure rating info is included
+              rating: data.rating || null,
+              // Date formatting
+              visitedAt: data.visitedAt,
+              visitDate: data.visitedAt ? new Date(data.visitedAt) : new Date(),
+              isVisited: true, // Explicitly mark as visited
+            };
+          });
 
-        console.log(`Found ${userPlacesData.length} places in Firestore`);
-        setMyPlaces(userPlacesData);
-        setNoMyPlacesFound(false);
+        console.log(`Found ${userPlacesData.length} places in Firestore (excluding init doc)`);
+
+        if (userPlacesData.length === 0) {
+          setNoMyPlacesFound(true);
+          setMyPlaces([]);
+        } else {
+          setMyPlaces(userPlacesData);
+          setNoMyPlacesFound(false);
+        }
       }
 
       setLoadingMyPlaces(false);
@@ -210,7 +222,7 @@ const ExploreScreen = ({ navigation }) => {
     );
   };
 
-  const renderMyPlacesSection = () => {
+  const renderSavedPlacesSection = () => {
     if (loadingMyPlaces) {
       return renderLoadingState("Loading your places...");
     }
@@ -220,7 +232,44 @@ const ExploreScreen = ({ navigation }) => {
         <View style={styles.sectionHeader}>
           <View style={styles.sectionTitleContainer}>
             <Ionicons name="bookmark" size={22} color={Colors.primary} style={styles.sectionIcon} />
-            <Text style={styles.sectionTitle}>My Places</Text>
+            <Text style={styles.sectionTitle}>Saved Places</Text>
+          </View>
+          {myPlaces.length > 0 && (
+            <TouchableOpacity
+              onPress={() => navigateToViewAll("myPlaces")}
+              style={styles.viewAllButton}
+            >
+              <Text style={styles.viewAllText}>View All</Text>
+              <Ionicons name="chevron-forward" size={14} color={Colors.primary} />
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {noMyPlacesFound || myPlaces.length === 0 ? (
+          renderEmptyState(
+            "You haven't discovered any places yet. Start your journey by exploring new destinations!",
+            "footsteps-outline",
+            navigateToDiscover,
+            "Start Exploring"
+          )
+        ) : (
+          <PlacesCarousel places={myPlaces} onPlacePress={navigateToPlaceDetails} />
+        )}
+      </>
+    );
+  };
+
+  const renderMyPlacesSection = () => {
+    if (loadingMyPlaces) {
+      return renderLoadingState("Loading your places...");
+    }
+
+    return (
+      <>
+        <View style={styles.sectionHeader}>
+          <View style={styles.sectionTitleContainer}>
+            <Ionicons name="compass" size={22} color={Colors.primary} style={styles.sectionIcon} />
+            <Text style={styles.sectionTitle}>Visited Places</Text>
           </View>
           {myPlaces.length > 0 && (
             <TouchableOpacity
@@ -401,6 +450,8 @@ const ExploreScreen = ({ navigation }) => {
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
         {/* My Places Section */}
         <View style={styles.sectionContainer}>{renderMyPlacesSection()}</View>
+        {/* Saved Places Section */}
+        <View style={styles.sectionContainer}>{renderSavedPlacesSection()}</View>
 
         {/* Nearby Places Section */}
         <View style={styles.sectionContainer}>{renderNearbyPlacesSection()}</View>

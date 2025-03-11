@@ -1,0 +1,36 @@
+{
+  "cli": {
+    "version": ">= 7.0.0",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "development": {
+      "android": {
+        "gradleCommand": ":app:assembleDebug",
+        "env": {
+          "KOTLIN_VERSION": "1.7.20",
+          "ORG_GRADLE_PROJECT_kotlinVersion": "1.7.20",
+          "ORG_GRADLE_PROJECT_kotlin.suppressKotlinVersionCompatibilityCheck": "true"
+        },
+        "buildType": "apk"
+      }
+    },
+    "production": {
+      "android": {
+        "gradleCommand": ":app:assembleRelease",
+        "env": {
+          "KOTLIN_VERSION": "1.7.20",
+          "ORG_GRADLE_PROJECT_kotlinVersion": "1.7.20",
+          "ORG_GRADLE_PROJECT_kotlin.suppressKotlinVersionCompatibilityCheck": "true"
+        },
+        "buildType": "apk"
+      },
+      "ios": {
+        "buildConfiguration": "Release"
+      }
+    }
+  },
+  "submit": {
+    "production": {}
+  }
+}

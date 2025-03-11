@@ -1,144 +1,127 @@
-import React, { useRef } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  Image,
-  TouchableOpacity,
-  Animated,
-  Dimensions,
-} from "react-native";
-import { Ionicons } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient";
+// components/Places/PlacesCarousel.tsx
+import React from "react";
+import { View, Text, StyleSheet, FlatList, Dimensions, Platform } from "react-native";
 import { Colors, NeutralColors } from "../../constants/colours";
-import { getPlaceCardImageUrl } from "../../utils/mapImageUtils";
+import PlaceCard, { CarouselCardProps } from "./CarouselCard";
 
 const { width } = Dimensions.get("window");
-const PLACE_CARD_WIDTH = width * 0.7;
+const CARD_WIDTH = width * 0.75;
+const CARD_HEIGHT = 200;
 const SPACING = 12;
 
-const PlacesCarousel = ({ places, onPlacePress }) => {
-  const scrollX = useRef(new Animated.Value(0)).current;
-  const flatListRef = useRef(null);
+interface PlacesCarouselProps {
+  places?: CarouselCardProps[];
+  onPlacePress: (placeId: string, place: CarouselCardProps) => void;
+  showOnlyVisited?: boolean;
+  sectionType?: "visited" | "nearby" | "saved";
+  cardWidth?: number;
+  cardHeight?: number;
+}
 
-  const renderPlaceCard = ({ item, index }) => {
+const PlacesCarousel: React.FC<PlacesCarouselProps> = ({
+  places = [],
+  onPlacePress,
+  showOnlyVisited = false,
+  sectionType = "nearby",
+  cardWidth = CARD_WIDTH,
+  cardHeight = CARD_HEIGHT,
+}) => {
+  // Filter places based on criteria
+  const validPlaces = Array.isArray(places)
+    ? places.filter((place) => {
+        // Always ensure we have a valid ID
+        if (!place || (!place.place_id && !place.id)) return false;
+
+        // For visited/saved sections, strictly enforce visit status
+        if (
+          (sectionType === "visited" || sectionType === "saved") &&
+          !(place.isVisited === true || place.visitedAt || place.visitDate)
+        ) {
+          return false;
+        }
+
+        // For nearby locations with showOnlyVisited, filter by visit status
+        if (sectionType === "nearby" && showOnlyVisited) {
+          return place.isVisited === true || place.visitedAt || place.visitDate;
+        }
+
+        // Otherwise include the place
+        return true;
+      })
+    : [];
+
+  if (validPlaces.length === 0) {
     return (
-      <TouchableOpacity
-        style={styles.placeCard}
-        onPress={() => onPlacePress(item.place_id)}
-        activeOpacity={0.9}
-      >
-        <Image source={{ uri: getPlaceCardImageUrl(item, 400, 180) }} style={styles.placeImage} />
-        <LinearGradient colors={["transparent", "rgba(0,0,0,0.8)"]} style={styles.cardGradient} />
-        <View style={styles.cardContent}>
-          <Text style={styles.placeName} numberOfLines={1}>
-            {item.name}
-          </Text>
-          <View style={styles.placeInfo}>
-            <Ionicons name="location" size={14} color="#fff" style={{ marginRight: 4 }} />
-            <Text style={styles.placeVicinity} numberOfLines={1}>
-              {item.vicinity || "Unknown location"}
-            </Text>
-          </View>
-          {item.rating && (
-            <View style={styles.ratingContainer}>
-              <Ionicons name="star" size={14} color="#FFD700" />
-              <Text style={styles.ratingText}>{item.rating}</Text>
-            </View>
-          )}
-        </View>
-      </TouchableOpacity>
+      <View style={[styles.emptyContainer, { width: cardWidth, height: cardHeight }]}>
+        <Text style={styles.emptyText}>
+          {sectionType === "visited" || sectionType === "saved"
+            ? "No visited places yet"
+            : "No places available"}
+        </Text>
+      </View>
+    );
+  }
+
+  const renderItem = ({ item }: { item: CarouselCardProps }) => {
+    return (
+      <View style={{ marginLeft: SPACING }}>
+        <PlaceCard
+          place={item}
+          onPress={onPlacePress}
+          cardWidth={cardWidth}
+          cardHeight={cardHeight}
+        />
+      </View>
     );
   };
 
   return (
-    <Animated.FlatList
-      ref={flatListRef}
-      data={places}
-      keyExtractor={(item) => item.place_id.toString()}
-      renderItem={renderPlaceCard}
+    <FlatList
+      data={validPlaces}
+      keyExtractor={(item) =>
+        item && (item.place_id || item.id)
+          ? (item.place_id || item.id).toString()
+          : `place-${Math.random().toString(36).substring(2, 9)}`
+      }
+      renderItem={renderItem}
       horizontal
       showsHorizontalScrollIndicator={false}
-      contentContainerStyle={styles.carouselContent}
-      snapToInterval={PLACE_CARD_WIDTH + SPACING}
+      contentContainerStyle={styles.carouselContainer}
+      snapToInterval={cardWidth + SPACING}
       decelerationRate="fast"
-      onScroll={Animated.event([{ nativeEvent: { contentOffset: { x: scrollX } } }], {
-        useNativeDriver: false,
-      })}
-      scrollEventThrottle={16}
-      snapToAlignment="start"
-      bounces={true}
+      snapToAlignment="center"
     />
   );
 };
 
 const styles = StyleSheet.create({
-  carouselContent: {
-    paddingHorizontal: 16,
+  carouselContainer: {
+    paddingVertical: 8,
+    paddingRight: SPACING,
   },
-  placeCard: {
-    width: PLACE_CARD_WIDTH,
-    height: 180,
-    marginRight: SPACING,
-    borderRadius: 16,
-    overflow: "hidden",
-    backgroundColor: NeutralColors.gray400,
-    elevation: 3,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  placeImage: {
-    width: "100%",
-    height: "100%",
-    resizeMode: "cover",
-  },
-  cardGradient: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: "50%",
-  },
-  cardContent: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    padding: 16,
-  },
-  placeName: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#fff",
-    marginBottom: 4,
-  },
-  placeInfo: {
-    flexDirection: "row",
+  emptyContainer: {
+    justifyContent: "center",
     alignItems: "center",
-    marginBottom: 8,
+    padding: 20,
+    backgroundColor: "#f9f9f9",
+    borderRadius: 20,
+    marginLeft: SPACING,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 5,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
   },
-  placeVicinity: {
-    fontSize: 14,
-    color: "#fff",
-    opacity: 0.9,
-    flex: 1,
-  },
-  ratingContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "rgba(255,255,255,0.3)",
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 12,
-    alignSelf: "flex-start",
-  },
-  ratingText: {
-    fontSize: 12,
-    color: "#fff",
-    fontWeight: "600",
-    marginLeft: 4,
+  emptyText: {
+    fontSize: 16,
+    color: NeutralColors.gray500,
+    textAlign: "center",
   },
 });
 

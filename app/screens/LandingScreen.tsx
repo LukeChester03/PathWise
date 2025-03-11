@@ -1,16 +1,18 @@
 // app/screens/LandingScreen.tsx
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
-  ImageBackground,
   TouchableOpacity,
   StyleSheet,
   Image,
   Animated,
   Dimensions,
   StatusBar,
+  Easing,
 } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
+import { Ionicons } from "@expo/vector-icons";
 import LoginComponent from "../components/LandingPage/Login";
 import RegisterModal from "../components/LandingPage/Register";
 import { Colors, NeutralColors } from "../constants/colours";
@@ -20,25 +22,154 @@ const { width, height } = Dimensions.get("window");
 const LandingScreen = ({ navigation }: { navigation: any }) => {
   const [isLoginModalVisible, setIsLoginModalVisible] = useState(false);
   const [isRegisterModalVisible, setIsRegisterModalVisible] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(0);
 
-  // Animation values
-  const fadeAnim = useState(new Animated.Value(0))[0];
-  const slideAnim = useState(new Animated.Value(50))[0];
+  // Animation values for content
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(20)).current;
+  const buttonsAnim = useRef(new Animated.Value(0)).current;
 
+  // Animation values for floating circles
+  const circle1Anim = useRef(new Animated.Value(0)).current;
+  const circle2Anim = useRef(new Animated.Value(0)).current;
+  const circle3Anim = useRef(new Animated.Value(0)).current;
+
+  // Carousel data
+  const carouselData = [
+    {
+      title: "Discover hidden gems",
+      icon: "compass-outline",
+    },
+    {
+      title: "Track your journey",
+      icon: "map-outline",
+    },
+    {
+      title: "Earn achievements",
+      icon: "trophy-outline",
+    },
+    { title: "Learn with AI", icon: "analytics-outline" },
+  ];
+
+  // Animate the background circles
+  const animateBackgroundCircles = () => {
+    // Circle 1 animation - slow floating movement
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(circle1Anim, {
+          toValue: 1,
+          duration: 15000,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+        }),
+        Animated.timing(circle1Anim, {
+          toValue: 0,
+          duration: 15000,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+
+    // Circle 2 animation - different direction and timing
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(circle2Anim, {
+          toValue: 1,
+          duration: 18000,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+        }),
+        Animated.timing(circle2Anim, {
+          toValue: 0,
+          duration: 18000,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+
+    // Circle 3 animation - third pattern
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(circle3Anim, {
+          toValue: 1,
+          duration: 12000,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+        }),
+        Animated.timing(circle3Anim, {
+          toValue: 0,
+          duration: 12000,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+  };
+
+  // Setup animations
   useEffect(() => {
-    Animated.parallel([
+    // Staggered entry animations for content
+    Animated.sequence([
       Animated.timing(fadeAnim, {
         toValue: 1,
-        duration: 1000,
+        duration: 800,
         useNativeDriver: true,
       }),
       Animated.timing(slideAnim, {
         toValue: 0,
-        duration: 800,
+        duration: 500,
+        useNativeDriver: true,
+      }),
+      Animated.timing(buttonsAnim, {
+        toValue: 1,
+        duration: 500,
         useNativeDriver: true,
       }),
     ]).start();
+
+    // Start background circle animations
+    animateBackgroundCircles();
+
+    // Auto scroll the carousel
+    const carouselInterval = setInterval(() => {
+      setActiveIndex((prev) => (prev + 1) % carouselData.length);
+    }, 3000);
+
+    return () => clearInterval(carouselInterval);
   }, []);
+
+  // Circle movement interpolations
+  const circle1TranslateX = circle1Anim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, width * 0.05],
+  });
+
+  const circle1TranslateY = circle1Anim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, height * 0.05],
+  });
+
+  const circle2TranslateX = circle2Anim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, -width * 0.08],
+  });
+
+  const circle2TranslateY = circle2Anim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, height * 0.08],
+  });
+
+  const circle3TranslateX = circle3Anim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, width * 0.1],
+  });
+
+  const circle3TranslateY = circle3Anim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, -height * 0.06],
+  });
 
   const toggleLoginModal = () => {
     setIsLoginModalVisible(!isLoginModalVisible);
@@ -64,57 +195,174 @@ const LandingScreen = ({ navigation }: { navigation: any }) => {
 
   return (
     <View style={styles.container}>
-      <StatusBar translucent backgroundColor="transparent" />
+      <StatusBar translucent backgroundColor="transparent" barStyle="light-content" />
 
-      {/* Background Image with Overlay */}
-      <ImageBackground
-        source={{
-          uri: "https://images.unsplash.com/photo-1513026705753-bc3fffca8bf4?q=80&w=2070&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
-        }}
-        style={styles.backgroundImage}
-      >
-        <View style={styles.overlay} />
+      {/* Enhanced Background with more Primary Color */}
+      <LinearGradient
+        colors={[
+          "#1a1a2e",
+          "#16213e",
+          Colors.primary + "25", // Increased primary color presence
+        ]}
+        style={styles.backgroundGradient}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+      />
 
-        {/* Content Container */}
-        <View style={styles.contentContainer}>
-          {/* Logo and Title Section */}
-          <Animated.View
-            style={[
-              styles.headerContainer,
-              {
-                opacity: fadeAnim,
-                transform: [{ translateY: slideAnim }],
-              },
-            ]}
-          >
-            <View style={styles.logoContainer}>
+      {/* Animated Circles in Background */}
+      <View style={styles.backgroundElements}>
+        <Animated.View
+          style={[
+            styles.circle1,
+            {
+              transform: [{ translateX: circle1TranslateX }, { translateY: circle1TranslateY }],
+            },
+          ]}
+        >
+          <LinearGradient
+            colors={[Colors.primary + "20", Colors.primary + "10"]}
+            style={styles.circleGradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+          />
+        </Animated.View>
+
+        <Animated.View
+          style={[
+            styles.circle2,
+            {
+              transform: [{ translateX: circle2TranslateX }, { translateY: circle2TranslateY }],
+            },
+          ]}
+        >
+          <LinearGradient
+            colors={[Colors.primary + "15", Colors.primary + "05"]}
+            style={styles.circleGradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+          />
+        </Animated.View>
+
+        <Animated.View
+          style={[
+            styles.circle3,
+            {
+              transform: [{ translateX: circle3TranslateX }, { translateY: circle3TranslateY }],
+            },
+          ]}
+        >
+          <LinearGradient
+            colors={[Colors.primary + "20", Colors.primary + "08"]}
+            style={styles.circleGradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+          />
+        </Animated.View>
+      </View>
+
+      {/* Main Content Container */}
+      <View style={styles.contentContainer}>
+        {/* Logo and Title Section */}
+        <Animated.View
+          style={[
+            styles.headerContainer,
+            {
+              opacity: fadeAnim,
+              transform: [{ translateY: slideAnim }],
+            },
+          ]}
+        >
+          <View style={styles.logoContainer}>
+            <LinearGradient
+              colors={["rgba(255, 255, 255, 0.1)", "rgba(255, 255, 255, 0.05)"]}
+              style={styles.logoGradient}
+            >
               <Image source={require("../assets/logo.png")} style={styles.logo} />
-            </View>
-            <Text style={styles.title}>Pathwise</Text>
-            <Text style={styles.tagline}>Discover the Past, Unlock the City</Text>
-          </Animated.View>
+            </LinearGradient>
+          </View>
+          <Text style={styles.title}>Pathwise</Text>
+          <Text style={styles.tagline}>Discover the Past, Unlock the City</Text>
+        </Animated.View>
 
-          {/* Buttons Container */}
-          <Animated.View style={[styles.buttonsContainer, { opacity: fadeAnim }]}>
-            <View style={styles.cardContainer}>
-              <TouchableOpacity
-                style={styles.getStartedButton}
-                onPress={toggleRegisterModal}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.getStartedButtonText}>Get Started</Text>
-              </TouchableOpacity>
-
-              <View style={styles.loginContainer}>
-                <Text style={styles.accountText}>Already have an account?</Text>
-                <TouchableOpacity onPress={toggleLoginModal}>
-                  <Text style={styles.loginText}>Log in</Text>
-                </TouchableOpacity>
+        {/* Feature Carousel */}
+        <View style={styles.carouselContainer}>
+          {carouselData.map((item, index) => (
+            <Animated.View
+              key={index}
+              style={[
+                styles.carouselItem,
+                {
+                  opacity: activeIndex === index ? 1 : 0,
+                  transform: [
+                    {
+                      translateY: activeIndex === index ? 0 : 20,
+                    },
+                  ],
+                  position: "absolute",
+                },
+              ]}
+            >
+              <View style={styles.featureContent}>
+                <View style={styles.iconWrapper}>
+                  <Ionicons name={item.icon} size={24} color="#fff" style={styles.featureIcon} />
+                </View>
+                <Text style={styles.featureTitle}>{item.title}</Text>
               </View>
-            </View>
-          </Animated.View>
+            </Animated.View>
+          ))}
+
+          {/* Indicator dots */}
+          <View style={styles.indicatorContainer}>
+            {carouselData.map((_, index) => (
+              <View
+                key={index}
+                style={[styles.indicator, index === activeIndex ? styles.indicatorActive : null]}
+              />
+            ))}
+          </View>
         </View>
-      </ImageBackground>
+
+        {/* Action Buttons */}
+        <Animated.View
+          style={[
+            styles.actionContainer,
+            {
+              opacity: buttonsAnim,
+              transform: [
+                {
+                  translateY: buttonsAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [20, 0],
+                  }),
+                },
+              ],
+            },
+          ]}
+        >
+          <TouchableOpacity
+            style={styles.getStartedButton}
+            onPress={toggleRegisterModal}
+            activeOpacity={0.8}
+          >
+            <LinearGradient
+              colors={[Colors.primary, Colors.primary + "E0"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.buttonGradient}
+            >
+              <Text style={styles.getStartedButtonText}>Get Started</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.loginButton}
+            onPress={toggleLoginModal}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.loginText}>Log in</Text>
+          </TouchableOpacity>
+        </Animated.View>
+      </View>
 
       <LoginComponent
         visible={isLoginModalVisible}
@@ -139,115 +387,182 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  backgroundImage: {
-    flex: 1,
-    width: width,
-    height: height * 1.5,
-  },
-  overlay: {
+  backgroundGradient: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
+  },
+  backgroundElements: {
+    ...StyleSheet.absoluteFillObject,
+    overflow: "hidden",
+  },
+  circleGradient: {
+    width: "100%",
+    height: "100%",
+    borderRadius: 9999,
+  },
+  circle1: {
+    position: "absolute",
+    width: height * 0.4,
+    height: height * 0.4,
+    borderRadius: height * 0.2,
+    top: -height * 0.1,
+    right: -width * 0.1,
+    overflow: "hidden",
+  },
+  circle2: {
+    position: "absolute",
+    width: height * 0.5,
+    height: height * 0.5,
+    borderRadius: height * 0.25,
+    bottom: -height * 0.2,
+    left: -width * 0.15,
+    overflow: "hidden",
+  },
+  circle3: {
+    position: "absolute",
+    width: height * 0.25,
+    height: height * 0.25,
+    borderRadius: height * 0.125,
+    top: height * 0.35,
+    right: -width * 0.05,
+    overflow: "hidden",
   },
   contentContainer: {
     flex: 1,
     padding: 24,
-    justifyContent: "flex-end", // Push buttons to the bottom
+    justifyContent: "space-between",
+    paddingTop: height * 0.12,
+    paddingBottom: height * 0.08,
   },
   headerContainer: {
     alignItems: "center",
-    marginTop: height * 0.15, // Keep header near the top
-    marginBottom: "auto", // Push it away from buttons
   },
   logoContainer: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: "rgba(247, 247, 247, 0.21)",
+    width: 90,
+    height: 90,
+    borderRadius: 45,
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-    elevation: 8,
+    marginBottom: 24,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: Colors.primary + "30",
+  },
+  logoGradient: {
+    width: "100%",
+    height: "100%",
+    justifyContent: "center",
+    alignItems: "center",
+    borderRadius: 45,
   },
   logo: {
-    width: 96,
-    height: 96,
+    width: 80,
+    height: 80,
     resizeMode: "contain",
   },
   title: {
-    fontSize: 42,
+    fontSize: 36,
     fontWeight: "700",
     color: "#fff",
     textAlign: "center",
-    letterSpacing: 1,
     marginBottom: 12,
-    textShadowColor: "rgba(0, 0, 0, 0.75)",
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 4,
   },
   tagline: {
+    fontSize: 16,
+    fontWeight: "400",
+    color: "rgba(255, 255, 255, 0.7)",
+    textAlign: "center",
+  },
+  carouselContainer: {
+    height: 80,
+    alignItems: "center",
+    justifyContent: "center",
+    position: "relative",
+  },
+  carouselItem: {
+    alignItems: "center",
+    justifyContent: "center",
+    width: "100%",
+  },
+  featureContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  iconWrapper: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: Colors.primary,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 14,
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3,
+    shadowRadius: 5,
+    elevation: 5,
+  },
+  featureIcon: {
+    marginRight: 0,
+  },
+  featureTitle: {
     fontSize: 18,
     fontWeight: "500",
     color: "#fff",
-    textAlign: "center",
-    letterSpacing: 0.5,
-    opacity: 0.9,
-    textShadowColor: "rgba(0, 0, 0, 0.5)",
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
+    textTransform: "lowercase",
   },
-  buttonsContainer: {
-    alignItems: "center",
+  indicatorContainer: {
+    flexDirection: "row",
+    position: "absolute",
+    bottom: 0,
   },
-  cardContainer: {
+  indicator: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "rgba(255, 255, 255, 0.3)",
+    marginHorizontal: 4,
+  },
+  indicatorActive: {
+    backgroundColor: Colors.primary,
+    width: 18,
+  },
+  actionContainer: {
     width: "100%",
-    maxWidth: 400,
-    backgroundColor: "rgba(255, 255, 255, 0.15)",
-    borderRadius: 16,
-    padding: 24,
-    backdropFilter: "blur(10px)",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.1,
-    shadowRadius: 15,
-    elevation: 10,
+    alignItems: "center",
+    marginTop: 40,
   },
   getStartedButton: {
-    backgroundColor: Colors.primary,
-    paddingVertical: 16,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
+    width: "100%",
+    borderRadius: 10,
+    overflow: "hidden",
+    marginBottom: 16,
     shadowColor: Colors.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
-    shadowRadius: 6,
+    shadowRadius: 8,
     elevation: 5,
-    marginBottom: 20,
+  },
+  buttonGradient: {
+    paddingVertical: 16,
+    alignItems: "center",
   },
   getStartedButtonText: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: "600",
     color: "#fff",
-    letterSpacing: 0.5,
+    letterSpacing: 0.3,
   },
-  loginContainer: {
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
-    paddingVertical: 8,
-  },
-  accountText: {
-    fontSize: 16,
-    color: "rgba(255, 255, 255, 0.8)",
-    marginRight: 6,
+  loginButton: {
+    paddingVertical: 16,
+    borderWidth: 1,
+    borderColor: Colors.primary + "50",
+    paddingHorizontal: 24,
+    borderRadius: 10,
   },
   loginText: {
     fontSize: 16,
-    fontWeight: "600",
     color: "#fff",
+    fontWeight: "500",
   },
 });
