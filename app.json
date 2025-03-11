@@ -6,7 +6,6 @@
     "orientation": "portrait",
     "scheme": "myapp",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
     "ios": {
       "config": {
         "googleMapsApiKey": "AIzaSyDAGq_6eJGQpR3RcO0NrVOowel9-DxZkvA"
@@ -15,7 +14,8 @@
       "bundleIdentifier": "com.lukechester03.PathWise",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
-      }
+      },
+      "googleServicesFile": "./GoogleService-Info.plist"
     },
     "android": {
       "adaptiveIcon": {
@@ -31,24 +31,23 @@
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
-      "./manifest-fix-plugin.js",
       "@react-native-firebase/app",
       "@react-native-firebase/auth",
       "expo-router",
-      [
-        "expo-splash-screen",
-        {
-          "image": "./assets/images/splash-icon.png",
-          "imageWidth": 200,
-          "resizeMode": "contain",
-          "backgroundColor": "#ffffff"
-        }
-      ],
+      "expo-splash-screen",
       [
         "expo-build-properties",
         {
           "ios": {
-            "useFrameworks": "static"
+            "config": {
+              "googleMapsApiKey": "AIzaSyDAGq_6eJGQpR3RcO0NrVOowel9-DxZkvA"
+            },
+            "supportsTablet": false,
+            "bundleIdentifier": "com.lukechester03.PathWise",
+            "infoPlist": {
+              "ITSAppUsesNonExemptEncryption": false
+            },
+            "googleServicesFile": "./GoogleService-Info.plist"
           },
           "android": {
             "compileSdkVersion": 35,
@@ -57,10 +56,7 @@
             "kotlinVersion": "1.7.20",
             "androidXCore": "1.10.0",
             "androidXFragment": "1.5.0",
-            "enableProguardInReleaseBuilds": false,
-            "extraProperties": {
-              "android.kotlinOptions.suppressKotlinVersionCompatibilityCheck": "true"
-            }
+            "enableProguardInReleaseBuilds": false
           }
         }
       ]
@@ -75,6 +71,7 @@
       "eas": {
         "projectId": "3d1a0ff8-70e7-4a3e-ba1b-6b95ea45c05c"
       }
-    }
+    },
+    "owner": "lukechester03"
   }
 }
