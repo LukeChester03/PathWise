@@ -1,16 +1,24 @@
-// Map.tsx - Updated with dynamic place updates and auto-detection for nearby places
+// Map.tsx - Using global location and places state
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import MapView, { PROVIDER_DEFAULT, Circle, Marker } from "react-native-maps";
-import { View, StyleSheet, ActivityIndicator, Vibration, Alert } from "react-native";
+import { View, StyleSheet, ActivityIndicator, Vibration, Alert, Text } from "react-native";
 import MapViewDirections from "react-native-maps-directions";
 import MaterialIcon from "react-native-vector-icons/MaterialIcons";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
 import { handleCancel } from "../../handlers/Map/mapHandlers";
 import { handleDestinationReached } from "../../handlers/Map/visitedPlacesHandlers";
-import { saveVisitedPlace } from "../../controllers/Map/visitedPlacesController"; // Add this import
+import { saveVisitedPlace } from "../../controllers/Map/visitedPlacesController";
 import { Colors, NeutralColors } from "../../constants/colours";
 import { customMapStyle } from "../../constants/mapStyle";
 import { useNavigation } from "expo-router";
+
+// Import controllers and global state
+import {
+  getLocationState,
+  getNearbyPlacesState,
+  onLocationUpdate,
+  onPlacesUpdate,
+} from "../../controllers/Map/locationController";
 
 // Import custom hooks
 import useMapLocation from "../../hooks/Map/useMapLocation";
@@ -39,8 +47,12 @@ import { Place, Coordinate, NavigationStep } from "../../types/MapTypes";
 import * as mapUtils from "../../utils/mapUtils";
 
 const Map: React.FC = () => {
-  // State for map functionality
+  // State for tracking location and places loading
   const [loading, setLoading] = useState<boolean>(true);
+  const [locationReady, setLocationReady] = useState<boolean>(false);
+  const [placesReady, setPlacesReady] = useState<boolean>(false);
+
+  // State for map functionality
   const [journeyStarted, setJourneyStarted] = useState<boolean>(false);
   const [confirmEndJourney, setConfirmEndJourney] = useState<boolean>(false);
   const [destinationReached, setDestinationReached] = useState<boolean>(false);
@@ -56,8 +68,9 @@ const Map: React.FC = () => {
   const [travelTime, setTravelTime] = useState<string | null>(null);
   const [distance, setDistance] = useState<string | null>(null);
 
-  // Add a ref to track if destination save was attempted
+  // Add refs for tracking
   const destinationSaveAttemptedRef = useRef<boolean>(false);
+  const mapReadyRef = useRef<boolean>(false);
 
   // Navigation hook
   const navigation = useNavigation();
@@ -69,59 +82,117 @@ const Map: React.FC = () => {
   const mapNavigation = useMapNavigation();
 
   /**
-   * Initialize map on component mount
+   * Initialize map using pre-loaded location and places data
    */
   useEffect(() => {
-    const initMap = async () => {
-      try {
-        console.log("Initializing map component...");
-        setLoading(true);
+    console.log("Map component mounting, using pre-loaded location and places");
 
-        // Initialize location services with a callback for when we get the first location
-        const locationInitialized = await location.initializeLocation((initialLocation) => {
-          console.log("Initial location received in Map component:", initialLocation);
+    // Get initial location state
+    const locationState = getLocationState();
 
-          // When initial location is received, fetch nearby places
-          if (initialLocation) {
-            places
-              .refreshNearbyPlaces(initialLocation.latitude, initialLocation.longitude)
-              .then((success) => {
-                if (success) {
-                  console.log("Successfully loaded initial places");
-                } else {
-                  console.warn("Failed to load initial places");
-                }
-                // Set loading to false regardless of places success
-                setLoading(false);
-              })
-              .catch((error) => {
-                console.error("Error loading initial places:", error);
-                setLoading(false);
-              });
-          }
-        });
+    // If location is already initialized
+    if (locationState.isInitialized && locationState.userLocation) {
+      console.log("Using pre-initialized location:", locationState.userLocation);
+      location.setUserLocation(locationState.userLocation);
+      location.setRegion(locationState.region);
+      setLocationReady(true);
+    } else if (locationState.isInitializing) {
+      console.log("Location still initializing, waiting for it...");
 
-        if (!locationInitialized) {
-          console.warn("Location could not be initialized");
-          setLoading(false);
-          return;
+      // Subscribe to location updates
+      const unsubscribeLocation = onLocationUpdate((updatedLocation) => {
+        if (updatedLocation.isInitialized && updatedLocation.userLocation) {
+          console.log("Location initialized:", updatedLocation.userLocation);
+          location.setUserLocation(updatedLocation.userLocation);
+          location.setRegion(updatedLocation.region);
+          setLocationReady(true);
+          unsubscribeLocation(); // Unsubscribe once we have the location
         }
+      });
 
-        // If we don't get a location callback within 10 seconds, stop loading anyway
-        setTimeout(() => {
-          if (loading) {
-            console.warn("Location timeout - forcing load completion");
-            setLoading(false);
-          }
-        }, 10000);
-      } catch (error) {
-        console.error("Error initializing map:", error);
+      // Safety timeout for location
+      setTimeout(() => {
+        if (!locationReady) {
+          console.warn("Location initialization timeout");
+          setLocationReady(true); // Continue anyway
+          unsubscribeLocation();
+        }
+      }, 5000);
+    } else {
+      console.warn("Location not initializing or initialized, continuing anyway");
+      setLocationReady(true);
+    }
+
+    // Get initial places state
+    const placesState = getNearbyPlacesState();
+
+    // If places are already preloaded
+    if (placesState.hasPreloaded) {
+      console.log(`Using ${placesState.places.length} preloaded places`);
+      places.updatePlaces(placesState.places);
+      setPlacesReady(true);
+    } else if (placesState.isPreloading) {
+      console.log("Places still preloading, waiting for completion...");
+
+      // Subscribe to places updates
+      const unsubscribePlaces = onPlacesUpdate((updatedPlaces) => {
+        if (updatedPlaces.hasPreloaded) {
+          console.log(`Places preloaded: ${updatedPlaces.places.length} places`);
+          places.updatePlaces(updatedPlaces.places);
+          setPlacesReady(true);
+          unsubscribePlaces(); // Unsubscribe once we have the places
+        }
+      });
+
+      // Safety timeout for places
+      setTimeout(() => {
+        if (!placesReady) {
+          console.warn("Places preloading timeout");
+          setPlacesReady(true); // Continue anyway
+          unsubscribePlaces();
+        }
+      }, 5000);
+    } else {
+      console.warn("Places not preloading or preloaded, continuing anyway");
+      setPlacesReady(true);
+    }
+
+    // Overall safety timeout
+    setTimeout(() => {
+      if (loading) {
+        console.warn("Overall loading timeout - forcing completion");
         setLoading(false);
       }
-    };
+    }, 8000);
 
-    initMap();
+    // Cleanup subscriptions on unmount
+    return () => {
+      console.log("Map component unmounting");
+    };
   }, []);
+
+  // Effect to finish loading when both location and places are ready
+  useEffect(() => {
+    if (locationReady && placesReady && loading) {
+      console.log("Both location and places are ready, finishing loading");
+      setLoading(false);
+    }
+  }, [locationReady, placesReady, loading]);
+
+  /**
+   * Handle map ready event
+   */
+  const handleMapReady = useCallback(() => {
+    console.log("Map is ready");
+    mapReadyRef.current = true;
+
+    // Focus camera on user location when map is ready if we have a location
+    if (location.userLocation && camera.mapRef.current) {
+      console.log("Focusing camera on user location");
+      camera.focusOnUserLocation(location.userLocation, true);
+      camera.initialCameraSetRef.current = true;
+    }
+  }, [location.userLocation, camera]);
 
   /**
    * Update user heading and check for destination when location changes
@@ -135,6 +206,14 @@ const Map: React.FC = () => {
     // If heading was updated and we're in follow mode, update the camera
     if (headingUpdated && viewMode === "follow" && journeyStarted) {
       camera.updateUserCamera(location.userLocation, location.userHeading, false, viewMode);
+    }
+
+    // If the camera hasn't been initially focused on the user and we have a location,
+    // and the map is ready, focus on the user
+    if (!camera.initialCameraSetRef.current && location.userLocation && mapReadyRef.current) {
+      console.log("Setting initial camera position to user location");
+      camera.initialCameraSetRef.current = true;
+      camera.focusOnUserLocation(location.userLocation, true);
     }
 
     // Check for nearby places that might need refreshing (dynamic updates based on movement)
@@ -309,7 +388,7 @@ const Map: React.FC = () => {
 
         // Skip the journey start UI flow and go directly to destination reached
         setDestinationReached(true);
-        destinationSaveAttemptedRef.current = false; // FIXED LINE
+        destinationSaveAttemptedRef.current = false;
         setShowDiscoveredCard(false);
         setShowCard(false);
         setJourneyStarted(true); // Set this to true for UI state to work properly
@@ -486,6 +565,7 @@ const Map: React.FC = () => {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={Colors.primary} />
+        <Text style={styles.loadingText}>Loading map...</Text>
       </View>
     );
   }
@@ -503,9 +583,11 @@ const Map: React.FC = () => {
         customMapStyle={customMapStyle}
         showsPointsOfInterest={false}
         provider={PROVIDER_DEFAULT}
-        followsUserLocation={false}
+        followsUserLocation={true}
+        showsUserLocation={true}
         rotateEnabled={true}
         pitchEnabled={true}
+        onMapReady={handleMapReady}
         onUserLocationChange={(event) => {
           // Throttle location updates
           location.locationUpdateCounterRef.current =
@@ -629,6 +711,13 @@ const Map: React.FC = () => {
         )}
       </MapView>
 
+      {/* Location status indicator if needed */}
+      {!location.userLocation && (
+        <View style={styles.locationStatusContainer}>
+          <Text style={styles.locationStatusText}>Waiting for location...</Text>
+        </View>
+      )}
+
       {/* View mode toggle button */}
       {journeyStarted && <ViewModeToggle viewMode={viewMode} onToggle={handleToggleViewMode} />}
 
@@ -746,6 +835,11 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 16,
+    color: Colors.primary,
+  },
   map: {
     width: "100%",
     height: "100%",
@@ -771,6 +865,19 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     zIndex: 999,
+  },
+  locationStatusContainer: {
+    position: "absolute",
+    top: 30,
+    alignSelf: "center",
+    backgroundColor: "rgba(0,0,0,0.7)",
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 20,
+  },
+  locationStatusText: {
+    color: "white",
+    fontSize: 14,
   },
 });
 

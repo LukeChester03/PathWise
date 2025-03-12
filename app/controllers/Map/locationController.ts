@@ -1,6 +1,6 @@
 // controllers/Map/locationController.ts
 import * as Location from "expo-location";
-import { Alert } from "react-native";
+import { Alert, Platform } from "react-native";
 import { Region, Coordinate, Place } from "../../types/MapTypes";
 import { fetchNearbyPlaces } from "./placesController";
 import { haversineDistance } from "../../utils/mapUtils";
@@ -10,6 +10,19 @@ console.log("Loading locationController module...");
 // Store last location to check if user has moved significantly
 let lastKnownLocation: Coordinate | null = null;
 const LOCATION_UPDATE_DISTANCE_THRESHOLD = 10; // 10 meters threshold
+
+// Global state for location and nearby places
+export const globalLocationState = {
+  userLocation: null as Coordinate | null,
+  region: null as Region | null,
+  userHeading: 0,
+  locationPermissionGranted: false,
+  isInitialized: false,
+  isInitializing: true,
+  lastUpdated: 0,
+  locationError: null as string | null,
+  watchId: null as Location.LocationSubscription | null,
+};
 
 // Global state for nearby places
 export const globalPlacesState = {
@@ -23,6 +36,58 @@ export const globalPlacesState = {
 
 // Callbacks for place updates
 const placeUpdateCallbacks: ((places: any) => void)[] = [];
+// Callbacks for location updates
+const locationUpdateCallbacks: ((location: any) => void)[] = [];
+
+/**
+ * Register a callback to be notified when location is updated
+ */
+export const onLocationUpdate = (callback: (location: any) => void): (() => void) => {
+  // Immediately send current state to the callback
+  setTimeout(() => {
+    callback({
+      userLocation: globalLocationState.userLocation,
+      region: globalLocationState.region,
+      userHeading: globalLocationState.userHeading,
+      locationPermissionGranted: globalLocationState.locationPermissionGranted,
+      isInitialized: globalLocationState.isInitialized,
+      isInitializing: globalLocationState.isInitializing,
+      lastUpdated: globalLocationState.lastUpdated,
+      locationError: globalLocationState.locationError,
+    });
+  }, 0);
+
+  // Add to callback list
+  locationUpdateCallbacks.push(callback);
+
+  // Return a function to unregister the callback
+  return () => {
+    const index = locationUpdateCallbacks.indexOf(callback);
+    if (index !== -1) {
+      locationUpdateCallbacks.splice(index, 1);
+    }
+  };
+};
+
+/**
+ * Notify all registered callbacks about location updates
+ */
+const notifyLocationUpdates = () => {
+  const locationData = {
+    userLocation: globalLocationState.userLocation,
+    region: globalLocationState.region,
+    userHeading: globalLocationState.userHeading,
+    locationPermissionGranted: globalLocationState.locationPermissionGranted,
+    isInitialized: globalLocationState.isInitialized,
+    isInitializing: globalLocationState.isInitializing,
+    lastUpdated: globalLocationState.lastUpdated,
+    locationError: globalLocationState.locationError,
+  };
+
+  locationUpdateCallbacks.forEach((callback) => {
+    callback(locationData);
+  });
+};
 
 /**
  * Register a callback to be notified when places are updated
@@ -73,7 +138,9 @@ const notifyPlaceUpdates = () => {
 // Mark preloading as complete, transition to normal state
 const markPreloadingComplete = () => {
   globalPlacesState.isPreloading = false;
+  globalLocationState.isInitializing = false;
   notifyPlaceUpdates();
+  notifyLocationUpdates();
 };
 
 /**
@@ -82,7 +149,38 @@ const markPreloadingComplete = () => {
  */
 export const requestLocationPermission = async (): Promise<boolean> => {
   const { status } = await Location.requestForegroundPermissionsAsync();
+  globalLocationState.locationPermissionGranted = status === "granted";
   return status === "granted";
+};
+
+/**
+ * Get the current location state
+ */
+export const getLocationState = () => {
+  return {
+    userLocation: globalLocationState.userLocation,
+    region: globalLocationState.region,
+    userHeading: globalLocationState.userHeading,
+    locationPermissionGranted: globalLocationState.locationPermissionGranted,
+    isInitialized: globalLocationState.isInitialized,
+    isInitializing: globalLocationState.isInitializing,
+    lastUpdated: globalLocationState.lastUpdated,
+    locationError: globalLocationState.locationError,
+  };
+};
+
+/**
+ * Get the current nearby places state
+ */
+export const getNearbyPlacesState = () => {
+  return {
+    places: globalPlacesState.places,
+    isLoading: globalPlacesState.isLoading,
+    lastUpdated: globalPlacesState.lastUpdated,
+    furthestDistance: globalPlacesState.furthestDistance,
+    hasPreloaded: globalPlacesState.hasPreloaded,
+    isPreloading: globalPlacesState.isPreloading,
+  };
 };
 
 /**
@@ -91,31 +189,66 @@ export const requestLocationPermission = async (): Promise<boolean> => {
  *          Returns `null` if permission is denied or an error occurs.
  */
 export const getCurrentLocation = async (): Promise<Region | null> => {
-  const hasPermission = await requestLocationPermission();
-  console.log("GRANTED");
-  if (!hasPermission) {
-    Alert.alert("Permission to access location was denied");
-    return null;
-  }
-
   try {
+    // First, check if we already have a cached location
+    if (globalLocationState.userLocation && !globalLocationState.locationError) {
+      console.log("Returning cached location:", globalLocationState.userLocation);
+      return globalLocationState.region;
+    }
+
+    const hasPermission = await requestLocationPermission();
+    console.log("Location permission granted:", hasPermission);
+
+    if (!hasPermission) {
+      globalLocationState.locationError = "Permission to access location was denied";
+      notifyLocationUpdates();
+      return null;
+    }
+
+    // Configure location for better accuracy on Android
+    if (Platform.OS === "android") {
+      try {
+        await Location.enableNetworkProviderAsync();
+      } catch (error) {
+        console.warn("Error enabling network provider:", error);
+        // Continue anyway - this is not critical
+      }
+    }
+
     const location = await Location.getCurrentPositionAsync({
-      accuracy: Location.Accuracy.High,
+      accuracy: Location.Accuracy.Highest,
     });
+
     const { latitude, longitude } = location.coords;
 
     // Update last known location
     lastKnownLocation = { latitude, longitude };
 
-    return {
+    // Create a region for map display
+    const region = {
       latitude,
       longitude,
       latitudeDelta: 0.002,
       longitudeDelta: 0.002,
     };
+
+    // Update global state
+    globalLocationState.userLocation = { latitude, longitude };
+    globalLocationState.region = region;
+    globalLocationState.isInitialized = true;
+    globalLocationState.isInitializing = false;
+    globalLocationState.lastUpdated = Date.now();
+    globalLocationState.locationError = null;
+
+    // Notify listeners
+    notifyLocationUpdates();
+
+    return region;
   } catch (error: any) {
     console.error("Error getting location:", error);
-    Alert.alert("Error getting location", error.message);
+    globalLocationState.locationError = error.message;
+    globalLocationState.isInitializing = false;
+    notifyLocationUpdates();
     return null;
   }
 };
@@ -162,20 +295,80 @@ export const resetLastKnownLocation = (): void => {
  */
 export const initLocationAndPlaces = async (): Promise<void> => {
   try {
-    // Get initial location
-    const location = await getCurrentLocation();
-    if (!location) {
-      console.error("Could not get initial location for preloading");
+    console.log("Starting location and places initialization...");
+
+    // Set initialization in progress
+    globalLocationState.isInitializing = true;
+    globalPlacesState.isPreloading = true;
+
+    // Notify listeners of initialization status
+    notifyLocationUpdates();
+    notifyPlaceUpdates();
+
+    // Request location permissions first
+    const hasPermission = await requestLocationPermission();
+    if (!hasPermission) {
+      console.warn("Location permission denied during initialization");
+      globalLocationState.locationError = "Location permission denied";
+      markPreloadingComplete();
       return;
     }
 
-    // Preload nearby places
-    await updateNearbyPlaces(location, true);
+    // Configure location for better accuracy on Android
+    if (Platform.OS === "android") {
+      try {
+        await Location.enableNetworkProviderAsync();
+      } catch (error) {
+        console.warn("Error enabling network provider:", error);
+        // Continue anyway - this is not critical
+      }
+    }
 
-    // Start watching location for significant movements
+    console.log("Getting initial location...");
+
+    // Get initial location with high accuracy
+    const locationResult = await Location.getCurrentPositionAsync({
+      accuracy: Location.Accuracy.Highest,
+    });
+
+    const { latitude, longitude } = locationResult.coords;
+
+    // Create a region for map display
+    const region = {
+      latitude,
+      longitude,
+      latitudeDelta: 0.002,
+      longitudeDelta: 0.002,
+    };
+
+    console.log("Initial location acquired:", { latitude, longitude });
+
+    // Update global location state
+    globalLocationState.userLocation = { latitude, longitude };
+    globalLocationState.region = region;
+    globalLocationState.isInitialized = true;
+    globalLocationState.isInitializing = false;
+    globalLocationState.lastUpdated = Date.now();
+
+    // Update last known location for movement detection
+    lastKnownLocation = { latitude, longitude };
+
+    // Notify location listeners
+    notifyLocationUpdates();
+
+    // Fetch nearby places based on this location
+    await updateNearbyPlaces(region, true);
+
+    // Start watching for location updates
     startLocationWatching();
+
+    console.log("Location and places initialization complete");
   } catch (error) {
     console.error("Error initializing location and places:", error);
+    globalLocationState.locationError = error.message;
+    globalLocationState.isInitializing = false;
+    notifyLocationUpdates();
+    markPreloadingComplete();
   }
 };
 
@@ -184,18 +377,56 @@ export const initLocationAndPlaces = async (): Promise<void> => {
  */
 export const startLocationWatching = async (): Promise<() => void> => {
   try {
-    const cleanup = await watchUserLocation(
-      // Regular update - do nothing for minor changes
-      () => {},
-      // Error handler
-      (error) => console.error("Location watcher error:", error),
-      // Significant move handler
-      async (location) => {
-        console.log("Significant movement detected, refreshing nearby places");
-        await updateNearbyPlaces(location, false);
+    // Clean up any existing watch
+    if (globalLocationState.watchId) {
+      globalLocationState.watchId.remove();
+      globalLocationState.watchId = null;
+    }
+
+    console.log("Starting location watching...");
+
+    const subscription = await Location.watchPositionAsync(
+      {
+        accuracy: Location.Accuracy.Highest,
+        distanceInterval: 5, // Update every 5 meters
+        timeInterval: 1000, // Or every second
+      },
+      (location) => {
+        const { latitude, longitude } = location.coords;
+
+        // Create updated region and coordinate
+        const newCoordinate = { latitude, longitude };
+        const newRegion = {
+          latitude,
+          longitude,
+          latitudeDelta: globalLocationState.region?.latitudeDelta || 0.002,
+          longitudeDelta: globalLocationState.region?.longitudeDelta || 0.002,
+        };
+
+        // Update global state
+        globalLocationState.userLocation = newCoordinate;
+        globalLocationState.region = newRegion;
+        globalLocationState.lastUpdated = Date.now();
+
+        // Notify listeners
+        notifyLocationUpdates();
+
+        // Check if moved significantly for places update
+        if (hasMovedSignificantly(newCoordinate)) {
+          updateNearbyPlaces(newRegion, false);
+        }
       }
     );
-    return cleanup;
+
+    // Store the subscription for cleanup
+    globalLocationState.watchId = subscription;
+
+    return () => {
+      if (globalLocationState.watchId) {
+        globalLocationState.watchId.remove();
+        globalLocationState.watchId = null;
+      }
+    };
   } catch (error) {
     console.error("Error setting up location watcher:", error);
     return () => {};
@@ -238,20 +469,6 @@ export const updateNearbyPlaces = async (
     globalPlacesState.isLoading = false;
     notifyPlaceUpdates();
   }
-};
-
-/**
- * Get the current nearby places state
- */
-export const getNearbyPlacesState = () => {
-  return {
-    places: globalPlacesState.places,
-    isLoading: globalPlacesState.isLoading,
-    lastUpdated: globalPlacesState.lastUpdated,
-    furthestDistance: globalPlacesState.furthestDistance,
-    hasPreloaded: globalPlacesState.hasPreloaded,
-    isPreloading: globalPlacesState.isPreloading,
-  };
 };
 
 /**
@@ -316,33 +533,68 @@ export const watchUserLocation = async (
   try {
     console.log("🚀 Automatically initializing location tracking and places preloading...");
 
-    // Set preloading in progress
+    // Set initialization in progress
+    globalLocationState.isInitializing = true;
     globalPlacesState.isPreloading = true;
-    globalPlacesState.isLoading = true;
+
+    // Notify listeners of initialization status
+    notifyLocationUpdates();
+    notifyPlaceUpdates();
 
     const hasPermission = await requestLocationPermission();
 
     if (!hasPermission) {
       console.warn("⚠️ Location permission denied during automatic initialization");
+      globalLocationState.locationError = "Location permission denied";
       markPreloadingComplete();
       return;
     }
 
-    // Get current location
-    const location = await getCurrentLocation();
-    if (!location) {
-      console.warn("⚠️ Could not get initial location for automatic preloading");
-      markPreloadingComplete();
-      return;
+    // Configure location for better accuracy on Android
+    if (Platform.OS === "android") {
+      try {
+        await Location.enableNetworkProviderAsync();
+      } catch (error) {
+        console.warn("Error enabling network provider:", error);
+        // Continue anyway - this is not critical
+      }
     }
 
-    console.log("📍 Got initial location, preloading nearby places...");
-
-    // Fetch places data
+    // Get current location with highest accuracy
     try {
-      const placesData = await fetchNearbyPlaces(location.latitude, location.longitude, false);
+      const locationResult = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Highest,
+      });
 
-      // Update global state
+      const { latitude, longitude } = locationResult.coords;
+
+      // Create a region for map display
+      const region = {
+        latitude,
+        longitude,
+        latitudeDelta: 0.002,
+        longitudeDelta: 0.002,
+      };
+
+      console.log("📍 Initial location acquired:", { latitude, longitude });
+
+      // Update global location state
+      globalLocationState.userLocation = { latitude, longitude };
+      globalLocationState.region = region;
+      globalLocationState.isInitialized = true;
+      globalLocationState.lastUpdated = Date.now();
+
+      // Update last known location for movement detection
+      lastKnownLocation = { latitude, longitude };
+
+      // Notify location listeners
+      notifyLocationUpdates();
+
+      // Fetch places data
+      console.log("Fetching nearby places based on location");
+      const placesData = await fetchNearbyPlaces(latitude, longitude, false);
+
+      // Update global places state
       globalPlacesState.places = placesData.places;
       globalPlacesState.furthestDistance = placesData.furthestDistance;
       globalPlacesState.lastUpdated = Date.now();
@@ -350,18 +602,19 @@ export const watchUserLocation = async (
       globalPlacesState.isLoading = false;
 
       console.log(`✅ Successfully preloaded ${placesData.places.length} places`);
+      notifyPlaceUpdates();
 
-      // Start location watching to keep places updated
+      // Start location watching to keep state updated
       startLocationWatching();
-    } catch (fetchError) {
-      console.error("❌ Error fetching nearby places:", fetchError);
-      globalPlacesState.isLoading = false;
-    } finally {
-      // Mark preloading as complete regardless of success/failure
-      markPreloadingComplete();
+    } catch (locationError) {
+      console.error("❌ Error getting initial location:", locationError);
+      globalLocationState.locationError = "Error getting initial location";
+      globalLocationState.isInitialized = false;
     }
   } catch (error) {
     console.error("❌ Error in automatic location initialization:", error);
+  } finally {
+    // Mark preloading as complete regardless of success/failure
     markPreloadingComplete();
   }
 })();
