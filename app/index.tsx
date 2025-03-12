@@ -6,27 +6,38 @@ import { NavigationContainer } from "@react-navigation/native";
 import XPProvider from "./contexts/Levelling/xpContext";
 import XPNotificationsManager from "./components/Levelling/XPNotificationsManager";
 import { initStatsSystem } from "./services/statsService";
+import { initLocationAndPlaces } from "./controllers/Map/locationController";
 
 export default function Index() {
   // State to track initialization
   const [initialized, setInitialized] = useState(false);
 
-  // Initialize stats system when the app loads
+  // Initialize systems when the app loads
   useEffect(() => {
     let cleanupFunction: (() => void) | undefined;
 
     const initialize = async () => {
       try {
-        // Await the Promise from initStatsSystem
+        console.log("Starting app initialization...");
+
+        // Initialize stats system
         const unsubscribe = await initStatsSystem(() => {
           // This callback is triggered when stats change
         });
 
         // Store the cleanup function
         cleanupFunction = unsubscribe;
+
+        // Initialize location tracking and preload places data
+        console.log("Initializing location and places...");
+        await initLocationAndPlaces();
+        console.log("Location and places initialization complete");
+
         setInitialized(true);
       } catch (error) {
-        console.error("Failed to initialize stats system:", error);
+        console.error("Failed to initialize systems:", error);
+        // Still mark as initialized so app can function
+        setInitialized(true);
       }
     };
 

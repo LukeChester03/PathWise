@@ -136,14 +136,28 @@ const MIN_RATING_THRESHOLD = 3.5;
 // Minimum number of reviews for added credibility
 const MIN_REVIEWS_COUNT = 5;
 
+// Cache for nearby places to avoid repeated API calls
+let placesCache: {
+  places: Place[];
+  furthestDistance: number;
+  cacheTimestamp: number;
+  latitude: number;
+  longitude: number;
+} | null = null;
+
+// Cache expiration time (30 minutes)
+const CACHE_EXPIRATION_TIME = 30 * 60 * 1000;
+
 /**
  * Get appropriate description based on place type
  */
 const getPlaceDescription = (place: any): string => {
   if (place.types) {
     for (const type of place.types) {
-      if (STANDARD_DESCRIPTIONS[type]) {
-        return STANDARD_DESCRIPTIONS[type];
+      // Type assertion to tell TypeScript this is a valid key
+      const typeKey = type as keyof typeof STANDARD_DESCRIPTIONS;
+      if (STANDARD_DESCRIPTIONS[typeKey]) {
+        return STANDARD_DESCRIPTIONS[typeKey];
       }
     }
   }
@@ -208,9 +222,48 @@ const calculateTourismScore = (place: any): number => {
   return score;
 };
 
+/**
+ * Clear the places cache. Call this when user logs out or cache needs to be reset.
+ */
+export const clearPlacesCache = (): void => {
+  placesCache = null;
+  console.log("Places cache cleared");
+};
+
+/**
+ * Check if the cache is valid based on position and time
+ */
+const isCacheValid = (latitude: number, longitude: number): boolean => {
+  if (!placesCache) return false;
+
+  // Check if cache has expired
+  const now = Date.now();
+  if (now - placesCache.cacheTimestamp > CACHE_EXPIRATION_TIME) {
+    console.log("Places cache expired");
+    return false;
+  }
+
+  // Check if user has moved significantly from the cached location
+  const distanceMoved = haversineDistance(
+    placesCache.latitude,
+    placesCache.longitude,
+    latitude,
+    longitude
+  );
+
+  // If moved more than 500 meters, invalidate cache
+  if (distanceMoved > 500) {
+    console.log(`User moved ${distanceMoved.toFixed(0)}m from cache location - invalidating cache`);
+    return false;
+  }
+
+  return true;
+};
+
 export const fetchNearbyPlaces = async (
   latitude: number,
-  longitude: number
+  longitude: number,
+  forceRefresh: boolean = false
 ): Promise<NearbyPlacesResponse> => {
   try {
     // First check if latitude and longitude are valid numbers
@@ -226,6 +279,17 @@ export const fetchNearbyPlaces = async (
         furthestDistance: DEFAULT_RADIUS,
       };
     }
+
+    // Check cache first (unless force refresh is requested)
+    if (!forceRefresh && isCacheValid(latitude, longitude) && placesCache) {
+      console.log("Using cached places data");
+      return {
+        places: placesCache.places,
+        furthestDistance: placesCache.furthestDistance,
+      };
+    }
+
+    console.log("Fetching fresh nearby places data");
 
     // Built a richer query with more tourist-specific types and keywords
     const response = await fetch(
@@ -391,6 +455,17 @@ export const fetchNearbyPlaces = async (
       return (a.distance || 0) - (b.distance || 0);
     });
 
+    // Update cache with the fresh data
+    placesCache = {
+      places: placesWithDetails,
+      furthestDistance,
+      cacheTimestamp: Date.now(),
+      latitude,
+      longitude,
+    };
+
+    console.log(`Cached ${placesWithDetails.length} places at ${new Date().toLocaleTimeString()}`);
+
     return {
       places: placesWithDetails,
       furthestDistance,
@@ -408,6 +483,16 @@ export const fetchNearbyPlaces = async (
 // Function to fetch a place by ID for detailed views
 export const fetchPlaceById = async (placeId: string): Promise<Place | null> => {
   try {
+    // Check if the place is in the cache first
+    if (placesCache && placesCache.places.length > 0) {
+      const cachedPlace = placesCache.places.find((place) => place.place_id === placeId);
+      if (cachedPlace) {
+        console.log(`Using cached data for place: ${cachedPlace.name}`);
+        return cachedPlace;
+      }
+    }
+
+    // If not in cache, fetch from API
     const detailsResponse = await fetch(
       `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=formatted_address,name,rating,photos,url,website,formatted_phone_number,opening_hours,reviews,editorial_summary,geometry,types&key=AIzaSyDAGq_6eJGQpR3RcO0NrVOowel9-DxZkvA`
     );

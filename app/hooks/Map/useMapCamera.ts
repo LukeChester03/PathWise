@@ -37,9 +37,11 @@ export interface UseMapCameraReturn {
     setViewMode: (mode: string) => void,
     userHeading: number
   ) => boolean;
+  focusOnUserLocation: (userLocation: Coordinate, animate?: boolean, zoomLevel?: number) => void;
   cleanupCameraTimeouts: () => void;
   resetCameraState: () => void;
   initialRouteLoadedRef: React.MutableRefObject<boolean>;
+  initialCameraSetRef: React.MutableRefObject<boolean>; // New ref for tracking initial camera setup
   lastCameraHeadingRef: React.MutableRefObject<number>;
   cameraUpdateTimeoutRef: React.MutableRefObject<NodeJS.Timeout | null>;
   isTransitioningRef: React.MutableRefObject<boolean>;
@@ -59,6 +61,7 @@ const useMapCamera = (): UseMapCameraReturn => {
   const lastCameraHeadingRef = useRef<number>(0);
   const lastZoomLevelRef = useRef<number>(NAVIGATION_ZOOM_LEVEL);
   const initialRouteLoadedRef = useRef<boolean>(false);
+  const initialCameraSetRef = useRef<boolean>(false); // New ref to track if camera has been initially focused on user
   const isTransitioningRef = useRef<boolean>(false);
 
   // Platform-specific adjustments
@@ -314,6 +317,9 @@ const useMapCamera = (): UseMapCameraReturn => {
         );
       }
 
+      // Mark that initial camera has been set
+      initialCameraSetRef.current = true;
+
       // Update tracking variables
       lastCameraUpdateTimeRef.current = now;
       lastCameraHeadingRef.current = smoothedHeading;
@@ -321,6 +327,34 @@ const useMapCamera = (): UseMapCameraReturn => {
       return true; // Indicate that update was performed
     },
     [aspectRatio, isPlatformIOS]
+  );
+
+  /**
+   * New function to focus specifically on user location for initial map load
+   */
+  const focusOnUserLocation = useCallback(
+    (userLocation: Coordinate, animate = true, zoomLevel = 15): void => {
+      if (!mapRef.current || !userLocation) return;
+
+      console.log("Focusing on user location:", userLocation);
+
+      const region = {
+        latitude: userLocation.latitude,
+        longitude: userLocation.longitude,
+        latitudeDelta: 0.01, // Moderate zoom level
+        longitudeDelta: 0.01,
+      };
+
+      if (animate) {
+        mapRef.current.animateToRegion(region, 500);
+      } else {
+        mapRef.current.setRegion(region);
+      }
+
+      // Mark that initial camera has been set
+      initialCameraSetRef.current = true;
+    },
+    []
   );
 
   /**
@@ -373,6 +407,8 @@ const useMapCamera = (): UseMapCameraReturn => {
           }, 700);
         }, 300);
 
+        // Mark that initial camera has been set
+        initialCameraSetRef.current = true;
         return true;
       }
       return false;
@@ -399,6 +435,8 @@ const useMapCamera = (): UseMapCameraReturn => {
    */
   const resetCameraState = useCallback((): void => {
     initialRouteLoadedRef.current = false;
+    // Don't reset initialCameraSetRef here as we still want to remember that the camera
+    // was initially set to the user location during this session
     lastCameraHeadingRef.current = 0;
     cameraUpdatePendingRef.current = false;
     isTransitioningRef.current = false;
@@ -411,9 +449,11 @@ const useMapCamera = (): UseMapCameraReturn => {
     updateUserCamera,
     toggleViewMode,
     setupInitialRouteView,
+    focusOnUserLocation,
     cleanupCameraTimeouts,
     resetCameraState,
     initialRouteLoadedRef,
+    initialCameraSetRef,
     lastCameraHeadingRef,
     cameraUpdateTimeoutRef,
     isTransitioningRef,

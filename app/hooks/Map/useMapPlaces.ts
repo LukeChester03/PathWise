@@ -49,6 +49,7 @@ export interface UseMapPlacesReturn {
   setVisitedPlaceDetails: React.Dispatch<React.SetStateAction<VisitedPlaceDetails | null>>;
   setSelectedPlace: React.Dispatch<React.SetStateAction<Place | null>>;
   initialLoadingComplete: boolean;
+  updatePlaces: (newPlaces: Place[]) => void; // Add this new method
 }
 
 const useMapPlaces = (): UseMapPlacesReturn => {
@@ -344,6 +345,10 @@ const useMapPlaces = (): UseMapPlacesReturn => {
     setRouteKey(0);
   }, []);
 
+  const updatePlaces = useCallback((newPlaces: Place[]) => {
+    setPlaces(newPlaces);
+  }, []);
+
   return {
     places,
     selectedPlace,
@@ -365,6 +370,7 @@ const useMapPlaces = (): UseMapPlacesReturn => {
     setVisitedPlaceDetails,
     setSelectedPlace,
     initialLoadingComplete,
+    updatePlaces,
   };
 };
 
