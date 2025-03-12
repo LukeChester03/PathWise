@@ -608,7 +608,7 @@ const Map: React.FC = () => {
           }
         }}
       >
-        {location.userLocation && location.userHeading !== null && (
+        {/* {location.userLocation && location.userHeading !== null && (
           <Marker
             coordinate={location.userLocation}
             anchor={{ x: 0.5, y: 0.5 }}
@@ -618,9 +618,9 @@ const Map: React.FC = () => {
           >
             <DirectionIndicator />
           </Marker>
-        )}
+        )} */}
         {/* Display radius circle around user location */}
-        {location.userLocation && (
+        {/* {location.userLocation && (
           <Circle
             center={location.userLocation}
             radius={places.circleRadius}
@@ -628,7 +628,7 @@ const Map: React.FC = () => {
             strokeWidth={2}
             fillColor={`${Colors.primary}10`}
           />
-        )}
+        )} */}
 
         {/* User direction indicator */}
         {journeyStarted && location.userLocation && location.userHeading !== null && (
