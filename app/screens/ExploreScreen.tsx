@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -10,68 +10,216 @@ import {
   StatusBar,
   Image,
   Dimensions,
+  AppState,
+  AppStateStatus,
+  RefreshControl,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { collection, getDocs } from "firebase/firestore";
+import { collection, getDocs, DocumentData } from "firebase/firestore";
 import { auth, db } from "../config/firebaseConfig";
 import ScreenWithNavBar from "../components/Global/ScreenWithNavbar";
 import Header from "../components/Global/Header";
 import { SearchBar } from "../components/Global/SearchBar";
-import { fetchNearbyPlaces } from "../controllers/Map/placesController";
-import { getCurrentLocation } from "../controllers/Map/locationController";
+import { fetchNearbyPlaces, clearPlacesCache } from "../controllers/Map/placesController";
+import {
+  getCurrentLocation,
+  startLocationWatching,
+  onPlacesUpdate,
+  getNearbyPlacesState,
+  updateNearbyPlaces,
+  globalPlacesState,
+} from "../controllers/Map/locationController";
 import { Colors, NeutralColors } from "../constants/colours";
 import PlacesCarousel from "../components/Places/PlacesCarousel";
 import GettingStartedModal from "../components/Places/GettingStartedModal";
+import { Coordinate, Region, Place } from "../types/MapTypes";
+import { StackScreenProps } from "@react-navigation/stack";
 
 const { width } = Dimensions.get("window");
 
-const ExploreScreen = ({ navigation }) => {
-  const [searchQuery, setSearchQuery] = useState("");
-  const [helpModalVisible, setHelpModalVisible] = useState(false);
-  const [myPlaces, setMyPlaces] = useState([]);
-  const [nearbyPlaces, setNearbyPlaces] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [loadingMyPlaces, setLoadingMyPlaces] = useState(true);
-  const [error, setError] = useState(null);
-  const [noPlacesFound, setNoPlacesFound] = useState(false);
-  const [noMyPlacesFound, setNoMyPlacesFound] = useState(false);
+// Define navigation type
+type RootStackParamList = {
+  Home: undefined;
+  Search: { initialQuery: string };
 
+  ViewAll: { viewType: string };
+  Place: { placeId: string };
+  Discover: undefined;
+};
+
+type ExploreScreenProps = StackScreenProps<RootStackParamList, "Home">;
+
+/**
+ * Preload nearby places when app initializes
+ */
+export const preloadNearbyPlaces = async () => {
+  try {
+    console.log("Starting place preloading from app initialization");
+    // Get current location
+    const location = await getCurrentLocation();
+    if (!location) {
+      console.error("Failed to get current location for preloading");
+      return;
+    }
+
+    // Fetch places - this will update the global state
+    await updateNearbyPlaces(location, false);
+    console.log("Place preloading complete");
+  } catch (error) {
+    console.error("Error preloading nearby places:", error);
+  }
+};
+
+// Main component
+const ExploreScreen: React.FC<ExploreScreenProps> = ({ navigation }) => {
+  const [searchQuery, setSearchQuery] = useState<string>("");
+  const [helpModalVisible, setHelpModalVisible] = useState<boolean>(false);
+  const [myPlaces, setMyPlaces] = useState<Place[]>([]);
+  const [nearbyPlaces, setNearbyPlaces] = useState<Place[]>([]);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [loadingMyPlaces, setLoadingMyPlaces] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+  const [noPlacesFound, setNoPlacesFound] = useState<boolean>(false);
+  const [noMyPlacesFound, setNoMyPlacesFound] = useState<boolean>(false);
+
+  // Reference to track if we already have a location watcher
+  const locationWatcherRef = useRef<(() => void) | null>(null);
+
+  // Reference to track app state
+  const appState = useRef<AppStateStatus>(AppState.currentState);
+
+  // Handle app state changes to optimize location tracking
   useEffect(() => {
-    fetchNearbyData();
-    fetchUserPlacesFromFirestore();
+    const subscription = AppState.addEventListener("change", handleAppStateChange);
+    return () => {
+      subscription.remove();
+      // Clean up location watcher when component unmounts
+      if (locationWatcherRef.current) {
+        locationWatcherRef.current();
+        locationWatcherRef.current = null;
+      }
+    };
   }, []);
 
-  const fetchNearbyData = async () => {
+  // Handle app state changes
+  const handleAppStateChange = (nextAppState: AppStateStatus): void => {
+    if (appState.current.match(/inactive|background/) && nextAppState === "active") {
+      console.log("App has come to the foreground - refreshing data");
+      // App has come to the foreground, refresh data
+      refreshAllData();
+    }
+    appState.current = nextAppState;
+  };
+
+  // Initial data load and setup
+  useEffect(() => {
+    console.log("ExploreScreen mounted - initializing data...");
+
+    // Register for place updates
+    const unsubscribeFromPlaceUpdates = onPlacesUpdate(handlePlacesUpdate);
+
+    // Set up location watcher if not already set
+    if (!locationWatcherRef.current) {
+      setupLocationWatcher();
+    }
+
+    // Load user's places
+    fetchUserPlacesFromFirestore();
+
+    // Check if we already have preloaded places
+    console.log("Checking for preloaded places data...");
+
+    // Get current state before doing anything else
+    if (globalPlacesState.hasPreloaded && globalPlacesState.places.length > 0) {
+      console.log(`Using ${globalPlacesState.places.length} preloaded places`);
+      setNearbyPlaces(globalPlacesState.places);
+      setNoPlacesFound(false);
+      setLoading(false);
+    } else if (globalPlacesState.isLoading || globalPlacesState.isPreloading) {
+      // Show loading if preloading is in progress or regular loading is happening
+      console.log("Places are currently being loaded or preloaded");
+      setLoading(true);
+      setNoPlacesFound(false); // Important: don't set as "not found" while still loading
+    } else {
+      console.log("No preloaded places available, fetching now");
+      // If no places are preloaded yet, fetch them
+      fetchNearbyData();
+    }
+
+    // Cleanup on unmount
+    return () => {
+      unsubscribeFromPlaceUpdates();
+    };
+  }, []);
+
+  // Set up the location watcher
+  const setupLocationWatcher = async () => {
     try {
+      // Start watching for significant location changes
+      const cleanup = await startLocationWatching();
+      locationWatcherRef.current = cleanup;
+      console.log("Location watcher set up successfully");
+    } catch (error) {
+      console.error("Error setting up location watcher:", error);
+    }
+  };
+
+  // Handle places updates from global state
+  const handlePlacesUpdate = (placesData: any): void => {
+    if (!placesData) return;
+
+    console.log(
+      "Received places update:",
+      placesData.places?.length || 0,
+      "places, loading:",
+      placesData.isLoading,
+      "preloading:",
+      placesData.isPreloading
+    );
+
+    // First handle loading state
+    setLoading(placesData.isLoading || placesData.isPreloading);
+
+    // If we have places, show them regardless of loading state
+    if (placesData.places && placesData.places.length > 0) {
+      setNearbyPlaces(placesData.places);
+      setNoPlacesFound(false);
+    }
+    // Only set noPlacesFound to true if we're not loading and not preloading
+    else if (!placesData.isLoading && !placesData.isPreloading) {
+      setNoPlacesFound(true);
+    }
+  };
+
+  // Function to refresh all data
+  const refreshAllData = async (): Promise<void> => {
+    try {
+      fetchUserPlacesFromFirestore();
+      fetchNearbyData(true);
+    } catch (error) {
+      console.error("Error refreshing data:", error);
+    }
+  };
+
+  const fetchNearbyData = async (forceRefresh: boolean = false): Promise<void> => {
+    try {
+      // Update loading state
       setLoading(true);
       setError(null);
-      setNoPlacesFound(false);
 
-      // Get user's current location
-      const location = await getCurrentLocation();
-      if (!location) {
+      // Get current location
+      const currentLocation = await getCurrentLocation();
+      if (!currentLocation) {
         setError("Unable to get your location");
         setLoading(false);
         return;
       }
 
-      // Fetch nearby places using the updated Places API
-      const { places, furthestDistance } = await fetchNearbyPlaces(
-        location.latitude,
-        location.longitude
-      );
+      // Fetch nearby places through the location service
+      await updateNearbyPlaces(currentLocation, forceRefresh);
 
-      if (!places || places.length === 0) {
-        // No places found, display the empty state card
-        setNoPlacesFound(true);
-        setNearbyPlaces([]);
-      } else {
-        setNearbyPlaces(places);
-        setNoPlacesFound(false);
-      }
-
-      setLoading(false);
+      // Note: We don't need to set nearbyPlaces here as we'll get the update via handlePlacesUpdate
     } catch (error) {
       console.error("Error fetching nearby data:", error);
       setError("Something went wrong");
@@ -79,7 +227,7 @@ const ExploreScreen = ({ navigation }) => {
     }
   };
 
-  const fetchUserPlacesFromFirestore = async () => {
+  const fetchUserPlacesFromFirestore = async (): Promise<void> => {
     try {
       setLoadingMyPlaces(true);
       setNoMyPlacesFound(false);
@@ -128,7 +276,7 @@ const ExploreScreen = ({ navigation }) => {
               visitedAt: data.visitedAt,
               visitDate: data.visitedAt ? new Date(data.visitedAt) : new Date(),
               isVisited: true, // Explicitly mark as visited
-            };
+            } as Place;
           });
 
         console.log(`Found ${userPlacesData.length} places in Firestore (excluding init doc)`);
@@ -150,30 +298,35 @@ const ExploreScreen = ({ navigation }) => {
     }
   };
 
-  const handleSearch = () => {
+  const handleSearch = (): void => {
     if (searchQuery.trim() === "") return;
     navigation.navigate("Search", { initialQuery: searchQuery });
   };
 
-  const navigateToViewAll = (type) => {
+  const navigateToViewAll = (type: string): void => {
     navigation.navigate("ViewAll", { viewType: type });
   };
 
-  const navigateToPlaceDetails = (placeId) => {
+  const navigateToPlaceDetails = (placeId: string, place?: Place): void => {
     navigation.navigate("Place", { placeId });
   };
 
-  const navigateToDiscover = () => {
+  const navigateToDiscover = (): void => {
     navigation.navigate("Discover");
+  };
+
+  // Pull-to-refresh handler
+  const handleRefresh = async (): Promise<void> => {
+    refreshAllData();
   };
 
   // Enhanced empty state component with better visuals
   const renderEmptyState = (
-    message,
-    icon = "location-outline",
-    buttonAction = navigateToDiscover,
-    buttonText = "Discover New Places"
-  ) => {
+    message: string,
+    icon: string = "location-outline",
+    buttonAction: () => void = navigateToDiscover,
+    buttonText: string = "Discover New Places"
+  ): JSX.Element => {
     return (
       <View style={styles.emptyStateCard}>
         <LinearGradient
@@ -211,7 +364,7 @@ const ExploreScreen = ({ navigation }) => {
     );
   };
 
-  const renderLoadingState = (message, height = 220) => {
+  const renderLoadingState = (message: string, height: number = 220): JSX.Element => {
     return (
       <View style={[styles.shimmerContainer, { height }]}>
         <View style={styles.shimmerContent}>
@@ -222,7 +375,7 @@ const ExploreScreen = ({ navigation }) => {
     );
   };
 
-  const renderSavedPlacesSection = () => {
+  const renderSavedPlacesSection = (): JSX.Element => {
     if (loadingMyPlaces) {
       return renderLoadingState("Loading your places...");
     }
@@ -259,7 +412,7 @@ const ExploreScreen = ({ navigation }) => {
     );
   };
 
-  const renderMyPlacesSection = () => {
+  const renderMyPlacesSection = (): JSX.Element => {
     if (loadingMyPlaces) {
       return renderLoadingState("Loading your places...");
     }
@@ -296,8 +449,9 @@ const ExploreScreen = ({ navigation }) => {
     );
   };
 
-  const renderNearbyPlacesSection = () => {
-    if (loading) {
+  const renderNearbyPlacesSection = (): JSX.Element => {
+    // If we're still in preloading phase or regular loading, show loading state
+    if (loading || globalPlacesState.isPreloading) {
       return renderLoadingState("Finding places nearby...");
     }
 
@@ -324,7 +478,7 @@ const ExploreScreen = ({ navigation }) => {
             "No tourist attractions found nearby. Try exploring a different area.",
             "compass-outline",
             () => {
-              fetchNearbyData();
+              handleRefresh();
             },
             "Try Again"
           )
@@ -335,7 +489,7 @@ const ExploreScreen = ({ navigation }) => {
     );
   };
 
-  const renderFeaturedSection = () => {
+  const renderFeaturedSection = (): JSX.Element => {
     return (
       <>
         <View style={styles.sectionHeader}>
@@ -402,7 +556,7 @@ const ExploreScreen = ({ navigation }) => {
     );
   };
 
-  const renderContent = () => {
+  const renderContent = (): JSX.Element => {
     // Show only the loading state when both are loading
     if (loading && loadingMyPlaces) {
       return (
@@ -419,7 +573,7 @@ const ExploreScreen = ({ navigation }) => {
         <View style={styles.centerContainer}>
           <Ionicons name="alert-circle-outline" size={60} color="#ccc" />
           <Text style={styles.errorText}>{error}</Text>
-          <TouchableOpacity style={styles.retryButton} onPress={fetchNearbyData}>
+          <TouchableOpacity style={styles.retryButton} onPress={handleRefresh}>
             <LinearGradient
               colors={[Colors.primary, Colors.primary + "CC"]}
               start={{ x: 0, y: 0 }}
@@ -447,9 +601,14 @@ const ExploreScreen = ({ navigation }) => {
 
     // Otherwise, show both sections (either with content or individual empty states)
     return (
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={<RefreshControl refreshing={loading} onRefresh={handleRefresh} />}
+      >
         {/* My Places Section */}
         <View style={styles.sectionContainer}>{renderMyPlacesSection()}</View>
+
         {/* Saved Places Section */}
         <View style={styles.sectionContainer}>{renderSavedPlacesSection()}</View>
 
@@ -472,7 +631,7 @@ const ExploreScreen = ({ navigation }) => {
     </TouchableOpacity>
   );
 
-  const handleHelpPress = () => {
+  const handleHelpPress = (): void => {
     setHelpModalVisible(true);
   };
 

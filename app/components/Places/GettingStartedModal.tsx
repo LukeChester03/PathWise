@@ -15,7 +15,11 @@ import { Colors, NeutralColors } from "../../constants/colours";
 
 const { width, height } = Dimensions.get("window");
 
-const GettingStartedModal = ({ visible, onClose }) => {
+interface GettingStartedModalProps {
+  visible: boolean;
+  onClose: () => void;
+}
+const GettingStartedModal = ({ visible, onClose }: GettingStartedModalProps) => {
   const slideAnim = useRef(new Animated.Value(height)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
