@@ -6,16 +6,16 @@ import { Colors, NeutralColors } from "../../constants/colours";
 
 interface HeaderProps {
   title?: string;
-  showLogo: boolean;
-  subtitle: string;
+  showLogo?: boolean;
+  subtitle?: string;
   customStyles?: any;
   logoSource?: any;
-  showIcon: boolean;
-  iconName: string;
-  iconColor: string;
+  showIcon?: boolean;
+  iconName?: string;
+  iconColor?: string;
   rightComponent?: any;
-  showBackButton: boolean;
-  onBackPress: () => void;
+  showBackButton?: boolean;
+  onBackPress?: () => void;
   onHelpPress: () => void;
   showHelp: boolean;
 }

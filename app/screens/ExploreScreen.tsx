@@ -649,6 +649,7 @@ const ExploreScreen: React.FC<ExploreScreenProps> = ({ navigation }) => {
           rightComponent={headerRightComponent}
           customStyles={styles.headerCustomStyles}
           onHelpPress={handleHelpPress}
+          showHelp={false}
         />
 
         {/* Getting Started Modal */}
