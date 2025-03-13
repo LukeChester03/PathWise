@@ -600,7 +600,7 @@ const PlaceDetailsScreen: React.FC = () => {
       smaller: isSmallScreen ? 12 : 14,
     },
     spacing: {
-      cardMargin: isSmallScreen ? 10 : 12,
+      cardMargin: isSmallScreen ? 10 : 18,
       cardPadding: isSmallScreen ? 12 : 14,
       contentPadding: isSmallScreen ? 14 : 16,
     },
@@ -1404,7 +1404,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     marginBottom: 12,
     backgroundColor: "#f1f7ff",
-    padding: 12,
+    padding: 24,
+    paddingHorizontal: 24,
     borderRadius: 10,
     alignItems: "flex-start",
     justifyContent: "center",
