@@ -1,4 +1,4 @@
-// components/Places/CarouselCard.tsx
+// components/Places/PlaceCard.tsx
 import React from "react";
 import {
   View,
@@ -12,29 +12,15 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { Colors, NeutralColors } from "../../constants/colours";
+import { Place } from "../../types/MapTypes";
 
 const { width } = Dimensions.get("window");
 const CARD_WIDTH = width * 0.75;
 const CARD_HEIGHT = 200;
 
-export interface CarouselCardProps {
-  place_id?: string;
-  id?: string;
-  name?: string;
-  vicinity?: string;
-  formatted_address?: string;
-  photos?: Array<{ photo_reference?: string }>;
-  rating?: number;
-  visitedAt?: string | Date;
-  visitDate?: string | Date;
-  isVisited?: boolean;
-  types?: string[];
-  [key: string]: any;
-}
-
 interface PlaceCardComponentProps {
-  place: CarouselCardProps;
-  onPress: (placeId: string, place: CarouselCardProps) => void;
+  place: Place;
+  onPress?: (placeId: string, place: Place) => void;
   cardWidth?: number;
   cardHeight?: number;
 }
@@ -72,14 +58,14 @@ const TYPE_PRIORITY = [
   "zoo",
 ];
 
-const CarouselCard: React.FC<PlaceCardComponentProps> = ({
+const PlaceCard: React.FC<PlaceCardComponentProps> = ({
   place,
   onPress,
   cardWidth = CARD_WIDTH,
   cardHeight = CARD_HEIGHT,
 }) => {
   // Function to get relevant tags from place types
-  const getPlaceTags = (place: CarouselCardProps, maxTags: number = 1) => {
+  const getPlaceTags = (place: Place, maxTags: number = 1) => {
     if (!place.types || !Array.isArray(place.types) || place.types.length === 0) {
       return [];
     }
@@ -133,21 +119,18 @@ const CarouselCard: React.FC<PlaceCardComponentProps> = ({
     }
   };
 
-  // Extract place data
+  // Extract place data, ensuring required fields are present
   const placeId =
     place.place_id || place.id || `place-${Math.random().toString(36).substring(2, 9)}`;
   const name = place.name || "Unnamed Place";
   const rating = typeof place.rating === "number" ? place.rating : null;
-  const isVisited = place.isVisited === true || !!place.visitedAt || !!place.visitDate;
+  const isVisited = place.isVisited === true || !!place.visitedAt;
 
   // Handle visit date
   let visitDate: Date | null = null;
-  if (isVisited) {
-    if (place.visitedAt) {
-      visitDate = place.visitedAt instanceof Date ? place.visitedAt : new Date(place.visitedAt);
-    } else if (place.visitDate) {
-      visitDate = place.visitDate instanceof Date ? place.visitDate : new Date(place.visitDate);
-    }
+  if (isVisited && place.visitedAt) {
+    // Check if visitedAt is a string (which it should be in the Place type)
+    visitDate = new Date(place.visitedAt);
   }
 
   if (visitDate && isNaN(visitDate.getTime())) {
@@ -165,11 +148,20 @@ const CarouselCard: React.FC<PlaceCardComponentProps> = ({
   const placeTags = getPlaceTags(place);
   const formattedDate = visitDate ? formatVisitDate(visitDate) : "";
 
+  // Handle card press
+  const handleCardPress = () => {
+    // If a custom onPress handler is provided, use it
+    if (onPress) {
+      // Call the onPress handler with the place ID and the full place object
+      onPress(placeId, place);
+    }
+  };
+
   return (
     <TouchableOpacity
       style={[styles.cardWrapper, { width: cardWidth, height: cardHeight }]}
       activeOpacity={0.92}
-      onPress={() => onPress(placeId, place)}
+      onPress={handleCardPress}
     >
       <View style={[styles.card, isVisited && styles.visitedCard]}>
         {/* Image Container */}
@@ -347,4 +339,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default CarouselCard;
+export default PlaceCard;

@@ -1,5 +1,6 @@
 // navigation/types.ts
 import { StatItem } from "../types/StatTypes";
+import { Place, VisitedPlaceDetails } from "../types/MapTypes";
 
 export type RootStackParamList = {
   Home: undefined;
@@ -12,4 +13,8 @@ export type RootStackParamList = {
   Search: undefined;
   ViewAll: { viewType: "myPlaces" | "nearbyPlaces" };
   MyJourney: { stats: StatItem[] };
+  PlaceDetails: {
+    placeId: string;
+    place?: Place | VisitedPlaceDetails;
+  };
 };

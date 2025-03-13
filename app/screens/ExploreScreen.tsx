@@ -35,18 +35,9 @@ import PlacesCarousel from "../components/Places/PlacesCarousel";
 import GettingStartedModal from "../components/Places/GettingStartedModal";
 import { Coordinate, Region, Place } from "../types/MapTypes";
 import { StackScreenProps } from "@react-navigation/stack";
+import { RootStackParamList } from "../navigation/types";
 
 const { width } = Dimensions.get("window");
-
-// Define navigation type
-type RootStackParamList = {
-  Home: undefined;
-  Search: { initialQuery: string };
-
-  ViewAll: { viewType: string };
-  Place: { placeId: string };
-  Discover: undefined;
-};
 
 type ExploreScreenProps = StackScreenProps<RootStackParamList, "Home">;
 
@@ -308,7 +299,7 @@ const ExploreScreen: React.FC<ExploreScreenProps> = ({ navigation }) => {
   };
 
   const navigateToPlaceDetails = (placeId: string, place?: Place): void => {
-    navigation.navigate("Place", { placeId });
+    navigation.navigate("PlaceDetails", { placeId, place });
   };
 
   const navigateToDiscover = (): void => {

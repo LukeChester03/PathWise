@@ -2,7 +2,11 @@
 import React from "react";
 import { View, Text, StyleSheet, FlatList, Dimensions, Platform } from "react-native";
 import { Colors, NeutralColors } from "../../constants/colours";
-import PlaceCard, { CarouselCardProps } from "./CarouselCard";
+import PlaceCard from "./PlaceCard";
+import { useNavigation } from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { RootStackParamList } from "../../navigation/types";
+import { Place } from "../../types/MapTypes";
 
 const { width } = Dimensions.get("window");
 const CARD_WIDTH = width * 0.75;
@@ -10,8 +14,8 @@ const CARD_HEIGHT = 200;
 const SPACING = 12;
 
 interface PlacesCarouselProps {
-  places?: CarouselCardProps[];
-  onPlacePress: (placeId: string, place: CarouselCardProps) => void;
+  places?: Place[];
+  onPlacePress?: (placeId: string, place: Place) => void;
   showOnlyVisited?: boolean;
   sectionType?: "visited" | "nearby" | "saved";
   cardWidth?: number;
@@ -26,29 +30,51 @@ const PlacesCarousel: React.FC<PlacesCarouselProps> = ({
   cardWidth = CARD_WIDTH,
   cardHeight = CARD_HEIGHT,
 }) => {
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+
   // Filter places based on criteria
   const validPlaces = Array.isArray(places)
     ? places.filter((place) => {
+        // Skip if place is null/undefined
+        if (!place) return false;
+
         // Always ensure we have a valid ID
-        if (!place || (!place.place_id && !place.id)) return false;
+        if (!place.place_id && !place.id) return false;
 
         // For visited/saved sections, strictly enforce visit status
         if (
           (sectionType === "visited" || sectionType === "saved") &&
-          !(place.isVisited === true || place.visitedAt || place.visitDate)
+          !(place.isVisited === true || (place.visitedAt !== undefined && place.visitedAt !== null))
         ) {
           return false;
         }
 
         // For nearby locations with showOnlyVisited, filter by visit status
         if (sectionType === "nearby" && showOnlyVisited) {
-          return place.isVisited === true || place.visitedAt || place.visitDate;
+          return (
+            place.isVisited === true || (place.visitedAt !== undefined && place.visitedAt !== null)
+          );
         }
 
         // Otherwise include the place
         return true;
       })
     : [];
+
+  // Handle place press - either use the custom handler or navigate directly
+  const handlePlacePress = (placeId: string, place: Place) => {
+    // If a custom onPress handler is provided, use it
+    if (onPlacePress) {
+      onPlacePress(placeId, place);
+      return;
+    }
+
+    // Otherwise, navigate directly to place details with the original place object
+    navigation.navigate("PlaceDetails", {
+      placeId,
+      place,
+    });
+  };
 
   if (validPlaces.length === 0) {
     return (
@@ -62,12 +88,26 @@ const PlacesCarousel: React.FC<PlacesCarouselProps> = ({
     );
   }
 
-  const renderItem = ({ item }: { item: CarouselCardProps }) => {
+  const renderItem = ({ item }: { item: Place }) => {
+    // Ensure item has the necessary required properties
+    const safePlace: Place = {
+      ...item,
+      // Ensure place_id exists - use id or generate one if missing
+      place_id: item.place_id || item.id || `place-${Math.random().toString(36).substring(2, 9)}`,
+      // Ensure geometry exists with location
+      geometry: item.geometry || {
+        location: {
+          lat: 0,
+          lng: 0,
+        },
+      },
+    };
+
     return (
       <View style={{ marginLeft: SPACING }}>
         <PlaceCard
-          place={item}
-          onPress={onPlacePress}
+          place={safePlace}
+          onPress={handlePlacePress}
           cardWidth={cardWidth}
           cardHeight={cardHeight}
         />

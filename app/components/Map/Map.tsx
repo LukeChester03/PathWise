@@ -11,6 +11,8 @@ import { saveVisitedPlace } from "../../controllers/Map/visitedPlacesController"
 import { Colors, NeutralColors } from "../../constants/colours";
 import { customMapStyle } from "../../constants/mapStyle";
 import { useNavigation } from "expo-router";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { RootStackParamList } from "../../navigation/types";
 
 // Import controllers and global state
 import {
@@ -48,7 +50,10 @@ import {
 import { Place, Coordinate, NavigationStep } from "../../types/MapTypes";
 import * as mapUtils from "../../utils/mapUtils";
 
+type MapNavigationProp = NativeStackNavigationProp<RootStackParamList>;
+
 const Map: React.FC = () => {
+  const navigation = useNavigation<MapNavigationProp>();
   // State for tracking location and places loading
   const [loading, setLoading] = useState<boolean>(true);
   const [locationReady, setLocationReady] = useState<boolean>(false);
@@ -73,10 +78,6 @@ const Map: React.FC = () => {
   // Add refs for tracking
   const destinationSaveAttemptedRef = useRef<boolean>(false);
   const mapReadyRef = useRef<boolean>(false);
-
-  // Navigation hook
-  const navigation = useNavigation();
-
   // Custom hooks
   const location = useMapLocation();
   const camera = useMapCamera();
@@ -436,7 +437,14 @@ const Map: React.FC = () => {
    * Handle learn more action from destination card
    */
   const handleLearnMore = () => {
-    // AI logic would go here
+    if (places.selectedPlace) {
+      console.log(`Navigating to place details for: ${places.selectedPlace.name}`);
+      // Use the correctly typed navigation.navigate
+      navigation.navigate("PlaceDetails", {
+        placeId: places.selectedPlace.place_id,
+        place: places.selectedPlace,
+      });
+    }
   };
 
   /**
@@ -558,8 +566,14 @@ const Map: React.FC = () => {
    */
   const handleViewDiscoveredDetails = () => {
     setShowDiscoveredCard(false);
-    // Navigate to a detailed view
-    console.log("View details for:", places.selectedPlace?.name);
+    if (places.selectedPlace) {
+      console.log(`View details for discovered place: ${places.selectedPlace.name}`);
+      // Use the correctly typed navigation.navigate
+      navigation.navigate("PlaceDetails", {
+        placeId: places.selectedPlace.place_id,
+        place: places.visitedPlaceDetails || places.selectedPlace,
+      });
+    }
   };
 
   // Show enhanced loading screen while initializing

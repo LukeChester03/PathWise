@@ -52,7 +52,7 @@ const STORAGE_KEY_SEARCH_RADIUS = "@explore_app:search_radius";
 
 type RootStackParamList = {
   ViewAll: { viewType?: ViewType; preloadedPlaces?: (Place | VisitedPlaceDetails)[] };
-  Place: { placeId: string };
+  PlaceDetails: { placeId: string; place?: Place | VisitedPlaceDetails }; // Changed from "Place" to "PlaceDetails"
   Explore: undefined;
 };
 
@@ -429,7 +429,14 @@ const ViewAllScreen: React.FC<ViewAllScreenProps> = ({ route, navigation }) => {
   };
 
   const navigateToPlaceDetails = (placeId: string): void => {
-    navigation.navigate("Place", { placeId });
+    // Find the place object in the places array
+    const placeObject = places.find((place) => place.place_id === placeId);
+
+    // Navigate to PlaceDetails with both placeId and place object
+    navigation.navigate("PlaceDetails", {
+      placeId,
+      place: placeObject,
+    });
   };
 
   // Format the date for display
@@ -576,7 +583,7 @@ const ViewAllScreen: React.FC<ViewAllScreenProps> = ({ route, navigation }) => {
     }
   };
 
-  // Create a right component for filter and sort options
+  // right component for filter and sort options
   const headerRightComponent = (
     <View style={styles.headerRightContainer}>
       {viewType === "nearbyPlaces" && (
@@ -704,7 +711,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  // Debug info
+
   debugContainer: {
     padding: 8,
     backgroundColor: "rgba(0,0,0,0.05)",
@@ -717,10 +724,10 @@ const styles = StyleSheet.create({
     color: "#666",
     textAlign: "center",
   },
-  // Grid Layout (for Nearby Places)
+
   gridContent: {
     padding: 16,
-    paddingBottom: 80, // Extra padding at the bottom for better scrolling
+    paddingBottom: 80,
   },
   gridRow: {
     justifyContent: "space-between",
@@ -743,10 +750,10 @@ const styles = StyleSheet.create({
     height: "100%",
     resizeMode: "cover",
   },
-  // List Layout (for My Places)
+
   listContent: {
     padding: 16,
-    paddingBottom: 80, // Extra padding at the bottom for better scrolling
+    paddingBottom: 80,
   },
   listCard: {
     height: 180,
@@ -765,7 +772,6 @@ const styles = StyleSheet.create({
     height: "100%",
     resizeMode: "cover",
   },
-  // Shared styles
   cardGradient: {
     position: "absolute",
     bottom: 0,
@@ -855,7 +861,6 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     marginLeft: 3,
   },
-  // Empty state
   emptyContainer: {
     flex: 1,
     justifyContent: "center",
