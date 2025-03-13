@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   View,
   Text,
@@ -8,31 +8,95 @@ import {
   TouchableOpacity,
   SafeAreaView,
   StatusBar,
-  ActivityIndicator,
   Dimensions,
+  ListRenderItem,
+  RefreshControl,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { collection, getDocs } from "firebase/firestore";
 import { auth, db } from "../config/firebaseConfig";
-import { fetchNearbyPlaces } from "../controllers/Map/placesController";
-import { getCurrentLocation } from "../controllers/Map/locationController";
+import {
+  fetchNearbyPlaces,
+  updatePlacesSettings,
+  clearPlacesCache,
+} from "../controllers/Map/placesController";
+import {
+  getCurrentLocation,
+  getNearbyPlacesState,
+  onPlacesUpdate,
+  globalPlacesState,
+  updateNearbyPlaces,
+} from "../controllers/Map/locationController";
 import { Colors, NeutralColors } from "../constants/colours";
 import { getPlaceCardImageUrl } from "../utils/mapImageUtils";
-import { formatDistanceToNow } from "date-fns"; // Make sure to install this package
+import { formatDistanceToNow } from "date-fns";
 import Header from "../components/Global/Header";
+import { RouteProp, useFocusEffect } from "@react-navigation/native";
+import { StackNavigationProp } from "@react-navigation/stack";
+import { Place, NearbyPlacesResponse, VisitedPlaceDetails, Region } from "../types/MapTypes";
+import MapDistanceSettingsModal from "../components/Map/MapDistanceSettingsModal";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import MapLoading from "../components/Map/MapLoading";
 
 const { width } = Dimensions.get("window");
-const GRID_CARD_WIDTH = (width - 48) / 2; // Two columns with margins
+const GRID_CARD_WIDTH = (width - 48) / 2;
 
-const ViewAllScreen = ({ route, navigation }) => {
+// Default settings values
+const DEFAULT_MAX_PLACES = 50;
+const DEFAULT_SEARCH_RADIUS = 20;
+
+// Storage keys for persisting settings
+const STORAGE_KEY_MAX_PLACES = "@explore_app:max_places";
+const STORAGE_KEY_SEARCH_RADIUS = "@explore_app:search_radius";
+
+type RootStackParamList = {
+  ViewAll: { viewType?: ViewType; preloadedPlaces?: (Place | VisitedPlaceDetails)[] };
+  Place: { placeId: string };
+  Explore: undefined;
+};
+
+type ViewAllScreenRouteProp = RouteProp<RootStackParamList, "ViewAll">;
+type ViewAllScreenNavigationProp = StackNavigationProp<RootStackParamList>;
+type ViewType = "nearbyPlaces" | "myPlaces";
+
+interface HeaderConfig {
+  title: string;
+  subtitle: string;
+  icon: string;
+  color: string;
+}
+
+interface ViewAllScreenProps {
+  route: ViewAllScreenRouteProp;
+  navigation: ViewAllScreenNavigationProp;
+}
+
+const ViewAllScreen: React.FC<ViewAllScreenProps> = ({ route, navigation }) => {
+  // Extract route params
   const { viewType = "nearbyPlaces" } = route.params || {};
-  const [places, setPlaces] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+
+  console.log(`[ViewAllScreen] Rendered with viewType: ${viewType}`);
+
+  // State for the component
+  const [places, setPlaces] = useState<(Place | VisitedPlaceDetails)[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [refreshing, setRefreshing] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
+  const [settingsModalVisible, setSettingsModalVisible] = useState<boolean>(false);
+  const [maxPlaces, setMaxPlaces] = useState<number>(DEFAULT_MAX_PLACES);
+  const [searchRadius, setSearchRadius] = useState<number>(DEFAULT_SEARCH_RADIUS);
+  const [debugInfo, setDebugInfo] = useState<string>("");
+  const [settingsChanged, setSettingsChanged] = useState<boolean>(false);
+  const [settingsLoaded, setSettingsLoaded] = useState<boolean>(false);
+
+  // Flags to control behavior
+  const isApplyingSettings = useRef<boolean>(false);
+  const ignoreSubscriptionUpdates = useRef<boolean>(false);
+  const isInitialized = useRef(false);
 
   // Set dynamic header properties based on view type
-  const headerConfig = {
+  const headerConfig: Record<ViewType, HeaderConfig> = {
     myPlaces: {
       title: "My Places",
       subtitle: "Places you've visited",
@@ -50,13 +114,236 @@ const ViewAllScreen = ({ route, navigation }) => {
   // Get current header configuration
   const currentHeaderConfig = headerConfig[viewType] || headerConfig.nearbyPlaces;
 
+  // Load saved settings from AsyncStorage first
   useEffect(() => {
-    fetchData();
-  }, [viewType]);
+    const loadSavedSettings = async () => {
+      try {
+        console.log("[ViewAllScreen] Loading saved settings from AsyncStorage");
+        const savedMaxPlaces = await AsyncStorage.getItem(STORAGE_KEY_MAX_PLACES);
+        const savedSearchRadius = await AsyncStorage.getItem(STORAGE_KEY_SEARCH_RADIUS);
 
-  const fetchData = async () => {
+        // Load settings with defaults if not found
+        const newMaxPlaces = savedMaxPlaces ? parseInt(savedMaxPlaces, 10) : DEFAULT_MAX_PLACES;
+        const newSearchRadius = savedSearchRadius
+          ? parseInt(savedSearchRadius, 10)
+          : DEFAULT_SEARCH_RADIUS;
+
+        // Update state
+        setMaxPlaces(newMaxPlaces);
+        setSearchRadius(newSearchRadius);
+
+        // Apply to controller right away
+        updatePlacesSettings(newMaxPlaces, newSearchRadius);
+
+        // Mark settings as loaded
+        setSettingsLoaded(true);
+      } catch (error) {
+        console.error("[ViewAllScreen] Error loading saved settings:", error);
+        // Use defaults in case of error
+        setMaxPlaces(DEFAULT_MAX_PLACES);
+        setSearchRadius(DEFAULT_SEARCH_RADIUS);
+        updatePlacesSettings(DEFAULT_MAX_PLACES, DEFAULT_SEARCH_RADIUS);
+        setSettingsLoaded(true);
+      }
+    };
+
+    loadSavedSettings();
+  }, []);
+
+  // Only proceed with initialization after settings are loaded
+  useEffect(() => {
+    if (!settingsLoaded) {
+      console.log("[ViewAllScreen] Waiting for settings to load before initialization");
+      return;
+    }
+
+    // Now that settings are loaded, check for preloaded data
+    const initializeComponent = async () => {
+      if (viewType === "nearbyPlaces") {
+        // Get places state with settings applied
+        const placesState = getNearbyPlacesState();
+
+        // If we have preloaded data, use it
+        if (placesState.hasPreloaded && placesState.places && placesState.places.length > 0) {
+          console.log(`[ViewAllScreen] Using ${placesState.places.length} preloaded places`);
+          setPlaces(placesState.places);
+          setLoading(false);
+          isInitialized.current = true;
+        } else {
+          console.log("[ViewAllScreen] No preloaded places, need to fetch");
+          // Fetch data if no preloaded places
+          await fetchData(false);
+        }
+      } else {
+        // For MyPlaces view, fetch from Firestore
+        await fetchVisitedPlacesFromFirestore();
+      }
+
+      isInitialized.current = true;
+    };
+
+    initializeComponent();
+  }, [settingsLoaded, viewType, maxPlaces, searchRadius]);
+
+  // Subscribe to global places updates - only AFTER settings are loaded
+  useEffect(() => {
+    // Only needed for nearby places and only if settings are loaded
+    if (viewType !== "nearbyPlaces" || !settingsLoaded) return;
+
+    // Subscribe to global places updates
+    const unsubscribe = onPlacesUpdate((placesState) => {
+      // Skip updates while applying settings
+      if (ignoreSubscriptionUpdates.current) {
+        console.log("[ViewAllScreen] Ignoring subscription update while applying settings");
+        return;
+      }
+
+      // Only update if we have meaningful data
+      if (placesState.hasPreloaded && placesState.places && placesState.places.length > 0) {
+        // Update places state from global data
+        setPlaces(placesState.places);
+
+        // Update loading state
+        setLoading(false);
+      }
+    });
+
+    return unsubscribe;
+  }, [viewType, settingsLoaded, maxPlaces, searchRadius]);
+
+  // Track when the screen comes into focus - check for settings changes
+  useFocusEffect(
+    useCallback(() => {
+      console.log("[ViewAllScreen] Screen focused");
+
+      // Check if settings are loaded
+      if (!settingsLoaded) return;
+
+      // Check if we need to apply any pending settings changes
+      const checkAndApplySettings = async () => {
+        try {
+          // Get saved settings
+          const savedMaxPlaces = await AsyncStorage.getItem(STORAGE_KEY_MAX_PLACES);
+          const savedSearchRadius = await AsyncStorage.getItem(STORAGE_KEY_SEARCH_RADIUS);
+
+          const newMaxPlaces = savedMaxPlaces ? parseInt(savedMaxPlaces, 10) : DEFAULT_MAX_PLACES;
+          const newSearchRadius = savedSearchRadius
+            ? parseInt(savedSearchRadius, 10)
+            : DEFAULT_SEARCH_RADIUS;
+
+          // Check if settings differ from current state
+          if (maxPlaces !== newMaxPlaces || searchRadius !== newSearchRadius) {
+            console.log(`[ViewAllScreen] Detected settings change on focus, applying`);
+
+            // Block subscription updates during settings change
+            ignoreSubscriptionUpdates.current = true;
+
+            // Show loading screen
+            setLoading(true);
+
+            // Update state
+            setMaxPlaces(newMaxPlaces);
+            setSearchRadius(newSearchRadius);
+
+            // Only reload data if we're in the nearby places view
+            if (viewType === "nearbyPlaces") {
+              // Update settings in controller
+              updatePlacesSettings(newMaxPlaces, newSearchRadius);
+
+              // Wait a moment
+              await new Promise((resolve) => setTimeout(resolve, 300));
+
+              // Force refresh
+              await fetchData(true);
+
+              // Allow subscription updates again
+              ignoreSubscriptionUpdates.current = false;
+            } else {
+              setLoading(false);
+            }
+          }
+        } catch (error) {
+          console.error("[ViewAllScreen] Error checking settings on focus:", error);
+          ignoreSubscriptionUpdates.current = false;
+          setLoading(false);
+        }
+      };
+
+      checkAndApplySettings();
+
+      return () => {
+        console.log("[ViewAllScreen] Screen unfocused");
+      };
+    }, [viewType, maxPlaces, searchRadius, settingsLoaded])
+  );
+
+  // Handle settings changes
+  useEffect(() => {
+    const applySettingsChanges = async () => {
+      if (settingsChanged && viewType === "nearbyPlaces") {
+        try {
+          // Clear the flag right away to prevent multiple runs
+          setSettingsChanged(false);
+
+          // Set tracking flags
+          isApplyingSettings.current = true;
+          ignoreSubscriptionUpdates.current = true;
+
+          console.log("[ViewAllScreen] Applying settings change:", maxPlaces, searchRadius);
+
+          // Ensure loading is true and visible
+          setLoading(true);
+
+          // Wait for UI to update
+          await new Promise((resolve) => setTimeout(resolve, 300));
+
+          // Clear the cache completely
+          clearPlacesCache();
+
+          // Update the global settings
+          updatePlacesSettings(maxPlaces, searchRadius);
+
+          // Save settings to AsyncStorage for persistence
+          await AsyncStorage.setItem(STORAGE_KEY_MAX_PLACES, maxPlaces.toString());
+          await AsyncStorage.setItem(STORAGE_KEY_SEARCH_RADIUS, searchRadius.toString());
+
+          // If we have a location, update the global places state directly
+          const location: Region | null = await getCurrentLocation();
+          if (location) {
+            await updateNearbyPlaces(location, true);
+            await new Promise((resolve) => setTimeout(resolve, 500));
+            setLoading(false);
+          } else {
+            // Fallback to local fetch if location not available
+            await fetchData(true);
+          }
+
+          // Reset tracking flags
+          isApplyingSettings.current = false;
+          ignoreSubscriptionUpdates.current = false;
+        } catch (error) {
+          console.error("[ViewAllScreen] Error applying settings changes:", error);
+          setLoading(false);
+          isApplyingSettings.current = false;
+          ignoreSubscriptionUpdates.current = false;
+        }
+      }
+    };
+
+    applySettingsChanges();
+  }, [settingsChanged, maxPlaces, searchRadius, viewType]);
+
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    // When user manually refreshes, we force refresh
+    fetchData(true).finally(() => setRefreshing(false));
+  }, [maxPlaces, searchRadius]);
+
+  const fetchData = async (forceRefresh: boolean = false): Promise<void> => {
     try {
-      setLoading(true);
+      if (!refreshing) {
+        setLoading(true);
+      }
       setError(null);
 
       if (viewType === "myPlaces") {
@@ -64,36 +351,42 @@ const ViewAllScreen = ({ route, navigation }) => {
         await fetchVisitedPlacesFromFirestore();
       } else {
         // For Nearby Places, fetch from Google Places API
-        const location = await getCurrentLocation();
+        const location: Region | null = await getCurrentLocation();
         if (!location) {
           setError("Unable to get your location");
           setLoading(false);
           return;
         }
 
-        // Use destructuring to get places from the returned object
-        const { places: nearbyPlaces, furthestDistance } = await fetchNearbyPlaces(
-          location.latitude,
-          location.longitude
+        console.log(
+          `[ViewAllScreen] Fetching places with params: forceRefresh=${forceRefresh}, maxPlaces=${maxPlaces}`
         );
 
+        // Use destructuring to get places from the returned object
+        const { places: nearbyPlaces }: NearbyPlacesResponse = await fetchNearbyPlaces(
+          location.latitude,
+          location.longitude,
+          forceRefresh,
+          maxPlaces // Directly pass maxPlaces to override any cached settings
+        );
+
+        console.log(`[ViewAllScreen] Fetched ${nearbyPlaces?.length || 0} places`);
         setPlaces(nearbyPlaces || []);
-        setLoading(false);
       }
     } catch (error) {
-      console.error("Error fetching places:", error);
+      console.error("[ViewAllScreen] Error fetching places:", error);
       setError("Something went wrong");
+    } finally {
       setLoading(false);
     }
   };
 
-  // New function to fetch user's visited places from Firestore
-  const fetchVisitedPlacesFromFirestore = async () => {
+  const fetchVisitedPlacesFromFirestore = async (): Promise<void> => {
     try {
       // Check if user is authenticated
       const currentUser = auth.currentUser;
       if (!currentUser) {
-        console.log("No authenticated user found");
+        console.log("[ViewAllScreen] No authenticated user found");
         setPlaces([]);
         setLoading(false);
         return;
@@ -104,7 +397,7 @@ const ViewAllScreen = ({ route, navigation }) => {
       const querySnapshot = await getDocs(userVisitedPlacesRef);
 
       if (querySnapshot.empty) {
-        console.log("No saved places found in Firestore");
+        console.log("[ViewAllScreen] No saved places found in Firestore");
         setPlaces([]);
       } else {
         // Transform Firestore documents to place objects
@@ -119,44 +412,66 @@ const ViewAllScreen = ({ route, navigation }) => {
             description: data.description || "",
             geometry: data.geometry,
             photos: data.photos || [],
-            // Format the visited date for display
             visitedAt: data.visitedAt,
-            visitDate: data.visitedAt ? new Date(data.visitedAt) : new Date(),
-            // Add isVisited flag to indicate these are places that have been visited
             isVisited: true,
-          };
+          } as VisitedPlaceDetails;
         });
 
-        console.log(`Found ${userPlacesData.length} places in Firestore`);
+        console.log(`[ViewAllScreen] Found ${userPlacesData.length} places in Firestore`);
         setPlaces(userPlacesData);
       }
     } catch (error) {
-      console.error("Error fetching visited places from Firestore:", error);
+      console.error("[ViewAllScreen] Error fetching visited places from Firestore:", error);
       setError("Failed to load your visited places");
     } finally {
       setLoading(false);
     }
   };
 
-  const navigateToPlaceDetails = (placeId) => {
+  const navigateToPlaceDetails = (placeId: string): void => {
     navigation.navigate("Place", { placeId });
   };
 
   // Format the date for display
-  const formatVisitDate = (dateString) => {
+  const formatVisitDate = (dateString?: string): string => {
     if (!dateString) return "Visited recently";
 
     try {
       const visitDate = new Date(dateString);
       return `Visited ${formatDistanceToNow(visitDate, { addSuffix: true })}`;
     } catch (error) {
-      console.error("Error formatting date:", error);
       return "Visited recently";
     }
   };
 
+  // Handler for when settings are saved
+  const handleSaveSettings = (newMaxPlaces: number, newSearchRadius: number): void => {
+    console.log(
+      `[ViewAllScreen] User changed settings to max: ${newMaxPlaces}, radius: ${newSearchRadius}`
+    );
+
+    // Block subscription updates
+    ignoreSubscriptionUpdates.current = true;
+
+    // Force the loading screen to appear immediately
+    setLoading(true);
+
+    // Close the modal
+    setSettingsModalVisible(false);
+
+    // Use setTimeout to ensure the loading screen renders before proceeding
+    setTimeout(() => {
+      // Update the local state
+      setMaxPlaces(newMaxPlaces);
+      setSearchRadius(newSearchRadius);
+
+      // Set flag to trigger the settings change effect
+      setSettingsChanged(true);
+    }, 50);
+  };
+
   // Render a grid item for nearby places
-  const renderGridItem = ({ item }) => {
+  const renderGridItem: ListRenderItem<Place | VisitedPlaceDetails> = ({ item }) => {
     return (
       <TouchableOpacity
         style={styles.gridCard}
@@ -190,7 +505,7 @@ const ViewAllScreen = ({ route, navigation }) => {
   };
 
   // Render a list item for my places
-  const renderListItem = ({ item }) => {
+  const renderListItem: ListRenderItem<Place | VisitedPlaceDetails> = ({ item }) => {
     return (
       <TouchableOpacity
         style={styles.listCard}
@@ -227,7 +542,7 @@ const ViewAllScreen = ({ route, navigation }) => {
   };
 
   // Empty state based on view type
-  const renderEmptyState = () => {
+  const renderEmptyState = (): React.ReactNode => {
     if (viewType === "myPlaces") {
       return (
         <View style={styles.emptyContainer}>
@@ -253,7 +568,7 @@ const ViewAllScreen = ({ route, navigation }) => {
             We couldn't find any tourist attractions nearby. Try again later or in a different
             location.
           </Text>
-          <TouchableOpacity style={styles.retryButton} onPress={fetchData}>
+          <TouchableOpacity style={styles.retryButton} onPress={() => fetchData(true)}>
             <Text style={styles.retryButtonText}>Try Again</Text>
           </TouchableOpacity>
         </View>
@@ -264,18 +579,13 @@ const ViewAllScreen = ({ route, navigation }) => {
   // Create a right component for filter and sort options
   const headerRightComponent = (
     <View style={styles.headerRightContainer}>
-      {/* {viewType === "nearbyPlaces" && (
-        <TouchableOpacity style={styles.headerButton}>
+      {viewType === "nearbyPlaces" && (
+        <TouchableOpacity style={styles.headerButton} onPress={() => setSettingsModalVisible(true)}>
           <View style={styles.iconContainer}>
-            <Ionicons name="filter" size={20} color={Colors.primary} />
+            <Ionicons name="options" size={20} color={Colors.primary} />
           </View>
         </TouchableOpacity>
-      )} */}
-      {/* <TouchableOpacity style={styles.headerButton}>
-        <View style={styles.iconContainer}>
-          <Ionicons name="options" size={20} color={Colors.primary} />
-        </View>
-      </TouchableOpacity> */}
+      )}
     </View>
   );
 
@@ -290,23 +600,30 @@ const ViewAllScreen = ({ route, navigation }) => {
         showIcon={false}
         iconName={currentHeaderConfig.icon}
         iconColor={currentHeaderConfig.color}
-        // rightComponent={headerRightComponent}
+        rightComponent={viewType === "nearbyPlaces" ? headerRightComponent : undefined}
         showBackButton={true}
         showHelp={false}
+        onHelpPress={() => {}}
         onBackPress={() => navigation.goBack()}
+      />
+
+      {/* Settings Modal for Nearby Places */}
+      <MapDistanceSettingsModal
+        visible={settingsModalVisible}
+        onClose={() => setSettingsModalVisible(false)}
+        initialMaxPlaces={maxPlaces}
+        initialRadius={searchRadius}
+        onSave={handleSaveSettings}
       />
 
       {/* Content */}
       {loading ? (
-        <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color={Colors.primary} />
-          <Text style={styles.loadingText}>Loading places...</Text>
-        </View>
+        <MapLoading />
       ) : error ? (
         <View style={styles.centerContainer}>
           <Ionicons name="alert-circle-outline" size={60} color="#ccc" />
           <Text style={styles.errorText}>{error}</Text>
-          <TouchableOpacity style={styles.retryButton} onPress={fetchData}>
+          <TouchableOpacity style={styles.retryButton} onPress={() => fetchData(true)}>
             <Text style={styles.retryButtonText}>Try Again</Text>
           </TouchableOpacity>
         </View>
@@ -321,6 +638,20 @@ const ViewAllScreen = ({ route, navigation }) => {
           contentContainerStyle={styles.gridContent}
           columnWrapperStyle={styles.gridRow}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={[Colors.primary]}
+            />
+          }
+          ListHeaderComponent={
+            debugInfo ? (
+              <View style={styles.debugContainer}>
+                <Text style={styles.debugText}>{debugInfo}</Text>
+              </View>
+            ) : null
+          }
         />
       ) : (
         <FlatList
@@ -329,6 +660,13 @@ const ViewAllScreen = ({ route, navigation }) => {
           renderItem={renderListItem}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={[Colors.primary]}
+            />
+          }
         />
       )}
     </SafeAreaView>
@@ -345,11 +683,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     padding: 20,
-  },
-  loadingText: {
-    marginTop: 10,
-    fontSize: 16,
-    color: NeutralColors.gray500,
   },
   errorText: {
     marginTop: 10,
@@ -371,9 +704,23 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
+  // Debug info
+  debugContainer: {
+    padding: 8,
+    backgroundColor: "rgba(0,0,0,0.05)",
+    marginBottom: 8,
+    borderRadius: 8,
+    marginHorizontal: 16,
+  },
+  debugText: {
+    fontSize: 12,
+    color: "#666",
+    textAlign: "center",
+  },
   // Grid Layout (for Nearby Places)
   gridContent: {
     padding: 16,
+    paddingBottom: 80, // Extra padding at the bottom for better scrolling
   },
   gridRow: {
     justifyContent: "space-between",
@@ -399,6 +746,7 @@ const styles = StyleSheet.create({
   // List Layout (for My Places)
   listContent: {
     padding: 16,
+    paddingBottom: 80, // Extra padding at the bottom for better scrolling
   },
   listCard: {
     height: 180,

@@ -95,6 +95,11 @@ const notifyLocationUpdates = () => {
 export const onPlacesUpdate = (callback: (places: any) => void): (() => void) => {
   // Immediately send current state to the callback
   setTimeout(() => {
+    // Log the status of cached places when callback is registered
+    console.log(
+      `[locationController] onPlacesUpdate registered: hasPreloaded=${globalPlacesState.hasPreloaded}, places.length=${globalPlacesState.places.length}`
+    );
+
     callback({
       places: globalPlacesState.places,
       isLoading: globalPlacesState.isLoading,
@@ -173,6 +178,15 @@ export const getLocationState = () => {
  * Get the current nearby places state
  */
 export const getNearbyPlacesState = () => {
+  // Add debug logging
+  console.log(
+    `[locationController] getNearbyPlacesState: hasPreloaded=${
+      globalPlacesState.hasPreloaded
+    }, places.length=${globalPlacesState.places.length}, lastUpdated=${new Date(
+      globalPlacesState.lastUpdated
+    ).toLocaleTimeString()}`
+  );
+
   return {
     places: globalPlacesState.places,
     isLoading: globalPlacesState.isLoading,
@@ -459,7 +473,12 @@ export const updateNearbyPlaces = async (
     globalPlacesState.furthestDistance = result.furthestDistance;
     globalPlacesState.lastUpdated = Date.now();
     globalPlacesState.isLoading = false;
-    globalPlacesState.hasPreloaded = true;
+    globalPlacesState.hasPreloaded = true; // Always ensure this is set to true after successful fetch
+
+    // Explicitly log that places have been preloaded
+    console.log(
+      `[locationController] Places preloaded: ${result.places.length} places, hasPreloaded=${globalPlacesState.hasPreloaded}`
+    );
 
     // Notify listeners
     notifyPlaceUpdates();
@@ -598,10 +617,13 @@ export const watchUserLocation = async (
       globalPlacesState.places = placesData.places;
       globalPlacesState.furthestDistance = placesData.furthestDistance;
       globalPlacesState.lastUpdated = Date.now();
-      globalPlacesState.hasPreloaded = true;
+      globalPlacesState.hasPreloaded = true; // Make sure this is set
       globalPlacesState.isLoading = false;
 
       console.log(`✅ Successfully preloaded ${placesData.places.length} places`);
+      console.log(`✅ globalPlacesState.hasPreloaded set to: ${globalPlacesState.hasPreloaded}`);
+
+      // Notify place update listeners
       notifyPlaceUpdates();
 
       // Start location watching to keep state updated

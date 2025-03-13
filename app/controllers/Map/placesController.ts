@@ -147,6 +147,8 @@ let placesCache: {
   cacheTimestamp: number;
   latitude: number;
   longitude: number;
+  maxPlaces: number; // Track maxPlaces setting
+  searchRadius: number; // Track searchRadius setting
 } | null = null;
 
 // Cache expiration time (30 minutes)
@@ -154,20 +156,29 @@ const CACHE_EXPIRATION_TIME = 30 * 60 * 1000;
 
 /**
  * Update the maximum number of places and search radius at runtime
- * @param maxPlaces Maximum number of places to fetch
- * @param searchRadiusKm Search radius in kilometers
  */
 export const updatePlacesSettings = (maxPlaces: number, searchRadiusKm: number): void => {
-  // Validate and enforce limits
-  dynamicMaxPlaces = Math.min(Math.max(10, maxPlaces), 50);
-  dynamicSearchRadius = Math.min(Math.max(1000, searchRadiusKm * 1000), 50000);
-
   console.log(
-    `Places settings updated: Max places=${dynamicMaxPlaces}, Search radius=${dynamicSearchRadius}m`
+    `[placesController] Updating settings - maxPlaces: ${maxPlaces}, searchRadius: ${searchRadiusKm}km`
   );
 
-  // Clear cache to ensure next fetch uses new settings
-  clearPlacesCache();
+  // Validate and enforce limits
+  const newMaxPlaces = Math.min(Math.max(10, maxPlaces), 50);
+  const newSearchRadius = Math.min(Math.max(1000, searchRadiusKm * 1000), 50000);
+
+  // Check if values actually changed before updating
+  const settingsChanged =
+    dynamicMaxPlaces !== newMaxPlaces || dynamicSearchRadius !== newSearchRadius;
+
+  // Update the settings
+  dynamicMaxPlaces = newMaxPlaces;
+  dynamicSearchRadius = newSearchRadius;
+
+  // Only clear cache if settings actually changed
+  if (settingsChanged && placesCache) {
+    console.log("[placesController] Settings changed, clearing places cache");
+    clearPlacesCache();
+  }
 };
 
 /**
@@ -248,20 +259,45 @@ const calculateTourismScore = (place: any): number => {
  * Clear the places cache. Call this when user logs out or cache needs to be reset.
  */
 export const clearPlacesCache = (): void => {
+  console.log("[placesController] Places cache cleared");
   placesCache = null;
-  console.log("Places cache cleared");
 };
 
 /**
- * Check if the cache is valid based on position and time
+ * Check if the cache is valid based on position, time, and settings
  */
-const isCacheValid = (latitude: number, longitude: number): boolean => {
-  if (!placesCache) return false;
+const isCacheValid = (
+  latitude: number,
+  longitude: number,
+  maxPlacesToOverride?: number
+): boolean => {
+  if (!placesCache) {
+    console.log("[placesController] No cache exists");
+    return false;
+  }
 
   // Check if cache has expired
   const now = Date.now();
-  if (now - placesCache.cacheTimestamp > CACHE_EXPIRATION_TIME) {
-    console.log("Places cache expired");
+  const cacheAge = now - placesCache.cacheTimestamp;
+  if (cacheAge > CACHE_EXPIRATION_TIME) {
+    console.log(
+      `[placesController] Cache expired (${Math.round(cacheAge / 1000 / 60)} minutes old)`
+    );
+    return false;
+  }
+
+  // Determine effective maxPlaces to use
+  const effectiveMaxPlaces =
+    maxPlacesToOverride !== undefined ? maxPlacesToOverride : dynamicMaxPlaces;
+
+  // Check if there's a mismatch in settings
+  if (
+    placesCache.maxPlaces !== effectiveMaxPlaces ||
+    placesCache.searchRadius !== dynamicSearchRadius
+  ) {
+    console.log(
+      `[placesController] Settings mismatch - Cache: max=${placesCache.maxPlaces}, radius=${placesCache.searchRadius}m | Current: max=${effectiveMaxPlaces}, radius=${dynamicSearchRadius}m`
+    );
     return false;
   }
 
@@ -275,27 +311,41 @@ const isCacheValid = (latitude: number, longitude: number): boolean => {
 
   // If moved more than 500 meters, invalidate cache
   if (distanceMoved > 500) {
-    console.log(`User moved ${distanceMoved.toFixed(0)}m from cache location - invalidating cache`);
+    console.log(
+      `[placesController] User moved ${distanceMoved.toFixed(
+        0
+      )}m from cache location - invalidating cache`
+    );
     return false;
   }
 
+  console.log("[placesController] Cache is valid and will be used");
   return true;
 };
 
 export const fetchNearbyPlaces = async (
   latitude: number,
   longitude: number,
-  forceRefresh: boolean = false
+  forceRefresh: boolean = false,
+  maxPlacesToOverride?: number // Optional parameter to override dynamicMaxPlaces
 ): Promise<NearbyPlacesResponse> => {
   try {
-    // First check if latitude and longitude are valid numbers
+    // Use override if provided
+    const effectiveMaxPlaces =
+      maxPlacesToOverride !== undefined ? maxPlacesToOverride : dynamicMaxPlaces;
+
+    console.log(
+      `[placesController] fetchNearbyPlaces: lat=${latitude}, long=${longitude}, force=${forceRefresh}, maxPlaces=${effectiveMaxPlaces}`
+    );
+
+    // Check if latitude and longitude are valid numbers
     if (
       typeof latitude !== "number" ||
       typeof longitude !== "number" ||
       isNaN(latitude) ||
       isNaN(longitude)
     ) {
-      console.error("Invalid coordinates for fetchNearbyPlaces:", latitude, longitude);
+      console.error("[placesController] Invalid coordinates:", latitude, longitude);
       return {
         places: [],
         furthestDistance: dynamicSearchRadius,
@@ -303,8 +353,10 @@ export const fetchNearbyPlaces = async (
     }
 
     // Check cache first (unless force refresh is requested)
-    if (!forceRefresh && isCacheValid(latitude, longitude) && placesCache) {
-      console.log("Using cached places data");
+    if (!forceRefresh && isCacheValid(latitude, longitude, maxPlacesToOverride) && placesCache) {
+      console.log(
+        `[placesController] Using cached places data (${placesCache.places.length} places)`
+      );
       return {
         places: placesCache.places,
         furthestDistance: placesCache.furthestDistance,
@@ -312,55 +364,91 @@ export const fetchNearbyPlaces = async (
     }
 
     console.log(
-      `Fetching fresh nearby places data with radius ${dynamicSearchRadius}m and max places ${dynamicMaxPlaces}`
+      `[placesController] Fetching fresh places data with radius ${dynamicSearchRadius}m and max ${effectiveMaxPlaces} places`
     );
 
-    // IMPORTANT: When we use dynamicSearchRadius, we need to use 'radius' parameter instead of 'rankby=distance'
-    // Google Places API doesn't allow both parameters at the same time
-    const response = await fetch(
-      `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${latitude},${longitude}&radius=${dynamicSearchRadius}&type=tourist_attraction|museum|park|point_of_interest|art_gallery|church|natural_feature|historic|monument|landmark|amusement_park|aquarium|zoo&keyword=attraction|landmark|culture|heritage|nature|park|historical|famous|viewpoint|scenic&key=AIzaSyDAGq_6eJGQpR3RcO0NrVOowel9-DxZkvA`
-    );
+    // Array to store all results across pages
+    let allResults: any[] = [];
+    // Flag to track if we need more pages
+    let needMorePages = true;
+    // Token for next page
+    let nextPageToken: string | null = null;
 
-    const data = await response.json();
+    // Loop until we have enough places or no more pages are available
+    while (needMorePages && allResults.length < effectiveMaxPlaces) {
+      // Build the URL for the API request
+      let apiUrl = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${latitude},${longitude}&radius=${dynamicSearchRadius}&type=tourist_attraction|museum|park|point_of_interest|art_gallery|church|natural_feature|historic|monument|landmark|amusement_park|aquarium|zoo&keyword=attraction|landmark|culture|heritage|nature|park|historical|famous|viewpoint|scenic&key=AIzaSyDAGq_6eJGQpR3RcO0NrVOowel9-DxZkvA`;
 
-    // If initial search fails or returns few results, try an alternative search
-    if (data.status !== "OK" || !data.results || data.results.length < 5) {
-      console.log(
-        "Few or no results found with initial search, trying with alternative parameters"
-      );
+      // Add the page token if we have one
+      if (nextPageToken) {
+        apiUrl = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?pagetoken=${nextPageToken}&key=AIzaSyDAGq_6eJGQpR3RcO0NrVOowel9-DxZkvA`;
 
-      // Try a broader search with different parameters
-      const radiusResponse = await fetch(
-        `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${latitude},${longitude}&radius=${dynamicSearchRadius}&type=tourist_attraction|museum|park|landmark|historic&keyword=tourist|attraction|sightseeing|visit&key=AIzaSyDAGq_6eJGQpR3RcO0NrVOowel9-DxZkvA`
-      );
+        // Google requires a delay before using next_page_token
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+      }
 
-      const radiusData = await radiusResponse.json();
+      // Make the API request
+      const response = await fetch(apiUrl);
+      const data = await response.json();
 
-      // If we got valid results, use them
-      if (radiusData.status === "OK" && radiusData.results && radiusData.results.length > 0) {
-        data.results = radiusData.results;
-        data.status = radiusData.status;
+      // Check if the request was successful
+      if (data.status === "OK" && data.results && data.results.length > 0) {
+        // Add the results to our array
+        allResults = [...allResults, ...data.results];
+
+        // Check if there's a next page token
+        nextPageToken = data.next_page_token || null;
+
+        // Determine if we need more pages
+        needMorePages = !!nextPageToken && allResults.length < effectiveMaxPlaces;
+
+        console.log(
+          `[placesController] Received ${data.results.length} places, total: ${
+            allResults.length
+          }, max: ${effectiveMaxPlaces}, have more: ${!!nextPageToken}`
+        );
+      } else {
+        // No more results, or an error occurred
+        needMorePages = false;
+
+        // If this is the first request and it failed, try the alternative search
+        if (!nextPageToken && (data.status !== "OK" || !data.results || data.results.length < 5)) {
+          console.log(
+            "[placesController] Few or no results found with initial search, trying with alternative parameters"
+          );
+
+          // Try a broader search with different parameters
+          const radiusResponse = await fetch(
+            `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${latitude},${longitude}&radius=${dynamicSearchRadius}&type=tourist_attraction|museum|park|landmark|historic&keyword=tourist|attraction|sightseeing|visit&key=AIzaSyDAGq_6eJGQpR3RcO0NrVOowel9-DxZkvA`
+          );
+
+          const radiusData = await radiusResponse.json();
+
+          // If we got valid results, use them
+          if (radiusData.status === "OK" && radiusData.results && radiusData.results.length > 0) {
+            allResults = radiusData.results;
+
+            // Check if there's a next page token from the alternative search
+            nextPageToken = radiusData.next_page_token || null;
+
+            // Determine if we need more pages
+            needMorePages = !!nextPageToken && allResults.length < effectiveMaxPlaces;
+          }
+        }
       }
     }
 
-    if (data.status !== "OK" && data.status !== "ZERO_RESULTS") {
-      console.error("API Error:", data.status, data.error_message || "Unknown API error");
+    // If we have no results, return empty
+    if (allResults.length === 0) {
+      console.log("[placesController] No places found");
       return {
         places: [],
         furthestDistance: dynamicSearchRadius,
       };
     }
 
-    // Handle case when no results (but status is OK)
-    if (!data.results || data.results.length === 0) {
-      return {
-        places: [],
-        furthestDistance: dynamicSearchRadius, // Use dynamic radius
-      };
-    }
-
-    // Enhanced filtering to ensure only quality tourist destinations
-    const filteredResults = data.results
+    // Apply enhanced filtering
+    const filteredResults = allResults
       .filter((place: any) => {
         // 1. Make sure it's not in our exclusion list
         const hasBlockedType = place.types.some((type: string) => NON_TOURIST_TYPES.includes(type));
@@ -370,10 +458,7 @@ export const fetchNearbyPlaces = async (
         // 2. Calculate tourism score for ranking
         place.tourismScore = calculateTourismScore(place);
 
-        // 3. Filter based on minimum criteria:
-        // - Either has a good rating (above threshold)
-        // - Or has a strong tourism score
-        // - If rating exists, it must not be too low
+        // 3. Filter based on minimum criteria
         return (
           (place.rating && place.rating >= MIN_RATING_THRESHOLD) ||
           place.tourismScore >= 40 ||
@@ -381,12 +466,10 @@ export const fetchNearbyPlaces = async (
           (!place.rating && place.tourismScore >= 30)
         );
       })
-      // Sort by tourism score and rating to get best attractions first
+      // Sort by tourism score and rating
       .sort((a: any, b: any) => {
-        // Primary sort by tourism score
         const scoreDiff = b.tourismScore - a.tourismScore;
 
-        // Secondary sort by rating (if scores are close)
         if (Math.abs(scoreDiff) < 10) {
           const aRating = a.rating || 0;
           const bRating = b.rating || 0;
@@ -395,8 +478,12 @@ export const fetchNearbyPlaces = async (
 
         return scoreDiff;
       })
-      // Limit to configured MAX_PLACES - USE DYNAMIC VALUE HERE
-      .slice(0, dynamicMaxPlaces);
+      // Limit to configured max places
+      .slice(0, effectiveMaxPlaces);
+
+    console.log(
+      `[placesController] After filtering: ${filteredResults.length} places (max: ${effectiveMaxPlaces})`
+    );
 
     // Calculate distance to furthest place
     let furthestDistance = 0;
@@ -428,7 +515,7 @@ export const fetchNearbyPlaces = async (
           const detailsData = await detailsResponse.json();
 
           if (detailsData.status !== "OK") {
-            console.warn(`Could not fetch details for place: ${place.name}`);
+            console.warn(`[placesController] Could not fetch details for place: ${place.name}`);
             return place;
           }
 
@@ -458,7 +545,10 @@ export const fetchNearbyPlaces = async (
             distance: distance, // Add the distance from user to place
           };
         } catch (detailsError) {
-          console.error(`Error fetching details for ${place.name}:`, detailsError);
+          console.error(
+            `[placesController] Error fetching details for ${place.name}:`,
+            detailsError
+          );
 
           // Calculate distance for the place even if details fetch fails
           const distance = haversineDistance(
@@ -482,27 +572,29 @@ export const fetchNearbyPlaces = async (
       return (a.distance || 0) - (b.distance || 0);
     });
 
-    // Update cache with the fresh data
+    // Update cache with the fresh data - using effectiveMaxPlaces in cache
     placesCache = {
       places: placesWithDetails,
       furthestDistance,
       cacheTimestamp: Date.now(),
       latitude,
       longitude,
+      maxPlaces: effectiveMaxPlaces,
+      searchRadius: dynamicSearchRadius,
     };
 
-    console.log(`Cached ${placesWithDetails.length} places at ${new Date().toLocaleTimeString()}`);
+    console.log(`[placesController] Cached ${placesWithDetails.length} places`);
 
     return {
       places: placesWithDetails,
       furthestDistance,
     };
   } catch (error: any) {
-    console.error("Error fetching nearby places:", error);
+    console.error("[placesController] Error fetching nearby places:", error);
     // Return an empty array and default radius rather than showing an alert
     return {
       places: [],
-      furthestDistance: dynamicSearchRadius, // Use dynamic radius here too
+      furthestDistance: dynamicSearchRadius,
     };
   }
 };
@@ -514,7 +606,7 @@ export const fetchPlaceById = async (placeId: string): Promise<Place | null> => 
     if (placesCache && placesCache.places.length > 0) {
       const cachedPlace = placesCache.places.find((place) => place.place_id === placeId);
       if (cachedPlace) {
-        console.log(`Using cached data for place: ${cachedPlace.name}`);
+        console.log(`[placesController] Using cached data for place: ${cachedPlace.name}`);
         return cachedPlace;
       }
     }
@@ -549,7 +641,7 @@ export const fetchPlaceById = async (placeId: string): Promise<Place | null> => 
       types: detailsData.result.types,
     };
   } catch (error: any) {
-    console.error("Error fetching place details:", error);
+    console.error("[placesController] Error fetching place details:", error);
     Alert.alert("Error fetching place details", error.message || "An unknown error occurred");
     return null;
   }
