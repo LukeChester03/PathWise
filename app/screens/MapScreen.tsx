@@ -1,17 +1,31 @@
 import React, { useState, useEffect } from "react";
-import { View, StyleSheet, Dimensions, TouchableOpacity } from "react-native";
+import { View, StyleSheet, Dimensions, TouchableOpacity, Alert } from "react-native";
 import { globalStyles } from "../constants/globalStyles";
 import Map from "../components/Map/Map";
 import ScreenWithNavBar from "../components/Global/ScreenWithNavbar";
 import Header from "../components/Global/Header";
 import { Colors } from "../constants/colours";
 import MapGettingStartedModal from "../components/Map/MapGettingStartedModal";
+import MapDistanceSettingsModal from "../components/Map/MapDistanceSettingsModal";
 import { Ionicons } from "@expo/vector-icons";
+import {
+  updateMapSettings,
+  getMapSettings,
+  refreshMap,
+} from "../controllers/Map/mapSettingsController";
 
 const MapScreen = () => {
   const [screenHeight, setScreenHeight] = useState(Dimensions.get("window").height);
   const [showHelpModal, setShowHelpModal] = useState(false);
   const [showDistanceSettingsModal, setShowDistanceSettingsModal] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Map settings state - initialize from settings controller
+  const initialSettings = getMapSettings();
+  const [maxPlaces, setMaxPlaces] = useState(initialSettings.maxPlaces);
+  const [searchRadius, setSearchRadius] = useState(initialSettings.searchRadius);
+  const [refreshKey, setRefreshKey] = useState(0); // To force map refresh
+
   useEffect(() => {
     const updateDimensions = () => {
       setScreenHeight(Dimensions.get("window").height);
@@ -36,13 +50,77 @@ const MapScreen = () => {
     setShowDistanceSettingsModal(true);
   };
 
+  const handleCloseSettingsModal = () => {
+    setShowDistanceSettingsModal(false);
+  };
+
+  // Handle saving map settings and refreshing the map
+  const handleSaveSettings = (newMaxPlaces: number, newSearchRadius: number): void => {
+    // Show loading indicator
+    setIsRefreshing(true);
+
+    console.log(
+      `Updating map settings: max places = ${newMaxPlaces}, radius = ${newSearchRadius}km`
+    );
+
+    try {
+      // Update settings in controller
+      updateMapSettings(newMaxPlaces, newSearchRadius);
+
+      // Update local state
+      setMaxPlaces(newMaxPlaces);
+      setSearchRadius(newSearchRadius);
+
+      // Force refresh the map
+      refreshMap()
+        .then((success) => {
+          if (success) {
+            console.log("Map refreshed successfully with new settings");
+          } else {
+            console.warn("Failed to refresh map with new settings");
+            Alert.alert(
+              "Warning",
+              "The map settings were updated but we couldn't refresh the places. Pull to refresh or restart the app to see the changes."
+            );
+          }
+
+          // Force re-render of Map component
+          setRefreshKey((prevKey) => prevKey + 1);
+
+          // Hide loading indicator
+          setIsRefreshing(false);
+
+          // Close the settings modal
+          handleCloseSettingsModal();
+        })
+        .catch((error) => {
+          console.error("Error refreshing map:", error);
+          Alert.alert(
+            "Error",
+            "There was an error refreshing the map. Your settings have been saved and will apply next time you open the app."
+          );
+          setIsRefreshing(false);
+          handleCloseSettingsModal();
+        });
+    } catch (error) {
+      console.error("Error in handleSaveSettings:", error);
+      Alert.alert("Error", "Failed to update settings. Please try again.");
+      setIsRefreshing(false);
+    }
+  };
+
   const headerRightComponent = (
     <TouchableOpacity
       style={styles.distanceSettingsButton}
-      onPress={() => handleDistanceSettingsModal}
+      onPress={handleDistanceSettingsModal}
+      disabled={isRefreshing}
     >
       <View style={styles.distanceSettingsIconContainer}>
-        <Ionicons name="settings-outline" size={20} color={Colors.primary} />
+        <Ionicons
+          name="settings-outline"
+          size={20}
+          color={isRefreshing ? Colors.primary + "80" : Colors.primary}
+        />
         <View style={styles.distanceSettingsBadge} />
       </View>
     </TouchableOpacity>
@@ -61,12 +139,26 @@ const MapScreen = () => {
           iconColor={Colors.primary}
           onHelpPress={handleHelpModal}
           onBackPress={handleCloseModal}
+          showHelp={true}
         />
         <View style={styles.mapContainer}>
-          <Map />
+          {/* Use the key to force re-render when settings change */}
+          <Map
+            key={refreshKey}
+            // No ref needed
+          />
         </View>
       </View>
+
       <MapGettingStartedModal visible={showHelpModal} onClose={handleCloseModal} />
+
+      <MapDistanceSettingsModal
+        visible={showDistanceSettingsModal}
+        onClose={handleCloseSettingsModal}
+        initialMaxPlaces={maxPlaces}
+        initialRadius={searchRadius}
+        onSave={handleSaveSettings}
+      />
     </ScreenWithNavBar>
   );
 };

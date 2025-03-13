@@ -128,13 +128,17 @@ const STANDARD_DESCRIPTIONS = {
 const MAX_PLACES = 40;
 
 // Default search radius when ranking by distance is not available
-const DEFAULT_RADIUS = 50000;
+const DEFAULT_RADIUS = 20000; // 20km in meters
 
 // Minimum rating threshold for tourist attractions (0-5 scale)
 const MIN_RATING_THRESHOLD = 3.5;
 
 // Minimum number of reviews for added credibility
 const MIN_REVIEWS_COUNT = 5;
+
+// Dynamic settings that can be updated at runtime
+let dynamicMaxPlaces = MAX_PLACES; // Default from constant
+let dynamicSearchRadius = DEFAULT_RADIUS; // Default from constant
 
 // Cache for nearby places to avoid repeated API calls
 let placesCache: {
@@ -147,6 +151,24 @@ let placesCache: {
 
 // Cache expiration time (30 minutes)
 const CACHE_EXPIRATION_TIME = 30 * 60 * 1000;
+
+/**
+ * Update the maximum number of places and search radius at runtime
+ * @param maxPlaces Maximum number of places to fetch
+ * @param searchRadiusKm Search radius in kilometers
+ */
+export const updatePlacesSettings = (maxPlaces: number, searchRadiusKm: number): void => {
+  // Validate and enforce limits
+  dynamicMaxPlaces = Math.min(Math.max(10, maxPlaces), 50);
+  dynamicSearchRadius = Math.min(Math.max(1000, searchRadiusKm * 1000), 50000);
+
+  console.log(
+    `Places settings updated: Max places=${dynamicMaxPlaces}, Search radius=${dynamicSearchRadius}m`
+  );
+
+  // Clear cache to ensure next fetch uses new settings
+  clearPlacesCache();
+};
 
 /**
  * Get appropriate description based on place type
@@ -276,7 +298,7 @@ export const fetchNearbyPlaces = async (
       console.error("Invalid coordinates for fetchNearbyPlaces:", latitude, longitude);
       return {
         places: [],
-        furthestDistance: DEFAULT_RADIUS,
+        furthestDistance: dynamicSearchRadius,
       };
     }
 
@@ -289,22 +311,27 @@ export const fetchNearbyPlaces = async (
       };
     }
 
-    console.log("Fetching fresh nearby places data");
+    console.log(
+      `Fetching fresh nearby places data with radius ${dynamicSearchRadius}m and max places ${dynamicMaxPlaces}`
+    );
 
-    // Built a richer query with more tourist-specific types and keywords
+    // IMPORTANT: When we use dynamicSearchRadius, we need to use 'radius' parameter instead of 'rankby=distance'
+    // Google Places API doesn't allow both parameters at the same time
     const response = await fetch(
-      `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${latitude},${longitude}&type=tourist_attraction|museum|park|point_of_interest|art_gallery|church|natural_feature|historic|monument|landmark|amusement_park|aquarium|zoo&keyword=attraction|landmark|culture|heritage|nature|park|historical|famous|viewpoint|scenic&rankby=distance&key=AIzaSyDAGq_6eJGQpR3RcO0NrVOowel9-DxZkvA`
+      `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${latitude},${longitude}&radius=${dynamicSearchRadius}&type=tourist_attraction|museum|park|point_of_interest|art_gallery|church|natural_feature|historic|monument|landmark|amusement_park|aquarium|zoo&keyword=attraction|landmark|culture|heritage|nature|park|historical|famous|viewpoint|scenic&key=AIzaSyDAGq_6eJGQpR3RcO0NrVOowel9-DxZkvA`
     );
 
     const data = await response.json();
 
-    // If initial search fails, try broader search with radius
+    // If initial search fails or returns few results, try an alternative search
     if (data.status !== "OK" || !data.results || data.results.length < 5) {
-      console.log("Few or no results found with initial search, trying with radius parameter");
+      console.log(
+        "Few or no results found with initial search, trying with alternative parameters"
+      );
 
-      // Try a broader search with radius parameter
+      // Try a broader search with different parameters
       const radiusResponse = await fetch(
-        `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${latitude},${longitude}&radius=20000&type=tourist_attraction|museum|park|landmark|historic&keyword=tourist|attraction|sightseeing|visit&key=AIzaSyDAGq_6eJGQpR3RcO0NrVOowel9-DxZkvA`
+        `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${latitude},${longitude}&radius=${dynamicSearchRadius}&type=tourist_attraction|museum|park|landmark|historic&keyword=tourist|attraction|sightseeing|visit&key=AIzaSyDAGq_6eJGQpR3RcO0NrVOowel9-DxZkvA`
       );
 
       const radiusData = await radiusResponse.json();
@@ -320,7 +347,7 @@ export const fetchNearbyPlaces = async (
       console.error("API Error:", data.status, data.error_message || "Unknown API error");
       return {
         places: [],
-        furthestDistance: DEFAULT_RADIUS,
+        furthestDistance: dynamicSearchRadius,
       };
     }
 
@@ -328,7 +355,7 @@ export const fetchNearbyPlaces = async (
     if (!data.results || data.results.length === 0) {
       return {
         places: [],
-        furthestDistance: DEFAULT_RADIUS, // Default radius if no places found
+        furthestDistance: dynamicSearchRadius, // Use dynamic radius
       };
     }
 
@@ -368,8 +395,8 @@ export const fetchNearbyPlaces = async (
 
         return scoreDiff;
       })
-      // Limit to MAX_PLACES
-      .slice(0, MAX_PLACES);
+      // Limit to configured MAX_PLACES - USE DYNAMIC VALUE HERE
+      .slice(0, dynamicMaxPlaces);
 
     // Calculate distance to furthest place
     let furthestDistance = 0;
@@ -475,7 +502,7 @@ export const fetchNearbyPlaces = async (
     // Return an empty array and default radius rather than showing an alert
     return {
       places: [],
-      furthestDistance: DEFAULT_RADIUS, // Default radius if error
+      furthestDistance: dynamicSearchRadius, // Use dynamic radius here too
     };
   }
 };
