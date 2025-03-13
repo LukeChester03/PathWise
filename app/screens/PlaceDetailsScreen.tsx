@@ -1407,6 +1407,7 @@ const styles = StyleSheet.create({
     padding: 12,
     borderRadius: 10,
     alignItems: "flex-start",
+    justifyContent: "center",
   },
   didYouKnowIcon: {
     marginRight: 8,

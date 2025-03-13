@@ -39,11 +39,16 @@ export const generatePlaceDescription = async (
     Focus on what makes this place special and interesting to visitors.
     Keep the description informative, engaging, and between 2-3 sentences.
     Don't mention that you're an AI model in the response.
+    
+    Return a JSON object with the following structure:
+    {
+      "description": "Your engaging description here"
+    }
   `;
 
   try {
-    const response = await generateContent({ prompt });
-    return response.trim();
+    const response = await generateContent({ prompt, responseFormat: "json" });
+    return response.description || "";
   } catch (error) {
     console.error("Error generating place description:", error);
     return `${place.name} is a fascinating destination with unique characteristics. Visitors can explore its distinctive features and atmosphere.`;
@@ -70,20 +75,23 @@ export const generateHistoricalFacts = async (
     
     This is a REAL place that exists at the specified location. Research the actual history of this specific location.
     If you're unsure about specific historical details, focus on the general history of the area or region.
-    Format your response as a simple list with each fact on a new line.
     Make each fact 1-2 sentences long.
     Focus on real or plausible historical information.
     Don't mention that you're an AI model in the response.
+    
+    Return a JSON object with the following structure:
+    {
+      "facts": [
+        "First historical fact here",
+        "Second historical fact here",
+        "Third historical fact here"
+      ]
+    }
   `;
 
   try {
-    const response = await generateContent({ prompt });
-    // Split by newlines and clean up empty lines
-    return response
-      .split("\n")
-      .map((fact) => fact.trim())
-      .filter((fact) => fact.length > 0)
-      .slice(0, 3); // Ensure we have at most 3 facts
+    const response = await generateContent({ prompt, responseFormat: "json" });
+    return response.facts || [];
   } catch (error) {
     console.error("Error generating historical facts:", error);
     return [
@@ -114,28 +122,26 @@ export const generateCulturalInsights = async (
     
     This is a REAL place that exists at the specified location. Provide accurate cultural context for this specific place.
     Consider the local community, traditions, architectural style, or cultural significance of this exact location.
-    
-    Format your response as follows:
-    Title: [brief title for the insight]
-    Content: [1-2 sentence insight]
-    
-    Repeat this format for each insight.
     Don't mention that you're an AI model in the response.
+    
+    Return a JSON object with the following structure:
+    {
+      "insights": [
+        {
+          "title": "Brief title for the first insight",
+          "content": "1-2 sentence insight about the cultural aspect"
+        },
+        {
+          "title": "Brief title for the second insight",
+          "content": "1-2 sentence insight about the cultural aspect"
+        }
+      ]
+    }
   `;
 
   try {
-    const response = await generateContent({ prompt });
-    const rawInsights = response.split("Title:").filter((text) => text.trim().length > 0);
-
-    return rawInsights.map((insightText) => {
-      const titleMatch = insightText.match(/(.+?)[\r\n]+Content:/s);
-      const contentMatch = insightText.match(/Content:(.+?)(?:Title:|$)/s);
-
-      return {
-        title: titleMatch ? titleMatch[1].trim() : "Cultural Insight",
-        content: contentMatch ? contentMatch[1].trim() : insightText.trim(),
-      };
-    });
+    const response = await generateContent({ prompt, responseFormat: "json" });
+    return response.insights || [];
   } catch (error) {
     console.error("Error generating cultural insights:", error);
     return [
@@ -170,21 +176,23 @@ export const generateDidYouKnow = async (place: Place | VisitedPlaceDetails): Pr
     This is a REAL place that exists at the specified location. Look for accurate but lesser-known information.
     These should be surprising, lesser-known, or interesting tidbits that would fascinate visitors.
     Consider unique features, little-known history, interesting statistics, or unexpected connections.
-    
-    Format your response as a simple list with each fact on a new line.
     Each fact should be 1-2 sentences long.
-    Don't start each line with "Did you know" - just provide the facts directly.
+    Don't start each fact with "Did you know" - just provide the facts directly.
     Don't mention that you're an AI model in the response.
+    
+    Return a JSON object with the following structure:
+    {
+      "facts": [
+        "First interesting fact here",
+        "Second interesting fact here",
+        "Third interesting fact here"
+      ]
+    }
   `;
 
   try {
-    const response = await generateContent({ prompt });
-    // Split by newlines and clean up empty lines
-    return response
-      .split("\n")
-      .map((fact) => fact.trim())
-      .filter((fact) => fact.length > 0)
-      .slice(0, 3); // Ensure we have at most 3 facts
+    const response = await generateContent({ prompt, responseFormat: "json" });
+    return response.facts || [];
   } catch (error) {
     console.error("Error generating did you know facts:", error);
     return [
@@ -222,20 +230,23 @@ export const generateLocalTips = async (place: Place | VisitedPlaceDetails): Pro
     or how locals typically experience this place.
     
     These tips should be helpful for visitors to make the most of their experience.
-    Format your response as a simple list with each tip on a new line.
     Each tip should be 1-2 sentences long.
     Focus on practical advice about timing, features to notice, or how to best experience the place.
     Don't mention that you're an AI model in the response.
+    
+    Return a JSON object with the following structure:
+    {
+      "tips": [
+        "First practical tip here",
+        "Second practical tip here",
+        "Third practical tip here"
+      ]
+    }
   `;
 
   try {
-    const response = await generateContent({ prompt });
-    // Split by newlines and clean up empty lines
-    return response
-      .split("\n")
-      .map((tip) => tip.trim())
-      .filter((tip) => tip.length > 0)
-      .slice(0, 3); // Ensure we have at most 3 tips
+    const response = await generateContent({ prompt, responseFormat: "json" });
+    return response.tips || [];
   } catch (error) {
     console.error("Error generating local tips:", error);
     return [
@@ -255,9 +266,7 @@ export const askAboutPlace = async (
 ): Promise<string> => {
   const prompt = `
     Answer the following question about "${place.name}":
-    "${question}. For any question not related to ${
-    place.name
-  }, you must respond with "I can only answer questions about ${place.name}""
+    "${question}"
     
     ${place.types ? `The place is categorized as: ${place.types.join(", ")}` : ""}
     ${place.vicinity ? `It's located at: ${place.vicinity}` : ""}
@@ -286,12 +295,20 @@ export const askAboutPlace = async (
     
     Provide a helpful, informative answer in 2-3 sentences.
     If you don't have specific information, provide a reasonable and plausible response based on what you know about the location, place type, and geographic context.
+    If the question is not related to ${
+      place.name
+    }, respond with "I can only answer questions about ${place.name}".
     Don't mention that you're an AI model in the response.
+    
+    Return a JSON object with the following structure:
+    {
+      "answer": "Your helpful response here"
+    }
   `;
 
   try {
-    const response = await generateContent({ prompt });
-    return response.trim();
+    const response = await generateContent({ prompt, responseFormat: "json" });
+    return response.answer || "";
   } catch (error) {
     console.error("Error generating answer to question:", error);
     return `Based on what's typically known about places like ${place.name}, I can offer some insights on your question about ${question}. While specific details may vary, this type of location often has characteristics that would address your query.`;
