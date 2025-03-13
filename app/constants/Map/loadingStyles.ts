@@ -19,14 +19,14 @@ export const loadingStyles = StyleSheet.create({
     width: width * 1.1,
     height: width * 1.1,
     borderRadius: width * 0.55,
-    backgroundColor: "#EDF1F6", // Lighter background color
+    backgroundColor: "#EDF1F6",
     overflow: "hidden",
-    opacity: 0.5, // Reduced opacity
+    opacity: 0.5,
   },
   mapShimmer: {
-    width: width * 0.4, // Thinner shimmer
+    width: width * 0.4,
     height: width * 2,
-    backgroundColor: "rgba(255,255,255,0.35)", // More subtle shimmer
+    backgroundColor: "rgba(255,255,255,0.35)",
     transform: [{ rotate: "45deg" }],
   },
   compassContainer: {
@@ -34,18 +34,18 @@ export const loadingStyles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     zIndex: 0,
-    opacity: 0, // Completely hidden compass
-    display: "none", // Removing from layout entirely
+    opacity: 0,
+    display: "none",
   },
   contentContainer: {
     alignItems: "center",
     zIndex: 10,
-    marginTop: -20, // Adjust vertical positioning
+    marginTop: -20,
   },
   pinContainer: {
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 30, // More space between pin and text
+    marginBottom: 30,
     height: 90,
   },
   pin: {
@@ -56,53 +56,53 @@ export const loadingStyles = StyleSheet.create({
   pinShadow: {
     position: "absolute",
     bottom: 0,
-    width: 20, // Smaller shadow
-    height: 4, // Thinner shadow
+    width: 20,
+    height: 4,
     borderRadius: 10,
-    backgroundColor: "rgba(255, 255, 255, 0.15)", // More subtle shadow
+    backgroundColor: "rgba(255, 255, 255, 0.15)",
     zIndex: 1,
   },
   pulseCircle: {
     position: "absolute",
-    width: 60, // Smaller pulse circle
-    height: 60, // Smaller pulse circle
+    width: 0,
+    height: 0,
     borderRadius: 30,
     backgroundColor: Colors.primary + "15", // More transparent pulse
     zIndex: 2,
   },
   messageContainer: {
     alignItems: "center",
-    marginBottom: 40, // More space between message and dots
+    marginBottom: 40,
   },
   messageText: {
     fontSize: 17,
-    fontWeight: "500", // Lighter font weight
-    color: "#404040", // Slightly darker for better contrast
-    marginBottom: 12, // More space between title and subtitle
+    fontWeight: "500",
+    color: "#404040",
+    marginBottom: 12,
   },
   wordContainer: {
     flexDirection: "row",
     alignItems: "center",
-    height: 26, // Taller to accommodate text
+    height: 26,
     overflow: "hidden",
   },
   findingText: {
-    fontSize: 15, // Slightly smaller text
-    color: NeutralColors.gray400, // Lighter gray
+    fontSize: 15,
+    color: NeutralColors.gray400,
   },
   highlightWord: {
-    fontSize: 15, // Match findingText size
-    fontWeight: "600", // Less bold
+    fontSize: 15,
+    fontWeight: "600",
     color: Colors.primary,
   },
   dotsContainer: {
     flexDirection: "row",
     justifyContent: "center",
-    height: 16, // Smaller height
+    height: 16,
   },
   dot: {
-    width: 8, // Smaller dots
-    height: 8, // Smaller dots
+    width: 8,
+    height: 8,
     borderRadius: 4,
     backgroundColor: Colors.primary + "90",
     marginHorizontal: 4,
