@@ -1,7 +1,7 @@
 // Map.tsx - Using global location and places state
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import MapView, { PROVIDER_DEFAULT, Circle, Marker } from "react-native-maps";
-import { View, StyleSheet, ActivityIndicator, Vibration, Alert, Text } from "react-native";
+import { View, StyleSheet, Vibration, Alert, Text } from "react-native";
 import MapViewDirections from "react-native-maps-directions";
 import MaterialIcon from "react-native-vector-icons/MaterialIcons";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
@@ -29,6 +29,8 @@ import useMapNavigation from "../../hooks/Map/useMapNavigation";
 // Import UI components
 import { CardToggleArrow, EndJourneyButton, DirectionIndicator } from "./MapControls";
 import { ViewModeToggle } from "./ViewModeToggle";
+import MapLoading from "./MapLoading";
+
 // Import cards
 import ExploreCard from "./ExploreCard";
 import DetailsCard from "./DetailsCard";
@@ -560,14 +562,9 @@ const Map: React.FC = () => {
     console.log("View details for:", places.selectedPlace?.name);
   };
 
-  // Show loading indicator while initializing
+  // Show enhanced loading screen while initializing
   if (loading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={Colors.primary} />
-        <Text style={styles.loadingText}>Loading map...</Text>
-      </View>
-    );
+    return <MapLoading />;
   }
 
   // Only display the selected place marker if journey is started
@@ -608,28 +605,6 @@ const Map: React.FC = () => {
           }
         }}
       >
-        {/* {location.userLocation && location.userHeading !== null && (
-          <Marker
-            coordinate={location.userLocation}
-            anchor={{ x: 0.5, y: 0.5 }}
-            rotation={location.userHeading}
-            flat={true}
-            zIndex={1000}
-          >
-            <DirectionIndicator />
-          </Marker>
-        )} */}
-        {/* Display radius circle around user location */}
-        {/* {location.userLocation && (
-          <Circle
-            center={location.userLocation}
-            radius={places.circleRadius}
-            strokeColor={Colors.primary}
-            strokeWidth={2}
-            fillColor={`${Colors.primary}10`}
-          />
-        )} */}
-
         {/* User direction indicator */}
         {journeyStarted && location.userLocation && location.userHeading !== null && (
           <Marker
@@ -825,20 +800,10 @@ const Map: React.FC = () => {
   );
 };
 
-// Styles
+// Map component styles
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  loadingText: {
-    marginTop: 10,
-    fontSize: 16,
-    color: Colors.primary,
   },
   map: {
     width: "100%",
