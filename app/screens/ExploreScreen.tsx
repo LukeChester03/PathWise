@@ -650,9 +650,9 @@ const ExploreScreen: React.FC<ExploreScreenProps> = ({ navigation }) => {
         />
 
         {/* Search Bar */}
-        <View style={styles.searchBarContainer}>
+        {/* <View style={styles.searchBarContainer}>
           <SearchBar value={searchQuery} onChangeText={setSearchQuery} onSearch={handleSearch} />
-        </View>
+        </View> */}
 
         {renderContent()}
       </SafeAreaView>

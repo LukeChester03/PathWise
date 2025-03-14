@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { View, StyleSheet, Dimensions, TouchableOpacity, Alert } from "react-native";
 import { globalStyles } from "../constants/globalStyles";
 import Map from "../components/Map/Map";
+import MapErrorBoundary from "../components/Map/MapErrorBoundary";
 import ScreenWithNavBar from "../components/Global/ScreenWithNavbar";
 import Header from "../components/Global/Header";
 import { Colors } from "../constants/colours";
@@ -19,6 +20,7 @@ const MapScreen = () => {
   const [showHelpModal, setShowHelpModal] = useState(false);
   const [showDistanceSettingsModal, setShowDistanceSettingsModal] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [mapKey, setMapKey] = useState(0);
 
   // Map settings state - initialize from settings controller
   const initialSettings = getMapSettings();
@@ -53,6 +55,10 @@ const MapScreen = () => {
   const handleCloseSettingsModal = () => {
     setShowDistanceSettingsModal(false);
   };
+
+  const handleMapRetry = useCallback(() => {
+    setMapKey((prev) => prev + 1);
+  }, []);
 
   // Handle saving map settings and refreshing the map
   const handleSaveSettings = (newMaxPlaces: number, newSearchRadius: number): void => {
@@ -142,11 +148,9 @@ const MapScreen = () => {
           showHelp={true}
         />
         <View style={styles.mapContainer}>
-          {/* Use the key to force re-render when settings change */}
-          <Map
-            key={refreshKey}
-            // No ref needed
-          />
+          <MapErrorBoundary onRetry={handleMapRetry}>
+            <Map key={`${refreshKey}-${mapKey}`} />
+          </MapErrorBoundary>
         </View>
       </View>
 
