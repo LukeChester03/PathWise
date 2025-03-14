@@ -1,4 +1,3 @@
-// screens/PlaceDetailsScreen.tsx
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import {
   View,
@@ -12,6 +11,7 @@ import {
   Share,
   Platform,
   Dimensions,
+  Linking,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
@@ -25,21 +25,24 @@ import { Place, VisitedPlaceDetails } from "../types/MapTypes";
 // Handlers
 import { getVisitedPlaceDetails } from "../handlers/Map/visitedPlacesHandlers";
 
-// Components
+// Original Components
 import TruncatedText from "../components/PlaceDetails/TruncatedText";
 import CollapsibleCard from "../components/PlaceDetails/CollapsibleCard";
 import PlaceHeroHeader from "../components/PlaceDetails/PlaceHeroHeader";
 import PlaceTitle from "../components/PlaceDetails/PlaceTitle";
 import PlaceBadges from "../components/PlaceDetails/PlaceBadges";
-import AddressSection from "../components/PlaceDetails/AddressSection";
 import DiscoveryDetailsSection from "../components/PlaceDetails/DiscoveryDetails";
-import HistoricalFactsSection from "../components/PlaceDetails/HistoricalFactsSection";
-import DidYouKnowSection from "../components/PlaceDetails/DidYouKnowSection";
-import ContactInfoSection from "../components/PlaceDetails/ContactInfoSection";
-import OpeningHoursSection from "../components/PlaceDetails/OpeningHoursSection";
 import AskAiSection from "../components/PlaceDetails/AskAISection";
 import LocalTipsSection from "../components/PlaceDetails/LocalTipsSection";
 import NavigateButton from "../components/PlaceDetails/NavigateButton";
+
+// New Components
+import FeatureGrid from "../components/PlaceDetails/FeatureGrid";
+import AddressMapPreview from "../components/PlaceDetails/AddressMapPreview";
+import OpeningHoursCard from "../components/PlaceDetails/OpeningHoursCard";
+import HistoricalTimeline from "../components/PlaceDetails/HistoricalTimeline";
+import ContactInfoCard from "../components/PlaceDetails/ContactInfoCard";
+import DidYouKnowCards from "../components/PlaceDetails/DidYouKnowCards";
 
 // Hooks
 import { useAiContent } from "../hooks/AI/useAIContent";
@@ -175,6 +178,7 @@ const PlaceDetailsScreen: React.FC = () => {
                   lng: 0,
                 },
               },
+              website: null, // Add these required properties to satisfy the type
             } as Place);
           }
         } catch (error) {
@@ -193,46 +197,132 @@ const PlaceDetailsScreen: React.FC = () => {
     navigation.goBack();
   };
 
-  console.log(placeDetails);
   // Handle share button press
   const handleShare = async () => {
-    if (placeDetails) {
-      try {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-        const shareMsg = `Check out ${placeDetails.name} I discovered!`;
-        const shareUrl =
-          placeDetails.url ||
-          `https://maps.google.com/?q=${placeDetails.geometry.location.lat},${placeDetails.geometry.location.lng}`;
+    if (!placeDetails) return;
 
-        await Share.share({
-          message: Platform.OS === "ios" ? shareMsg : `${shareMsg} ${shareUrl}`,
-          url: shareUrl, // iOS only
-        });
-      } catch (error) {
-        console.error("Error sharing place:", error);
-      }
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      const shareMsg = `Check out ${placeDetails.name} I discovered!`;
+      const shareUrl =
+        placeDetails.url ||
+        `https://maps.google.com/?q=${placeDetails.geometry.location.lat},${placeDetails.geometry.location.lng}`;
+
+      await Share.share({
+        message: Platform.OS === "ios" ? shareMsg : `${shareMsg} ${shareUrl}`,
+        url: shareUrl, // iOS only
+      });
+    } catch (error) {
+      console.error("Error sharing place:", error);
     }
   };
 
   // Handle navigation to the place
   const handleNavigateToPlace = () => {
-    if (placeDetails) {
+    if (!placeDetails) return;
+
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    // Navigate back to the map screen with the place to navigate to
+    navigation.navigate(
+      "Discover" as any,
+      {
+        navigateToPlace: placeDetails,
+      } as any
+    );
+  };
+
+  // Handle phone call
+  const handleCallPress = () => {
+    if (placeDetails?.formatted_phone_number) {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      // Navigate back to the map screen with the place to navigate to
-      navigation.navigate(
-        "Discover" as any,
-        {
-          navigateToPlace: placeDetails,
-        } as any
-      );
+      Linking.openURL(`tel:${placeDetails.formatted_phone_number}`);
     }
   };
 
-  const visitDate = placeDetails
-    ? "visitedAt" in placeDetails
-      ? formatVisitDate(placeDetails as VisitedPlaceDetails)
-      : null
-    : null;
+  // Handle website visit
+  const handleWebsitePress = () => {
+    if (placeDetails?.website) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      Linking.openURL(placeDetails.website);
+    }
+  };
+
+  // Define feature grid actions
+  const getFeatureActions = () => {
+    if (!placeDetails) return [];
+
+    const actions = [
+      {
+        title: "Navigate",
+        icon: "navigate",
+        onPress: handleNavigateToPlace,
+        color: "#4CAF50", // Green
+      },
+      {
+        title: "Share",
+        icon: "share-social",
+        onPress: handleShare,
+        color: "#FF9800", // Orange
+      },
+    ];
+
+    // Add phone action if available
+    if (placeDetails.formatted_phone_number) {
+      actions.push({
+        title: "Call",
+        icon: "call",
+        onPress: handleCallPress,
+        color: "#2196F3", // Blue
+      });
+    }
+
+    // Add website action if available
+    if (placeDetails.website) {
+      actions.push({
+        title: "Website",
+        icon: "globe",
+        onPress: handleWebsitePress,
+        color: "#9C27B0", // Purple
+      });
+    }
+
+    return actions;
+  };
+
+  // Check if the place has a visit date (for visited places)
+  const hasVisitDate = placeDetails && "visitedAt" in placeDetails && placeDetails.visitedAt;
+  const visitDate = hasVisitDate ? formatVisitDate(placeDetails as VisitedPlaceDetails) : null;
+
+  // Has opening hours
+  const hasOpeningHours =
+    placeDetails &&
+    "opening_hours" in placeDetails &&
+    placeDetails.opening_hours?.weekday_text &&
+    Array.isArray(placeDetails.opening_hours.weekday_text) &&
+    placeDetails.opening_hours.weekday_text.length > 0;
+
+  // Has contact info
+  const hasContactInfo =
+    placeDetails && (placeDetails.formatted_phone_number || placeDetails.website);
+
+  // Has historical facts
+  const hasHistoricalFacts =
+    !aiContentError &&
+    sectionsVisible &&
+    aiContent?.historicalFacts &&
+    aiContent.historicalFacts.length > 0;
+
+  // Has "Did You Know" facts
+  const hasDidYouKnow =
+    !aiContentError && sectionsVisible && aiContent?.didYouKnow && aiContent.didYouKnow.length > 0;
+
+  // Has local tips
+  const hasLocalTips =
+    !aiContentError &&
+    !aiContent?.isGenerating &&
+    aiContent?.localTips &&
+    aiContent.localTips.length > 0 &&
+    sectionsVisible;
 
   if (loading) {
     return (
@@ -305,7 +395,6 @@ const PlaceDetailsScreen: React.FC = () => {
             borderTopRightRadius: animations.contentBorderRadius,
           },
         ]}
-        // This doesn't need to re-render on every frame
         shouldRasterizeIOS={true}
         renderToHardwareTextureAndroid={true}
       >
@@ -344,6 +433,11 @@ const PlaceDetailsScreen: React.FC = () => {
             />
           </View>
 
+          {/* Feature Grid for quick actions - New Component */}
+          <View style={{ marginBottom: dynamicStyles.spacing.cardMargin }}>
+            <FeatureGrid features={getFeatureActions()} />
+          </View>
+
           {/* AI-Enhanced Description Card */}
           <CollapsibleCard
             title="Description"
@@ -374,15 +468,10 @@ const PlaceDetailsScreen: React.FC = () => {
             </View>
           </CollapsibleCard>
 
-          {/* Address */}
-          <CollapsibleCard
-            title="Address"
-            icon="location"
-            index={1}
-            style={{ marginBottom: dynamicStyles.spacing.cardMargin }}
-          >
-            <AddressSection placeDetails={placeDetails} fontSize={dynamicStyles.fontSize} />
-          </CollapsibleCard>
+          {/* Address Map Preview - New Component */}
+          <View style={{ marginBottom: dynamicStyles.spacing.cardMargin }}>
+            <AddressMapPreview placeDetails={placeDetails} fontSize={dynamicStyles.fontSize} />
+          </View>
 
           {/* Visit Info (if place was visited) */}
           {visitDate && (
@@ -399,66 +488,43 @@ const PlaceDetailsScreen: React.FC = () => {
             </CollapsibleCard>
           )}
 
-          {/* AI-Generated Historical Facts */}
-          {!aiContentError && sectionsVisible && (
-            <CollapsibleCard
-              title="Historical Facts"
-              icon="time"
-              index={3}
-              showAiBadge={true}
-              style={{ marginBottom: dynamicStyles.spacing.cardMargin }}
-            >
-              <HistoricalFactsSection aiContent={aiContent} fontSize={dynamicStyles.fontSize} />
-            </CollapsibleCard>
+          {/* Historical Facts Timeline - New Component */}
+          {hasHistoricalFacts && (
+            <View style={{ marginBottom: dynamicStyles.spacing.cardMargin }}>
+              <HistoricalTimeline aiContent={aiContent} fontSize={dynamicStyles.fontSize} />
+            </View>
           )}
 
-          {/* Did You Know Section */}
-          {!aiContentError && sectionsVisible && (
-            <CollapsibleCard
-              title="Did You Know?"
-              icon="bulb"
-              index={4}
-              showAiBadge={true}
-              style={{ marginBottom: dynamicStyles.spacing.cardMargin }}
-            >
-              <DidYouKnowSection
+          {/* Did You Know Cards - New Component */}
+          {hasDidYouKnow && (
+            <View style={{ marginBottom: dynamicStyles.spacing.cardMargin }}>
+              <DidYouKnowCards
                 aiContent={aiContent}
                 fontSize={dynamicStyles.fontSize}
                 iconSize={dynamicStyles.iconSize}
               />
-            </CollapsibleCard>
+            </View>
           )}
 
-          {/* Contact Information */}
-          {("formatted_phone_number" in placeDetails && placeDetails.formatted_phone_number) ||
-          ("website" in placeDetails && placeDetails.website) ? (
-            <CollapsibleCard
-              title="Contact"
-              icon="call"
-              index={5}
-              style={{ marginBottom: dynamicStyles.spacing.cardMargin }}
-            >
-              <ContactInfoSection
+          {/* Contact Information Card - New Component */}
+          {hasContactInfo && (
+            <View style={{ marginBottom: dynamicStyles.spacing.cardMargin }}>
+              <ContactInfoCard
                 placeDetails={placeDetails}
                 fontSize={dynamicStyles.fontSize}
                 iconSize={dynamicStyles.iconSize}
               />
-            </CollapsibleCard>
-          ) : null}
-
-          {/* Opening Hours */}
-          {"opening_hours" in placeDetails && placeDetails.opening_hours?.weekday_text && (
-            <CollapsibleCard
-              title="Opening Hours"
-              icon="time-outline"
-              index={6}
-              style={{ marginBottom: dynamicStyles.spacing.cardMargin }}
-            >
-              <OpeningHoursSection placeDetails={placeDetails} fontSize={dynamicStyles.fontSize} />
-            </CollapsibleCard>
+            </View>
           )}
 
-          {/* Ask AI Section */}
+          {/* Opening Hours Card - New Component */}
+          {hasOpeningHours && (
+            <View style={{ marginBottom: dynamicStyles.spacing.cardMargin }}>
+              <OpeningHoursCard placeDetails={placeDetails} fontSize={dynamicStyles.fontSize} />
+            </View>
+          )}
+
+          {/* Ask AI Section - Keep as CollapsibleCard since it's interactive */}
           <CollapsibleCard
             title="Ask About This Place"
             icon="chatbubble-ellipses"
@@ -473,29 +539,17 @@ const PlaceDetailsScreen: React.FC = () => {
             />
           </CollapsibleCard>
 
-          {/* Local Tips Section */}
-          {!aiContentError &&
-            !aiContent?.isGenerating &&
-            aiContent?.localTips.length > 0 &&
-            sectionsVisible && (
-              <CollapsibleCard
-                title="Local Tips"
-                icon="flash"
-                index={8}
-                showAiBadge={true}
-                style={{ marginBottom: dynamicStyles.spacing.cardMargin }}
-              >
-                <LocalTipsSection aiContent={aiContent} fontSize={dynamicStyles.fontSize} />
-              </CollapsibleCard>
-            )}
-
-          {/* Navigation Button */}
-          <NavigateButton
-            fadeAnim={new Animated.Value(1)}
-            translateY={new Animated.Value(0)}
-            iconSize={dynamicStyles.iconSize}
-            onPress={handleNavigateToPlace}
-          />
+          {/* Local Tips Section - Keep as CollapsibleCard since it works well with the list */}
+          {hasLocalTips && (
+            <CollapsibleCard
+              title="Local Tips"
+              icon="flash"
+              index={8}
+              style={{ marginBottom: dynamicStyles.spacing.cardMargin }}
+            >
+              <LocalTipsSection aiContent={aiContent} fontSize={dynamicStyles.fontSize} />
+            </CollapsibleCard>
+          )}
 
           {/* Bottom Padding */}
           <View style={styles.bottomPadding} />
@@ -584,7 +638,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingTop: 24,
-    paddingBottom: 40,
+    paddingBottom: 80, // Increased bottom padding
   },
   titleContainer: {
     marginBottom: 20,
@@ -625,7 +679,7 @@ const styles = StyleSheet.create({
     ...cardShadow,
   },
   bottomPadding: {
-    height: 30,
+    height: 100, // Significantly increased from 30 to 100
   },
   fixedNavHeader: {
     position: "absolute",
