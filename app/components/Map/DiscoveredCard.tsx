@@ -359,7 +359,7 @@ const DiscoveredCard: React.FC<DiscoveredCardProps> = ({
           {/* Header Image */}
           <View style={styles.imageContainer}>
             <Animated.Image
-              source={placeImage ? { uri: placeImage } : require("../../assets/discover.png")}
+              source={{ uri: placeImage }}
               style={[
                 styles.headerImage,
                 {
@@ -374,7 +374,6 @@ const DiscoveredCard: React.FC<DiscoveredCardProps> = ({
                   ],
                 },
               ]}
-              defaultSource={require("../../assets/discover.png")}
             />
             <LinearGradient
               colors={["transparent", "rgba(0,0,0,0.8)"]}
