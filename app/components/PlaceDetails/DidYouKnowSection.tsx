@@ -10,12 +10,12 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import { Colors } from "../../constants/colours";
+import { Colors, NeutralColors } from "../../constants/colours";
 import { AiGeneratedContent } from "../../services/Gemini/placeAiService";
 import TruncatedText from "./TruncatedText";
 
-// Constants for description truncation
-const MAX_INSIGHT_CHARS = 80;
+// Constants for truncation
+const MAX_INSIGHT_CHARS = 100;
 
 interface DidYouKnowSectionProps {
   aiContent: AiGeneratedContent | null;
@@ -39,16 +39,23 @@ const DidYouKnowSection: React.FC<DidYouKnowSectionProps> = ({ aiContent, fontSi
     );
   }
 
+  if (!aiContent?.didYouKnow || aiContent.didYouKnow.length === 0) {
+    return null;
+  }
+
+  // Decide how many facts to show
+  const factsToShow = showFullContent ? aiContent.didYouKnow : aiContent.didYouKnow.slice(0, 2);
+
+  const toggleContent = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setShowFullContent(!showFullContent);
+  };
+
   return (
     <View style={styles.didYouKnowContainer}>
-      {aiContent?.didYouKnow.slice(0, showFullContent ? undefined : 2).map((fact, index) => (
+      {factsToShow.map((fact, index) => (
         <View key={index} style={styles.didYouKnowItem}>
-          <Ionicons
-            name="information-circle"
-            size={iconSize.normal}
-            color={Colors.primary}
-            style={styles.didYouKnowIcon}
-          />
           <TruncatedText
             text={fact}
             maxChars={MAX_INSIGHT_CHARS}
@@ -57,17 +64,16 @@ const DidYouKnowSection: React.FC<DidYouKnowSectionProps> = ({ aiContent, fontSi
         </View>
       ))}
 
-      {!showFullContent && aiContent?.didYouKnow.length > 2 && (
-        <TouchableOpacity
-          style={styles.seeMoreButton}
-          onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-            setShowFullContent(true);
-          }}
-        >
-          <Text style={styles.seeMoreText}>Show more facts</Text>
-          <Ionicons name="chevron-down" size={16} color={Colors.primary} />
+      {aiContent.didYouKnow.length > 2 && (
+        <TouchableOpacity style={styles.seeMoreButton} onPress={toggleContent}>
+          <Text style={styles.seeMoreText}>
+            {showFullContent ? "Show fewer facts" : "Show more facts"}
+          </Text>
+          <Ionicons
+            name={showFullContent ? "chevron-up" : "chevron-down"}
+            size={16}
+            color={Colors.primary}
+          />
         </TouchableOpacity>
       )}
     </View>
@@ -87,38 +93,30 @@ const styles = StyleSheet.create({
     color: "#777",
   },
   didYouKnowContainer: {
-    marginTop: 6,
+    paddingVertical: 4,
   },
   didYouKnowItem: {
-    flexDirection: "row",
     marginBottom: 12,
-    backgroundColor: "#f1f7ff",
-    padding: 24,
-    paddingHorizontal: 24,
+    backgroundColor: "#f6f6f8",
+    padding: 14,
     borderRadius: 10,
-    alignItems: "flex-start",
-    justifyContent: "center",
-  },
-  didYouKnowIcon: {
-    marginRight: 8,
-    marginTop: 1,
   },
   didYouKnowText: {
-    color: "#444",
+    color: Colors.text,
     flex: 1,
-    lineHeight: 20,
+    lineHeight: 22,
   },
   seeMoreButton: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    padding: 6,
+    padding: 8,
     marginTop: 4,
   },
   seeMoreText: {
-    fontSize: 13,
+    fontSize: 14,
     color: Colors.primary,
-    fontWeight: "600",
+    fontWeight: "500",
     marginRight: 4,
   },
 });

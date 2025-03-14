@@ -1,6 +1,14 @@
 // components/PlaceHeroHeader.tsx
-import React from "react";
-import { View, Text, StyleSheet, TouchableOpacity, Animated, Platform } from "react-native";
+import React, { useMemo } from "react";
+import {
+  View,
+  StyleSheet,
+  TouchableOpacity,
+  Animated,
+  Platform,
+  StatusBar,
+  Image,
+} from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { GOOGLE_MAPS_APIKEY } from "../../constants/Map/mapConstants";
@@ -9,9 +17,6 @@ import { Place, VisitedPlaceDetails } from "../../types/MapTypes";
 interface PlaceHeroHeaderProps {
   placeDetails: Place | VisitedPlaceDetails;
   scrollY: Animated.Value;
-  headerOpacity: Animated.Value;
-  imageScale: Animated.Value;
-  animationsReady: boolean;
   dynamicStyles: {
     heroHeight: number;
     iconSize: {
@@ -25,15 +30,12 @@ interface PlaceHeroHeaderProps {
 const PlaceHeroHeader: React.FC<PlaceHeroHeaderProps> = ({
   placeDetails,
   scrollY,
-  headerOpacity,
-  imageScale,
-  animationsReady,
   dynamicStyles,
   onBackPress,
   onShare,
 }) => {
-  // Get photo URL
-  const getPhotoUrl = () => {
+  // Get photo URL - memoize to prevent recalculation on re-renders
+  const photoUrl = useMemo(() => {
     if (!placeDetails) return "";
 
     if (
@@ -43,84 +45,60 @@ const PlaceHeroHeader: React.FC<PlaceHeroHeaderProps> = ({
     ) {
       return `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photoreference=${placeDetails.photos[0].photo_reference}&key=${GOOGLE_MAPS_APIKEY}`;
     }
-    return `https://via.placeholder.com/800x400/f0f0f0/666666?text=${encodeURIComponent(
+    return `https://via.placeholder.com/800x400/f5f5f5/999999?text=${encodeURIComponent(
       placeDetails.name?.substring(0, 15) || "Place"
     )}`;
-  };
-
-  // Calculate animation values
-  const headerTranslateY = scrollY.interpolate({
-    inputRange: [0, 80],
-    outputRange: [0, -50],
-    extrapolate: "clamp",
-  });
-
-  const imageTranslateY = scrollY.interpolate({
-    inputRange: [0, 200],
-    outputRange: [0, 60],
-    extrapolate: "clamp",
-  });
-
-  const imageOpacity = scrollY.interpolate({
-    inputRange: [0, 150, 250],
-    outputRange: [1, 0.8, 0.6],
-    extrapolate: "clamp",
-  });
-
-  const headerTitleOpacity = scrollY.interpolate({
-    inputRange: [0, 70, 100],
-    outputRange: [0, 0.7, 1],
-    extrapolate: "clamp",
-  });
+  }, [placeDetails]);
 
   return (
     <>
-      {/* Animated Hero Image with Scale and Parallax */}
-      <Animated.View
-        style={[
-          styles.heroContainer,
-          {
-            height: dynamicStyles.heroHeight,
-            transform: [{ scale: imageScale }, { translateY: imageTranslateY }],
-            opacity: imageOpacity,
-          },
-        ]}
-      >
-        <Animated.Image
-          source={{ uri: getPhotoUrl() }}
-          style={[styles.heroImage, { opacity: animationsReady ? 1 : 0 }]}
+      {/* Hero Image Container */}
+      <View style={[styles.heroContainer, { height: dynamicStyles.heroHeight }]}>
+        <Image
+          source={{ uri: photoUrl }}
+          style={styles.heroImage}
+          resizeMode="cover"
+          // These properties improve image loading performance
+          fadeDuration={300}
+          progressiveRenderingEnabled={true}
         />
+
+        {/* Darker gradient overlay for better text readability */}
         <LinearGradient
-          colors={["rgba(0,0,0,0.7)", "rgba(0,0,0,0.4)", "rgba(0,0,0,0)"]}
-          style={styles.headerGradient}
+          colors={["rgba(0,0,0,0.5)", "rgba(0,0,0,0.3)", "rgba(0,0,0,0.1)", "rgba(0,0,0,0.4)"]}
+          locations={[0, 0.3, 0.7, 1]}
+          style={styles.fullGradient}
+          // Added for performance
+          shouldRasterizeIOS={true}
         />
-      </Animated.View>
+      </View>
 
-      {/* Floating header with back button, title and share button */}
-      <Animated.View
-        style={[
-          styles.floatingHeader,
-          {
-            transform: [{ translateY: headerTranslateY }],
-            opacity: headerOpacity,
-          },
-        ]}
-      >
-        <TouchableOpacity style={styles.backButton} onPress={onBackPress} activeOpacity={0.7}>
-          <Ionicons name="arrow-back" size={dynamicStyles.iconSize.header} color="#fff" />
-        </TouchableOpacity>
+      {/* Header navigation buttons */}
+      <View style={styles.headerContainer}>
+        <View style={styles.headerContent}>
+          {/* Back Button */}
+          <TouchableOpacity
+            style={styles.headerButton}
+            onPress={onBackPress}
+            activeOpacity={0.7}
+            // Improved touch handling
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Ionicons name="arrow-back" size={dynamicStyles.iconSize.header} color="#fff" />
+          </TouchableOpacity>
 
-        <Animated.Text
-          style={[styles.headerTitle, { opacity: headerTitleOpacity }]}
-          numberOfLines={1}
-        >
-          {placeDetails.name}
-        </Animated.Text>
-
-        <TouchableOpacity style={styles.shareButton} onPress={onShare} activeOpacity={0.7}>
-          <Ionicons name="share-outline" size={dynamicStyles.iconSize.header} color="#fff" />
-        </TouchableOpacity>
-      </Animated.View>
+          {/* Share Button */}
+          <TouchableOpacity
+            style={styles.headerButton}
+            onPress={onShare}
+            activeOpacity={0.7}
+            // Improved touch handling
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Ionicons name="share-outline" size={dynamicStyles.iconSize.header} color="#fff" />
+          </TouchableOpacity>
+        </View>
+      </View>
     </>
   );
 };
@@ -128,73 +106,43 @@ const PlaceHeroHeader: React.FC<PlaceHeroHeaderProps> = ({
 const styles = StyleSheet.create({
   heroContainer: {
     width: "100%",
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    zIndex: 1,
+    overflow: "hidden", // Prevent image from overflowing during animations
   },
   heroImage: {
     width: "100%",
     height: "100%",
-    resizeMode: "cover",
+    backgroundColor: "#f0f0f0",
   },
-  headerGradient: {
+  fullGradient: {
     position: "absolute",
     top: 0,
     left: 0,
     right: 0,
-    height: 150,
+    bottom: 0,
   },
-  floatingHeader: {
+  headerContainer: {
     position: "absolute",
     top: 0,
     left: 0,
     right: 0,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: 16,
-    paddingTop: Platform.OS === "ios" ? 50 : 16,
     zIndex: 10,
+    paddingTop: Platform.OS === "ios" ? StatusBar.currentHeight || 40 : 16,
   },
-  headerTitle: {
-    color: "#fff",
-    fontSize: 17,
-    fontWeight: "600",
-    flex: 1,
-    textAlign: "center",
-    marginHorizontal: 10,
-    textShadowColor: "rgba(0,0,0,0.5)",
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
+  headerContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    height: 50,
   },
-  backButton: {
-    borderRadius: 18,
+  headerButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: "rgba(0,0,0,0.3)",
     justifyContent: "center",
     alignItems: "center",
-    width: 36,
-    height: 36,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    elevation: 3,
-  },
-  shareButton: {
-    borderRadius: 18,
-    backgroundColor: "rgba(0,0,0,0.3)",
-    justifyContent: "center",
-    alignItems: "center",
-    width: 36,
-    height: 36,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    elevation: 3,
   },
 });
 
-export default PlaceHeroHeader;
+export default React.memo(PlaceHeroHeader); // Use memo to prevent unnecessary re-renders

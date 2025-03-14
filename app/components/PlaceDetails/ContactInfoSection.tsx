@@ -1,6 +1,6 @@
 // components/ContactInfoSection.tsx
 import React from "react";
-import { View, Text, StyleSheet } from "react-native";
+import { View, Text, StyleSheet, Linking, TouchableOpacity } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Colors } from "../../constants/colours";
 import { Place, VisitedPlaceDetails } from "../../types/MapTypes";
@@ -21,18 +21,38 @@ const ContactInfoSection: React.FC<ContactInfoSectionProps> = ({
   iconSize,
 }) => {
   // Check if contact info exists
-  const hasPhone = "formatted_phone_number" in placeDetails && placeDetails.formatted_phone_number;
+  const hasPhone =
+    placeDetails.formatted_phone_number && placeDetails.formatted_phone_number.length > 0;
+  const hasWebsite = placeDetails.website && placeDetails.website.length > 0;
 
-  const hasWebsite = "website" in placeDetails && placeDetails.website;
+  // Handle phone call
+  const handleCallPress = () => {
+    if (placeDetails.formatted_phone_number) {
+      Linking.openURL(`tel:${placeDetails.formatted_phone_number}`);
+    }
+  };
+
+  // Handle website visit
+  const handleWebsitePress = () => {
+    if (placeDetails.website) {
+      Linking.openURL(placeDetails.website);
+    }
+  };
 
   if (!hasPhone && !hasWebsite) {
-    return null;
+    return (
+      <View style={styles.emptyContainer}>
+        <Text style={[styles.emptyText, { fontSize: fontSize.body }]}>
+          No contact information available
+        </Text>
+      </View>
+    );
   }
 
   return (
     <>
       {hasPhone && (
-        <View style={styles.contactContainer}>
+        <TouchableOpacity style={styles.contactContainer} onPress={handleCallPress}>
           <Ionicons
             name="call"
             size={iconSize.small}
@@ -42,21 +62,24 @@ const ContactInfoSection: React.FC<ContactInfoSectionProps> = ({
           <Text style={[styles.contactText, { fontSize: fontSize.body }]}>
             {placeDetails.formatted_phone_number}
           </Text>
-        </View>
+        </TouchableOpacity>
       )}
 
       {hasWebsite && (
-        <View style={styles.contactContainer}>
+        <TouchableOpacity style={styles.contactContainer} onPress={handleWebsitePress}>
           <Ionicons
             name="globe"
             size={iconSize.small}
             color={Colors.primary}
             style={styles.contactIcon}
           />
-          <Text style={[styles.contactText, { fontSize: fontSize.body }]} numberOfLines={1}>
+          <Text
+            style={[styles.contactText, styles.linkText, { fontSize: fontSize.body }]}
+            numberOfLines={1}
+          >
             {placeDetails.website}
           </Text>
-        </View>
+        </TouchableOpacity>
       )}
     </>
   );
@@ -67,6 +90,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     marginBottom: 10,
+    paddingVertical: 6,
   },
   contactText: {
     color: "#444",
@@ -74,6 +98,16 @@ const styles = StyleSheet.create({
   },
   contactIcon: {
     marginRight: 8,
+  },
+  linkText: {
+    color: Colors.primary,
+  },
+  emptyContainer: {
+    padding: 10,
+    alignItems: "center",
+  },
+  emptyText: {
+    color: "#777",
   },
 });
 

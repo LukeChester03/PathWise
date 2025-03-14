@@ -38,16 +38,22 @@ export interface OpeningHours {
   weekday_text?: string[];
 }
 
+// Editorial summary definition that can be reused
+export interface EditorialSummary {
+  overview?: string;
+  language?: string;
+}
+
 export interface Place {
   place_id: string;
   id?: string;
   name: string;
   address?: string;
-  formatted_address?: string; // API sometimes returns this format
+  formatted_address?: string;
   phone?: string;
-  formatted_phone_number?: string; // API sometimes returns this format
-  website?: string;
-  url?: string; // Google Maps URL
+  formatted_phone_number?: string;
+  website: string | null;
+  url?: string;
   geometry: {
     location: {
       lat: number;
@@ -81,6 +87,7 @@ export interface Place {
   distance?: number; // Distance from user in meters
   isVisited?: boolean; // Flag to indicate if the place has been visited
   visitedAt?: string; // Timestamp when the place was visited
+  editorial_summary?: EditorialSummary; // Add this here so it's available across the app
 }
 
 export interface PlaceDetails {
@@ -113,10 +120,7 @@ export interface PlaceDetails {
     photos?: PhotoReference[];
     opening_hours?: OpeningHours;
     price_level?: number;
-    editorial_summary?: {
-      overview: string;
-      language: string;
-    };
+    editorial_summary?: EditorialSummary; // Updated to use the common interface
     desc?: string; // For backward compatibility
     types?: string[];
     address_components?: {

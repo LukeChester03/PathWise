@@ -37,6 +37,7 @@ export const generatePlaceDescription = async (
     
     This is a REAL place that exists at the specified location. Be accurate and specific when describing this place.
     Focus on what makes this place special and interesting to visitors.
+    No need to repeat the name of the place again.
     Keep the description informative, engaging, and between 2-3 sentences.
     Don't mention that you're an AI model in the response.
     
@@ -162,7 +163,7 @@ export const generateCulturalInsights = async (
  */
 export const generateDidYouKnow = async (place: Place | VisitedPlaceDetails): Promise<string[]> => {
   const prompt = `
-    Generate 3 interesting "Did You Know" facts about "${place.name}".
+    Generate up to 3 interesting "Did You Know" facts about "${place.name}".
     ${place.types ? `It's categorized as: ${place.types.join(", ")}` : ""}
     ${place.vicinity ? `It's located at: ${place.vicinity}` : ""}
     ${place.formatted_address ? `Full address: ${place.formatted_address}` : ""}
@@ -178,6 +179,7 @@ export const generateDidYouKnow = async (place: Place | VisitedPlaceDetails): Pr
     Consider unique features, little-known history, interesting statistics, or unexpected connections.
     Each fact should be 1-2 sentences long.
     Don't start each fact with "Did you know" - just provide the facts directly.
+    Only provide these facts if you are fully confident that they are accurate and real.
     Don't mention that you're an AI model in the response.
     
     Return a JSON object with the following structure:
@@ -208,7 +210,7 @@ export const generateDidYouKnow = async (place: Place | VisitedPlaceDetails): Pr
  */
 export const generateLocalTips = async (place: Place | VisitedPlaceDetails): Promise<string[]> => {
   const prompt = `
-    Generate 3 practical tips for visitors to "${place.name}".
+    Generate up to 3 practical tips for visitors to "${place.name}".
     ${place.types ? `It's categorized as: ${place.types.join(", ")}` : ""}
     ${place.vicinity ? `It's located at: ${place.vicinity}` : ""}
     ${place.formatted_address ? `Full address: ${place.formatted_address}` : ""}
@@ -230,7 +232,7 @@ export const generateLocalTips = async (place: Place | VisitedPlaceDetails): Pro
     or how locals typically experience this place.
     
     These tips should be helpful for visitors to make the most of their experience.
-    Each tip should be 1-2 sentences long.
+    Each tip should be 1-2 sentences long. Only provide tips if you are confident in your response.
     Focus on practical advice about timing, features to notice, or how to best experience the place.
     Don't mention that you're an AI model in the response.
     
@@ -323,10 +325,6 @@ export const getLocationContext = async (place: Place | VisitedPlaceDetails): Pr
   if (!place.geometry?.location) {
     return "";
   }
-
-  // We could make a reverse geocoding API call here to get more detailed information
-  // about the area where the place is located (city, region, country, etc.)
-  // For now, we'll use the data we already have
 
   const { lat, lng } = place.geometry.location;
   let context = "";

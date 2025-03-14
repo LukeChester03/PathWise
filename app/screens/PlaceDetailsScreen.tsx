@@ -1,5 +1,5 @@
 // screens/PlaceDetailsScreen.tsx
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {
   Animated,
   Share,
   Platform,
+  Dimensions,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
@@ -42,7 +43,6 @@ import NavigateButton from "../components/PlaceDetails/NavigateButton";
 
 // Hooks
 import { useAiContent } from "../hooks/AI/useAIContent";
-import { usePlaceAnimations } from "../hooks/Global/usePlaceAnimations";
 import { useDynamicStyles } from "../hooks/Global/useDynamicStyles";
 
 // Utils
@@ -52,37 +52,10 @@ import { formatVisitDate } from "../utils/placeUtils";
 type PlaceDetailsRouteProp = RouteProp<RootStackParamList, "PlaceDetails">;
 type PlaceDetailsNavigationProp = NativeStackNavigationProp<RootStackParamList, "PlaceDetails">;
 
-// Define a type for the editorial summary to fix the overview error
-interface EditorialSummary {
-  overview?: string;
-  language?: string;
-}
-
-// Extend the Place type to include editorial_summary with the correct type
-interface ExtendedPlace extends Place {
-  editorial_summary?: EditorialSummary;
-}
-
-// And do the same for VisitedPlaceDetails
-interface ExtendedVisitedPlaceDetails extends VisitedPlaceDetails {
-  editorial_summary?: EditorialSummary;
-}
-
-// Define section IDs for collapsible sections
-const SECTIONS = {
-  DESCRIPTION: "description",
-  ADDRESS: "address",
-  DISCOVERY: "discovery",
-  HISTORICAL: "historical",
-  DID_YOU_KNOW: "didYouKnow",
-  CONTACT: "contact",
-  HOURS: "hours",
-  ASK_AI: "askAi",
-  LOCAL_TIPS: "localTips",
-};
-
 // Constants for description truncation
 const MAX_DESCRIPTION_CHARS = 120;
+
+const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get("window");
 
 // Main component
 const PlaceDetailsScreen: React.FC = () => {
@@ -93,32 +66,86 @@ const PlaceDetailsScreen: React.FC = () => {
   // Dynamic styles based on screen size
   const dynamicStyles = useDynamicStyles();
 
+  // Precalculate heights for more stable animations
+  const heroHeight = useMemo(() => dynamicStyles.heroHeight, [dynamicStyles.heroHeight]);
+  // Adjust overlap - how much the content card overlaps the image
+  const contentOverlap = useMemo(() => 40, []);
+  const translateThreshold = useMemo(
+    () => heroHeight - contentOverlap,
+    [heroHeight, contentOverlap]
+  );
+
   // State variables
   const [loading, setLoading] = useState(false);
-  const [placeDetails, setPlaceDetails] = useState<
-    ExtendedPlace | ExtendedVisitedPlaceDetails | null
-  >(null);
+  const [placeDetails, setPlaceDetails] = useState<Place | VisitedPlaceDetails | null>(null);
   const [showFullAiContent, setShowFullAiContent] = useState(false);
+
+  // Animation values - using refs to prevent re-renders
+  const scrollY = useRef(new Animated.Value(0)).current;
+
+  // Optimize by memoizing animation interpolations
+  const animations = useMemo(() => {
+    // Parallax effect for header image - smoother with adjusted ranges
+    const headerTranslateY = scrollY.interpolate({
+      inputRange: [-heroHeight, 0, translateThreshold],
+      outputRange: [heroHeight / 2, 0, -heroHeight / 5],
+      extrapolate: "clamp",
+    });
+
+    // Image scale effect when pulling down
+    const imageScale = scrollY.interpolate({
+      inputRange: [-100, 0],
+      outputRange: [1.15, 1],
+      extrapolate: "clamp",
+    });
+
+    // Header image opacity effect
+    const headerOpacity = scrollY.interpolate({
+      inputRange: [0, translateThreshold, translateThreshold + 50],
+      outputRange: [1, 1, 0.98],
+      extrapolate: "clamp",
+    });
+
+    // Content container animations - starts with overlap
+    const contentTranslateY = scrollY.interpolate({
+      inputRange: [-1, 0, translateThreshold],
+      outputRange: [heroHeight - contentOverlap + 1, heroHeight - contentOverlap, 0],
+      extrapolate: "clamp",
+    });
+
+    // More gradual border radius transition
+    const contentBorderRadius = scrollY.interpolate({
+      inputRange: [0, translateThreshold * 0.8],
+      outputRange: [24, 0],
+      extrapolate: "clamp",
+    });
+
+    // Navigation controls opacity
+    const navControlsOpacity = scrollY.interpolate({
+      inputRange: [translateThreshold - 50, translateThreshold],
+      outputRange: [0, 1],
+      extrapolate: "clamp",
+    });
+
+    return {
+      headerTranslateY,
+      imageScale,
+      headerOpacity,
+      contentTranslateY,
+      contentBorderRadius,
+      navControlsOpacity,
+    };
+  }, [scrollY, heroHeight, translateThreshold, contentOverlap]);
 
   // Custom hooks
   const { aiContent, aiContentLoading, aiContentError, sectionsVisible, generateAiContent } =
     useAiContent(placeDetails);
 
-  const {
-    scrollY,
-    fadeAnim,
-    translateY,
-    imageScale,
-    headerOpacity,
-    titleOpacity,
-    animationsReady,
-  } = usePlaceAnimations(placeDetails, loading);
-
   // Effect for place details loading
   useEffect(() => {
     // Set initial place details from navigation params
     if (place) {
-      setPlaceDetails(place as ExtendedPlace | ExtendedVisitedPlaceDetails);
+      setPlaceDetails(place);
     }
 
     // Fetch additional details if needed
@@ -133,7 +160,8 @@ const PlaceDetailsScreen: React.FC = () => {
             setPlaceDetails({
               ...place, // Merge with the original place data
               ...visitedDetails, // Override with visited details
-            } as ExtendedVisitedPlaceDetails);
+              isVisited: true, // Explicitly set this flag for visited places
+            } as VisitedPlaceDetails);
           } else if (!place) {
             // If we don't have place data and couldn't find it in visited places,
             // we could fetch it from an API here
@@ -147,7 +175,7 @@ const PlaceDetailsScreen: React.FC = () => {
                   lng: 0,
                 },
               },
-            } as ExtendedPlace);
+            } as Place);
           }
         } catch (error) {
           console.error("Error fetching place details:", error);
@@ -165,6 +193,7 @@ const PlaceDetailsScreen: React.FC = () => {
     navigation.goBack();
   };
 
+  console.log(placeDetails);
   // Handle share button press
   const handleShare = async () => {
     if (placeDetails) {
@@ -231,209 +260,247 @@ const PlaceDetailsScreen: React.FC = () => {
       <StatusBar barStyle="light-content" />
 
       {/* Hero Header with Image and Navigation Controls */}
-      <PlaceHeroHeader
-        placeDetails={placeDetails}
-        scrollY={scrollY}
-        headerOpacity={headerOpacity}
-        imageScale={imageScale}
-        animationsReady={animationsReady}
-        dynamicStyles={dynamicStyles}
-        onBackPress={handleBackPress}
-        onShare={handleShare}
-      />
-
-      {/* Main Scrollable Content */}
-      <Animated.ScrollView
+      <Animated.View
         style={[
-          styles.contentContainer,
+          styles.heroHeaderWrapper,
           {
-            opacity: fadeAnim,
-            marginTop: dynamicStyles.contentMarginTop,
+            height: heroHeight,
+            opacity: animations.headerOpacity,
+            transform: [
+              { translateY: animations.headerTranslateY },
+              { scale: animations.imageScale },
+            ],
           },
         ]}
-        contentContainerStyle={[
-          styles.scrollContent,
-          { paddingHorizontal: dynamicStyles.spacing.contentPadding },
-        ]}
-        showsVerticalScrollIndicator={false}
-        scrollEventThrottle={16}
-        onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], {
-          useNativeDriver: true,
-        })}
       >
-        {/* Place Title and Rating */}
-        <PlaceTitle
+        <PlaceHeroHeader
           placeDetails={placeDetails}
-          titleOpacity={titleOpacity}
-          animationsReady={animationsReady}
-          fontSize={dynamicStyles.fontSize}
-          iconSize={dynamicStyles.iconSize}
+          scrollY={scrollY}
+          dynamicStyles={dynamicStyles}
+          onBackPress={handleBackPress}
+          onShare={handleShare}
         />
+      </Animated.View>
 
-        {/* Place Type and Discovery Status Badges */}
-        <PlaceBadges
-          placeDetails={placeDetails}
-          fadeAnim={fadeAnim}
-          translateY={translateY}
-          iconSize={dynamicStyles.iconSize}
-        />
+      {/* Fixed navigation header - only back button */}
+      <Animated.View
+        style={[
+          styles.fixedNavHeader,
+          {
+            opacity: animations.navControlsOpacity,
+            height: Platform.OS === "ios" ? 90 : 70,
+            paddingTop: Platform.OS === "ios" ? 40 : 20,
+          },
+        ]}
+      ></Animated.View>
 
-        {/* AI-Enhanced Description Card */}
-        <CollapsibleCard
-          title="Description"
-          icon="document-text"
-          index={0}
-          style={[styles.cardShadow, { marginBottom: dynamicStyles.spacing.cardMargin }]}
-          showAiBadge={true}
+      {/* Main Content Container that slides over image when scrolling */}
+      <Animated.View
+        style={[
+          styles.contentWrapper,
+          {
+            minHeight: SCREEN_HEIGHT + contentOverlap,
+            transform: [{ translateY: animations.contentTranslateY }],
+            borderTopLeftRadius: animations.contentBorderRadius,
+            borderTopRightRadius: animations.contentBorderRadius,
+          },
+        ]}
+        // This doesn't need to re-render on every frame
+        shouldRasterizeIOS={true}
+        renderToHardwareTextureAndroid={true}
+      >
+        {/* Main Scrollable Content */}
+        <Animated.ScrollView
+          style={styles.contentContainer}
+          contentContainerStyle={[
+            styles.scrollContent,
+            { paddingHorizontal: dynamicStyles.spacing.contentPadding },
+          ]}
+          showsVerticalScrollIndicator={false}
+          scrollEventThrottle={16} // Keep this at 16 for 60fps scrolling
+          bounces={true}
+          overScrollMode="always"
+          // Optimize animation with useNativeDriver where possible
+          onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], {
+            useNativeDriver: true,
+          })}
         >
-          <View style={styles.aiContentContainer}>
-            {aiContentError ? (
-              <TouchableOpacity style={styles.aiErrorContainer} onPress={generateAiContent}>
-                <Ionicons name="refresh" size={dynamicStyles.iconSize.normal} color="#0066CC" />
-                <Text style={styles.aiErrorText}>{aiContentError}</Text>
-              </TouchableOpacity>
-            ) : aiContent?.isGenerating ? (
-              <View style={styles.aiGeneratingContainer}>
-                <ActivityIndicator color="#0066CC" size="small" />
-                <Text style={styles.aiGeneratingText}>AI is generating insights...</Text>
-              </View>
-            ) : (
-              <TruncatedText
-                text={aiContent?.description || ""}
-                maxChars={MAX_DESCRIPTION_CHARS}
-                style={[styles.aiDescriptionText, { fontSize: dynamicStyles.fontSize.body }]}
-                viewMoreLabel="Read More"
-              />
-            )}
-          </View>
-        </CollapsibleCard>
-
-        {/* Address */}
-        <CollapsibleCard
-          title="Address"
-          icon="location"
-          index={1}
-          style={{ marginBottom: dynamicStyles.spacing.cardMargin }}
-        >
-          <AddressSection placeDetails={placeDetails} fontSize={dynamicStyles.fontSize} />
-        </CollapsibleCard>
-
-        {/* Visit Info (if place was visited) */}
-        {visitDate && (
-          <CollapsibleCard
-            title="Discovery Details"
-            icon="calendar"
-            index={2}
-            style={{ marginBottom: dynamicStyles.spacing.cardMargin }}
-          >
-            <DiscoveryDetailsSection
-              placeDetails={placeDetails as VisitedPlaceDetails}
-              fontSize={dynamicStyles.fontSize}
-            />
-          </CollapsibleCard>
-        )}
-
-        {/* AI-Generated Historical Facts */}
-        {!aiContentError && sectionsVisible && (
-          <CollapsibleCard
-            title="Historical Facts"
-            icon="time"
-            index={3}
-            showAiBadge={true}
-            style={{ marginBottom: dynamicStyles.spacing.cardMargin }}
-          >
-            <HistoricalFactsSection aiContent={aiContent} fontSize={dynamicStyles.fontSize} />
-          </CollapsibleCard>
-        )}
-
-        {/* Did You Know Section */}
-        {!aiContentError && sectionsVisible && (
-          <CollapsibleCard
-            title="Did You Know?"
-            icon="bulb"
-            index={4}
-            showAiBadge={true}
-            style={{ marginBottom: dynamicStyles.spacing.cardMargin }}
-          >
-            <DidYouKnowSection
-              aiContent={aiContent}
-              fontSize={dynamicStyles.fontSize}
-              iconSize={dynamicStyles.iconSize}
-            />
-          </CollapsibleCard>
-        )}
-
-        {/* Contact Information */}
-        {("formatted_phone_number" in placeDetails && placeDetails.formatted_phone_number) ||
-        ("website" in placeDetails && placeDetails.website) ? (
-          <CollapsibleCard
-            title="Contact"
-            icon="call"
-            index={5}
-            style={{ marginBottom: dynamicStyles.spacing.cardMargin }}
-          >
-            <ContactInfoSection
+          {/* Title and badges section */}
+          <View style={styles.titleContainer}>
+            <PlaceTitle
               placeDetails={placeDetails}
+              titleOpacity={new Animated.Value(1)}
+              animationsReady={true}
               fontSize={dynamicStyles.fontSize}
               iconSize={dynamicStyles.iconSize}
             />
-          </CollapsibleCard>
-        ) : null}
 
-        {/* Opening Hours */}
-        {"opening_hours" in placeDetails && placeDetails.opening_hours?.weekday_text && (
+            {/* Place Type and Discovery Status Badges */}
+            <PlaceBadges
+              placeDetails={placeDetails}
+              fadeAnim={new Animated.Value(1)}
+              translateY={new Animated.Value(0)}
+              iconSize={dynamicStyles.iconSize}
+            />
+          </View>
+
+          {/* AI-Enhanced Description Card */}
           <CollapsibleCard
-            title="Opening Hours"
-            icon="time-outline"
-            index={6}
+            title="Description"
+            icon="document-text"
+            index={0}
+            style={[styles.cardShadow, { marginBottom: dynamicStyles.spacing.cardMargin }]}
+            showAiBadge={true}
+          >
+            <View style={styles.aiContentContainer}>
+              {aiContentError ? (
+                <TouchableOpacity style={styles.aiErrorContainer} onPress={generateAiContent}>
+                  <Ionicons name="refresh" size={dynamicStyles.iconSize.normal} color="#0066CC" />
+                  <Text style={styles.aiErrorText}>{aiContentError}</Text>
+                </TouchableOpacity>
+              ) : aiContent?.isGenerating ? (
+                <View style={styles.aiGeneratingContainer}>
+                  <ActivityIndicator color="#0066CC" size="small" />
+                  <Text style={styles.aiGeneratingText}>AI is generating insights...</Text>
+                </View>
+              ) : (
+                <TruncatedText
+                  text={aiContent?.description || ""}
+                  maxChars={MAX_DESCRIPTION_CHARS}
+                  style={[styles.aiDescriptionText, { fontSize: dynamicStyles.fontSize.body }]}
+                  viewMoreLabel="Read More"
+                />
+              )}
+            </View>
+          </CollapsibleCard>
+
+          {/* Address */}
+          <CollapsibleCard
+            title="Address"
+            icon="location"
+            index={1}
             style={{ marginBottom: dynamicStyles.spacing.cardMargin }}
           >
-            <OpeningHoursSection placeDetails={placeDetails} fontSize={dynamicStyles.fontSize} />
+            <AddressSection placeDetails={placeDetails} fontSize={dynamicStyles.fontSize} />
           </CollapsibleCard>
-        )}
 
-        {/* Ask AI Section */}
-        <CollapsibleCard
-          title="Ask About This Place"
-          icon="chatbubble-ellipses"
-          index={7}
-          style={{ marginBottom: dynamicStyles.spacing.cardMargin }}
-        >
-          <AskAiSection
-            placeDetails={placeDetails}
-            fontSize={dynamicStyles.fontSize}
-            iconSize={dynamicStyles.iconSize}
-            isSmallScreen={dynamicStyles.isSmallScreen}
-          />
-        </CollapsibleCard>
-
-        {/* Local Tips Section */}
-        {!aiContentError &&
-          !aiContent?.isGenerating &&
-          aiContent?.localTips.length > 0 &&
-          sectionsVisible && (
+          {/* Visit Info (if place was visited) */}
+          {visitDate && (
             <CollapsibleCard
-              title="Local Tips"
-              icon="flash"
-              index={8}
-              showAiBadge={true}
+              title="Discovery Details"
+              icon="calendar"
+              index={2}
               style={{ marginBottom: dynamicStyles.spacing.cardMargin }}
             >
-              <LocalTipsSection aiContent={aiContent} fontSize={dynamicStyles.fontSize} />
+              <DiscoveryDetailsSection
+                placeDetails={placeDetails as VisitedPlaceDetails}
+                fontSize={dynamicStyles.fontSize}
+              />
             </CollapsibleCard>
           )}
 
-        {/* Navigation Button */}
-        <NavigateButton
-          fadeAnim={fadeAnim}
-          translateY={translateY}
-          iconSize={dynamicStyles.iconSize}
-          onPress={handleNavigateToPlace}
-        />
+          {/* AI-Generated Historical Facts */}
+          {!aiContentError && sectionsVisible && (
+            <CollapsibleCard
+              title="Historical Facts"
+              icon="time"
+              index={3}
+              showAiBadge={true}
+              style={{ marginBottom: dynamicStyles.spacing.cardMargin }}
+            >
+              <HistoricalFactsSection aiContent={aiContent} fontSize={dynamicStyles.fontSize} />
+            </CollapsibleCard>
+          )}
 
-        {/* Bottom Padding */}
-        <View style={styles.bottomPadding} />
-      </Animated.ScrollView>
+          {/* Did You Know Section */}
+          {!aiContentError && sectionsVisible && (
+            <CollapsibleCard
+              title="Did You Know?"
+              icon="bulb"
+              index={4}
+              showAiBadge={true}
+              style={{ marginBottom: dynamicStyles.spacing.cardMargin }}
+            >
+              <DidYouKnowSection
+                aiContent={aiContent}
+                fontSize={dynamicStyles.fontSize}
+                iconSize={dynamicStyles.iconSize}
+              />
+            </CollapsibleCard>
+          )}
+
+          {/* Contact Information */}
+          {("formatted_phone_number" in placeDetails && placeDetails.formatted_phone_number) ||
+          ("website" in placeDetails && placeDetails.website) ? (
+            <CollapsibleCard
+              title="Contact"
+              icon="call"
+              index={5}
+              style={{ marginBottom: dynamicStyles.spacing.cardMargin }}
+            >
+              <ContactInfoSection
+                placeDetails={placeDetails}
+                fontSize={dynamicStyles.fontSize}
+                iconSize={dynamicStyles.iconSize}
+              />
+            </CollapsibleCard>
+          ) : null}
+
+          {/* Opening Hours */}
+          {"opening_hours" in placeDetails && placeDetails.opening_hours?.weekday_text && (
+            <CollapsibleCard
+              title="Opening Hours"
+              icon="time-outline"
+              index={6}
+              style={{ marginBottom: dynamicStyles.spacing.cardMargin }}
+            >
+              <OpeningHoursSection placeDetails={placeDetails} fontSize={dynamicStyles.fontSize} />
+            </CollapsibleCard>
+          )}
+
+          {/* Ask AI Section */}
+          <CollapsibleCard
+            title="Ask About This Place"
+            icon="chatbubble-ellipses"
+            index={7}
+            style={{ marginBottom: dynamicStyles.spacing.cardMargin }}
+          >
+            <AskAiSection
+              placeDetails={placeDetails}
+              fontSize={dynamicStyles.fontSize}
+              iconSize={dynamicStyles.iconSize}
+              isSmallScreen={dynamicStyles.isSmallScreen}
+            />
+          </CollapsibleCard>
+
+          {/* Local Tips Section */}
+          {!aiContentError &&
+            !aiContent?.isGenerating &&
+            aiContent?.localTips.length > 0 &&
+            sectionsVisible && (
+              <CollapsibleCard
+                title="Local Tips"
+                icon="flash"
+                index={8}
+                showAiBadge={true}
+                style={{ marginBottom: dynamicStyles.spacing.cardMargin }}
+              >
+                <LocalTipsSection aiContent={aiContent} fontSize={dynamicStyles.fontSize} />
+              </CollapsibleCard>
+            )}
+
+          {/* Navigation Button */}
+          <NavigateButton
+            fadeAnim={new Animated.Value(1)}
+            translateY={new Animated.Value(0)}
+            iconSize={dynamicStyles.iconSize}
+            onPress={handleNavigateToPlace}
+          />
+
+          {/* Bottom Padding */}
+          <View style={styles.bottomPadding} />
+        </Animated.ScrollView>
+      </Animated.View>
     </SafeAreaView>
   );
 };
@@ -454,7 +521,24 @@ const cardShadow = Platform.select({
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
+    backgroundColor: "#000",
+    paddingBottom: 32,
+  },
+  heroHeaderWrapper: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 1,
+    overflow: "hidden", // Prevent image from leaking out during scale
+  },
+  contentWrapper: {
+    flex: 1,
     backgroundColor: "#fff",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    overflow: "hidden",
+    zIndex: 2,
   },
   loadingContainer: {
     flex: 1,
@@ -497,14 +581,13 @@ const styles = StyleSheet.create({
   contentContainer: {
     flex: 1,
     backgroundColor: "#f9f9fb",
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingTop: 16,
-    zIndex: 3,
-    ...cardShadow,
   },
   scrollContent: {
-    paddingBottom: 30,
+    paddingTop: 24,
+    paddingBottom: 40,
+  },
+  titleContainer: {
+    marginBottom: 20,
   },
   aiContentContainer: {
     minHeight: 50,
@@ -543,6 +626,28 @@ const styles = StyleSheet.create({
   },
   bottomPadding: {
     height: 30,
+  },
+  fixedNavHeader: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: "transparent",
+    zIndex: 3,
+  },
+  fixedNavContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+  },
+  primaryBackButton: {
+    width: 40,
+    height: 40,
+    justifyContent: "center",
+    alignItems: "center",
+    borderRadius: 20,
+    backgroundColor: "#0066CC",
+    ...cardShadow,
   },
 });
 

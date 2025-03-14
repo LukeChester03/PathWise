@@ -535,10 +535,7 @@ const styles = StyleSheet.create({
   statCardContainer: {
     width: STATS_CARD_WIDTH,
     marginRight: SPACING,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 8 }, // Deeper shadow
-    shadowOpacity: 0.15, // Softer shadow
-    shadowRadius: 12, // Wider shadow spread
+
     elevation: 8,
   },
   statCard: {
