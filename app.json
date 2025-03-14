@@ -19,6 +19,7 @@
       "config": {
         "googleMapsApiKey": "AIzaSyDAGq_6eJGQpR3RcO0NrVOowel9-DxZkvA"
       },
+      "permissions": ["ACCESS_COARSE_LOCATION", "ACCESS_FINE_LOCATION"],
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
