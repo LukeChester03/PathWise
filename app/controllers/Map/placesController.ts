@@ -149,10 +149,31 @@ let placesCache: {
   longitude: number;
   maxPlaces: number; // Track maxPlaces setting
   searchRadius: number; // Track searchRadius setting
+  detailedPlaceIds: Set<string>; // Track which places have full details
 } | null = null;
 
-// Cache expiration time (30 minutes)
-const CACHE_EXPIRATION_TIME = 30 * 60 * 1000;
+// UPDATED: Increased cache expiration time (from 30 minutes to 2 hours)
+const CACHE_EXPIRATION_TIME = 120 * 60 * 1000;
+
+// Track recent API calls to implement rate limiting
+let lastApiCallTime = 0;
+const MIN_API_CALL_INTERVAL = 200; // ms between API calls to prevent bursts
+
+/**
+ * Simple rate limiter for API calls
+ */
+const rateLimitedFetch = async (url: string): Promise<Response> => {
+  const now = Date.now();
+  const timeSinceLastCall = now - lastApiCallTime;
+
+  if (timeSinceLastCall < MIN_API_CALL_INTERVAL) {
+    // Wait until we can make another call
+    await new Promise((resolve) => setTimeout(resolve, MIN_API_CALL_INTERVAL - timeSinceLastCall));
+  }
+
+  lastApiCallTime = Date.now();
+  return fetch(url);
+};
 
 /**
  * Update the maximum number of places and search radius at runtime
@@ -309,8 +330,8 @@ const isCacheValid = (
     longitude
   );
 
-  // If moved more than 500 meters, invalidate cache
-  if (distanceMoved > 500) {
+  // UPDATED: Increase threshold from 500m to 1000m
+  if (distanceMoved > 1000) {
     console.log(
       `[placesController] User moved ${distanceMoved.toFixed(
         0
@@ -387,8 +408,8 @@ export const fetchNearbyPlaces = async (
         await new Promise((resolve) => setTimeout(resolve, 1500));
       }
 
-      // Make the API request
-      const response = await fetch(apiUrl);
+      // Make the API request with rate limiting
+      const response = await rateLimitedFetch(apiUrl);
       const data = await response.json();
 
       // Check if the request was successful
@@ -418,7 +439,7 @@ export const fetchNearbyPlaces = async (
           );
 
           // Try a broader search with different parameters
-          const radiusResponse = await fetch(
+          const radiusResponse = await rateLimitedFetch(
             `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${latitude},${longitude}&radius=${dynamicSearchRadius}&type=tourist_attraction|museum|park|landmark|historic&keyword=tourist|attraction|sightseeing|visit&key=AIzaSyDAGq_6eJGQpR3RcO0NrVOowel9-DxZkvA`
           );
 
@@ -504,89 +525,61 @@ export const fetchNearbyPlaces = async (
     // Add 100 meters buffer to the furthest distance
     furthestDistance = Math.max(furthestDistance + 100, 1000); // At least 1km radius
 
-    // Get details for each place
-    const placesWithDetails: Place[] = await Promise.all(
-      filteredResults.map(async (place: Place) => {
-        try {
-          const detailsResponse = await fetch(
-            `https://maps.googleapis.com/maps/api/place/details/json?place_id=${place.place_id}&fields=formatted_address,name,rating,photos,url,website,formatted_phone_number,opening_hours,reviews,editorial_summary&key=AIzaSyDAGq_6eJGQpR3RcO0NrVOowel9-DxZkvA`
-          );
+    // CRITICAL CHANGE: Don't fetch details for all places!
+    // Instead, just use the data we already have from nearbySearch
+    const placesWithBasicInfo: Place[] = filteredResults.map((place: any) => {
+      // Calculate distance from user's location to this place
+      const distance = haversineDistance(
+        latitude,
+        longitude,
+        place.geometry.location.lat,
+        place.geometry.location.lng
+      );
 
-          const detailsData = await detailsResponse.json();
-
-          if (detailsData.status !== "OK") {
-            console.warn(`[placesController] Could not fetch details for place: ${place.name}`);
-            return place;
-          }
-
-          // Calculate distance from user's location to this place
-          const distance = haversineDistance(
-            latitude,
-            longitude,
-            place.geometry.location.lat,
-            place.geometry.location.lng
-          );
-
-          // Use editorial summary if available, otherwise use standard description based on place type
-          const description =
-            detailsData.result.editorial_summary?.overview || getPlaceDescription(place);
-
-          // Create the enhanced place object with all the details
-          return {
-            ...place,
-            description: description,
-            address: detailsData.result.formatted_address,
-            phone: detailsData.result.formatted_phone_number,
-            website: detailsData.result.website,
-            rating: detailsData.result.rating,
-            photos: detailsData.result.photos,
-            openingHours: detailsData.result.opening_hours,
-            reviews: detailsData.result.reviews,
-            distance: distance, // Add the distance from user to place
-          };
-        } catch (detailsError) {
-          console.error(
-            `[placesController] Error fetching details for ${place.name}:`,
-            detailsError
-          );
-
-          // Calculate distance for the place even if details fetch fails
-          const distance = haversineDistance(
-            latitude,
-            longitude,
-            place.geometry.location.lat,
-            place.geometry.location.lng
-          );
-
-          return {
-            ...place,
-            distance: distance,
-            description: getPlaceDescription(place),
-          };
-        }
-      })
-    );
+      // Create the basic place object without making additional API calls
+      return {
+        place_id: place.place_id,
+        id: place.id,
+        name: place.name,
+        address: place.vicinity, // vicinity is available in the nearby search
+        formatted_address: place.vicinity,
+        geometry: place.geometry,
+        description: getPlaceDescription(place),
+        types: place.types || [],
+        rating: place.rating,
+        user_ratings_total: place.user_ratings_total,
+        price_level: place.price_level,
+        photos: place.photos || [],
+        icon: place.icon,
+        icon_background_color: place.icon_background_color,
+        icon_mask_base_uri: place.icon_mask_base_uri,
+        vicinity: place.vicinity,
+        business_status: place.business_status,
+        distance: distance, // Add the distance from user to place
+      };
+    });
 
     // Final sort by distance for the UI display
-    placesWithDetails.sort((a: Place, b: Place) => {
+    placesWithBasicInfo.sort((a: Place, b: Place) => {
       return (a.distance || 0) - (b.distance || 0);
     });
 
     // Update cache with the fresh data - using effectiveMaxPlaces in cache
     placesCache = {
-      places: placesWithDetails,
+      places: placesWithBasicInfo,
       furthestDistance,
       cacheTimestamp: Date.now(),
       latitude,
       longitude,
       maxPlaces: effectiveMaxPlaces,
       searchRadius: dynamicSearchRadius,
+      detailedPlaceIds: new Set<string>(), // Initialize with an empty set
     };
 
-    console.log(`[placesController] Cached ${placesWithDetails.length} places`);
+    console.log(`[placesController] Cached ${placesWithBasicInfo.length} places with basic info`);
 
     return {
-      places: placesWithDetails,
+      places: placesWithBasicInfo,
       furthestDistance,
     };
   } catch (error: any) {
@@ -599,20 +592,78 @@ export const fetchNearbyPlaces = async (
   }
 };
 
-// Function to fetch a place by ID for detailed views
-export const fetchPlaceById = async (placeId: string): Promise<Place | null> => {
+/**
+ * NEW FUNCTION: Fetch place details on demand when a user selects a place
+ * This is the key to reducing API calls
+ */
+export const fetchPlaceDetailsOnDemand = async (placeId: string): Promise<Place | null> => {
   try {
     // Check if the place is in the cache first
     if (placesCache && placesCache.places.length > 0) {
-      const cachedPlace = placesCache.places.find((place) => place.place_id === placeId);
-      if (cachedPlace) {
-        console.log(`[placesController] Using cached data for place: ${cachedPlace.name}`);
+      const cachedPlaceIndex = placesCache.places.findIndex((place) => place.place_id === placeId);
+      const cachedPlace = cachedPlaceIndex >= 0 ? placesCache.places[cachedPlaceIndex] : null;
+
+      // Check if we already have detailed information for this place
+      if (cachedPlace && placesCache.detailedPlaceIds.has(placeId)) {
+        console.log(`[placesController] Using cached detailed data for place: ${cachedPlace.name}`);
         return cachedPlace;
+      }
+
+      // If we have the place but without details, fetch the details and update cache
+      if (cachedPlace) {
+        console.log(`[placesController] Fetching details for cached place: ${cachedPlace.name}`);
+
+        // Fetch place details from API
+        const detailsResponse = await rateLimitedFetch(
+          `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=formatted_address,name,rating,photos,url,website,formatted_phone_number,opening_hours,reviews,editorial_summary,geometry,types&key=AIzaSyDAGq_6eJGQpR3RcO0NrVOowel9-DxZkvA`
+        );
+        const detailsData = await detailsResponse.json();
+
+        if (detailsData.status !== "OK") {
+          console.warn(`[placesController] Could not fetch details for place: ${cachedPlace.name}`);
+          return cachedPlace; // Return what we have
+        }
+
+        // Use editorial summary if available, otherwise use standard description
+        const description =
+          detailsData.result.editorial_summary?.overview ||
+          cachedPlace.description ||
+          getPlaceDescription(cachedPlace);
+
+        // Create the enhanced place object with all the details
+        const enhancedPlace: Place = {
+          ...cachedPlace,
+          description: description,
+          formatted_address: detailsData.result.formatted_address || cachedPlace.vicinity,
+          address: detailsData.result.formatted_address || cachedPlace.vicinity,
+          phone: detailsData.result.formatted_phone_number,
+          formatted_phone_number: detailsData.result.formatted_phone_number,
+          website: detailsData.result.website,
+          url: detailsData.result.url,
+          opening_hours: detailsData.result.opening_hours,
+          openingHours: detailsData.result.opening_hours,
+          reviews: detailsData.result.reviews,
+          // Update with new data but keep existing fields
+          rating: detailsData.result.rating || cachedPlace.rating,
+          photos: detailsData.result.photos || cachedPlace.photos,
+        };
+
+        // Update the place in cache with detailed info
+        if (placesCache && cachedPlaceIndex >= 0) {
+          placesCache.places[cachedPlaceIndex] = enhancedPlace;
+          placesCache.detailedPlaceIds.add(placeId); // Mark as having details
+          console.log(
+            `[placesController] Updated cache with detailed info for ${enhancedPlace.name}`
+          );
+        }
+
+        return enhancedPlace;
       }
     }
 
-    // If not in cache, fetch from API
-    const detailsResponse = await fetch(
+    // If not in cache at all, fetch from API directly
+    console.log(`[placesController] Fetching details for place ID: ${placeId}`);
+    const detailsResponse = await rateLimitedFetch(
       `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=formatted_address,name,rating,photos,url,website,formatted_phone_number,opening_hours,reviews,editorial_summary,geometry,types&key=AIzaSyDAGq_6eJGQpR3RcO0NrVOowel9-DxZkvA`
     );
 
@@ -626,23 +677,65 @@ export const fetchPlaceById = async (placeId: string): Promise<Place | null> => 
     const description =
       detailsData.result.editorial_summary?.overview || getPlaceDescription(detailsData.result);
 
-    return {
+    // Create the place object
+    const detailedPlace: Place = {
       place_id: placeId,
       name: detailsData.result.name,
       geometry: detailsData.result.geometry,
       description: description,
       address: detailsData.result.formatted_address,
+      formatted_address: detailsData.result.formatted_address,
       phone: detailsData.result.formatted_phone_number,
+      formatted_phone_number: detailsData.result.formatted_phone_number,
       website: detailsData.result.website,
+      url: detailsData.result.url,
       rating: detailsData.result.rating,
       photos: detailsData.result.photos,
       openingHours: detailsData.result.opening_hours,
+      opening_hours: detailsData.result.opening_hours,
       reviews: detailsData.result.reviews,
       types: detailsData.result.types,
     };
+
+    // Try to add to cache if it exists
+    if (placesCache) {
+      // Check if this place should be added to the cache
+      const placeDistance = detailedPlace.geometry
+        ? haversineDistance(
+            placesCache.latitude,
+            placesCache.longitude,
+            detailedPlace.geometry.location.lat,
+            detailedPlace.geometry.location.lng
+          )
+        : 0;
+
+      // Only add to cache if it's within our search radius
+      if (placeDistance <= placesCache.searchRadius) {
+        const existingIndex = placesCache.places.findIndex((p) => p.place_id === placeId);
+
+        if (existingIndex >= 0) {
+          // Update existing place
+          placesCache.places[existingIndex] = detailedPlace;
+        } else {
+          // Add new place to cache
+          placesCache.places.push(detailedPlace);
+        }
+
+        // Mark as having details
+        placesCache.detailedPlaceIds.add(placeId);
+        console.log(`[placesController] Added detailed place to cache: ${detailedPlace.name}`);
+      }
+    }
+
+    return detailedPlace;
   } catch (error: any) {
     console.error("[placesController] Error fetching place details:", error);
-    Alert.alert("Error fetching place details", error.message || "An unknown error occurred");
     return null;
   }
+};
+
+// Existing fetchPlaceById function
+export const fetchPlaceById = async (placeId: string): Promise<Place | null> => {
+  // This can now use our new fetchPlaceDetailsOnDemand function
+  return fetchPlaceDetailsOnDemand(placeId);
 };

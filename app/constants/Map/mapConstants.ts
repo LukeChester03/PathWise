@@ -2,7 +2,7 @@
 
 export const GOOGLE_MAPS_APIKEY = "AIzaSyDAGq_6eJGQpR3RcO0NrVOowel9-DxZkvA";
 export const DESTINATION_REACHED_THRESHOLD = 30; // In meters
-export const MARKER_REFRESH_THRESHOLD = 10000; // In milliseconds
+export const MARKER_REFRESH_THRESHOLD = 60000; // In milliseconds
 export const DEFAULT_CIRCLE_RADIUS = 500; // In meters
 export const DEFAULT_ZOOM_LEVEL = 17;
 
@@ -28,7 +28,7 @@ export const NOTIFICATION_COOLDOWN = 600000; // 10 minutes cooldown
 
 // Navigation constants
 export const ANNOUNCEMENT_COOLDOWN = 2000; // 20 seconds between announcements
-export const LOCATION_UPDATE_THROTTLE = 3; // Process every 3rd update
+export const LOCATION_UPDATE_THROTTLE = 8; // Process every 8th update
 export const INITIAL_NAVIGATION_DELAY = 2000; // Delay first instruction
 
 // Define travel mode type

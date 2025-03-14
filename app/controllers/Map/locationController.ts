@@ -9,7 +9,9 @@ console.log("Loading locationController module...");
 
 // Store last location to check if user has moved significantly
 let lastKnownLocation: Coordinate | null = null;
-const LOCATION_UPDATE_DISTANCE_THRESHOLD = 10; // 10 meters threshold
+
+// UPDATED: Increase threshold from 10 to 50 meters
+const LOCATION_UPDATE_DISTANCE_THRESHOLD = 50; // 50 meters threshold for significant movement
 
 // Global state for location and nearby places
 export const globalLocationState = {
@@ -269,6 +271,7 @@ export const getCurrentLocation = async (): Promise<Region | null> => {
 
 /**
  * Check if user has moved significantly from last known location.
+ * UPDATED: Increased threshold from 10m to 50m for significant movement
  * @param currentLocation - The current user location.
  * @returns True if user has moved more than the threshold, false otherwise.
  */
@@ -286,7 +289,7 @@ export const hasMovedSignificantly = (currentLocation: Coordinate): boolean => {
     currentLocation.longitude
   );
 
-  // Only update last location if moved significantly
+  // Only update last location if moved significantly (50m instead of 10m)
   if (distance >= LOCATION_UPDATE_DISTANCE_THRESHOLD) {
     lastKnownLocation = currentLocation;
     console.log(`User moved ${distance.toFixed(2)}m - updating location`);
@@ -402,32 +405,42 @@ export const startLocationWatching = async (): Promise<() => void> => {
     const subscription = await Location.watchPositionAsync(
       {
         accuracy: Location.Accuracy.Highest,
-        distanceInterval: 5, // Update every 5 meters
-        timeInterval: 1000, // Or every second
+        // UPDATED: Increase distance interval from 5m to 25m to reduce updates
+        distanceInterval: 25,
+        // UPDATED: Increase time interval from 1000ms to 5000ms to reduce updates
+        timeInterval: 5000,
       },
       (location) => {
         const { latitude, longitude } = location.coords;
-
-        // Create updated region and coordinate
         const newCoordinate = { latitude, longitude };
-        const newRegion = {
-          latitude,
-          longitude,
-          latitudeDelta: globalLocationState.region?.latitudeDelta || 0.002,
-          longitudeDelta: globalLocationState.region?.longitudeDelta || 0.002,
-        };
 
-        // Update global state
-        globalLocationState.userLocation = newCoordinate;
-        globalLocationState.region = newRegion;
-        globalLocationState.lastUpdated = Date.now();
-
-        // Notify listeners
-        notifyLocationUpdates();
-
-        // Check if moved significantly for places update
+        // UPDATED: Only update if movement is significant
         if (hasMovedSignificantly(newCoordinate)) {
-          updateNearbyPlaces(newRegion, false);
+          // Create updated region and coordinate
+          const newRegion = {
+            latitude,
+            longitude,
+            latitudeDelta: globalLocationState.region?.latitudeDelta || 0.002,
+            longitudeDelta: globalLocationState.region?.longitudeDelta || 0.002,
+          };
+
+          // Update global state
+          globalLocationState.userLocation = newCoordinate;
+          globalLocationState.region = newRegion;
+          globalLocationState.lastUpdated = Date.now();
+
+          // Notify listeners
+          notifyLocationUpdates();
+
+          // Check for places update less frequently
+          // Add timestamp check - only update places every 60 seconds maximum
+          const currentTime = Date.now();
+          const timeSinceLastPlacesUpdate = currentTime - globalPlacesState.lastUpdated;
+          const MIN_PLACES_UPDATE_INTERVAL = 60000; // 60 seconds
+
+          if (timeSinceLastPlacesUpdate > MIN_PLACES_UPDATE_INTERVAL) {
+            updateNearbyPlaces(newRegion, false);
+          }
         }
       }
     );
@@ -449,14 +462,30 @@ export const startLocationWatching = async (): Promise<() => void> => {
 
 /**
  * Updates nearby places based on location
+ * UPDATED: Added debouncing mechanism to prevent frequent calls
  */
+// Track last places update time for throttling
+let lastPlacesUpdateTime = 0;
+const MIN_PLACES_UPDATE_INTERVAL = 60000; // 60 seconds
+
 export const updateNearbyPlaces = async (
   location: Region,
   forceRefresh: boolean = false
 ): Promise<void> => {
-  // Prevent multiple simultaneous fetch operations
+  // Check if an update is already in progress
   if (globalPlacesState.isLoading) {
     console.log("Already fetching nearby places, skipping request");
+    return;
+  }
+
+  // Check if we need to throttle updates (except for forced refreshes)
+  const currentTime = Date.now();
+  const timeSinceLastUpdate = currentTime - lastPlacesUpdateTime;
+
+  if (!forceRefresh && timeSinceLastUpdate < MIN_PLACES_UPDATE_INTERVAL) {
+    console.log(
+      `Places updated recently (${Math.round(timeSinceLastUpdate / 1000)}s ago), skipping`
+    );
     return;
   }
 
@@ -467,6 +496,9 @@ export const updateNearbyPlaces = async (
 
     console.log(`Fetching nearby places (force: ${forceRefresh})`);
     const result = await fetchNearbyPlaces(location.latitude, location.longitude, forceRefresh);
+
+    // Update timestamp for throttling
+    lastPlacesUpdateTime = Date.now();
 
     // Update global places state
     globalPlacesState.places = result.places;
@@ -492,6 +524,7 @@ export const updateNearbyPlaces = async (
 
 /**
  * Starts watching the user's location in real-time.
+ * UPDATED: More efficient location watching with less frequent updates
  * @param onLocationUpdate - Callback function to handle location updates.
  * @param onError - Callback function to handle errors.
  * @param onSignificantMove - Optional callback when user moves significantly.
@@ -512,8 +545,10 @@ export const watchUserLocation = async (
     const subscription = await Location.watchPositionAsync(
       {
         accuracy: Location.Accuracy.High,
-        distanceInterval: 5, // Update every 5 meters (more frequent than the 10m threshold)
-        timeInterval: 1000,
+        // UPDATED: Increase from 5m to 25m
+        distanceInterval: 25,
+        // UPDATED: Increase from 1000ms to 5000ms
+        timeInterval: 5000,
       },
       (location) => {
         const { latitude, longitude } = location.coords;
@@ -524,12 +559,14 @@ export const watchUserLocation = async (
           longitudeDelta: 0.002,
         };
 
-        // Always call regular update
-        onLocationUpdate(currentRegion);
+        // Only call regular update if movement is significant to reduce processing
+        if (hasMovedSignificantly({ latitude, longitude })) {
+          onLocationUpdate(currentRegion);
 
-        // Check if moved significantly for the special callback
-        if (onSignificantMove && hasMovedSignificantly({ latitude, longitude })) {
-          onSignificantMove(currentRegion);
+          // Call the significant move callback if provided
+          if (onSignificantMove) {
+            onSignificantMove(currentRegion);
+          }
         }
       }
     );

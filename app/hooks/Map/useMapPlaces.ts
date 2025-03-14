@@ -1,7 +1,10 @@
 // useMapPlaces.ts - Hook for managing places data
 import { useState, useCallback, useRef } from "react";
 import { Alert } from "react-native";
-import { fetchNearbyPlaces } from "../../controllers/Map/placesController";
+import {
+  fetchNearbyPlaces,
+  fetchPlaceDetailsOnDemand,
+} from "../../controllers/Map/placesController";
 import { fetchRoute } from "../../controllers/Map/routesController";
 import {
   checkVisitedPlaces,
@@ -98,7 +101,7 @@ const useMapPlaces = (): UseMapPlacesReturn => {
           // Keep selected place in the list if it exists
           if (selectedPlace) {
             const selectedPlaceExists = placesWithVisitedStatus.some(
-              (place) => place.place_id === selectedPlace.place_id
+              (place: any) => place.place_id === selectedPlace.place_id
             );
 
             if (!selectedPlaceExists) {
@@ -148,6 +151,7 @@ const useMapPlaces = (): UseMapPlacesReturn => {
 
   /**
    * Check if we should refresh places based on user movement
+   * UPDATED: Less frequent refreshes based on movement
    */
   const checkAndRefreshPlaces = useCallback(
     (newLocation: Coordinate): boolean => {
@@ -157,8 +161,11 @@ const useMapPlaces = (): UseMapPlacesReturn => {
       const currentTime = Date.now();
       const timeSinceLastRefresh = currentTime - lastRefreshTimeRef.current;
 
-      // Only refresh if enough time has passed since the last refresh
-      if (timeSinceLastRefresh < MARKER_REFRESH_THRESHOLD) return false;
+      // UPDATED: Increase minimum time between refreshes to reduce API calls
+      // Only refresh if enough time has passed since the last refresh (60 seconds minimum)
+      if (timeSinceLastRefresh < MARKER_REFRESH_THRESHOLD) {
+        return false;
+      }
 
       const distance = haversineDistance(
         lastRefreshPositionRef.current.latitude,
@@ -167,8 +174,8 @@ const useMapPlaces = (): UseMapPlacesReturn => {
         newLocation.longitude
       );
 
-      // If user has moved more than 50% of the circle radius, refresh places
-      if (distance > circleRadius * 0.5) {
+      // UPDATED: If user has moved more than 75% of the circle radius (instead of 50%), refresh places
+      if (distance > circleRadius * 0.75) {
         console.log(`User moved ${distance.toFixed(2)}m, refreshing places`);
         refreshNearbyPlaces(newLocation.latitude, newLocation.longitude);
         return true;
@@ -177,65 +184,6 @@ const useMapPlaces = (): UseMapPlacesReturn => {
       return false;
     },
     [refreshNearbyPlaces, initialLoadingComplete, circleRadius]
-  );
-
-  /**
-   * Handle place selection
-   */
-  const handlePlaceSelection = useCallback(
-    async (
-      place: Place,
-      userLocation: Coordinate | null,
-      region: Region | null
-    ): Promise<PlaceSelectionResult | false> => {
-      if (!userLocation && !region) {
-        Alert.alert("Location Error", "Unable to determine your current location.");
-        return false;
-      }
-
-      // Set the selected place
-      setSelectedPlace(place);
-      console.log(`Selected place: ${place.name}`);
-
-      try {
-        // Check if this place is already visited and fetch details if necessary
-        const isVisited = await isPlaceVisited(place.place_id);
-        console.log(`Place visited status: ${isVisited}`);
-
-        if (isVisited) {
-          console.log("Selected place has been discovered:", place.name);
-
-          // Fetch the visited place details from the controller
-          const visitedDetails = await getVisitedPlaceDetails(place.place_id);
-
-          if (visitedDetails) {
-            // Store the full details for use in the DiscoveredCard
-            setVisitedPlaceDetails(visitedDetails);
-
-            // Still get route info for reference
-            await getRouteInfo(place, userLocation, region);
-            return { isDiscovered: true, details: visitedDetails };
-          }
-        }
-
-        // If we get here, place is not visited or we couldn't get details
-        // Show the regular card based on standard isVisited flag
-        if (place.isVisited === true) {
-          const visitedDetails = await getVisitedPlaceDetails(place.place_id);
-          setVisitedPlaceDetails(visitedDetails || null);
-          return { isDiscovered: true, details: visitedDetails };
-        } else {
-          // Always get route information
-          await getRouteInfo(place, userLocation, region);
-          return { isDiscovered: false };
-        }
-      } catch (error) {
-        console.error("Error in place selection:", error);
-        Alert.alert("Error", "There was a problem processing this place.");
-        return false;
-      }
-    },
-    []
   );
 
   /**
@@ -307,6 +255,93 @@ const useMapPlaces = (): UseMapPlacesReturn => {
       }
     },
     []
+  );
+
+  /**
+   * Handle place selection
+   * UPDATED: Progressive loading with initial basic data and fetch details only when needed
+   */
+  const handlePlaceSelection = useCallback(
+    async (
+      place: Place,
+      userLocation: Coordinate | null,
+      region: Region | null
+    ): Promise<PlaceSelectionResult | false> => {
+      if (!userLocation && !region) {
+        Alert.alert("Location Error", "Unable to determine your current location.");
+        return false;
+      }
+
+      // Set the selected place with basic info first
+      setSelectedPlace(place);
+      console.log(`Selected place: ${place.name}`);
+
+      try {
+        // Check if this place is already visited and fetch details if necessary
+        const isVisited = await isPlaceVisited(place.place_id);
+        console.log(`Place visited status: ${isVisited}`);
+
+        // For visited places, get the full details from the database
+        if (isVisited) {
+          console.log("Selected place has been discovered:", place.name);
+
+          // Fetch the visited place details from the controller
+          const visitedDetails = await getVisitedPlaceDetails(place.place_id);
+
+          if (visitedDetails) {
+            // Store the full details for use in the DiscoveredCard
+            setVisitedPlaceDetails(visitedDetails);
+
+            // Still get route info for reference
+            await getRouteInfo(place, userLocation, region);
+            return {
+              isDiscovered: true,
+              isAlreadyAt: false,
+              details: visitedDetails,
+            };
+          }
+        }
+
+        // If we get here, place is not visited or we couldn't get details
+        if (place.isVisited === true) {
+          const visitedDetails = await getVisitedPlaceDetails(place.place_id);
+          setVisitedPlaceDetails(visitedDetails || null);
+          return {
+            isDiscovered: true,
+            isAlreadyAt: false,
+            details: visitedDetails,
+          };
+        } else {
+          // Always get route information
+          await getRouteInfo(place, userLocation, region);
+
+          // ADDED: Fetch detailed place info in the background if needed
+          if (!place.formatted_address || !place.reviews) {
+            console.log(`Fetching additional details for ${place.name}`);
+            fetchPlaceDetailsOnDemand(place.place_id)
+              .then((detailedPlace) => {
+                if (detailedPlace && selectedPlace?.place_id === detailedPlace.place_id) {
+                  console.log(`Updated selected place with details: ${detailedPlace.name}`);
+                  setSelectedPlace(detailedPlace);
+                }
+              })
+              .catch((error) => {
+                console.error("Error fetching place details:", error);
+              });
+          }
+
+          return {
+            isDiscovered: false,
+            isAlreadyAt: false,
+          };
+        }
+      } catch (error) {
+        console.error("Error in place selection:", error);
+        Alert.alert("Error", "There was a problem processing this place.");
+        return false;
+      }
+    },
+    [getRouteInfo, selectedPlace?.place_id]
   );
 
   /**

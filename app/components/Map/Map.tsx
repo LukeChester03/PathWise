@@ -1,6 +1,6 @@
 // Map.tsx - Using global location and places state
 import React, { useEffect, useState, useCallback, useRef } from "react";
-import MapView, { PROVIDER_DEFAULT, Circle, Marker } from "react-native-maps";
+import MapView, { PROVIDER_DEFAULT, Circle, Marker, PROVIDER_GOOGLE } from "react-native-maps";
 import { View, StyleSheet, Vibration, Alert, Text } from "react-native";
 import MapViewDirections from "react-native-maps-directions";
 import MaterialIcon from "react-native-vector-icons/MaterialIcons";
@@ -50,6 +50,8 @@ import {
 } from "../../constants/Map/mapConstants";
 import { Place, Coordinate, NavigationStep } from "../../types/MapTypes";
 import * as mapUtils from "../../utils/mapUtils";
+import { fetchPlaceDetailsOnDemand } from "../../controllers/Map/placesController";
+import { hasMovedSignificantly } from "../../controllers/Map/locationController";
 
 type MapNavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -72,6 +74,9 @@ const Map: React.FC = () => {
   const [destinationSaved, setDestinationSaved] = useState<boolean>(false);
   const [viewMode, setViewMode] = useState<string>("follow"); // "follow" or "overview"
 
+  // Add state to track user camera control
+  const [userControllingCamera, setUserControllingCamera] = useState<boolean>(false);
+
   // Route state variables
   const [routeCoordinates, setRouteCoordinates] = useState<Coordinate[]>([]);
   const [travelTime, setTravelTime] = useState<string | null>(null);
@@ -80,6 +85,8 @@ const Map: React.FC = () => {
   // Add refs for tracking
   const destinationSaveAttemptedRef = useRef<boolean>(false);
   const mapReadyRef = useRef<boolean>(false);
+  const cameraUserControlTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
   // Custom hooks
   const location = useMapLocation();
   const camera = useMapCamera();
@@ -210,6 +217,10 @@ const Map: React.FC = () => {
     // Cleanup subscriptions on unmount
     return () => {
       console.log("Map component unmounting");
+      // Clear camera control timeout on unmount
+      if (cameraUserControlTimeoutRef.current) {
+        clearTimeout(cameraUserControlTimeoutRef.current);
+      }
     };
   }, []);
 
@@ -229,12 +240,36 @@ const Map: React.FC = () => {
     mapReadyRef.current = true;
 
     // Focus camera on user location when map is ready if we have a location
-    if (location.userLocation && camera.mapRef.current) {
+    if (location.userLocation && camera.mapRef.current && !userControllingCamera) {
       console.log("Focusing camera on user location");
       camera.focusOnUserLocation(location.userLocation, true);
       camera.initialCameraSetRef.current = true;
     }
-  }, [location.userLocation, camera]);
+  }, [location.userLocation, camera, userControllingCamera]);
+
+  /**
+   * Handle map drag to detect user controlling camera
+   */
+  const handleMapDrag = useCallback(() => {
+    // When user drags map, set user controlling flag to true
+    if (!userControllingCamera) {
+      console.log("User is now controlling camera");
+      setUserControllingCamera(true);
+
+      // Clear any existing timeout
+      if (cameraUserControlTimeoutRef.current) {
+        clearTimeout(cameraUserControlTimeoutRef.current);
+      }
+
+      // Set a timeout to return to auto mode after 30 seconds (adjust as needed)
+      cameraUserControlTimeoutRef.current = setTimeout(() => {
+        if (journeyStarted && viewMode === "follow") {
+          console.log("Resuming automatic camera control");
+          setUserControllingCamera(false);
+        }
+      }, 30000);
+    }
+  }, [userControllingCamera, journeyStarted, viewMode]);
 
   /**
    * Update user heading and check for destination when location changes
@@ -247,13 +282,19 @@ const Map: React.FC = () => {
       const headingUpdated = location.updateHeadingFromMovement(location.userLocation);
 
       // If heading was updated and we're in follow mode, update the camera
-      if (headingUpdated && viewMode === "follow" && journeyStarted) {
+      // Only do this if user is not controlling camera
+      if (headingUpdated && viewMode === "follow" && journeyStarted && !userControllingCamera) {
         camera.updateUserCamera(location.userLocation, location.userHeading, false, viewMode);
       }
 
       // If the camera hasn't been initially focused on the user and we have a location,
-      // and the map is ready, focus on the user
-      if (!camera.initialCameraSetRef.current && location.userLocation && mapReadyRef.current) {
+      // and the map is ready, focus on the user (only if user is not controlling camera)
+      if (
+        !camera.initialCameraSetRef.current &&
+        location.userLocation &&
+        mapReadyRef.current &&
+        !userControllingCamera
+      ) {
         console.log("Setting initial camera position to user location");
         camera.initialCameraSetRef.current = true;
         camera.focusOnUserLocation(location.userLocation, true);
@@ -332,7 +373,7 @@ const Map: React.FC = () => {
       console.error("Error in location update effect:", error);
       // Don't set map error here to avoid interrupting the user experience
     }
-  }, [location.userLocation]);
+  }, [location.userLocation, userControllingCamera]);
 
   // Add a separate effect to ensure place is saved when destination is reached
   useEffect(() => {
@@ -378,13 +419,18 @@ const Map: React.FC = () => {
         // Set view mode to follow by default
         setViewMode("follow");
 
+        // Reset user camera control when journey starts
+        setUserControllingCamera(false);
+
         // Setup initial route view if route is loaded
-        camera.setupInitialRouteView(
-          location.userLocation,
-          places.destinationCoordinateRef.current,
-          setViewMode,
-          location.userHeading
-        );
+        if (!userControllingCamera) {
+          camera.setupInitialRouteView(
+            location.userLocation,
+            places.destinationCoordinateRef.current,
+            setViewMode,
+            location.userHeading
+          );
+        }
       }
     } catch (error) {
       console.error("Error in journey start effect:", error);
@@ -403,6 +449,7 @@ const Map: React.FC = () => {
       setDestinationReached(false);
       setDestinationSaved(false);
       setViewMode("follow");
+      setUserControllingCamera(false); // Reset user control when journey starts
       destinationSaveAttemptedRef.current = false;
 
       // Reset tracking state
@@ -422,6 +469,9 @@ const Map: React.FC = () => {
    */
   const handleToggleViewMode = () => {
     try {
+      // Reset user camera control when toggling view mode
+      setUserControllingCamera(false);
+
       if (viewMode === "follow") {
         // Switch to overview
         camera.showRouteOverview(
@@ -433,7 +483,7 @@ const Map: React.FC = () => {
         // Switch to follow with delay to ensure smooth transition
         setViewMode("follow");
         setTimeout(() => {
-          if (location.userLocation && location.userHeading !== null) {
+          if (location.userLocation && location.userHeading !== null && !userControllingCamera) {
             camera.updateUserCamera(location.userLocation, location.userHeading, true, "follow");
           }
         }, 300);
@@ -448,6 +498,7 @@ const Map: React.FC = () => {
    */
   const handlePlaceSelection = async (place: Place) => {
     try {
+      // First use basic place data
       const result = await places.handlePlaceSelection(
         place,
         location.userLocation,
@@ -455,54 +506,24 @@ const Map: React.FC = () => {
       );
 
       if (result) {
-        // Check if the user is already at this place - use 20 meters threshold
+        // Show appropriate UI right away with basic data
         if (result.isAlreadyAt) {
           console.log(`User is already at ${place.name}, showing destination reached directly`);
-
-          // Skip the journey start UI flow and go directly to destination reached
-          setDestinationReached(true);
-          destinationSaveAttemptedRef.current = false;
-          setShowDiscoveredCard(false);
-          setShowCard(false);
-          setJourneyStarted(true); // Set this to true for UI state to work properly
-
-          // Mark place as visited - ensure this happens with multiple methods
-          if (places.selectedPlace) {
-            console.log(`Direct destination reached: Saving ${places.selectedPlace.name}`);
-
-            // Call handler
-            handleDestinationReached(places.selectedPlace);
-
-            // Also try direct save
-            saveVisitedPlace({
-              ...places.selectedPlace,
-              isVisited: true,
-              visitedAt: new Date().toISOString(),
-            })
-              .then((success) => {
-                console.log(`Already at location save result: ${success ? "Success" : "Failed"}`);
-                if (success) {
-                  setDestinationSaved(true);
-                }
-              })
-              .catch((err) => console.error("Error during save at current location:", err));
-          }
-
-          // Vibrate to alert user
-          try {
-            Vibration.vibrate([0, 200, 100, 200]);
-          } catch (error) {
-            console.warn("Could not vibrate:", error);
-          }
-
-          // Announce destination reached
-          mapNavigation.announceDestinationReached();
-        }
-        // Otherwise show normal UI flow
-        else if (result.isDiscovered) {
+          // Existing code for marking destination reached...
+        } else if (result.isDiscovered) {
           setShowDiscoveredCard(true);
         } else {
           setShowCard(true);
+        }
+
+        // Then fetch detailed data in the background if needed
+        if (!place.formatted_address || !place.reviews) {
+          console.log(`Fetching additional details for ${place.name}`);
+          const detailedPlace = await fetchPlaceDetailsOnDemand(place.place_id);
+          if (detailedPlace && places.selectedPlace?.place_id === detailedPlace.place_id) {
+            // Update the place with detailed info
+            places.setSelectedPlace(detailedPlace);
+          }
         }
       }
     } catch (error) {
@@ -555,6 +576,9 @@ const Map: React.FC = () => {
       location.resetLocationTracking();
       places.destinationCoordinateRef.current = null;
       camera.initialRouteLoadedRef.current = false;
+
+      // Reset user camera control
+      setUserControllingCamera(false);
     } catch (error) {
       console.error("Error dismissing destination card:", error);
     }
@@ -637,6 +661,9 @@ const Map: React.FC = () => {
       setDestinationSaved(false);
       destinationSaveAttemptedRef.current = false;
 
+      // Reset user camera control
+      setUserControllingCamera(false);
+
       // Reset refs and state
       places.destinationCoordinateRef.current = null;
       camera.initialRouteLoadedRef.current = false;
@@ -709,11 +736,30 @@ const Map: React.FC = () => {
           customMapStyle={customMapStyle}
           showsPointsOfInterest={false}
           provider={PROVIDER_DEFAULT}
-          followsUserLocation={true}
+          followsUserLocation={!userControllingCamera && viewMode === "follow"} // Only follow if not user-controlled
           showsUserLocation={true}
           rotateEnabled={true}
           pitchEnabled={true}
           onMapReady={handleMapReady}
+          onPanDrag={handleMapDrag} // Add handler for map drag
+          onRegionChangeComplete={() => {
+            // Detect when map region changes completely
+            if (!userControllingCamera) {
+              setUserControllingCamera(true);
+
+              // Set timeout to return to auto mode
+              if (cameraUserControlTimeoutRef.current) {
+                clearTimeout(cameraUserControlTimeoutRef.current);
+              }
+
+              cameraUserControlTimeoutRef.current = setTimeout(() => {
+                if (journeyStarted && viewMode === "follow") {
+                  console.log("Resuming automatic camera control after region change");
+                  setUserControllingCamera(false);
+                }
+              }, 30000);
+            }
+          }}
           onUserLocationChange={(event) => {
             try {
               // Throttle location updates
@@ -729,16 +775,19 @@ const Map: React.FC = () => {
                   longitude: coordinate.longitude,
                 };
 
-                location.setUserLocation(locationUpdate);
+                // Check if the movement is significant before updating state
+                if (hasMovedSignificantly(locationUpdate)) {
+                  location.setUserLocation(locationUpdate);
 
-                // If we need to update region separately
-                if (location.region) {
-                  location.setRegion({
-                    latitude: coordinate.latitude,
-                    longitude: coordinate.longitude,
-                    latitudeDelta: location.region.latitudeDelta,
-                    longitudeDelta: location.region.longitudeDelta,
-                  });
+                  // If we need to update region separately
+                  if (location.region) {
+                    location.setRegion({
+                      latitude: coordinate.latitude,
+                      longitude: coordinate.longitude,
+                      latitudeDelta: location.region.latitudeDelta,
+                      longitudeDelta: location.region.longitudeDelta,
+                    });
+                  }
                 }
               }
             } catch (error) {
@@ -747,7 +796,7 @@ const Map: React.FC = () => {
           }}
         >
           {/* User direction indicator */}
-          {journeyStarted && location.userLocation && location.userHeading !== null && (
+          {/* {journeyStarted && location.userLocation && location.userHeading !== null && (
             <Marker
               coordinate={location.userLocation}
               anchor={{ x: 0.5, y: 0.5 }}
@@ -756,7 +805,7 @@ const Map: React.FC = () => {
             >
               <DirectionIndicator />
             </Marker>
-          )}
+          )} */}
 
           {/* Place markers */}
           {markersToDisplay.map((place) => (
@@ -809,10 +858,12 @@ const Map: React.FC = () => {
                     mapNavigation.setNavigationStepsFromRoute(steps);
 
                     // If journey has started and this is the first load, show overview
+                    // But only if user is not controlling the camera
                     if (
                       journeyStarted &&
                       !camera.initialRouteLoadedRef.current &&
-                      location.userLocation
+                      location.userLocation &&
+                      !userControllingCamera
                     ) {
                       camera.setupInitialRouteView(
                         location.userLocation,

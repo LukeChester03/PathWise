@@ -5,6 +5,7 @@ import {
   requestLocationPermission,
   watchUserLocation,
   getCurrentLocation,
+  hasMovedSignificantly,
 } from "../../controllers/Map/locationController";
 import { calculateBearing, haversineDistance } from "../../utils/mapUtils";
 import { HEADING_UPDATE_MIN_DISTANCE, MIN_HEADING_CHANGE } from "../../constants/Map/mapConstants";
@@ -76,9 +77,21 @@ const useMapLocation = (): UseMapLocationReturn => {
         // Now start watching for location updates
         const locationWatcher = await watchUserLocation(
           (locationUpdate: Region) => {
-            console.log("Location update received:", locationUpdate);
-            // Just update the user location, not the map region
-            setUserLocation(locationUpdate);
+            // Only update if the movement is significant
+            if (
+              userLocation &&
+              hasMovedSignificantly({
+                latitude: locationUpdate.latitude,
+                longitude: locationUpdate.longitude,
+              })
+            ) {
+              console.log("Significant location update received:", locationUpdate);
+              // Just update the user location, not the map region
+              setUserLocation(locationUpdate);
+            } else if (!userLocation) {
+              // Always update if we don't have a location yet
+              setUserLocation(locationUpdate);
+            }
           },
           (error: Error) => {
             console.error("Error watching location:", error);
@@ -95,11 +108,12 @@ const useMapLocation = (): UseMapLocationReturn => {
         return false;
       }
     },
-    []
+    [userLocation]
   );
 
   /**
    * Update user heading based on movement
+   * UPDATED: Requires more movement to update heading (20m instead of previous value)
    */
   const updateHeadingFromMovement = useCallback((newLocation: Coordinate): boolean => {
     if (!previousPositionRef.current) {

@@ -1,4 +1,6 @@
-// app/index.tsx
+// Add this fix to your App entry point (app/index.tsx)
+// This will ensure places are properly initialized at app startup
+
 import React, { useEffect, useState } from "react";
 import { SafeAreaView, StatusBar } from "react-native";
 import Layout from "./_layout";
@@ -6,7 +8,11 @@ import { NavigationContainer } from "@react-navigation/native";
 import XPProvider from "./contexts/Levelling/xpContext";
 import XPNotificationsManager from "./components/Levelling/XPNotificationsManager";
 import { initStatsSystem } from "./services/statsService";
-import { initLocationAndPlaces } from "./controllers/Map/locationController";
+import {
+  initLocationAndPlaces,
+  getCurrentLocation,
+  updateNearbyPlaces,
+} from "./controllers/Map/locationController";
 
 export default function Index() {
   // State to track initialization
@@ -31,8 +37,29 @@ export default function Index() {
         // Initialize location tracking and preload places data
         console.log("Initializing location and places...");
         await initLocationAndPlaces();
-        console.log("Location and places initialization complete");
 
+        // ADDED: Force an explicit location and places refresh after initialization
+        // This ensures places data is available regardless of what happened in automatic init
+        setTimeout(async () => {
+          try {
+            console.log("🔄 Performing explicit places refresh...");
+            const currentLocation = await getCurrentLocation();
+
+            if (currentLocation) {
+              console.log(
+                `📍 Got location for explicit refresh: ${currentLocation.latitude}, ${currentLocation.longitude}`
+              );
+              await updateNearbyPlaces(currentLocation, true);
+              console.log("✅ Explicit places refresh complete");
+            } else {
+              console.warn("⚠️ Could not get location for explicit refresh");
+            }
+          } catch (refreshError) {
+            console.error("Error in explicit refresh:", refreshError);
+          }
+        }, 2000); // Wait 2 seconds after initialization
+
+        console.log("Location and places initialization complete");
         setInitialized(true);
       } catch (error) {
         console.error("Failed to initialize systems:", error);
