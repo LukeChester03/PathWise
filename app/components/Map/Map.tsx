@@ -735,7 +735,7 @@ const Map: React.FC = () => {
           initialRegion={location.region || undefined}
           customMapStyle={customMapStyle}
           showsPointsOfInterest={false}
-          provider={PROVIDER_DEFAULT}
+          provider={PROVIDER_GOOGLE}
           followsUserLocation={!userControllingCamera && viewMode === "follow"} // Only follow if not user-controlled
           showsUserLocation={true}
           rotateEnabled={true}
