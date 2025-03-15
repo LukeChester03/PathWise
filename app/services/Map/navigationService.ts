@@ -33,15 +33,25 @@ class NavigationService {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }
 
-    console.log(`Navigating to map with place: ${place.name}`);
+    try {
+      console.log(`NavigationService: Navigating to map with place: ${place.name}`);
 
-    // Navigate to the Discover screen with the place to show
-    navigation.navigate(
-      "Discover" as any,
-      {
-        showPlaceCard: place,
-      } as any
-    );
+      // Important: Create a deep copy of the place to ensure no reference issues
+      const placeToShow = JSON.parse(JSON.stringify(place));
+
+      // Navigate to the Discover screen with the place to show
+      // Use both parameter names for compatibility
+      navigation.navigate(
+        "Discover" as any,
+        {
+          showPlaceCard: true,
+          placeToShow: placeToShow,
+          timestamp: new Date().getTime(), // Add timestamp to force param refresh
+        } as any
+      );
+    } catch (error) {
+      console.error("NavigationService: Error navigating to map", error);
+    }
   }
 
   /**
@@ -59,12 +69,19 @@ class NavigationService {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }
 
-    console.log(`Navigating to place details: ${place.name}`);
+    try {
+      console.log(`NavigationService: Navigating to place details: ${place.name}`);
 
-    navigation.navigate("PlaceDetails", {
-      placeId: place.place_id,
-      place: place,
-    });
+      // Create a deep copy of the place
+      const placeToShow = JSON.parse(JSON.stringify(place));
+
+      navigation.navigate("PlaceDetails", {
+        placeId: place.place_id,
+        place: placeToShow,
+      });
+    } catch (error) {
+      console.error("NavigationService: Error navigating to place details", error);
+    }
   }
 
   /**
@@ -73,10 +90,30 @@ class NavigationService {
    * @returns The place to show in the explore card, or null if not found
    */
   getShowPlaceCardFromRoute(route: RouteProp<any, any>): Place | null {
-    if (route.params && route.params.showPlaceCard) {
-      return route.params.showPlaceCard as Place;
+    try {
+      // Check for place in both parameter formats for compatibility
+      if (route.params) {
+        // Original format
+        if (route.params.showPlaceCard && typeof route.params.showPlaceCard === "object") {
+          console.log(
+            `NavigationService: Found place in route (original format): ${route.params.showPlaceCard.name}`
+          );
+          return route.params.showPlaceCard as Place;
+        }
+
+        // New format
+        if (route.params.showPlaceCard === true && route.params.placeToShow) {
+          console.log(
+            `NavigationService: Found place in route (new format): ${route.params.placeToShow.name}`
+          );
+          return route.params.placeToShow as Place;
+        }
+      }
+      return null;
+    } catch (error) {
+      console.error("NavigationService: Error extracting place from route", error);
+      return null;
     }
-    return null;
   }
 }
 

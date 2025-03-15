@@ -63,6 +63,8 @@ interface MapProps {
 
 const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
   const navigation = useNavigation<MapNavigationProp>();
+  const [placeProcessingAttempts, setPlaceProcessingAttempts] = useState<number>(0);
+  const MAX_PROCESSING_ATTEMPTS = 5;
   // State for tracking location and places loading
   const [loading, setLoading] = useState<boolean>(true);
   const [locationReady, setLocationReady] = useState<boolean>(false);
@@ -101,19 +103,152 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
   const places = useMapPlaces();
   const mapNavigation = useMapNavigation();
 
+  const [debugInfo, setDebugInfo] = useState<{
+    placeReceived: boolean;
+    placeProcessed: boolean;
+    cardShown: boolean;
+  }>({
+    placeReceived: false,
+    placeProcessed: false,
+    cardShown: false,
+  });
+
   // Track placeToShow in ref to prevent processing it multiple times
   useEffect(() => {
-    if (
-      placeToShow &&
-      (!pendingPlaceToShowRef.current ||
-        placeToShow.place_id !== pendingPlaceToShowRef.current.place_id)
-    ) {
-      console.log(`Received place to show: ${placeToShow.name}`);
-      pendingPlaceToShowRef.current = placeToShow;
-      placeCardShownRef.current = false;
-    }
-  }, [placeToShow]);
+    if (placeToShow && !showCard && !journeyStarted) {
+      console.log(`Map: DIRECT processing for place: ${placeToShow.name}`);
+      setDebugInfo((prev) => ({ ...prev, placeReceived: true }));
 
+      // Set the place directly to state
+      places.setSelectedPlace(placeToShow);
+
+      // Use existing travelTime state
+      setTravelTime("Calculating...");
+
+      // Calculate a rough travel time estimate as a fallback
+      if (location.userLocation) {
+        try {
+          const userLoc = location.userLocation;
+          const placeLoc = {
+            latitude: placeToShow.geometry.location.lat,
+            longitude: placeToShow.geometry.location.lng,
+          };
+
+          // Calculate straight-line distance as fallback
+          const distanceInKm =
+            mapUtils.haversineDistance(
+              userLoc.latitude,
+              userLoc.longitude,
+              placeLoc.latitude,
+              placeLoc.longitude
+            ) / 1000;
+
+          // Roughly estimate travel time (assumes 30km/h average speed)
+          const estimatedMinutes = Math.ceil(distanceInKm * 2);
+          setTravelTime(`~${estimatedMinutes} min`);
+
+          // Start more accurate travel time calculation in the background
+          setTimeout(async () => {
+            try {
+              const result = await places.handlePlaceSelection(
+                placeToShow,
+                userLoc,
+                location.region
+              );
+              console.log("Background place processing complete");
+            } catch (error) {
+              console.error("Error in background processing:", error);
+            }
+          }, 500);
+        } catch (estimateError) {
+          console.warn("Error estimating travel time:", estimateError);
+        }
+      }
+
+      // Set this immediately to show the card
+      setShowCard(true);
+      setDebugInfo((prev) => ({ ...prev, cardShown: true }));
+
+      // Notify parent that card is shown
+      if (onPlaceCardShown) {
+        setTimeout(() => {
+          onPlaceCardShown();
+        }, 500);
+      }
+
+      setDebugInfo((prev) => ({ ...prev, placeProcessed: true }));
+    }
+  }, [placeToShow, showCard, journeyStarted]);
+
+  // Separate effect to handle processing the pending place
+  // This runs on a timer to keep trying until successful or max attempts reached
+  useEffect(() => {
+    // Check if we have a pending place that hasn't been shown yet
+    if (
+      pendingPlaceToShowRef.current &&
+      !placeCardShownRef.current &&
+      placeProcessingAttempts < MAX_PROCESSING_ATTEMPTS
+    ) {
+      const attemptToProcessPlace = async () => {
+        try {
+          console.log(
+            `Map: Attempt ${placeProcessingAttempts + 1} to process place: ${
+              pendingPlaceToShowRef.current?.name
+            }`
+          );
+
+          // Check if we can process the place now
+          const canProcess = !loading || placeProcessingAttempts >= 2; // After 2 attempts, try anyway
+
+          if (canProcess) {
+            const placeToProcess = pendingPlaceToShowRef.current;
+            if (placeToProcess) {
+              console.log(`Map: Processing place: ${placeToProcess.name}`);
+
+              // Mark as processed to prevent multiple processing
+              placeCardShownRef.current = true;
+
+              // Set selected place directly
+              places.setSelectedPlace(placeToProcess);
+
+              // Show the card immediately for better UX
+              setShowCard(true);
+
+              // Try to get more details in the background
+              if (!placeToProcess.formatted_address || !placeToProcess.reviews) {
+                try {
+                  console.log(`Map: Fetching additional details for ${placeToProcess.name}`);
+                  const detailedPlace = await fetchPlaceDetailsOnDemand(placeToProcess.place_id);
+                  if (detailedPlace && places.selectedPlace?.place_id === detailedPlace.place_id) {
+                    // Update the place with detailed info
+                    places.setSelectedPlace(detailedPlace);
+                  }
+                } catch (detailError) {
+                  console.warn("Error fetching place details:", detailError);
+                  // Continue with basic place info
+                }
+              }
+
+              // Notify parent
+              if (onPlaceCardShown) {
+                onPlaceCardShown();
+              }
+            }
+          } else {
+            // Increment the attempt counter and try again later
+            setPlaceProcessingAttempts((prev) => prev + 1);
+          }
+        } catch (error) {
+          console.error("Error processing place:", error);
+          setPlaceProcessingAttempts((prev) => prev + 1);
+        }
+      };
+
+      // Use setTimeout to try processing after a delay
+      const timer = setTimeout(attemptToProcessPlace, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [loading, placeProcessingAttempts, pendingPlaceToShowRef.current, placeCardShownRef.current]);
   // Function to handle retry when map fails
   const handleRetry = useCallback(() => {
     console.log("Retrying map load...");
@@ -570,37 +705,75 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
    */
   const handlePlaceSelection = async (place: Place) => {
     try {
-      // First use basic place data
-      const result = await places.handlePlaceSelection(
-        place,
-        location.userLocation,
-        location.region
-      );
+      // Set selected place immediately for better UX
+      places.setSelectedPlace(place);
 
-      if (result) {
-        // Show appropriate UI right away with basic data
-        if (result.isAlreadyAt) {
-          console.log(`User is already at ${place.name}, showing destination reached directly`);
-          // Existing code for marking destination reached...
-        } else if (result.isDiscovered) {
-          setShowDiscoveredCard(true);
-        } else {
-          setShowCard(true);
-        }
+      // Use existing travelTime state
+      setTravelTime("Calculating...");
 
-        // Then fetch detailed data in the background if needed
-        if (!place.formatted_address || !place.reviews) {
-          console.log(`Fetching additional details for ${place.name}`);
-          const detailedPlace = await fetchPlaceDetailsOnDemand(place.place_id);
-          if (detailedPlace && places.selectedPlace?.place_id === detailedPlace.place_id) {
-            // Update the place with detailed info
-            places.setSelectedPlace(detailedPlace);
-          }
+      // Calculate a rough estimate
+      if (location.userLocation) {
+        try {
+          const userLoc = location.userLocation;
+          const placeLoc = {
+            latitude: place.geometry.location.lat,
+            longitude: place.geometry.location.lng,
+          };
+
+          const distanceInKm =
+            mapUtils.haversineDistance(
+              userLoc.latitude,
+              userLoc.longitude,
+              placeLoc.latitude,
+              placeLoc.longitude
+            ) / 1000;
+
+          const estimatedMinutes = Math.ceil(distanceInKm * 2);
+          setTravelTime(`~${estimatedMinutes} min`);
+        } catch (error) {
+          console.warn("Error estimating travel time:", error);
         }
       }
+
+      // Show card right away
+      setShowCard(true);
+
+      // Then process additional data in the background
+      setTimeout(async () => {
+        try {
+          // Use location fallbacks if needed
+          const userLocationForProcess = location.userLocation || {
+            latitude: 0,
+            longitude: 0,
+          };
+          const regionForProcess = location.region || {
+            latitude: 0,
+            longitude: 0,
+            latitudeDelta: 0.05,
+            longitudeDelta: 0.05,
+          };
+
+          const result = await places.handlePlaceSelection(
+            place,
+            userLocationForProcess,
+            regionForProcess
+          );
+
+          // Update UI based on result if needed
+          if (result) {
+            if (result.isAlreadyAt) {
+              console.log(`User is already at ${place.name}`);
+            } else if (result.isDiscovered) {
+              setShowCard(false);
+              setShowDiscoveredCard(true);
+            }
+          }
+        } catch (backgroundError) {
+          console.warn("Background place processing error:", backgroundError);
+        }
+      }, 500);
     } catch (error) {
       console.error("Error in place selection:", error);
-      Alert.alert("Selection Error", "There was a problem selecting this place. Please try again.");
     }
   };
 
@@ -955,11 +1128,11 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
         {journeyStarted && <ViewModeToggle viewMode={viewMode} onToggle={handleToggleViewMode} />}
 
         {/* Cards and UI elements */}
-        {showCard && places.selectedPlace && places.travelTime && (
+        {showCard && places.selectedPlace && (places.travelTime || travelTime) && (
           <View style={styles.cardOverlayContainer}>
             <ExploreCard
               placeName={places.selectedPlace.name}
-              travelTime={places.travelTime}
+              travelTime={places.travelTime || travelTime}
               onStartJourney={onStartJourney}
               visible={showCard}
               rating={

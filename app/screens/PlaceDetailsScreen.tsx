@@ -217,9 +217,23 @@ const PlaceDetailsScreen: React.FC = () => {
 
   // NEW: Handle start journey button on PreVisitModal
   const handleStartJourney = () => {
-    // Use NavigationService to show the discover card for this place
-    if (placeDetails) {
-      NavigationService.showDiscoverCard(navigation, placeDetails);
+    try {
+      // First provide haptic feedback
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+      if (placeDetails) {
+        console.log(`PlaceDetailsScreen: Starting journey for ${placeDetails.name}`);
+
+        // Create a deep copy of the place to avoid reference issues
+        const placeToShow = JSON.parse(JSON.stringify(placeDetails));
+
+        // Use NavigationService with a slight delay
+        setTimeout(() => {
+          NavigationService.showDiscoverCard(navigation, placeToShow);
+        }, 100);
+      }
+    } catch (error) {
+      console.error("PlaceDetailsScreen: Error starting journey:", error);
     }
   };
 
@@ -251,11 +265,22 @@ const PlaceDetailsScreen: React.FC = () => {
 
   // Handle navigation to the place
   const handleNavigateToPlace = () => {
-    if (!placeDetails) return;
+    try {
+      if (!placeDetails) return;
 
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    // Use the NavigationService instead of direct navigation
-    NavigationService.showDiscoverCard(navigation, placeDetails);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      console.log(`PlaceDetailsScreen: Navigating to ${placeDetails.name}`);
+
+      // Create a deep copy of the place
+      const placeToShow = JSON.parse(JSON.stringify(placeDetails));
+
+      // Use NavigationService with a slight delay
+      setTimeout(() => {
+        NavigationService.showDiscoverCard(navigation, placeToShow);
+      }, 100);
+    } catch (error) {
+      console.error("PlaceDetailsScreen: Error navigating to place:", error);
+    }
   };
 
   // Handle phone call

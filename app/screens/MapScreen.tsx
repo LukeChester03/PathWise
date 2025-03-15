@@ -38,19 +38,44 @@ const MapScreen = () => {
   // State to store place from route params
   const [placeToShow, setPlaceToShow] = useState<Place | null>(null);
 
+  // Use a ref to track if we're currently processing a place
+  const processingPlaceRef = useRef<boolean>(false);
+
   // Check for place to show from route params
   useEffect(() => {
-    const checkForPlaceToShow = () => {
-      const placeFromRoute = NavigationService.getShowPlaceCardFromRoute(route);
+    const checkForPlaceToShow = async () => {
+      try {
+        // Get place from route params
+        const placeFromRoute = NavigationService.getShowPlaceCardFromRoute(route);
 
-      if (placeFromRoute && JSON.stringify(placeFromRoute) !== JSON.stringify(placeToShow)) {
-        console.log(`Received place to show in map: ${placeFromRoute.name}`);
-        setPlaceToShow(placeFromRoute);
+        if (placeFromRoute && !processingPlaceRef.current) {
+          console.log(`MapScreen: Received place to show: ${placeFromRoute.name}`);
+
+          // Mark that we're processing a place
+          processingPlaceRef.current = true;
+
+          // Clear current place first to ensure state reset
+          setPlaceToShow(null);
+
+          // Use a slight delay to ensure clean state before setting new place
+          setTimeout(() => {
+            setPlaceToShow(placeFromRoute);
+            console.log(`MapScreen: Set place to show: ${placeFromRoute.name}`);
+
+            // Reset processing flag after a delay to prevent rapid re-processing
+            setTimeout(() => {
+              processingPlaceRef.current = false;
+            }, 1000);
+          }, 100);
+        }
+      } catch (error) {
+        console.error("MapScreen: Error checking for place to show:", error);
+        processingPlaceRef.current = false;
       }
     };
 
     checkForPlaceToShow();
-  }, [route, placeToShow]);
+  }, [route]);
 
   useEffect(() => {
     const updateDimensions = () => {
@@ -85,6 +110,7 @@ const MapScreen = () => {
 
     // Reset placeToShow on retry for a fresh state
     setPlaceToShow(null);
+    processingPlaceRef.current = false;
   }, []);
 
   // Handle saving map settings and refreshing the map
@@ -159,6 +185,19 @@ const MapScreen = () => {
     </TouchableOpacity>
   );
 
+  // Report when placeToShow changes
+  useEffect(() => {
+    if (placeToShow) {
+      console.log(`MapScreen: placeToShow updated: ${placeToShow.name}`);
+    }
+  }, [placeToShow]);
+
+  // Handle when place card is shown in Map component
+  const handlePlaceCardShown = useCallback(() => {
+    console.log("MapScreen: Place card has been shown in Map component");
+    setPlaceToShow(null);
+  }, []);
+
   return (
     <ScreenWithNavBar>
       <View style={globalStyles.container}>
@@ -179,7 +218,7 @@ const MapScreen = () => {
             <Map
               key={`${refreshKey}-${mapKey}`}
               placeToShow={placeToShow}
-              onPlaceCardShown={() => setPlaceToShow(null)} // Clear state once card is shown
+              onPlaceCardShown={handlePlaceCardShown}
             />
           </MapErrorBoundary>
         </View>

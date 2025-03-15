@@ -20,7 +20,7 @@ interface ExploreCardProps {
   placeName: string;
   placeDescription?: string;
   placeImage?: string;
-  travelTime: string;
+  travelTime: string | null;
   onStartJourney: () => void;
   onCancel: () => void;
   visible?: boolean;

@@ -31,8 +31,26 @@ const PreVisitModal: React.FC<PreVisitModalProps> = ({
 
   // Use navigation service to show discover card for this place
   const handleStartJourney = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    NavigationService.showDiscoverCard(navigation, place);
+    try {
+      // Provide haptic feedback
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+      console.log(`PreVisitModal: Starting journey for place: ${place.name}`);
+
+      // Make a deep copy of the place to avoid reference issues
+      const placeToShow = JSON.parse(JSON.stringify(place));
+
+      // First call the callback (which may have additional logic)
+      onStartJourney();
+
+      // Then use NavigationService to show discover card
+      // Use a slight delay to make sure the modal is dismissed properly
+      setTimeout(() => {
+        NavigationService.showDiscoverCard(navigation, placeToShow);
+      }, 100);
+    } catch (error) {
+      console.error("PreVisitModal: Error starting journey:", error);
+    }
   };
 
   return (
