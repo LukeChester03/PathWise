@@ -63,7 +63,7 @@ export const generateHistoricalFacts = async (
   place: Place | VisitedPlaceDetails
 ): Promise<string[]> => {
   const prompt = `
-    Generate 3 interesting historical facts about "${place.name}".
+    Generate up to 10 interesting historical facts about "${place.name}".
     ${place.types ? `It's categorized as: ${place.types.join(", ")}` : ""}
     ${place.vicinity ? `It's located at: ${place.vicinity}` : ""}
     ${place.formatted_address ? `Full address: ${place.formatted_address}` : ""}
@@ -75,8 +75,11 @@ export const generateHistoricalFacts = async (
     ${(place as any).locationContext || ""}
     
     This is a REAL place that exists at the specified location. Research the actual history of this specific location.
-    If you're unsure about specific historical details, focus on the general history of the area or region.
-    Make each fact 1-2 sentences long.
+    If you're unsure about specific historical details, you should return nothing.
+    If you are not confident the fact is not real, or it is not directly related to ${
+      place.name
+    } then do not include. Only include historical facts that the reader can learn from. No general facts.
+    Make each fact maximum 200 characters long.
     Focus on real or plausible historical information.
     Don't mention that you're an AI model in the response.
     
@@ -88,6 +91,7 @@ export const generateHistoricalFacts = async (
         "Third historical fact here"
       ]
     }
+    The Json should have the historical facts in order of oldest to most recent facts about the place
   `;
 
   try {
@@ -163,7 +167,7 @@ export const generateCulturalInsights = async (
  */
 export const generateDidYouKnow = async (place: Place | VisitedPlaceDetails): Promise<string[]> => {
   const prompt = `
-    Generate up to 3 interesting "Did You Know" facts about "${place.name}".
+    Generate up to 5 interesting "Did You Know" facts about "${place.name}".
     ${place.types ? `It's categorized as: ${place.types.join(", ")}` : ""}
     ${place.vicinity ? `It's located at: ${place.vicinity}` : ""}
     ${place.formatted_address ? `Full address: ${place.formatted_address}` : ""}

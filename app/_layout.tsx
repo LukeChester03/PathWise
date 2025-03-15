@@ -17,7 +17,7 @@ export default function Layout() {
     <Stack.Navigator
       initialRouteName="Landing"
       id={undefined}
-      screenOptions={{ headerShown: false, animation: "fade" }}
+      screenOptions={{ headerShown: false }}
     >
       <Stack.Screen name="Home" component={HomeScreen} />
       <Stack.Screen name="Profile" component={ProfileScreen} />

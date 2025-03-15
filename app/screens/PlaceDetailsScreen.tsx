@@ -38,11 +38,11 @@ import NavigateButton from "../components/PlaceDetails/NavigateButton";
 
 // New Components
 import FeatureGrid from "../components/PlaceDetails/FeatureGrid";
-import AddressMapPreview from "../components/PlaceDetails/AddressMapPreview";
 import OpeningHoursCard from "../components/PlaceDetails/OpeningHoursCard";
 import HistoricalTimeline from "../components/PlaceDetails/HistoricalTimeline";
 import ContactInfoCard from "../components/PlaceDetails/ContactInfoCard";
 import DidYouKnowCards from "../components/PlaceDetails/DidYouKnowCards";
+import PreVisitModal from "../components/PlaceDetails/PreVisitModal";
 
 // Hooks
 import { useAiContent } from "../hooks/AI/useAIContent";
@@ -50,6 +50,9 @@ import { useDynamicStyles } from "../hooks/Global/useDynamicStyles";
 
 // Utils
 import { formatVisitDate } from "../utils/placeUtils";
+import AddressSection from "../components/PlaceDetails/AddressSection";
+import { Colors } from "../constants/colours";
+import NavigationService from "../services/Map/navigationService";
 
 // Create the navigation and route types
 type PlaceDetailsRouteProp = RouteProp<RootStackParamList, "PlaceDetails">;
@@ -82,6 +85,10 @@ const PlaceDetailsScreen: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [placeDetails, setPlaceDetails] = useState<Place | VisitedPlaceDetails | null>(null);
   const [showFullAiContent, setShowFullAiContent] = useState(false);
+
+  // NEW: State for handling non-visited places flow
+  const [showPreVisitModal, setShowPreVisitModal] = useState(false);
+  const [limitedViewMode, setLimitedViewMode] = useState(false);
 
   // Animation values - using refs to prevent re-renders
   const scrollY = useRef(new Animated.Value(0)).current;
@@ -192,9 +199,34 @@ const PlaceDetailsScreen: React.FC = () => {
     fetchDetails();
   }, [placeId, place]);
 
+  // NEW: Check if place is visited and show pre-visit modal if necessary
+  useEffect(() => {
+    if (placeDetails && !loading) {
+      const isVisited = "isVisited" in placeDetails && placeDetails.isVisited === true;
+
+      if (!isVisited) {
+        setShowPreVisitModal(true);
+      }
+    }
+  }, [placeDetails, loading]);
+
   // Handle back button press
   const handleBackPress = () => {
     navigation.goBack();
+  };
+
+  // NEW: Handle start journey button on PreVisitModal
+  const handleStartJourney = () => {
+    // Use NavigationService to show the discover card for this place
+    if (placeDetails) {
+      NavigationService.showDiscoverCard(navigation, placeDetails);
+    }
+  };
+
+  // NEW: Handle view details in limited mode
+  const handleViewLimitedDetails = () => {
+    setShowPreVisitModal(false);
+    setLimitedViewMode(true);
   };
 
   // Handle share button press
@@ -222,13 +254,8 @@ const PlaceDetailsScreen: React.FC = () => {
     if (!placeDetails) return;
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    // Navigate back to the map screen with the place to navigate to
-    navigation.navigate(
-      "Discover" as any,
-      {
-        navigateToPlace: placeDetails,
-      } as any
-    );
+    // Use the NavigationService instead of direct navigation
+    NavigationService.showDiscoverCard(navigation, placeDetails);
   };
 
   // Handle phone call
@@ -345,6 +372,18 @@ const PlaceDetailsScreen: React.FC = () => {
     );
   }
 
+  // NEW: If PreVisitModal should be shown, render it
+  if (showPreVisitModal) {
+    return (
+      <PreVisitModal
+        place={placeDetails}
+        onClose={handleBackPress}
+        onStartJourney={handleStartJourney}
+        onViewDetails={handleViewLimitedDetails}
+      />
+    );
+  }
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="light-content" />
@@ -438,117 +477,232 @@ const PlaceDetailsScreen: React.FC = () => {
             <FeatureGrid features={getFeatureActions()} />
           </View>
 
-          {/* AI-Enhanced Description Card */}
-          <CollapsibleCard
-            title="Description"
-            icon="document-text"
-            index={0}
-            style={[styles.cardShadow, { marginBottom: dynamicStyles.spacing.cardMargin }]}
-            showAiBadge={true}
-          >
-            <View style={styles.aiContentContainer}>
-              {aiContentError ? (
-                <TouchableOpacity style={styles.aiErrorContainer} onPress={generateAiContent}>
-                  <Ionicons name="refresh" size={dynamicStyles.iconSize.normal} color="#0066CC" />
-                  <Text style={styles.aiErrorText}>{aiContentError}</Text>
-                </TouchableOpacity>
-              ) : aiContent?.isGenerating ? (
-                <View style={styles.aiGeneratingContainer}>
-                  <ActivityIndicator color="#0066CC" size="small" />
-                  <Text style={styles.aiGeneratingText}>AI is generating insights...</Text>
-                </View>
-              ) : (
-                <TruncatedText
-                  text={aiContent?.description || ""}
-                  maxChars={MAX_DESCRIPTION_CHARS}
-                  style={[styles.aiDescriptionText, { fontSize: dynamicStyles.fontSize.body }]}
-                  viewMoreLabel="Read More"
-                />
+          {/* DIFFERENT CONTENT PRESENTATION BASED ON WHETHER THE PLACE IS VISITED */}
+          {placeDetails.isVisited ? (
+            // VISITED PLACES - NEW ORDER OF CONTENT
+            <>
+              {/* 1. Discovery Details (if place was visited) */}
+              {visitDate && (
+                <CollapsibleCard
+                  title="Discovery Details"
+                  icon="calendar"
+                  index={1}
+                  style={{ marginBottom: dynamicStyles.spacing.cardMargin }}
+                >
+                  <DiscoveryDetailsSection
+                    placeDetails={placeDetails as VisitedPlaceDetails}
+                    fontSize={dynamicStyles.fontSize}
+                  />
+                </CollapsibleCard>
               )}
-            </View>
-          </CollapsibleCard>
 
-          {/* Address Map Preview - New Component */}
-          <View style={{ marginBottom: dynamicStyles.spacing.cardMargin }}>
-            <AddressMapPreview placeDetails={placeDetails} fontSize={dynamicStyles.fontSize} />
-          </View>
+              {/* 2. Address Map Preview */}
+              <CollapsibleCard
+                title="Address"
+                icon="location"
+                index={2}
+                style={{ marginBottom: dynamicStyles.spacing.cardMargin }}
+              >
+                <AddressSection placeDetails={placeDetails} fontSize={dynamicStyles.fontSize} />
+              </CollapsibleCard>
 
-          {/* Visit Info (if place was visited) */}
-          {visitDate && (
-            <CollapsibleCard
-              title="Discovery Details"
-              icon="calendar"
-              index={2}
-              style={{ marginBottom: dynamicStyles.spacing.cardMargin }}
-            >
-              <DiscoveryDetailsSection
-                placeDetails={placeDetails as VisitedPlaceDetails}
-                fontSize={dynamicStyles.fontSize}
-              />
-            </CollapsibleCard>
-          )}
+              {/* 3. AI-Enhanced Description Card */}
+              <CollapsibleCard
+                title="Description"
+                icon="document-text"
+                index={3}
+                style={[styles.cardShadow, { marginBottom: dynamicStyles.spacing.cardMargin }]}
+                showAiBadge={true}
+              >
+                <View style={styles.aiContentContainer}>
+                  {aiContentError ? (
+                    <TouchableOpacity style={styles.aiErrorContainer} onPress={generateAiContent}>
+                      <Ionicons
+                        name="refresh"
+                        size={dynamicStyles.iconSize.normal}
+                        color="#0066CC"
+                      />
+                      <Text style={styles.aiErrorText}>{aiContentError}</Text>
+                    </TouchableOpacity>
+                  ) : aiContent?.isGenerating ? (
+                    <View style={styles.aiGeneratingContainer}>
+                      <ActivityIndicator color="#0066CC" size="small" />
+                      <Text style={styles.aiGeneratingText}>AI is generating insights...</Text>
+                    </View>
+                  ) : (
+                    <TruncatedText
+                      text={aiContent?.description || ""}
+                      maxChars={MAX_DESCRIPTION_CHARS}
+                      style={[styles.aiDescriptionText, { fontSize: dynamicStyles.fontSize.body }]}
+                      viewMoreLabel="Read More"
+                    />
+                  )}
+                </View>
+              </CollapsibleCard>
 
-          {/* Historical Facts Timeline - New Component */}
-          {hasHistoricalFacts && (
-            <View style={{ marginBottom: dynamicStyles.spacing.cardMargin }}>
-              <HistoricalTimeline aiContent={aiContent} fontSize={dynamicStyles.fontSize} />
-            </View>
-          )}
+              {/* 4. Historical Facts Timeline */}
+              {hasHistoricalFacts && (
+                <View style={{ marginBottom: dynamicStyles.spacing.cardMargin }}>
+                  <HistoricalTimeline aiContent={aiContent} fontSize={dynamicStyles.fontSize} />
+                </View>
+              )}
 
-          {/* Did You Know Cards - New Component */}
-          {hasDidYouKnow && (
-            <View style={{ marginBottom: dynamicStyles.spacing.cardMargin }}>
-              <DidYouKnowCards
-                aiContent={aiContent}
-                fontSize={dynamicStyles.fontSize}
-                iconSize={dynamicStyles.iconSize}
-              />
-            </View>
-          )}
+              {/* 5. Did You Know Cards */}
+              {hasDidYouKnow && (
+                <View style={{ marginBottom: dynamicStyles.spacing.cardMargin }}>
+                  <DidYouKnowCards
+                    aiContent={aiContent}
+                    fontSize={dynamicStyles.fontSize}
+                    iconSize={dynamicStyles.iconSize}
+                  />
+                </View>
+              )}
 
-          {/* Contact Information Card - New Component */}
-          {hasContactInfo && (
-            <View style={{ marginBottom: dynamicStyles.spacing.cardMargin }}>
-              <ContactInfoCard
-                placeDetails={placeDetails}
-                fontSize={dynamicStyles.fontSize}
-                iconSize={dynamicStyles.iconSize}
-              />
-            </View>
-          )}
+              {/* 6. Local Tips Section */}
+              {hasLocalTips && (
+                <CollapsibleCard
+                  title="Local Tips"
+                  icon="flash"
+                  index={6}
+                  style={{ marginBottom: dynamicStyles.spacing.cardMargin }}
+                >
+                  <LocalTipsSection aiContent={aiContent} fontSize={dynamicStyles.fontSize} />
+                </CollapsibleCard>
+              )}
 
-          {/* Opening Hours Card - New Component */}
-          {hasOpeningHours && (
-            <View style={{ marginBottom: dynamicStyles.spacing.cardMargin }}>
-              <OpeningHoursCard placeDetails={placeDetails} fontSize={dynamicStyles.fontSize} />
-            </View>
-          )}
+              {/* Supporting information cards - Optional based on data availability */}
+              {hasOpeningHours && (
+                <View style={{ marginBottom: dynamicStyles.spacing.cardMargin }}>
+                  <OpeningHoursCard placeDetails={placeDetails} fontSize={dynamicStyles.fontSize} />
+                </View>
+              )}
 
-          {/* Ask AI Section - Keep as CollapsibleCard since it's interactive */}
-          <CollapsibleCard
-            title="Ask About This Place"
-            icon="chatbubble-ellipses"
-            index={7}
-            style={{ marginBottom: dynamicStyles.spacing.cardMargin }}
-          >
-            <AskAiSection
-              placeDetails={placeDetails}
-              fontSize={dynamicStyles.fontSize}
-              iconSize={dynamicStyles.iconSize}
-              isSmallScreen={dynamicStyles.isSmallScreen}
-            />
-          </CollapsibleCard>
+              {hasContactInfo && (
+                <View style={{ marginBottom: dynamicStyles.spacing.cardMargin }}>
+                  <ContactInfoCard
+                    placeDetails={placeDetails}
+                    fontSize={dynamicStyles.fontSize}
+                    iconSize={dynamicStyles.iconSize}
+                  />
+                </View>
+              )}
 
-          {/* Local Tips Section - Keep as CollapsibleCard since it works well with the list */}
-          {hasLocalTips && (
-            <CollapsibleCard
-              title="Local Tips"
-              icon="flash"
-              index={8}
-              style={{ marginBottom: dynamicStyles.spacing.cardMargin }}
-            >
-              <LocalTipsSection aiContent={aiContent} fontSize={dynamicStyles.fontSize} />
-            </CollapsibleCard>
+              {/* 7. Ask AI Section */}
+              <CollapsibleCard
+                title="Ask About This Place"
+                icon="chatbubble-ellipses"
+                index={7}
+                style={{ marginBottom: dynamicStyles.spacing.cardMargin }}
+              >
+                <AskAiSection
+                  placeDetails={placeDetails}
+                  fontSize={dynamicStyles.fontSize}
+                  iconSize={dynamicStyles.iconSize}
+                  isSmallScreen={dynamicStyles.isSmallScreen}
+                />
+              </CollapsibleCard>
+
+              {/* 8. Journey Completion Indicator */}
+              <View style={styles.journeyCompletionContainer}>
+                <View style={styles.journeyDivider} />
+                <View style={styles.journeyBadgeContainer}>
+                  <Ionicons name="checkmark-circle" size={32} color={Colors.primary} />
+                  <Text style={styles.journeyCompletionText}>Journey Completed</Text>
+                  <Text style={styles.journeySubtext}>
+                    You've discovered everything about this place!
+                  </Text>
+                </View>
+              </View>
+            </>
+          ) : (
+            // NON-VISITED PLACES OR LIMITED VIEW MODE - ORIGINAL ORDERING WITH RESTRICTIONS
+            <>
+              {/* AI-Enhanced Description Card */}
+              <CollapsibleCard
+                title="Description"
+                icon="document-text"
+                index={0}
+                style={[styles.cardShadow, { marginBottom: dynamicStyles.spacing.cardMargin }]}
+                showAiBadge={true}
+              >
+                <View style={styles.aiContentContainer}>
+                  {aiContentError ? (
+                    <TouchableOpacity style={styles.aiErrorContainer} onPress={generateAiContent}>
+                      <Ionicons
+                        name="refresh"
+                        size={dynamicStyles.iconSize.normal}
+                        color="#0066CC"
+                      />
+                      <Text style={styles.aiErrorText}>{aiContentError}</Text>
+                    </TouchableOpacity>
+                  ) : aiContent?.isGenerating ? (
+                    <View style={styles.aiGeneratingContainer}>
+                      <ActivityIndicator color="#0066CC" size="small" />
+                      <Text style={styles.aiGeneratingText}>AI is generating insights...</Text>
+                    </View>
+                  ) : (
+                    <TruncatedText
+                      text={aiContent?.description || ""}
+                      maxChars={MAX_DESCRIPTION_CHARS}
+                      style={[styles.aiDescriptionText, { fontSize: dynamicStyles.fontSize.body }]}
+                      viewMoreLabel="Read More"
+                    />
+                  )}
+                </View>
+              </CollapsibleCard>
+
+              {/* Address Map Preview */}
+              <CollapsibleCard
+                title="Address"
+                icon="location"
+                index={2}
+                style={{ marginBottom: dynamicStyles.spacing.cardMargin }}
+              >
+                <AddressSection placeDetails={placeDetails} fontSize={dynamicStyles.fontSize} />
+              </CollapsibleCard>
+
+              {/* Local Tips Section - Always show in limited view mode if available */}
+              {hasLocalTips && (
+                <CollapsibleCard
+                  title="Local Tips"
+                  icon="flash"
+                  index={3}
+                  style={{ marginBottom: dynamicStyles.spacing.cardMargin }}
+                >
+                  <LocalTipsSection aiContent={aiContent} fontSize={dynamicStyles.fontSize} />
+                </CollapsibleCard>
+              )}
+
+              {/* Contact Information Card */}
+              {hasContactInfo && (
+                <View style={{ marginBottom: dynamicStyles.spacing.cardMargin }}>
+                  <ContactInfoCard
+                    placeDetails={placeDetails}
+                    fontSize={dynamicStyles.fontSize}
+                    iconSize={dynamicStyles.iconSize}
+                  />
+                </View>
+              )}
+
+              {/* Opening Hours Card */}
+              {hasOpeningHours && (
+                <View style={{ marginBottom: dynamicStyles.spacing.cardMargin }}>
+                  <OpeningHoursCard placeDetails={placeDetails} fontSize={dynamicStyles.fontSize} />
+                </View>
+              )}
+
+              {/* Limited view mode message - shown for non-visited places */}
+              <View style={styles.limitedViewContainer}>
+                <Ionicons name="information-circle-outline" size={24} color="#888" />
+                <Text style={styles.limitedViewText}>
+                  You're viewing limited information. Visit this place to unlock all features and
+                  earn XP.
+                </Text>
+                <TouchableOpacity style={styles.startJourneyButton} onPress={handleStartJourney}>
+                  <Text style={styles.startJourneyButtonText}>Start Journey</Text>
+                </TouchableOpacity>
+              </View>
+            </>
           )}
 
           {/* Bottom Padding */}
@@ -702,6 +856,67 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     backgroundColor: "#0066CC",
     ...cardShadow,
+  },
+  // Styles for limited view mode
+  limitedViewContainer: {
+    backgroundColor: "#f5f5f5",
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 24,
+    alignItems: "center",
+    ...cardShadow,
+  },
+  limitedViewText: {
+    fontSize: 14,
+    color: "#666",
+    textAlign: "center",
+    marginVertical: 8,
+    lineHeight: 20,
+  },
+  startJourneyButton: {
+    backgroundColor: Colors.primary,
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    marginTop: 8,
+    ...cardShadow,
+  },
+  startJourneyButtonText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  // New styles for journey completion
+  journeyCompletionContainer: {
+    alignItems: "center",
+    marginVertical: 20,
+    paddingBottom: 30,
+  },
+  journeyDivider: {
+    height: 1,
+    backgroundColor: "#ddd",
+    width: "80%",
+    marginBottom: 20,
+  },
+  journeyBadgeContainer: {
+    alignItems: "center",
+    backgroundColor: "#f8f8f8",
+    borderRadius: 16,
+    padding: 20,
+    width: "90%",
+    ...cardShadow,
+  },
+  journeyCompletionText: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#444",
+    marginTop: 10,
+  },
+  journeySubtext: {
+    fontSize: 14,
+    color: "#777",
+    marginTop: 6,
+    textAlign: "center",
   },
 });
 

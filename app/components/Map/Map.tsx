@@ -1,4 +1,4 @@
-// Map.tsx - Using global location and places state
+// Map.tsx - Updated to support showing discover card for a place
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import MapView, { PROVIDER_DEFAULT, Circle, Marker, PROVIDER_GOOGLE } from "react-native-maps";
 import { View, StyleSheet, Vibration, Alert, Text } from "react-native";
@@ -55,7 +55,13 @@ import { hasMovedSignificantly } from "../../controllers/Map/locationController"
 
 type MapNavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
-const Map: React.FC = () => {
+// Define props interface for Map component
+interface MapProps {
+  placeToShow?: Place | null;
+  onPlaceCardShown?: () => void;
+}
+
+const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
   const navigation = useNavigation<MapNavigationProp>();
   // State for tracking location and places loading
   const [loading, setLoading] = useState<boolean>(true);
@@ -86,12 +92,27 @@ const Map: React.FC = () => {
   const destinationSaveAttemptedRef = useRef<boolean>(false);
   const mapReadyRef = useRef<boolean>(false);
   const cameraUserControlTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const pendingPlaceToShowRef = useRef<Place | null>(null);
+  const placeCardShownRef = useRef<boolean>(false);
 
   // Custom hooks
   const location = useMapLocation();
   const camera = useMapCamera();
   const places = useMapPlaces();
   const mapNavigation = useMapNavigation();
+
+  // Track placeToShow in ref to prevent processing it multiple times
+  useEffect(() => {
+    if (
+      placeToShow &&
+      (!pendingPlaceToShowRef.current ||
+        placeToShow.place_id !== pendingPlaceToShowRef.current.place_id)
+    ) {
+      console.log(`Received place to show: ${placeToShow.name}`);
+      pendingPlaceToShowRef.current = placeToShow;
+      placeCardShownRef.current = false;
+    }
+  }, [placeToShow]);
 
   // Function to handle retry when map fails
   const handleRetry = useCallback(() => {
@@ -100,6 +121,10 @@ const Map: React.FC = () => {
     setLoading(true);
     setLocationReady(false);
     setPlacesReady(false);
+
+    // Reset place card state
+    pendingPlaceToShowRef.current = null;
+    placeCardShownRef.current = false;
 
     // Force refresh location and places states
     location.resetLocationTracking();
@@ -231,6 +256,53 @@ const Map: React.FC = () => {
       setLoading(false);
     }
   }, [locationReady, placesReady, loading]);
+
+  // Process place to show after map is fully loaded
+  useEffect(() => {
+    const processPendingPlace = async () => {
+      // Only attempt to show place when map is fully loaded, location is ready, and not already shown
+      if (
+        !loading &&
+        locationReady &&
+        placesReady &&
+        pendingPlaceToShowRef.current &&
+        !placeCardShownRef.current &&
+        location.userLocation &&
+        mapReadyRef.current
+      ) {
+        console.log(`Processing pending place to show: ${pendingPlaceToShowRef.current.name}`);
+
+        // Mark as shown to prevent multiple processing
+        placeCardShownRef.current = true;
+
+        // Use a small delay to ensure the map is fully rendered
+        setTimeout(async () => {
+          const placeToProcess = pendingPlaceToShowRef.current;
+          if (placeToProcess) {
+            await handlePlaceSelection(placeToProcess);
+
+            // Move camera to show both user and place
+            if (location.userLocation && places.selectedPlace) {
+              const placeCoord = {
+                latitude: places.selectedPlace.geometry.location.lat,
+                longitude: places.selectedPlace.geometry.location.lng,
+              };
+
+              // Fit camera to show both user location and place
+              camera.showRouteOverview(location.userLocation, placeCoord, () => {});
+            }
+
+            // Notify parent that place card has been shown
+            if (onPlaceCardShown) {
+              onPlaceCardShown();
+            }
+          }
+        }, 500);
+      }
+    };
+
+    processPendingPlace();
+  }, [loading, locationReady, placesReady, location.userLocation, mapReadyRef.current]);
 
   /**
    * Handle map ready event
@@ -795,18 +867,6 @@ const Map: React.FC = () => {
             }
           }}
         >
-          {/* User direction indicator */}
-          {/* {journeyStarted && location.userLocation && location.userHeading !== null && (
-            <Marker
-              coordinate={location.userLocation}
-              anchor={{ x: 0.5, y: 0.5 }}
-              rotation={location.userHeading}
-              flat={true}
-            >
-              <DirectionIndicator />
-            </Marker>
-          )} */}
-
           {/* Place markers */}
           {markersToDisplay.map((place) => (
             <Marker

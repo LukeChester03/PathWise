@@ -1,255 +1,412 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
-  ActivityIndicator,
-  Platform,
+  ScrollView,
   Animated,
-  PanResponder,
+  Easing,
   Dimensions,
+  Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
+import { Colors, NeutralColors } from "../../constants/colours";
 import * as Haptics from "expo-haptics";
-import { Colors } from "../../constants/colours";
-import { AiGeneratedContent } from "../../services/Gemini/placeAiService";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
-const SWIPE_THRESHOLD = 120;
 
-// Update the interface to match the actual props being passed
-interface DidYouKnowCardsProps {
-  aiContent: AiGeneratedContent | null;
+interface DidYouKnowProps {
+  aiContent: {
+    didYouKnow: string[] | null;
+    isGenerating: boolean;
+  } | null;
   fontSize: {
     body: number;
-    title: number; // Changed from subtitle to title
+    title: number;
     small: number;
     smaller?: number;
   };
   iconSize: {
     normal: number;
   };
+  onFactPress?: (index: number) => void;
 }
 
-const DidYouKnowCards: React.FC<DidYouKnowCardsProps> = ({ aiContent, fontSize, iconSize }) => {
-  const [activeCard, setActiveCard] = useState(0);
-  const position = useRef(new Animated.ValueXY()).current;
+const DidYouKnow: React.FC<DidYouKnowProps> = ({ aiContent, fontSize, iconSize, onFactPress }) => {
+  // Animation value for entrance
+  const fadeAnim = useRef(new Animated.Value(0)).current;
 
-  // Set up pan responder for swipe gestures
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onPanResponderMove: (_, gesture) => {
-        position.setValue({ x: gesture.dx, y: 0 });
-      },
-      onPanResponderRelease: (_, gesture) => {
-        if (gesture.dx > SWIPE_THRESHOLD) {
-          // Swiped right - go to previous
-          handleSwipe("prev");
-        } else if (gesture.dx < -SWIPE_THRESHOLD) {
-          // Swiped left - go to next
-          handleSwipe("next");
-        } else {
-          // Return to center
-          Animated.spring(position, {
-            toValue: { x: 0, y: 0 },
-            friction: 5,
-            useNativeDriver: true,
-          }).start();
-        }
-      },
-    })
-  ).current;
+  // State
+  const [expandedFact, setExpandedFact] = useState<number | null>(null);
+  const [revealedFacts, setRevealedFacts] = useState<number[]>([]);
 
-  if (aiContent?.isGenerating) {
-    return (
-      <View style={styles.container}>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator color={Colors.primary} size="small" />
-          <Text style={styles.loadingText}>Finding interesting facts...</Text>
-        </View>
-      </View>
-    );
-  }
+  // Initialize component
+  useEffect(() => {
+    // Reset state when content changes
+    setExpandedFact(null);
+    setRevealedFacts([]);
 
-  if (!aiContent?.didYouKnow || aiContent.didYouKnow.length === 0) {
-    return null;
-  }
+    // Simple entrance animation
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 400,
+      easing: Easing.out(Easing.ease),
+      useNativeDriver: true,
+    }).start();
 
-  const handleSwipe = (direction: "next" | "prev") => {
+    // Auto-reveal the first fact
+    if (aiContent?.didYouKnow?.length) {
+      setRevealedFacts([0]);
+    }
+  }, [aiContent?.didYouKnow]);
+
+  // Toggle fact expansion
+  const toggleFact = (index: number) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
-    // Calculate new active card index
-    let newIndex;
-    if (direction === "next") {
-      newIndex = (activeCard + 1) % aiContent.didYouKnow.length;
-    } else {
-      newIndex = (activeCard - 1 + aiContent.didYouKnow.length) % aiContent.didYouKnow.length;
+    // Toggle expansion
+    setExpandedFact(expandedFact === index ? null : index);
+
+    // Mark as revealed if it wasn't already
+    if (!revealedFacts.includes(index)) {
+      setRevealedFacts([...revealedFacts, index]);
     }
 
-    // Animate card off screen
-    Animated.timing(position, {
-      toValue: { x: direction === "next" ? -SCREEN_WIDTH : SCREEN_WIDTH, y: 0 },
-      duration: 250,
-      useNativeDriver: true,
-    }).start(() => {
-      setActiveCard(newIndex);
-      position.setValue({ x: direction === "next" ? SCREEN_WIDTH : -SCREEN_WIDTH, y: 0 });
-
-      // Animate new card into view
-      Animated.spring(position, {
-        toValue: { x: 0, y: 0 },
-        friction: 5,
-        useNativeDriver: true,
-      }).start();
-    });
+    if (onFactPress) {
+      onFactPress(index);
+    }
   };
 
-  // Calculate rotation and opacity based on position
-  const rotate = position.x.interpolate({
-    inputRange: [-SCREEN_WIDTH / 2, 0, SCREEN_WIDTH / 2],
-    outputRange: ["-10deg", "0deg", "10deg"],
-    extrapolate: "clamp",
-  });
+  // Reveal next fact
+  const revealNextFact = () => {
+    if (!aiContent?.didYouKnow?.length) return;
 
-  const cardOpacity = position.x.interpolate({
-    inputRange: [-SCREEN_WIDTH / 2, 0, SCREEN_WIDTH / 2],
-    outputRange: [0.8, 1, 0.8],
-    extrapolate: "clamp",
-  });
+    const nextIndex = revealedFacts.length;
+    if (nextIndex < aiContent.didYouKnow.length) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      setRevealedFacts([...revealedFacts, nextIndex]);
+    }
+  };
+
+  // Loading state component
+  const renderLoading = () => (
+    <View style={styles.loadingContainer}>
+      <View style={styles.loadingIndicator}>
+        <Ionicons name="sparkles" size={iconSize.normal} color={Colors.primary} />
+      </View>
+      <Text style={[styles.loadingText, { fontSize: fontSize.small }]}>
+        Discovering interesting facts...
+      </Text>
+    </View>
+  );
+
+  // No content state
+  if (!aiContent?.didYouKnow || aiContent.didYouKnow.length === 0) {
+    return aiContent?.isGenerating ? renderLoading() : null;
+  }
 
   return (
-    <View style={styles.container}>
-      <View style={styles.headerContainer}>
-        <Ionicons name="bulb" size={20} color={Colors.primary} style={styles.headerIcon} />
-        <Text style={[styles.title, { fontSize: fontSize.title }]}>Did You Know?</Text>
-
-        {aiContent.didYouKnow.length > 1 && (
-          <View style={styles.dots}>
-            {aiContent.didYouKnow.map((_, index) => (
-              <View key={index} style={[styles.dot, index === activeCard && styles.activeDot]} />
-            ))}
-          </View>
-        )}
-      </View>
-
-      <Animated.View
-        style={[
-          styles.card,
-          {
-            transform: [{ translateX: position.x }, { rotate }],
-            opacity: cardOpacity,
-          },
-        ]}
-        {...panResponder.panHandlers}
-      >
-        <View style={styles.cardContent}>
-          <Ionicons name="bulb" size={26} color={Colors.primary} style={styles.cardIcon} />
-          <Text style={[styles.cardText, { fontSize: fontSize.body }]}>
-            {aiContent.didYouKnow[activeCard]}
-          </Text>
+    <Animated.View style={[styles.container, { opacity: fadeAnim }]}>
+      <View style={styles.header}>
+        <View style={styles.titleContainer}>
+          <Ionicons
+            name="sparkles"
+            size={iconSize.normal}
+            color={Colors.primary}
+            style={styles.titleIcon}
+          />
+          <Text style={[styles.title, { fontSize: fontSize.title }]}>Did You Know?</Text>
         </View>
 
-        {aiContent.didYouKnow.length > 1 && (
-          <View style={styles.swipeHint}>
-            <Ionicons name="chevron-back" size={16} color="#ccc" />
-            <Text style={styles.swipeText}>Swipe for more</Text>
-            <Ionicons name="chevron-forward" size={16} color="#ccc" />
-          </View>
-        )}
-      </Animated.View>
-    </View>
+        <Text style={[styles.subtitle, { fontSize: fontSize.small }]}>
+          {revealedFacts.length} of {aiContent.didYouKnow.length} facts discovered
+        </Text>
+      </View>
+
+      <ScrollView
+        style={styles.scrollContainer}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {aiContent.didYouKnow.map((fact, index) => {
+          const isRevealed = revealedFacts.includes(index);
+          const isExpanded = expandedFact === index;
+
+          return (
+            <View
+              key={`fact-${index}`}
+              style={[
+                styles.factContainer,
+                {
+                  opacity: isRevealed ? 1 : 0.6,
+                },
+              ]}
+            >
+              {isRevealed ? (
+                <TouchableOpacity
+                  activeOpacity={0.9}
+                  style={[styles.factCard, isExpanded && styles.factCardExpanded]}
+                  onPress={() => toggleFact(index)}
+                >
+                  {/* Static gradient background */}
+                  <LinearGradient
+                    colors={[Colors.background, `${NeutralColors.gray100}30`]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={StyleSheet.absoluteFill}
+                  />
+
+                  {/* Simple decorative circles - no animation */}
+                  <View style={styles.circlesContainer}>
+                    <View style={[styles.decorCircle, styles.decorCircle1]}>
+                      <LinearGradient
+                        colors={[`${Colors.primary}20`, `${Colors.primary}05`]}
+                        style={styles.circleGradient}
+                        start={{ x: 0.2, y: 0.2 }}
+                        end={{ x: 0.8, y: 0.8 }}
+                      />
+                    </View>
+
+                    <View style={[styles.decorCircle, styles.decorCircle2]}>
+                      <LinearGradient
+                        colors={[`${Colors.primary}05`, `${Colors.primary}15`]}
+                        style={styles.circleGradient}
+                        start={{ x: 0.7, y: 0.3 }}
+                        end={{ x: 0.3, y: 0.7 }}
+                      />
+                    </View>
+                  </View>
+
+                  <View style={styles.factHeader}>
+                    <View style={styles.factNumberContainer}>
+                      <Text
+                        style={[
+                          styles.factNumber,
+                          { fontSize: fontSize.smaller || fontSize.small * 0.8 },
+                        ]}
+                      >
+                        {index + 1}
+                      </Text>
+                    </View>
+
+                    <Ionicons
+                      name={isExpanded ? "chevron-up" : "chevron-down"}
+                      size={16}
+                      color={NeutralColors.gray500}
+                    />
+                  </View>
+
+                  <View style={styles.factContent}>
+                    <Text
+                      style={[
+                        styles.factText,
+                        {
+                          fontSize: fontSize.body,
+                          lineHeight: fontSize.body * 1.4,
+                        },
+                      ]}
+                      numberOfLines={isExpanded ? undefined : 2}
+                    >
+                      {fact}
+                    </Text>
+                  </View>
+
+                  {/* Simple fade gradient for collapsed state */}
+                  {!isExpanded && (
+                    <LinearGradient
+                      colors={["rgba(255,255,255,0)", "rgba(255,255,255,1)"]}
+                      style={styles.textFadeGradient}
+                    />
+                  )}
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity
+                  activeOpacity={0.9}
+                  style={styles.lockedFactCard}
+                  onPress={revealNextFact}
+                >
+                  <LinearGradient
+                    colors={[`${Colors.primary}10`, `${Colors.primary}20`]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={StyleSheet.absoluteFill}
+                  />
+
+                  <Ionicons name="lock-closed" size={20} color={`${Colors.primary}80`} />
+                  <Text style={[styles.lockedFactText, { fontSize: fontSize.small }]}>
+                    Tap to reveal fact
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          );
+        })}
+
+        <View style={styles.bottomSpace} />
+      </ScrollView>
+    </Animated.View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: "#fff",
-    borderRadius: 16,
+    backgroundColor: Colors.background,
+    borderRadius: 24,
     overflow: "hidden",
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 3,
-      },
-    }),
+    marginVertical: 16,
+    marginHorizontal: 8,
+    borderWidth: 1,
+    borderColor: `${NeutralColors.gray200}50`,
   },
-  headerContainer: {
+  header: {
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: NeutralColors.gray100,
+  },
+  titleContainer: {
     flexDirection: "row",
     alignItems: "center",
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "#f0f0f0",
+    marginBottom: 8,
   },
-  headerIcon: {
+  titleIcon: {
     marginRight: 8,
   },
   title: {
-    fontWeight: "600",
-    color: "#333",
-    flex: 1,
+    fontWeight: "700",
+    color: Colors.text,
   },
-  dots: {
+  subtitle: {
+    color: NeutralColors.gray600,
+    fontWeight: "500",
+  },
+  scrollContainer: {
+    maxHeight: 400,
+  },
+  scrollContent: {
+    padding: 16,
+  },
+  factContainer: {
+    marginBottom: 16,
+  },
+  factCard: {
+    borderRadius: 16,
+    overflow: "hidden",
+    minHeight: 80,
+    borderWidth: 1,
+    borderColor: `${NeutralColors.gray200}70`,
+    position: "relative",
+  },
+  factCardExpanded: {
+    minHeight: 100,
+  },
+  factHeader: {
     flexDirection: "row",
-    marginLeft: "auto",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: 16,
+    paddingBottom: 8,
+    zIndex: 2,
   },
-  dot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: "#ddd",
-    marginHorizontal: 2,
+  factNumberContainer: {
+    backgroundColor: `${Colors.primary}20`,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: `${Colors.primary}30`,
   },
-  activeDot: {
-    backgroundColor: Colors.primary,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+  factNumber: {
+    color: Colors.primary,
+    fontWeight: "600",
+  },
+  factContent: {
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+    position: "relative",
+    zIndex: 1,
+  },
+  factText: {
+    color: Colors.text,
+    fontWeight: "400",
+  },
+  textFadeGradient: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 30,
+  },
+  lockedFactCard: {
+    height: 60,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: `${Colors.primary}40`,
+    borderStyle: "dashed",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
+  },
+  lockedFactText: {
+    color: Colors.primary,
+    fontWeight: "600",
+    marginLeft: 8,
   },
   loadingContainer: {
-    flexDirection: "row",
+    padding: 40,
     alignItems: "center",
     justifyContent: "center",
-    padding: 24,
+  },
+  loadingIndicator: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: `${Colors.primary}15`,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 16,
   },
   loadingText: {
-    marginLeft: 10,
-    fontSize: 14,
-    color: "#777",
+    color: NeutralColors.gray600,
+    fontWeight: "500",
   },
-  card: {
-    padding: 20,
+  bottomSpace: {
+    height: 20,
   },
-  cardContent: {
-    alignItems: "center",
-    minHeight: 120,
-    justifyContent: "center",
+  circlesContainer: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    overflow: "hidden",
+    zIndex: 0,
   },
-  cardIcon: {
-    marginBottom: 12,
+  decorCircle: {
+    position: "absolute",
+    borderRadius: 100,
+    overflow: "hidden",
   },
-  cardText: {
-    color: "#333",
-    textAlign: "center",
-    lineHeight: 22,
+  decorCircle1: {
+    width: 120,
+    height: 120,
+    top: -40,
+    right: -20,
   },
-  swipeHint: {
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
-    marginTop: 16,
+  decorCircle2: {
+    width: 80,
+    height: 80,
+    bottom: -20,
+    left: 20,
   },
-  swipeText: {
-    fontSize: 12,
-    color: "#999",
-    marginHorizontal: 8,
+  circleGradient: {
+    width: "100%",
+    height: "100%",
   },
 });
 
-export default DidYouKnowCards;
+export default DidYouKnow;

@@ -52,8 +52,13 @@ const ContactInfoCard: React.FC<ContactInfoCardProps> = ({ placeDetails, fontSiz
   return (
     <View style={styles.container}>
       <View style={styles.headerContainer}>
-        <Ionicons name="call" size={20} color={Colors.primary} style={styles.headerIcon} />
-        <Text style={[styles.title, { fontSize: fontSize.subtitle }]}>Contact Information</Text>
+        <Ionicons
+          name="information-circle-outline"
+          size={20}
+          color={Colors.primary}
+          style={styles.headerIcon}
+        />
+        <Text style={[styles.title, { fontSize: fontSize.subtitle }]}>Information</Text>
       </View>
 
       <View style={styles.contactButtonsContainer}>
@@ -64,16 +69,6 @@ const ContactInfoCard: React.FC<ContactInfoCardProps> = ({ placeDetails, fontSiz
           >
             <Ionicons name="call" size={24} color="#fff" />
             <Text style={styles.contactButtonText}>Call</Text>
-          </TouchableOpacity>
-        )}
-
-        {hasWebsite && (
-          <TouchableOpacity
-            style={[styles.contactButton, styles.websiteButton]}
-            onPress={handleWebsitePress}
-          >
-            <Ionicons name="globe" size={24} color="#fff" />
-            <Text style={styles.contactButtonText}>Website</Text>
           </TouchableOpacity>
         )}
       </View>

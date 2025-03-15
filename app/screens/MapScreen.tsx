@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { View, StyleSheet, Dimensions, TouchableOpacity, Alert } from "react-native";
 import { globalStyles } from "../constants/globalStyles";
 import Map from "../components/Map/Map";
@@ -14,6 +14,9 @@ import {
   getMapSettings,
   refreshMap,
 } from "../controllers/Map/mapSettingsController";
+import { useRoute, useNavigation } from "@react-navigation/native";
+import { Place } from "../types/MapTypes";
+import NavigationService from "../services/Map/navigationService";
 
 const MapScreen = () => {
   const [screenHeight, setScreenHeight] = useState(Dimensions.get("window").height);
@@ -27,6 +30,27 @@ const MapScreen = () => {
   const [maxPlaces, setMaxPlaces] = useState(initialSettings.maxPlaces);
   const [searchRadius, setSearchRadius] = useState(initialSettings.searchRadius);
   const [refreshKey, setRefreshKey] = useState(0); // To force map refresh
+
+  // Navigation and route
+  const route = useRoute();
+  const navigation = useNavigation();
+
+  // State to store place from route params
+  const [placeToShow, setPlaceToShow] = useState<Place | null>(null);
+
+  // Check for place to show from route params
+  useEffect(() => {
+    const checkForPlaceToShow = () => {
+      const placeFromRoute = NavigationService.getShowPlaceCardFromRoute(route);
+
+      if (placeFromRoute && JSON.stringify(placeFromRoute) !== JSON.stringify(placeToShow)) {
+        console.log(`Received place to show in map: ${placeFromRoute.name}`);
+        setPlaceToShow(placeFromRoute);
+      }
+    };
+
+    checkForPlaceToShow();
+  }, [route, placeToShow]);
 
   useEffect(() => {
     const updateDimensions = () => {
@@ -58,6 +82,9 @@ const MapScreen = () => {
 
   const handleMapRetry = useCallback(() => {
     setMapKey((prev) => prev + 1);
+
+    // Reset placeToShow on retry for a fresh state
+    setPlaceToShow(null);
   }, []);
 
   // Handle saving map settings and refreshing the map
@@ -149,7 +176,11 @@ const MapScreen = () => {
         />
         <View style={styles.mapContainer}>
           <MapErrorBoundary onRetry={handleMapRetry}>
-            <Map key={`${refreshKey}-${mapKey}`} />
+            <Map
+              key={`${refreshKey}-${mapKey}`}
+              placeToShow={placeToShow}
+              onPlaceCardShown={() => setPlaceToShow(null)} // Clear state once card is shown
+            />
           </MapErrorBoundary>
         </View>
       </View>
