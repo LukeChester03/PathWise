@@ -2,6 +2,46 @@
 import { Place, PlaceDetails, NearbyPlacesResponse } from "../../types/MapTypes";
 import { Alert } from "react-native";
 import { haversineDistance } from "../../utils/mapUtils";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { hasQuotaAvailable, recordApiCall } from "./quotaController";
+import { GOOGLE_MAPS_APIKEY } from "../../constants/Map/mapConstants";
+import { isPlaceVisited } from "../../controllers/Map/visitedPlacesController";
+import NetInfo from "@react-native-community/netinfo";
+
+// Firebase imports
+import {
+  doc,
+  getDoc,
+  getDocs,
+  setDoc,
+  collection,
+  query,
+  where,
+  serverTimestamp,
+  GeoPoint,
+  Timestamp,
+  addDoc,
+  updateDoc,
+  writeBatch,
+  increment,
+  limit,
+  orderBy,
+} from "firebase/firestore";
+import { db, auth } from "../../config/firebaseConfig";
+
+// CONSTANTS FOR CACHING
+const SEARCH_RADIUS_KM = 25; // 25km radius
+const SEARCH_RADIUS_METERS = SEARCH_RADIUS_KM * 1000; // 25km in meters
+const MAX_PLACES_TO_FETCH = 100; // Get up to 100 places in the wide radius
+const RECACHE_THRESHOLD_KM = 20; // Only re-fetch when user moves 20km from cache center
+const CACHE_EXPIRATION_TIME = 30 * 24 * 60 * 60 * 1000; // 30 days for area cache
+const LOCAL_CACHE_KEY = "local_places_cache_v2"; // Fallback local cache key
+const LOCAL_DETAILS_CACHE_KEY = "place_details_cache_v1"; // Local cache for place details
+const DETAILS_CACHE_SIZE = 200; // Maximum number of place details to cache locally
+const MAX_DETAILS_TO_FETCH = 20; // Pre-fetch details for the closest 20 places to ensure they're ready when clicked
+const DETAILS_REFRESH_THRESHOLD = 90 * 24 * 60 * 60 * 1000; // 90 days before refreshing place details
+const BACKGROUND_FETCH_DELAY = 500; // Delay between background detail fetches to not overwhelm the system
+const BATCH_SIZE = 10; // Size of batches for Firebase operations
 
 // Types of places we want to exclude (not tourist attractions)
 const NON_TOURIST_TYPES = [
@@ -124,103 +164,546 @@ const STANDARD_DESCRIPTIONS = {
   default: "A popular destination worth exploring during your visit.",
 };
 
-// Maximum number of places to fetch
-const MAX_PLACES = 40;
+// Firebase cache structure
+interface FirebaseCacheEntry {
+  id: string;
+  centerLocation: GeoPoint;
+  centerLatitude: number; // Denormalized for easier queries
+  centerLongitude: number; // Denormalized for easier queries
+  radiusKm: number;
+  timestamp: Timestamp;
+  updatedAt: Timestamp;
+  placeIds: string[];
+}
 
-// Default search radius when ranking by distance is not available
-const DEFAULT_RADIUS = 20000; // 20km in meters
-
-// Minimum rating threshold for tourist attractions (0-5 scale)
-const MIN_RATING_THRESHOLD = 3.5;
-
-// Minimum number of reviews for added credibility
-const MIN_REVIEWS_COUNT = 5;
-
-// Dynamic settings that can be updated at runtime
-let dynamicMaxPlaces = MAX_PLACES; // Default from constant
-let dynamicSearchRadius = DEFAULT_RADIUS; // Default from constant
-
-// Cache for nearby places to avoid repeated API calls
-let placesCache: {
+// In-memory cache for fast access
+interface MemoryCache {
+  cacheEntry: FirebaseCacheEntry | null;
   places: Place[];
-  furthestDistance: number;
-  cacheTimestamp: number;
-  latitude: number;
-  longitude: number;
-  maxPlaces: number; // Track maxPlaces setting
-  searchRadius: number; // Track searchRadius setting
-  detailedPlaceIds: Set<string>; // Track which places have full details
-} | null = null;
+}
 
-// UPDATED: Increased cache expiration time (from 30 minutes to 2 hours)
-const CACHE_EXPIRATION_TIME = 120 * 60 * 1000;
+// Details cache entry
+interface DetailsCacheEntry {
+  placeId: string;
+  place: Place;
+  fetchedAt: number;
+  lastViewed?: number;
+}
 
-// Track recent API calls to implement rate limiting
-let lastApiCallTime = 0;
-const MIN_API_CALL_INTERVAL = 200; // ms between API calls to prevent bursts
+// In-memory cache instance
+let memoryCache: MemoryCache = {
+  cacheEntry: null,
+  places: [],
+};
+
+// In-memory details cache
+let detailsCache: Map<string, DetailsCacheEntry> = new Map();
+
+// Fetch queue to prevent duplicate details fetches
+let detailsFetchQueue: Set<string> = new Set();
+
+// Flag to track background processing status
+let isProcessingBackground = false;
 
 /**
- * Simple rate limiter for API calls
+ * Safe timestamp helper function
+ * Works with Firestore Timestamp, Date objects, numbers, or strings
  */
-const rateLimitedFetch = async (url: string): Promise<Response> => {
-  const now = Date.now();
-  const timeSinceLastCall = now - lastApiCallTime;
-
-  if (timeSinceLastCall < MIN_API_CALL_INTERVAL) {
-    // Wait until we can make another call
-    await new Promise((resolve) => setTimeout(resolve, MIN_API_CALL_INTERVAL - timeSinceLastCall));
+const safeGetDate = (timestamp: any): Date => {
+  // Case 1: undefined or null timestamp
+  if (!timestamp) {
+    console.log("[placesController] Timestamp is undefined or null, using current date");
+    return new Date();
   }
 
-  lastApiCallTime = Date.now();
-  return fetch(url);
+  // Case 2: It's a Firestore Timestamp object with toDate method
+  if (timestamp && typeof timestamp.toDate === "function") {
+    try {
+      return timestamp.toDate();
+    } catch (e) {
+      console.error("[placesController] Error converting Firestore timestamp:", e);
+      return new Date();
+    }
+  }
+
+  // Case 3: It's a serialized Firestore Timestamp object (has seconds and nanoseconds)
+  if (
+    timestamp &&
+    typeof timestamp === "object" &&
+    "seconds" in timestamp &&
+    "nanoseconds" in timestamp
+  ) {
+    try {
+      // Convert seconds to milliseconds and add nanoseconds in milliseconds
+      return new Date(timestamp.seconds * 1000 + timestamp.nanoseconds / 1000000);
+    } catch (e) {
+      console.error("[placesController] Error reconstructing date from serialized Timestamp:", e);
+      return new Date();
+    }
+  }
+
+  // Case 4: It's a numeric timestamp (milliseconds since epoch)
+  if (typeof timestamp === "number") {
+    return new Date(timestamp);
+  }
+
+  // Case 5: It's already a Date object
+  if (timestamp instanceof Date) {
+    return timestamp;
+  }
+
+  // Case 6: It's a string representation (ISO format)
+  if (typeof timestamp === "string") {
+    try {
+      return new Date(timestamp);
+    } catch (e) {
+      console.error("[placesController] Invalid timestamp string format:", timestamp);
+      return new Date();
+    }
+  }
+
+  // Default fallback: use current date
+  console.error("[placesController] Unrecognized timestamp format:", timestamp);
+  return new Date();
 };
 
 /**
- * Update the maximum number of places and search radius at runtime
+ * Sanitize place data to make it Firestore-compatible
+ * Replaces undefined values with null and handles nested objects
  */
-export const updatePlacesSettings = (maxPlaces: number, searchRadiusKm: number): void => {
-  console.log(
-    `[placesController] Updating settings - maxPlaces: ${maxPlaces}, searchRadius: ${searchRadiusKm}km`
+const sanitizeForFirebase = (data: any): any => {
+  if (data === undefined) {
+    return null;
+  }
+
+  if (data === null || typeof data !== "object") {
+    return data;
+  }
+
+  if (Array.isArray(data)) {
+    return data.map((item) => sanitizeForFirebase(item));
+  }
+
+  const result: any = {};
+  for (const key in data) {
+    // Skip functions or symbols
+    if (typeof data[key] === "function" || typeof data[key] === "symbol") {
+      continue;
+    }
+    result[key] = sanitizeForFirebase(data[key]);
+  }
+
+  return result;
+};
+
+/**
+ * Calculate a key for a geographic area
+ */
+const getAreaKey = (lat: number, lng: number): string => {
+  // Round to 2 decimal places (about 1km precision)
+  const latKey = Math.floor(lat * 100) / 100;
+  const lngKey = Math.floor(lng * 100) / 100;
+  return `${latKey},${lngKey}`;
+};
+
+/**
+ * Check if a Firebase cache entry is valid for current position
+ */
+/**
+ * Check if a Firebase cache entry is valid for current position
+ */
+const isCacheEntryValidForPosition = (
+  cacheEntry: FirebaseCacheEntry,
+  latitude: number,
+  longitude: number
+): boolean => {
+  // Check if cache entry is expired
+  const now = new Date();
+
+  // Use the safe function to get the date from timestamp
+  const cacheDate = safeGetDate(cacheEntry.timestamp);
+  const ageMs = now.getTime() - cacheDate.getTime();
+
+  if (ageMs > CACHE_EXPIRATION_TIME) {
+    console.log(
+      `[placesController] Cache entry expired (${Math.round(
+        ageMs / (1000 * 60 * 60 * 24)
+      )} days old)`
+    );
+    return false;
+  }
+
+  // Check if current position is within cached area
+  const distance = haversineDistance(
+    cacheEntry.centerLatitude,
+    cacheEntry.centerLongitude,
+    latitude,
+    longitude
   );
 
-  // Validate and enforce limits
-  const newMaxPlaces = Math.min(Math.max(10, maxPlaces), 50);
-  const newSearchRadius = Math.min(Math.max(1000, searchRadiusKm * 1000), 50000);
+  const distanceKm = distance / 1000;
+  if (distanceKm > RECACHE_THRESHOLD_KM) {
+    console.log(
+      `[placesController] Current position is ${distanceKm.toFixed(
+        1
+      )}km from cache center, beyond ${RECACHE_THRESHOLD_KM}km threshold`
+    );
+    return false;
+  }
 
-  // Check if values actually changed before updating
-  const settingsChanged =
-    dynamicMaxPlaces !== newMaxPlaces || dynamicSearchRadius !== newSearchRadius;
+  return true;
+};
 
-  // Update the settings
-  dynamicMaxPlaces = newMaxPlaces;
-  dynamicSearchRadius = newSearchRadius;
+/**
+ * Initialize memory caches from local storage
+ */
+const initializeCaches = async () => {
+  try {
+    // Load the area cache first
+    const cacheData = await AsyncStorage.getItem(LOCAL_CACHE_KEY);
+    if (cacheData) {
+      const parsedCache = JSON.parse(cacheData);
+      if (
+        parsedCache.places &&
+        Array.isArray(parsedCache.places) &&
+        parsedCache.places.length > 0
+      ) {
+        // Check if cache is expired
+        const cacheAge = Date.now() - parsedCache.timestamp;
+        if (cacheAge <= CACHE_EXPIRATION_TIME) {
+          memoryCache = {
+            cacheEntry: parsedCache.cacheEntry,
+            places: parsedCache.places,
+          };
+          console.log(
+            `[placesController] Loaded ${memoryCache.places.length} places from local storage`
+          );
+        }
+      }
+    }
 
-  // Only clear cache if settings actually changed
-  if (settingsChanged && placesCache) {
-    console.log("[placesController] Settings changed, clearing places cache");
-    clearPlacesCache();
+    // Load the details cache
+    const detailsData = await AsyncStorage.getItem(LOCAL_DETAILS_CACHE_KEY);
+    if (detailsData) {
+      const parsedDetails = JSON.parse(detailsData);
+      if (Array.isArray(parsedDetails) && parsedDetails.length > 0) {
+        // Convert array back to Map
+        detailsCache = new Map();
+        parsedDetails.forEach((entry: DetailsCacheEntry) => {
+          detailsCache.set(entry.placeId, entry);
+        });
+        console.log(
+          `[placesController] Loaded ${detailsCache.size} place details from local storage`
+        );
+      }
+    }
+  } catch (error) {
+    console.error("[placesController] Error initializing caches:", error);
   }
 };
 
 /**
- * Get appropriate description based on place type
+ * Save memory caches to local storage
+ */
+const persistCaches = async () => {
+  try {
+    // Save area cache
+    if (memoryCache.places.length > 0) {
+      const cacheData = {
+        cacheEntry: memoryCache.cacheEntry,
+        places: memoryCache.places,
+        timestamp: Date.now(),
+      };
+      await AsyncStorage.setItem(LOCAL_CACHE_KEY, JSON.stringify(cacheData));
+    }
+
+    // Save details cache - convert Map to Array first
+    if (detailsCache.size > 0) {
+      const detailsArray = Array.from(detailsCache.values());
+      // Sort by lastViewed (most recent first) and limit size
+      detailsArray.sort((a, b) => (b.lastViewed || 0) - (a.lastViewed || 0));
+      const limitedDetails = detailsArray.slice(0, DETAILS_CACHE_SIZE);
+      await AsyncStorage.setItem(LOCAL_DETAILS_CACHE_KEY, JSON.stringify(limitedDetails));
+    }
+
+    console.log("[placesController] Saved caches to local storage");
+  } catch (error) {
+    console.error("[placesController] Error persisting caches:", error);
+  }
+};
+
+// Initialize immediately
+initializeCaches();
+
+/**
+ * Check if place details need a refresh based on age
+ */
+const needsDetailsRefresh = (detailsEntry: DetailsCacheEntry): boolean => {
+  const now = Date.now();
+  const age = now - detailsEntry.fetchedAt;
+  return age > DETAILS_REFRESH_THRESHOLD;
+};
+
+/**
+ * Fetch a cache entry from Firebase for a given position
+ */
+/**
+ * Fetch a cache entry from Firebase for a given position
+ */
+const fetchCacheEntryForPosition = async (
+  latitude: number,
+  longitude: number
+): Promise<FirebaseCacheEntry | null> => {
+  try {
+    // Check if user is logged in
+    const currentUser = auth.currentUser;
+    if (!currentUser) {
+      console.log("[placesController] No user logged in, cannot access Firebase cache");
+      return null;
+    }
+
+    // Try to find a cache entry that covers this position
+    // First check for a direct match with the area key
+    const areaKey = getAreaKey(latitude, longitude);
+    const directCacheRef = doc(db, "placeCaches", areaKey);
+    const directCacheDoc = await getDoc(directCacheRef);
+
+    if (directCacheDoc.exists()) {
+      const cacheData = directCacheDoc.data() as FirebaseCacheEntry;
+      cacheData.id = directCacheDoc.id;
+
+      // Make sure we have valid timestamps
+      try {
+        // Validate timestamp using our safe function - this won't throw an error
+        safeGetDate(cacheData.timestamp);
+      } catch (e) {
+        console.warn("[placesController] Invalid timestamp in cache entry:", e);
+        // We can continue as our safe function will handle this
+      }
+
+      if (isCacheEntryValidForPosition(cacheData, latitude, longitude)) {
+        console.log(`[placesController] Found valid cache entry for position: ${areaKey}`);
+        return cacheData;
+      }
+    }
+
+    // If no direct match, query for any cache that might cover this position
+    const placeCachesRef = collection(db, "placeCaches");
+    const cachesQuery = query(
+      placeCachesRef,
+      where("centerLatitude", ">=", latitude - 0.5),
+      where("centerLatitude", "<=", latitude + 0.5)
+    );
+
+    const querySnapshot = await getDocs(cachesQuery);
+
+    if (!querySnapshot.empty) {
+      // Find the closest valid cache entry
+      let closestCache: FirebaseCacheEntry | null = null;
+      let minDistance = Infinity;
+
+      querySnapshot.forEach((doc) => {
+        const cacheData = doc.data() as FirebaseCacheEntry;
+        cacheData.id = doc.id;
+
+        if (isCacheEntryValidForPosition(cacheData, latitude, longitude)) {
+          const distance = haversineDistance(
+            cacheData.centerLatitude,
+            cacheData.centerLongitude,
+            latitude,
+            longitude
+          );
+
+          if (distance < minDistance) {
+            minDistance = distance;
+            closestCache = cacheData;
+          }
+        }
+      });
+
+      if (closestCache) {
+        console.log(
+          `[placesController] Found valid cache entry ${closestCache.id} at distance ${(
+            minDistance / 1000
+          ).toFixed(1)}km`
+        );
+        return closestCache;
+      }
+    }
+
+    console.log(`[placesController] No valid cache entry found for position`);
+    return null;
+  } catch (error) {
+    console.error("[placesController] Error fetching cache entry:", error);
+    return null;
+  }
+};
+
+/**
+ * Create a new cache entry in Firebase with proper batch handling
+ */
+const createNewCacheEntry = async (
+  latitude: number,
+  longitude: number,
+  places: Place[]
+): Promise<FirebaseCacheEntry | null> => {
+  try {
+    const currentUser = auth.currentUser;
+    if (!currentUser) {
+      console.log("[placesController] No user logged in, cannot create Firebase cache");
+      return null;
+    }
+
+    const areaKey = getAreaKey(latitude, longitude);
+    const now = new Date();
+
+    // Track place IDs to include in cache entry
+    const placeIds: string[] = [];
+
+    // Process places in smaller batches to avoid issues
+    const batchSize = 10; // Maximum 10 places per batch
+
+    for (let i = 0; i < places.length; i += batchSize) {
+      // Create a new batch for each group of places
+      const batch = writeBatch(db);
+      const currentBatch = places.slice(i, i + batchSize);
+
+      console.log(
+        `[placesController] Processing batch ${Math.floor(i / batchSize) + 1} with ${
+          currentBatch.length
+        } places`
+      );
+
+      // Add each place to the current batch
+      for (const place of currentBatch) {
+        const placeId = place.place_id;
+        placeIds.push(placeId);
+
+        // Sanitize place data before saving to Firebase
+        const sanitizedPlace = sanitizeForFirebase(place);
+
+        // Create GeoPoint for location
+        const placeData = {
+          ...sanitizedPlace,
+          geometry: {
+            location: new GeoPoint(place.geometry.location.lat, place.geometry.location.lng),
+          },
+          cachedAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+          viewCount: increment(0), // Initialize if doesn't exist
+        };
+
+        // Add to current batch
+        const placeRef = doc(db, "places", placeId);
+        batch.set(placeRef, placeData, { merge: true });
+      }
+
+      // Commit this batch before creating a new one
+      await batch.commit();
+      console.log(`[placesController] Committed batch ${Math.floor(i / batchSize) + 1}`);
+    }
+
+    // Now create the cache entry
+    const cacheEntry: FirebaseCacheEntry = {
+      id: areaKey,
+      centerLocation: new GeoPoint(latitude, longitude),
+      centerLatitude: latitude,
+      centerLongitude: longitude,
+      radiusKm: SEARCH_RADIUS_KM,
+      timestamp: Timestamp.fromDate(now),
+      updatedAt: Timestamp.fromDate(now),
+      placeIds: placeIds,
+    };
+
+    // Save cache entry to Firebase
+    const cacheRef = doc(db, "placeCaches", areaKey);
+    await setDoc(cacheRef, cacheEntry);
+
+    console.log(
+      `[placesController] Created new cache entry with ${places.length} places: ${areaKey}`
+    );
+    return cacheEntry;
+  } catch (error) {
+    console.error("[placesController] Error creating cache entry:", error);
+    return null;
+  }
+};
+
+/**
+ * Fetch all places for a cache entry
+ */
+const fetchPlacesForCacheEntry = async (cacheEntry: FirebaseCacheEntry): Promise<Place[]> => {
+  try {
+    const places: Place[] = [];
+
+    // Batch fetch places in chunks to avoid too many concurrent requests
+    const placeIds = cacheEntry.placeIds;
+    const chunkSize = BATCH_SIZE;
+
+    for (let i = 0; i < placeIds.length; i += chunkSize) {
+      const chunk = placeIds.slice(i, i + chunkSize);
+      const placeDocs = await Promise.all(
+        chunk.map((placeId) => getDoc(doc(db, "places", placeId)))
+      );
+
+      placeDocs.forEach((placeDoc) => {
+        if (placeDoc.exists()) {
+          const placeData = placeDoc.data();
+
+          // Convert GeoPoint back to lat/lng object
+          const place: Place = {
+            ...placeData,
+            geometry: {
+              location: {
+                lat: placeData.geometry.location.latitude,
+                lng: placeData.geometry.location.longitude,
+              },
+            },
+          } as Place;
+
+          places.push(place);
+        }
+      });
+    }
+
+    console.log(`[placesController] Fetched ${places.length} places from Firebase for cache entry`);
+    return places;
+  } catch (error) {
+    console.error("[placesController] Error fetching places for cache entry:", error);
+    return [];
+  }
+};
+
+/**
+ * Get place description with safeguards
  */
 const getPlaceDescription = (place: any): string => {
-  if (place.types) {
+  // First try editorial summary
+  if (place.editorial_summary?.overview) {
+    return place.editorial_summary.overview;
+  }
+
+  // Then try existing description
+  if (place.description) {
+    return place.description;
+  }
+
+  // Then try by place type
+  if (place.types && place.types.length > 0) {
     for (const type of place.types) {
-      // Type assertion to tell TypeScript this is a valid key
       const typeKey = type as keyof typeof STANDARD_DESCRIPTIONS;
       if (STANDARD_DESCRIPTIONS[typeKey]) {
         return STANDARD_DESCRIPTIONS[typeKey];
       }
     }
   }
+
+  // Fallback
   return STANDARD_DESCRIPTIONS.default;
 };
 
 /**
  * Calculate a tourism score for a place to identify legitimate attractions
- * Higher score = more likely to be a genuine tourist attraction
  */
 const calculateTourismScore = (place: any): number => {
   let score = 0;
@@ -277,465 +760,1283 @@ const calculateTourismScore = (place: any): number => {
 };
 
 /**
- * Clear the places cache. Call this when user logs out or cache needs to be reset.
+ * Create a place object from Google API result with full details
  */
-export const clearPlacesCache = (): void => {
-  console.log("[placesController] Places cache cleared");
-  placesCache = null;
+const createPlaceObjectFromApiResult = (place: any, latitude: number, longitude: number): Place => {
+  // Calculate distance from current location
+  const distance = haversineDistance(
+    latitude,
+    longitude,
+    place.geometry.location.lat,
+    place.geometry.location.lng
+  );
+
+  return {
+    place_id: place.place_id,
+    id: place.id || place.place_id,
+    name: place.name,
+    address: place.formatted_address || place.vicinity || "Address unavailable",
+    formatted_address: place.formatted_address || place.vicinity || "Address unavailable",
+    geometry: place.geometry,
+    description: place.editorial_summary?.overview || getPlaceDescription(place),
+    types: place.types || [],
+    rating: place.rating || null,
+    user_ratings_total: place.user_ratings_total || null,
+    price_level: place.price_level || null,
+    photos: place.photos || [],
+    icon: place.icon || null,
+    icon_background_color: place.icon_background_color || null,
+    icon_mask_base_uri: place.icon_mask_base_uri || null,
+    vicinity: place.vicinity || null,
+    business_status: place.business_status || null,
+    distance: distance,
+    website: place.website || null,
+    url: place.url || null,
+    formatted_phone_number: place.formatted_phone_number || null,
+    opening_hours: place.opening_hours || null,
+    reviews: place.reviews || [],
+  };
 };
 
 /**
- * Check if the cache is valid based on position, time, and settings
+ * Check the permanent details collection for existing place details
  */
-const isCacheValid = (
-  latitude: number,
-  longitude: number,
-  maxPlacesToOverride?: number
-): boolean => {
-  if (!placesCache) {
-    console.log("[placesController] No cache exists");
-    return false;
-  }
-
-  // Check if cache has expired
-  const now = Date.now();
-  const cacheAge = now - placesCache.cacheTimestamp;
-  if (cacheAge > CACHE_EXPIRATION_TIME) {
-    console.log(
-      `[placesController] Cache expired (${Math.round(cacheAge / 1000 / 60)} minutes old)`
-    );
-    return false;
-  }
-
-  // Determine effective maxPlaces to use
-  const effectiveMaxPlaces =
-    maxPlacesToOverride !== undefined ? maxPlacesToOverride : dynamicMaxPlaces;
-
-  // Check if there's a mismatch in settings
-  if (
-    placesCache.maxPlaces !== effectiveMaxPlaces ||
-    placesCache.searchRadius !== dynamicSearchRadius
-  ) {
-    console.log(
-      `[placesController] Settings mismatch - Cache: max=${placesCache.maxPlaces}, radius=${placesCache.searchRadius}m | Current: max=${effectiveMaxPlaces}, radius=${dynamicSearchRadius}m`
-    );
-    return false;
-  }
-
-  // Check if user has moved significantly from the cached location
-  const distanceMoved = haversineDistance(
-    placesCache.latitude,
-    placesCache.longitude,
-    latitude,
-    longitude
-  );
-
-  // UPDATED: Increase threshold from 500m to 1000m
-  if (distanceMoved > 1000) {
-    console.log(
-      `[placesController] User moved ${distanceMoved.toFixed(
-        0
-      )}m from cache location - invalidating cache`
-    );
-    return false;
-  }
-
-  console.log("[placesController] Cache is valid and will be used");
-  return true;
-};
-
-export const fetchNearbyPlaces = async (
-  latitude: number,
-  longitude: number,
-  forceRefresh: boolean = false,
-  maxPlacesToOverride?: number // Optional parameter to override dynamicMaxPlaces
-): Promise<NearbyPlacesResponse> => {
+const checkPlaceDetailsCollection = async (placeId: string): Promise<Place | null> => {
   try {
-    // Use override if provided
-    const effectiveMaxPlaces =
-      maxPlacesToOverride !== undefined ? maxPlacesToOverride : dynamicMaxPlaces;
+    if (!auth.currentUser) return null;
 
-    console.log(
-      `[placesController] fetchNearbyPlaces: lat=${latitude}, long=${longitude}, force=${forceRefresh}, maxPlaces=${effectiveMaxPlaces}`
-    );
+    // Check in the permanent placeDetails collection
+    const detailsDocRef = doc(db, "placeDetails", placeId);
+    const detailsDoc = await getDoc(detailsDocRef);
 
-    // Check if latitude and longitude are valid numbers
-    if (
-      typeof latitude !== "number" ||
-      typeof longitude !== "number" ||
-      isNaN(latitude) ||
-      isNaN(longitude)
-    ) {
-      console.error("[placesController] Invalid coordinates:", latitude, longitude);
-      return {
-        places: [],
-        furthestDistance: dynamicSearchRadius,
-      };
-    }
+    if (detailsDoc.exists()) {
+      const detailsData = detailsDoc.data();
 
-    // Check cache first (unless force refresh is requested)
-    if (!forceRefresh && isCacheValid(latitude, longitude, maxPlacesToOverride) && placesCache) {
-      console.log(
-        `[placesController] Using cached places data (${placesCache.places.length} places)`
-      );
-      return {
-        places: placesCache.places,
-        furthestDistance: placesCache.furthestDistance,
-      };
-    }
+      // Check if details are still valid or need refreshing
+      const fetchedAt = detailsData.fetchedAt?.toDate().getTime() || 0;
+      const now = Date.now();
+      const age = now - fetchedAt;
 
-    console.log(
-      `[placesController] Fetching fresh places data with radius ${dynamicSearchRadius}m and max ${effectiveMaxPlaces} places`
-    );
+      // Convert GeoPoint back to lat/lng object
+      const place: Place = {
+        ...detailsData,
+        geometry: {
+          location: {
+            lat: detailsData.geometry?.location?.latitude || 0,
+            lng: detailsData.geometry?.location?.longitude || 0,
+          },
+        },
+        hasFullDetails: true,
+        detailsFetchedAt: fetchedAt,
+      } as Place;
 
-    // Array to store all results across pages
-    let allResults: any[] = [];
-    // Flag to track if we need more pages
-    let needMorePages = true;
-    // Token for next page
-    let nextPageToken: string | null = null;
-
-    // Loop until we have enough places or no more pages are available
-    while (needMorePages && allResults.length < effectiveMaxPlaces) {
-      // Build the URL for the API request
-      let apiUrl = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${latitude},${longitude}&radius=${dynamicSearchRadius}&type=tourist_attraction|museum|park|point_of_interest|art_gallery|church|natural_feature|historic|monument|landmark|amusement_park|aquarium|zoo&keyword=attraction|landmark|culture|heritage|nature|park|historical|famous|viewpoint|scenic&key=AIzaSyDAGq_6eJGQpR3RcO0NrVOowel9-DxZkvA`;
-
-      // Add the page token if we have one
-      if (nextPageToken) {
-        apiUrl = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?pagetoken=${nextPageToken}&key=AIzaSyDAGq_6eJGQpR3RcO0NrVOowel9-DxZkvA`;
-
-        // Google requires a delay before using next_page_token
-        await new Promise((resolve) => setTimeout(resolve, 1500));
+      // Record usage stats
+      try {
+        // Update view count and last viewed in the background
+        updateDoc(detailsDocRef, {
+          viewCount: increment(1),
+          lastViewed: serverTimestamp(),
+        }).catch((e) => console.log("Error updating view stats:", e));
+      } catch (statsError) {
+        // Non-critical error, just log
+        console.log("Error updating place view stats:", statsError);
       }
 
-      // Make the API request with rate limiting
-      const response = await rateLimitedFetch(apiUrl);
+      if (age <= DETAILS_REFRESH_THRESHOLD) {
+        console.log(
+          `[placesController] Found fresh details in permanent collection for: ${placeId}`
+        );
+        return place;
+      } else {
+        console.log(
+          `[placesController] Found stale details (age: ${Math.round(
+            age / 86400000
+          )} days) in permanent collection for: ${placeId} - will refresh in background`
+        );
+
+        // Return existing details but queue a refresh in the background if online
+        NetInfo.fetch().then((state) => {
+          if (state.isConnected && !detailsFetchQueue.has(placeId)) {
+            console.log(
+              `[placesController] Queuing background refresh for stale place: ${placeId}`
+            );
+            detailsFetchQueue.add(placeId);
+
+            // Start background fetch with a delay
+            setTimeout(() => {
+              fetchPlaceDetailsFromGoogle(placeId, true)
+                .then(() => detailsFetchQueue.delete(placeId))
+                .catch(() => detailsFetchQueue.delete(placeId));
+            }, BACKGROUND_FETCH_DELAY);
+          }
+        });
+
+        return place;
+      }
+    }
+
+    return null;
+  } catch (error) {
+    console.error(`[placesController] Error checking permanent details:`, error);
+    return null;
+  }
+};
+
+/**
+ * Save place details to the permanent collection
+ */
+const savePlaceDetailsPermanently = async (place: Place): Promise<void> => {
+  try {
+    if (!auth.currentUser) return;
+
+    // Sanitize place data for Firebase
+    const sanitizedPlace = sanitizeForFirebase(place);
+
+    // Convert place to Firestore-compatible format
+    const placeData = {
+      ...sanitizedPlace,
+      geometry: {
+        location: new GeoPoint(place.geometry.location.lat, place.geometry.location.lng),
+      },
+      fetchedAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+      viewCount: increment(1),
+      lastViewed: serverTimestamp(),
+      hasFullDetails: true,
+    };
+
+    // Save to the permanent placeDetails collection
+    const detailsDocRef = doc(db, "placeDetails", place.place_id);
+    await setDoc(detailsDocRef, placeData, { merge: true });
+
+    console.log(`[placesController] Saved place details permanently for: ${place.name}`);
+  } catch (error) {
+    console.error(`[placesController] Error saving place details permanently:`, error);
+    throw error; // Re-throw to allow caller to handle
+  }
+};
+
+/**
+ * Fetch place details directly from Google API
+ */
+const fetchPlaceDetailsFromGoogle = async (
+  placeId: string,
+  isBackgroundRefresh = false
+): Promise<Place | null> => {
+  try {
+    // If already in fetch queue, return null to avoid duplicate fetches
+    if (detailsFetchQueue.has(placeId) && !isBackgroundRefresh) {
+      console.log(`[placesController] Place ${placeId} already being fetched, skipping`);
+      return null;
+    }
+
+    // Add to fetch queue
+    detailsFetchQueue.add(placeId);
+
+    // Check quota before making an API call
+    const hasQuota = await hasQuotaAvailable("places");
+    if (!hasQuota) {
+      console.warn(`[placesController] No API quota left for place details`);
+      detailsFetchQueue.delete(placeId);
+      return null;
+    }
+
+    // Record this API call in our quota
+    await recordApiCall("places");
+    console.log(`[placesController] Fetching details from Google API for: ${placeId}`);
+
+    try {
+      // Make the API call
+      const response = await fetch(
+        `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}` +
+          `&fields=place_id,name,formatted_address,rating,photos,website,url,formatted_phone_number,opening_hours,reviews,editorial_summary,geometry,types,business_status,price_level,vicinity` +
+          `&key=${GOOGLE_MAPS_APIKEY}`
+      );
+
       const data = await response.json();
 
-      // Check if the request was successful
-      if (data.status === "OK" && data.results && data.results.length > 0) {
-        // Add the results to our array
-        allResults = [...allResults, ...data.results];
+      if (data.status !== "OK" || !data.result) {
+        console.warn(`[placesController] API error for place details: ${data.status}`);
+        detailsFetchQueue.delete(placeId);
+        return null;
+      }
 
-        // Check if there's a next page token
-        nextPageToken = data.next_page_token || null;
-
-        // Determine if we need more pages
-        needMorePages = !!nextPageToken && allResults.length < effectiveMaxPlaces;
-
-        console.log(
-          `[placesController] Received ${data.results.length} places, total: ${
-            allResults.length
-          }, max: ${effectiveMaxPlaces}, have more: ${!!nextPageToken}`
+      // Calculate distance if we have it in memory cache
+      let distance = 0;
+      const basicPlace = memoryCache.places.find((p) => p.place_id === placeId);
+      if (basicPlace && basicPlace.distance) {
+        distance = basicPlace.distance;
+      } else if (memoryCache.cacheEntry) {
+        distance = haversineDistance(
+          memoryCache.cacheEntry.centerLatitude,
+          memoryCache.cacheEntry.centerLongitude,
+          data.result.geometry.location.lat,
+          data.result.geometry.location.lng
         );
+      }
+
+      // Create place object with full details - use nulls not undefined
+      const detailedPlace: Place = {
+        place_id: data.result.place_id,
+        id: data.result.id || data.result.place_id,
+        name: data.result.name || "",
+        formatted_address:
+          data.result.formatted_address || data.result.vicinity || "Address unavailable",
+        address: data.result.formatted_address || data.result.vicinity || "Address unavailable",
+        geometry: data.result.geometry,
+        description:
+          data.result.editorial_summary?.overview ||
+          basicPlace?.description ||
+          getPlaceDescription(data.result),
+        types: data.result.types || [],
+        rating: data.result.rating || null,
+        user_ratings_total: data.result.user_ratings_total || null,
+        price_level: data.result.price_level || null,
+        photos: data.result.photos || [],
+        icon: data.result.icon || null,
+        icon_background_color: data.result.icon_background_color || null,
+        icon_mask_base_uri: data.result.icon_mask_base_uri || null,
+        vicinity: data.result.vicinity || null,
+        business_status: data.result.business_status || null,
+        distance: distance || 0,
+        website: data.result.website || null,
+        url: data.result.url || null,
+        formatted_phone_number: data.result.formatted_phone_number || null,
+        opening_hours: data.result.opening_hours || null,
+        reviews: data.result.reviews || [],
+        hasFullDetails: true,
+      };
+
+      // Sanitize the place data before saving to Firebase
+      const sanitizedPlace = sanitizeForFirebase(detailedPlace);
+
+      // Save to the permanent collection
+      try {
+        await savePlaceDetailsPermanently(sanitizedPlace as Place);
+      } catch (saveError) {
+        console.error(`[placesController] Error saving place details permanently:`, saveError);
+        // Continue anyway - we still want to return the data
+      }
+
+      // Update the details cache
+      detailsCache.set(placeId, {
+        placeId,
+        place: detailedPlace,
+        fetchedAt: Date.now(),
+        lastViewed: Date.now(),
+      });
+
+      // Update memory cache
+      if (basicPlace) {
+        const index = memoryCache.places.findIndex((p) => p.place_id === placeId);
+        if (index !== -1) {
+          memoryCache.places[index] = detailedPlace;
+        }
       } else {
-        // No more results, or an error occurred
-        needMorePages = false;
+        // Add to memory cache if not there
+        memoryCache.places.push(detailedPlace);
+      }
 
-        // If this is the first request and it failed, try the alternative search
-        if (!nextPageToken && (data.status !== "OK" || !data.results || data.results.length < 5)) {
-          console.log(
-            "[placesController] Few or no results found with initial search, trying with alternative parameters"
-          );
+      // Update regular places collection in Firebase if user is logged in
+      if (auth.currentUser) {
+        try {
+          const placeRef = doc(db, "places", placeId);
 
-          // Try a broader search with different parameters
-          const radiusResponse = await rateLimitedFetch(
-            `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${latitude},${longitude}&radius=${dynamicSearchRadius}&type=tourist_attraction|museum|park|landmark|historic&keyword=tourist|attraction|sightseeing|visit&key=AIzaSyDAGq_6eJGQpR3RcO0NrVOowel9-DxZkvA`
-          );
+          // Create a Firestore-compatible object with GeoPoint
+          const firestorePlace = {
+            ...sanitizedPlace,
+            geometry: {
+              location: new GeoPoint(
+                detailedPlace.geometry.location.lat,
+                detailedPlace.geometry.location.lng
+              ),
+            },
+            updatedAt: serverTimestamp(),
+            hasFullDetails: true,
+            lastDetailsUpdate: serverTimestamp(),
+          };
 
-          const radiusData = await radiusResponse.json();
+          await setDoc(placeRef, firestorePlace, { merge: true });
+        } catch (updateError) {
+          console.warn(`[placesController] Error updating regular place:`, updateError);
+          // Continue anyway - this is a non-critical update
+        }
+      }
 
-          // If we got valid results, use them
-          if (radiusData.status === "OK" && radiusData.results && radiusData.results.length > 0) {
-            allResults = radiusData.results;
+      // Save caches to local storage
+      persistCaches();
 
-            // Check if there's a next page token from the alternative search
-            nextPageToken = radiusData.next_page_token || null;
+      // Remove from fetch queue
+      detailsFetchQueue.delete(placeId);
 
-            // Determine if we need more pages
-            needMorePages = !!nextPageToken && allResults.length < effectiveMaxPlaces;
-          }
+      return detailedPlace;
+    } catch (apiError) {
+      console.error(`[placesController] API error for place details:`, apiError);
+      detailsFetchQueue.delete(placeId);
+      return null;
+    }
+  } catch (error) {
+    console.error(`[placesController] Error fetching place details from Google:`, error);
+    detailsFetchQueue.delete(placeId);
+    return null;
+  }
+};
+
+/**
+ * Process batch of places in the background
+ * This checks Firebase FIRST before making API calls
+ */
+const processPendingPlacesBatch = async () => {
+  if (isProcessingBackground) return;
+
+  try {
+    isProcessingBackground = true;
+
+    // Check if we have an internet connection
+    const netInfo = await NetInfo.fetch();
+    if (!netInfo.isConnected) {
+      console.log(`[placesController] No internet connection, skipping background processing`);
+      isProcessingBackground = false;
+      return;
+    }
+
+    // Check if user is logged in for Firebase access
+    if (!auth.currentUser) {
+      console.log(
+        `[placesController] No user logged in for Firebase access, skipping background processing`
+      );
+      isProcessingBackground = false;
+      return;
+    }
+
+    // Get places that need details
+    const placesMissingDetails = memoryCache.places
+      .filter(
+        (p) => !p.hasFullDetails && !p.reviews && !p.website && !detailsFetchQueue.has(p.place_id)
+      )
+      .slice(0, 5); // Process max 5 at a time to not overwhelm
+
+    if (placesMissingDetails.length === 0) {
+      // No more places to process
+      isProcessingBackground = false;
+      return;
+    }
+
+    console.log(
+      `[placesController] Checking Firebase for ${placesMissingDetails.length} places in background`
+    );
+
+    // STEP 1: First check Firebase in batch for ALL places
+    const placeIds = placesMissingDetails.map((p) => p.place_id);
+    const placeDetailsDocs = await Promise.all(
+      placeIds.map((id) => getDoc(doc(db, "placeDetails", id)))
+    );
+
+    // Track which places were found in Firebase
+    const foundInFirebase = new Set<string>();
+    let firebaseCount = 0;
+
+    // Process places found in Firebase first
+    for (let i = 0; i < placeDetailsDocs.length; i++) {
+      const detailsDoc = placeDetailsDocs[i];
+      const placeId = placeIds[i];
+
+      if (detailsDoc.exists()) {
+        // Found in Firebase, update memory cache
+        firebaseCount++;
+        foundInFirebase.add(placeId);
+
+        const detailsData = detailsDoc.data();
+        const place = {
+          ...detailsData,
+          geometry: {
+            location: {
+              lat: detailsData.geometry?.location?.latitude || 0,
+              lng: detailsData.geometry?.location?.longitude || 0,
+            },
+          },
+          hasFullDetails: true,
+          detailsFetchedAt: detailsData.fetchedAt?.toDate().getTime() || Date.now(),
+        } as Place;
+
+        // Update in memory cache
+        const index = memoryCache.places.findIndex((p) => p.place_id === placeId);
+        if (index !== -1) {
+          memoryCache.places[index] = {
+            ...place,
+            distance: memoryCache.places[index].distance,
+          };
+        }
+
+        // Update details cache
+        detailsCache.set(placeId, {
+          placeId,
+          place,
+          fetchedAt: place.detailsFetchedAt || Date.now(),
+          lastViewed: Date.now(),
+        });
+
+        // Update usage metrics in Firebase
+        try {
+          updateDoc(doc(db, "placeDetails", placeId), {
+            viewCount: increment(1),
+            lastViewed: serverTimestamp(),
+          }).catch((e) => console.log("Error updating view stats:", e));
+        } catch (e) {
+          // Non-critical error
         }
       }
     }
 
-    // If we have no results, return empty
-    if (allResults.length === 0) {
-      console.log("[placesController] No places found");
+    // STEP 2: Check if quota is available for places NOT in Firebase
+    if (!(await hasQuotaAvailable("places"))) {
+      console.log(`[placesController] No quota available for fetching remaining places`);
+      isProcessingBackground = false;
+      return;
+    }
+
+    // STEP 3: Only fetch places not found in Firebase
+    const placesNeedingApi = placesMissingDetails.filter((p) => !foundInFirebase.has(p.place_id));
+
+    if (placesNeedingApi.length === 0) {
+      console.log(
+        `[placesController] All ${firebaseCount} places found in Firebase, no API calls needed`
+      );
+      isProcessingBackground = false;
+      return;
+    }
+
+    console.log(
+      `[placesController] Found ${firebaseCount} places in Firebase, need to fetch ${placesNeedingApi.length} from Google API`
+    );
+
+    // Process places not found in Firebase
+    let apiCount = 0;
+    for (const place of placesNeedingApi) {
+      // Check if we still have quota
+      if (await hasQuotaAvailable("places")) {
+        try {
+          // Fetch from Google and store in Firebase
+          const detailedPlace = await fetchPlaceDetailsFromGoogle(place.place_id);
+          if (detailedPlace) {
+            apiCount++;
+          }
+
+          // Add a small delay between requests
+          await new Promise((resolve) => setTimeout(resolve, 500));
+        } catch (error) {
+          console.warn(
+            `[placesController] Error processing place in background: ${place.name}`,
+            error
+          );
+        }
+      } else {
+        // No more quota, stop processing
+        break;
+      }
+    }
+
+    console.log(
+      `[placesController] Background processing complete: ${firebaseCount} from Firebase + ${apiCount} from API`
+    );
+  } finally {
+    isProcessingBackground = false;
+  }
+};
+
+/**
+ * MAIN FUNCTION: Fetch places with details in one go and cache them
+ */
+export const fetchNearbyPlaces = async (
+  latitude: number,
+  longitude: number,
+  forceRefresh: boolean = false
+): Promise<NearbyPlacesResponse> => {
+  try {
+    console.log(
+      `[placesController] fetchNearbyPlaces at ${latitude.toFixed(6)}, ${longitude.toFixed(
+        6
+      )}, force=${forceRefresh}`
+    );
+
+    // DEBUG: Log cache state at the beginning
+    console.log(`[placesController] DEBUG: Memory cache has ${memoryCache.places.length} places`);
+    console.log(`[placesController] DEBUG: Cache entry exists? ${memoryCache.cacheEntry !== null}`);
+
+    // DEBUG: Check Firebase authentication state
+    const authUser = auth.currentUser;
+    console.log(
+      `[placesController] DEBUG: Firebase auth state - User logged in: ${authUser !== null}`
+    );
+
+    // DEBUG: Check network state
+    const netInfo = await NetInfo.fetch();
+    console.log(`[placesController] DEBUG: Network connected: ${netInfo.isConnected}`);
+
+    // DEBUG: Check quota
+    const quota = await hasQuotaAvailable("places");
+    console.log(`[placesController] DEBUG: API quota available: ${quota}`);
+
+    // STEP 1: Check if we have this in memory cache
+    if (
+      !forceRefresh &&
+      memoryCache.cacheEntry &&
+      memoryCache.places.length > 0 &&
+      isCacheEntryValidForPosition(memoryCache.cacheEntry, latitude, longitude)
+    ) {
+      console.log(`[placesController] Using memory cache with ${memoryCache.places.length} places`);
+
+      // Calculate distance to each place and sort by proximity
+      const placesWithDistance = memoryCache.places
+        .map((place) => {
+          const distance = haversineDistance(
+            latitude,
+            longitude,
+            place.geometry.location.lat,
+            place.geometry.location.lng
+          );
+
+          return {
+            ...place,
+            distance,
+          };
+        })
+        .sort((a, b) => (a.distance || 0) - (b.distance || 0));
+
+      // Find furthest distance of closest 20 places
+      let furthestDistance = 0;
+      placesWithDistance.slice(0, 20).forEach((place) => {
+        if (place.distance && place.distance > furthestDistance) {
+          furthestDistance = place.distance;
+        }
+      });
+
       return {
-        places: [],
-        furthestDistance: dynamicSearchRadius,
+        places: placesWithDistance,
+        furthestDistance: Math.max(furthestDistance + 200, 1000),
       };
     }
 
-    // Apply enhanced filtering
+    // STEP 2: Check if we have a Firebase cache entry
+    if (!forceRefresh && auth.currentUser) {
+      try {
+        const cacheEntry = await fetchCacheEntryForPosition(latitude, longitude);
+
+        if (cacheEntry) {
+          // We found a valid cache entry in Firebase, fetch all the places
+          const places = await fetchPlacesForCacheEntry(cacheEntry);
+
+          if (places.length > 0) {
+            // Update memory cache
+            memoryCache = {
+              cacheEntry,
+              places,
+            };
+
+            // Save to local storage as backup
+            persistCaches();
+
+            // Calculate distance and sort
+            const placesWithDistance = places
+              .map((place) => {
+                const distance = haversineDistance(
+                  latitude,
+                  longitude,
+                  place.geometry.location.lat,
+                  place.geometry.location.lng
+                );
+
+                return {
+                  ...place,
+                  distance,
+                };
+              })
+              .sort((a, b) => (a.distance || 0) - (b.distance || 0));
+
+            // Find furthest distance of closest 20 places
+            let furthestDistance = 0;
+            placesWithDistance.slice(0, 20).forEach((place) => {
+              if (place.distance && place.distance > furthestDistance) {
+                furthestDistance = place.distance;
+              }
+            });
+
+            console.log(`[placesController] Using Firebase cache with ${places.length} places`);
+
+            return {
+              places: placesWithDistance,
+              furthestDistance: Math.max(furthestDistance + 200, 1000),
+            };
+          }
+        }
+      } catch (cacheError) {
+        console.error("[placesController] Error checking Firebase cache:", cacheError);
+        // Continue to API fallback
+      }
+    }
+
+    // STEP 3: Check quota before making any API calls
+    const hasQuota = await hasQuotaAvailable("places");
+
+    if (!hasQuota) {
+      console.warn("[placesController] No API quota left! Using existing cache if available");
+
+      // If memory cache has any places, use it even if not ideal
+      if (memoryCache.places.length > 0) {
+        const placesWithDistance = memoryCache.places
+          .map((place) => {
+            const distance = haversineDistance(
+              latitude,
+              longitude,
+              place.geometry.location.lat,
+              place.geometry.location.lng
+            );
+
+            return {
+              ...place,
+              distance,
+            };
+          })
+          .sort((a, b) => (a.distance || 0) - (b.distance || 0));
+
+        return {
+          places: placesWithDistance,
+          furthestDistance: SEARCH_RADIUS_METERS,
+        };
+      }
+
+      // Try loading from local storage one more time
+      await initializeCaches();
+      if (memoryCache.places.length > 0) {
+        const placesWithDistance = memoryCache.places
+          .map((place) => {
+            const distance = haversineDistance(
+              latitude,
+              longitude,
+              place.geometry.location.lat,
+              place.geometry.location.lng
+            );
+
+            return {
+              ...place,
+              distance,
+            };
+          })
+          .sort((a, b) => (a.distance || 0) - (b.distance || 0));
+
+        return {
+          places: placesWithDistance,
+          furthestDistance: SEARCH_RADIUS_METERS,
+        };
+      }
+
+      // If no cache and no quota, return empty with warning
+      Alert.alert(
+        "Limited Data Available",
+        "We've reached our daily limit for finding places. Please try again tomorrow."
+      );
+
+      return {
+        places: [],
+        furthestDistance: SEARCH_RADIUS_METERS,
+      };
+    }
+
+    // STEP 4: Make API calls with pagination to get up to 100 places
+    console.log(`[placesController] Fetching places from API in ${SEARCH_RADIUS_KM}km radius`);
+
+    // Record the API call for nearbysearch
+    await recordApiCall("places");
+
+    // We'll use pagination to get more places
+    let allResults: any[] = [];
+    let nextPageToken: string | null = null;
+    let pageCount = 0;
+    const MAX_PAGES = 3; // Limit to 3 pages (up to 60 results) to avoid excessive API calls
+
+    do {
+      // Build URL for wide-area search with BASIC details only
+      let apiUrl =
+        `https://maps.googleapis.com/maps/api/place/nearbysearch/json?` +
+        `location=${latitude},${longitude}&` +
+        `radius=${SEARCH_RADIUS_METERS}&` +
+        `type=tourist_attraction|museum|park|point_of_interest|art_gallery|church|natural_feature&` +
+        `fields=place_id,name,formatted_address,rating,photos,geometry,types,business_status,price_level,vicinity&` +
+        `key=${GOOGLE_MAPS_APIKEY}`;
+
+      // Add page token if we have one
+      if (nextPageToken) {
+        apiUrl += `&pagetoken=${nextPageToken}`;
+        // Wait briefly before using the next page token
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+      }
+
+      // Make API request
+      const response = await fetch(apiUrl);
+      const data = await response.json();
+
+      if (data.status !== "OK") {
+        console.warn(`[placesController] API returned status: ${data.status}`);
+        break;
+      }
+
+      // Add results to our collection
+      if (data.results && data.results.length > 0) {
+        allResults = [...allResults, ...data.results];
+        console.log(
+          `[placesController] Page ${pageCount + 1}: Received ${data.results.length} places`
+        );
+      }
+
+      // Store next page token if available
+      nextPageToken = data.next_page_token || null;
+
+      // Record API call if we're going to fetch another page
+      if (nextPageToken && pageCount < MAX_PAGES - 1) {
+        await recordApiCall("places");
+      }
+
+      pageCount++;
+    } while (nextPageToken && pageCount < MAX_PAGES);
+
+    console.log(`[placesController] Received total of ${allResults.length} places from API`);
+
+    if (allResults.length === 0) {
+      // Use existing cache as fallback
+      if (memoryCache.places.length > 0) {
+        return {
+          places: memoryCache.places,
+          furthestDistance: SEARCH_RADIUS_METERS,
+        };
+      }
+
+      return {
+        places: [],
+        furthestDistance: SEARCH_RADIUS_METERS,
+      };
+    }
+
+    // STEP 5: Process and filter results
+    // First filter and process results
     const filteredResults = allResults
       .filter((place: any) => {
-        // 1. Make sure it's not in our exclusion list
+        // Make sure it's not in exclusion list
         const hasBlockedType = place.types.some((type: string) => NON_TOURIST_TYPES.includes(type));
 
         if (hasBlockedType) return false;
 
-        // 2. Calculate tourism score for ranking
+        // Calculate tourism score
         place.tourismScore = calculateTourismScore(place);
 
-        // 3. Filter based on minimum criteria
+        // Apply quality filtering
         return (
-          (place.rating && place.rating >= MIN_RATING_THRESHOLD) ||
-          place.tourismScore >= 40 ||
-          (place.rating === undefined && place.tourismScore >= 30) ||
-          (!place.rating && place.tourismScore >= 30)
+          (place.rating && place.rating >= 3.5) ||
+          place.tourismScore >= 35 ||
+          (!place.rating && place.tourismScore >= 25)
         );
       })
       // Sort by tourism score and rating
       .sort((a: any, b: any) => {
         const scoreDiff = b.tourismScore - a.tourismScore;
-
         if (Math.abs(scoreDiff) < 10) {
           const aRating = a.rating || 0;
           const bRating = b.rating || 0;
           return bRating - aRating;
         }
-
         return scoreDiff;
       })
-      // Limit to configured max places
-      .slice(0, effectiveMaxPlaces);
+      // Limit to configured max places - allow up to 100 places
+      .slice(0, MAX_PLACES_TO_FETCH);
 
-    console.log(
-      `[placesController] After filtering: ${filteredResults.length} places (max: ${effectiveMaxPlaces})`
+    // STEP 6: Create place objects from basic API results
+    // We only store basic place data and fetch details on-demand when a user selects a place
+    const basicPlaces: Place[] = filteredResults.map((place: any) =>
+      createPlaceObjectFromApiResult(place, latitude, longitude)
     );
 
-    // Calculate distance to furthest place
+    // STEP 7: Sort places by distance from current location
+    basicPlaces.sort((a, b) => (a.distance || 0) - (b.distance || 0));
+
+    // Find furthest distance of closest 20 places
     let furthestDistance = 0;
-
-    filteredResults.forEach((place: any) => {
-      const distance = haversineDistance(
-        latitude,
-        longitude,
-        place.geometry.location.lat,
-        place.geometry.location.lng
-      );
-
-      if (distance > furthestDistance) {
-        furthestDistance = distance;
+    basicPlaces.slice(0, 20).forEach((place) => {
+      if (place.distance && place.distance > furthestDistance) {
+        furthestDistance = place.distance;
       }
     });
 
-    // Add 100 meters buffer to the furthest distance
-    furthestDistance = Math.max(furthestDistance + 100, 1000); // At least 1km radius
+    furthestDistance = Math.max(furthestDistance + 200, 1000);
 
-    // CRITICAL CHANGE: Don't fetch details for all places!
-    // Instead, just use the data we already have from nearbySearch
-    const placesWithBasicInfo: Place[] = filteredResults.map((place: any) => {
-      // Calculate distance from user's location to this place
-      const distance = haversineDistance(
-        latitude,
-        longitude,
-        place.geometry.location.lat,
-        place.geometry.location.lng
-      );
+    // STEP 9: Save to Firebase if user is logged in
+    if (auth.currentUser) {
+      createNewCacheEntry(latitude, longitude, basicPlaces)
+        .then((newCacheEntry) => {
+          if (newCacheEntry) {
+            // Update memory cache
+            memoryCache = {
+              cacheEntry: newCacheEntry,
+              places: basicPlaces,
+            };
 
-      // Create the basic place object without making additional API calls
-      return {
-        place_id: place.place_id,
-        id: place.id,
-        name: place.name,
-        address: place.vicinity, // vicinity is available in the nearby search
-        formatted_address: place.vicinity,
-        geometry: place.geometry,
-        description: getPlaceDescription(place),
-        types: place.types || [],
-        rating: place.rating,
-        user_ratings_total: place.user_ratings_total,
-        price_level: place.price_level,
-        photos: place.photos || [],
-        icon: place.icon,
-        icon_background_color: place.icon_background_color,
-        icon_mask_base_uri: place.icon_mask_base_uri,
-        vicinity: place.vicinity,
-        business_status: place.business_status,
-        distance: distance, // Add the distance from user to place
+            // Save to local storage as backup
+            persistCaches();
+          }
+        })
+        .catch((error) => {
+          console.error("[placesController] Error saving to Firebase:", error);
+        });
+    } else {
+      // Save to memory cache
+      memoryCache = {
+        cacheEntry: null,
+        places: basicPlaces,
       };
-    });
 
-    // Final sort by distance for the UI display
-    placesWithBasicInfo.sort((a: Place, b: Place) => {
-      return (a.distance || 0) - (b.distance || 0);
-    });
+      // Save to local storage if not using Firebase
+      persistCaches();
+    }
 
-    // Update cache with the fresh data - using effectiveMaxPlaces in cache
-    placesCache = {
-      places: placesWithBasicInfo,
-      furthestDistance,
-      cacheTimestamp: Date.now(),
-      latitude,
-      longitude,
-      maxPlaces: effectiveMaxPlaces,
-      searchRadius: dynamicSearchRadius,
-      detailedPlaceIds: new Set<string>(), // Initialize with an empty set
-    };
-
-    console.log(`[placesController] Cached ${placesWithBasicInfo.length} places with basic info`);
+    console.log(
+      `[placesController] Processed ${basicPlaces.length} places with basic info (no details pre-fetching)`
+    );
 
     return {
-      places: placesWithBasicInfo,
+      places: basicPlaces,
       furthestDistance,
     };
-  } catch (error: any) {
-    console.error("[placesController] Error fetching nearby places:", error);
-    // Return an empty array and default radius rather than showing an alert
+  } catch (error) {
+    console.error("[placesController] Error in fetchNearbyPlaces:", error);
+
+    // Use existing cache on error if available
+    if (memoryCache.places.length > 0) {
+      return {
+        places: memoryCache.places,
+        furthestDistance: SEARCH_RADIUS_METERS,
+      };
+    }
+
     return {
       places: [],
-      furthestDistance: dynamicSearchRadius,
+      furthestDistance: SEARCH_RADIUS_METERS,
     };
   }
 };
 
 /**
- * NEW FUNCTION: Fetch place details on demand when a user selects a place
- * This is the key to reducing API calls
+ * Fetch place details on demand - used when a user selects a place
+ * ENHANCED: Always fetches full details on marker click and permanently stores them
  */
 export const fetchPlaceDetailsOnDemand = async (placeId: string): Promise<Place | null> => {
   try {
-    // Check if the place is in the cache first
-    if (placesCache && placesCache.places.length > 0) {
-      const cachedPlaceIndex = placesCache.places.findIndex((place) => place.place_id === placeId);
-      const cachedPlace = cachedPlaceIndex >= 0 ? placesCache.places[cachedPlaceIndex] : null;
+    console.log(`[placesController] fetchPlaceDetailsOnDemand: ${placeId}`);
 
-      // Check if we already have detailed information for this place
-      if (cachedPlace && placesCache.detailedPlaceIds.has(placeId)) {
-        console.log(`[placesController] Using cached detailed data for place: ${cachedPlace.name}`);
-        return cachedPlace;
+    // STEP 1: Check in-memory details cache first (fastest)
+    const cachedDetails = detailsCache.get(placeId);
+    if (cachedDetails) {
+      console.log(`[placesController] Found place in details cache: ${cachedDetails.place.name}`);
+
+      // Update last viewed time
+      cachedDetails.lastViewed = Date.now();
+
+      // If details are stale, queue a refresh in the background but still return cached version
+      if (needsDetailsRefresh(cachedDetails)) {
+        console.log(`[placesController] Details are stale, queuing background refresh`);
+
+        // Queue a background refresh if we're online
+        NetInfo.fetch().then((state) => {
+          if (state.isConnected && !detailsFetchQueue.has(placeId)) {
+            setTimeout(() => {
+              fetchPlaceDetailsFromGoogle(placeId, true)
+                .then(() => detailsFetchQueue.delete(placeId))
+                .catch(() => detailsFetchQueue.delete(placeId));
+            }, BACKGROUND_FETCH_DELAY);
+          }
+        });
       }
 
-      // If we have the place but without details, fetch the details and update cache
-      if (cachedPlace) {
-        console.log(`[placesController] Fetching details for cached place: ${cachedPlace.name}`);
-
-        // Fetch place details from API
-        const detailsResponse = await rateLimitedFetch(
-          `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=formatted_address,name,rating,photos,url,website,formatted_phone_number,opening_hours,reviews,editorial_summary,geometry,types&key=AIzaSyDAGq_6eJGQpR3RcO0NrVOowel9-DxZkvA`
-        );
-        const detailsData = await detailsResponse.json();
-
-        if (detailsData.status !== "OK") {
-          console.warn(`[placesController] Could not fetch details for place: ${cachedPlace.name}`);
-          return cachedPlace; // Return what we have
-        }
-
-        // Use editorial summary if available, otherwise use standard description
-        const description =
-          detailsData.result.editorial_summary?.overview ||
-          cachedPlace.description ||
-          getPlaceDescription(cachedPlace);
-
-        // Create the enhanced place object with all the details
-        const enhancedPlace: Place = {
-          ...cachedPlace,
-          description: description,
-          formatted_address: detailsData.result.formatted_address || cachedPlace.vicinity,
-          address: detailsData.result.formatted_address || cachedPlace.vicinity,
-          phone: detailsData.result.formatted_phone_number,
-          formatted_phone_number: detailsData.result.formatted_phone_number,
-          website: detailsData.result.website,
-          url: detailsData.result.url,
-          opening_hours: detailsData.result.opening_hours,
-          openingHours: detailsData.result.opening_hours,
-          reviews: detailsData.result.reviews,
-          // Update with new data but keep existing fields
-          rating: detailsData.result.rating || cachedPlace.rating,
-          photos: detailsData.result.photos || cachedPlace.photos,
-        };
-
-        // Update the place in cache with detailed info
-        if (placesCache && cachedPlaceIndex >= 0) {
-          placesCache.places[cachedPlaceIndex] = enhancedPlace;
-          placesCache.detailedPlaceIds.add(placeId); // Mark as having details
-          console.log(
-            `[placesController] Updated cache with detailed info for ${enhancedPlace.name}`
-          );
-        }
-
-        return enhancedPlace;
-      }
+      return cachedDetails.place;
     }
 
-    // If not in cache at all, fetch from API directly
-    console.log(`[placesController] Fetching details for place ID: ${placeId}`);
-    const detailsResponse = await rateLimitedFetch(
-      `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=formatted_address,name,rating,photos,url,website,formatted_phone_number,opening_hours,reviews,editorial_summary,geometry,types&key=AIzaSyDAGq_6eJGQpR3RcO0NrVOowel9-DxZkvA`
+    // STEP 2: Check memory cache for place with full details
+    const cachedPlace = memoryCache.places.find(
+      (p) => p.place_id === placeId && p.hasFullDetails && (p.reviews || p.website)
     );
 
-    const detailsData = await detailsResponse.json();
+    if (cachedPlace) {
+      console.log(
+        `[placesController] Found place with full details in memory cache: ${cachedPlace.name}`
+      );
 
-    if (detailsData.status !== "OK") {
-      throw new Error(`Could not fetch details for place ID: ${placeId}`);
+      // Add to details cache
+      detailsCache.set(placeId, {
+        placeId,
+        place: cachedPlace,
+        fetchedAt:
+          cachedPlace.detailsFetchedAt || Date.now() - DETAILS_REFRESH_THRESHOLD + 86400000, // Default to refresh tomorrow
+        lastViewed: Date.now(),
+      });
+
+      return cachedPlace;
     }
 
-    // Use editorial summary if available, otherwise use standard description
-    const description =
-      detailsData.result.editorial_summary?.overview || getPlaceDescription(detailsData.result);
+    // STEP 3: Check the permanent details collection in Firebase
+    if (auth.currentUser) {
+      console.log(`[placesController] Checking Firebase placeDetails collection for: ${placeId}`);
+      const permanentDetails = await checkPlaceDetailsCollection(placeId);
+      if (permanentDetails) {
+        console.log(
+          `[placesController] Found permanent details in Firebase for: ${permanentDetails.name}`
+        );
 
-    // Create the place object
-    const detailedPlace: Place = {
-      place_id: placeId,
-      name: detailsData.result.name,
-      geometry: detailsData.result.geometry,
-      description: description,
-      address: detailsData.result.formatted_address,
-      formatted_address: detailsData.result.formatted_address,
-      phone: detailsData.result.formatted_phone_number,
-      formatted_phone_number: detailsData.result.formatted_phone_number,
-      website: detailsData.result.website,
-      url: detailsData.result.url,
-      rating: detailsData.result.rating,
-      photos: detailsData.result.photos,
-      openingHours: detailsData.result.opening_hours,
-      opening_hours: detailsData.result.opening_hours,
-      reviews: detailsData.result.reviews,
-      types: detailsData.result.types,
-    };
+        // Add to details cache
+        detailsCache.set(placeId, {
+          placeId,
+          place: permanentDetails,
+          fetchedAt: permanentDetails.detailsFetchedAt || Date.now(),
+          lastViewed: Date.now(),
+        });
 
-    // Try to add to cache if it exists
-    if (placesCache) {
-      // Check if this place should be added to the cache
-      const placeDistance = detailedPlace.geometry
-        ? haversineDistance(
-            placesCache.latitude,
-            placesCache.longitude,
-            detailedPlace.geometry.location.lat,
-            detailedPlace.geometry.location.lng
-          )
-        : 0;
-
-      // Only add to cache if it's within our search radius
-      if (placeDistance <= placesCache.searchRadius) {
-        const existingIndex = placesCache.places.findIndex((p) => p.place_id === placeId);
-
-        if (existingIndex >= 0) {
-          // Update existing place
-          placesCache.places[existingIndex] = detailedPlace;
-        } else {
-          // Add new place to cache
-          placesCache.places.push(detailedPlace);
-        }
-
-        // Mark as having details
-        placesCache.detailedPlaceIds.add(placeId);
-        console.log(`[placesController] Added detailed place to cache: ${detailedPlace.name}`);
+        return permanentDetails;
       }
     }
 
-    return detailedPlace;
-  } catch (error: any) {
-    console.error("[placesController] Error fetching place details:", error);
+    // STEP 4: Fetch from Google API
+    console.log(`[placesController] Not found in Firebase, fetching from Google API: ${placeId}`);
+    const googleDetails = await fetchPlaceDetailsFromGoogle(placeId);
+
+    if (googleDetails) {
+      console.log(
+        `[placesController] Successfully fetched from Google API and stored permanently: ${googleDetails.name}`
+      );
+    } else {
+      console.log(`[placesController] Failed to fetch details from Google API: ${placeId}`);
+    }
+
+    return googleDetails;
+  } catch (error) {
+    console.error(`[placesController] Error in fetchPlaceDetailsOnDemand:`, error);
     return null;
   }
 };
 
-// Existing fetchPlaceById function
+/**
+ * Get a place by ID from cache or Firebase
+ */
 export const fetchPlaceById = async (placeId: string): Promise<Place | null> => {
-  // This can now use our new fetchPlaceDetailsOnDemand function
-  return fetchPlaceDetailsOnDemand(placeId);
+  try {
+    console.log(`[placesController] fetchPlaceById: ${placeId}`);
+
+    // STEP 1: Check details cache first (fastest)
+    const cachedDetails = detailsCache.get(placeId);
+    if (cachedDetails) {
+      console.log(`[placesController] Found place in details cache: ${cachedDetails.place.name}`);
+
+      // Update last viewed time
+      cachedDetails.lastViewed = Date.now();
+
+      // Background refresh if stale
+      if (needsDetailsRefresh(cachedDetails)) {
+        NetInfo.fetch().then((state) => {
+          if (state.isConnected && !detailsFetchQueue.has(placeId)) {
+            setTimeout(() => {
+              fetchPlaceDetailsFromGoogle(placeId, true)
+                .then(() => detailsFetchQueue.delete(placeId))
+                .catch(() => detailsFetchQueue.delete(placeId));
+            }, BACKGROUND_FETCH_DELAY);
+          }
+        });
+      }
+
+      return cachedDetails.place;
+    }
+
+    // STEP 2: Check memory cache
+    const cachedPlace = memoryCache.places.find((p) => p.place_id === placeId);
+    if (cachedPlace) {
+      console.log(`[placesController] Found place in memory cache: ${cachedPlace.name}`);
+
+      // If it has full details, add to details cache
+      if (cachedPlace.hasFullDetails) {
+        detailsCache.set(placeId, {
+          placeId,
+          place: cachedPlace,
+          fetchedAt: cachedPlace.detailsFetchedAt || Date.now(),
+          lastViewed: Date.now(),
+        });
+
+        return cachedPlace;
+      }
+
+      // If it doesn't have full details, look in permanent collection
+      const detailedPlace = await checkPlaceDetailsCollection(placeId);
+      if (detailedPlace) {
+        return detailedPlace;
+      }
+
+      // Otherwise fetch details on demand
+      return await fetchPlaceDetailsOnDemand(placeId);
+    }
+
+    // STEP 3: Check permanent details collection
+    const permanentDetails = await checkPlaceDetailsCollection(placeId);
+    if (permanentDetails) {
+      return permanentDetails;
+    }
+
+    // STEP 4: If user is logged in, check Firebase places collection
+    if (auth.currentUser) {
+      const placeDocRef = doc(db, "places", placeId);
+      const placeDoc = await getDoc(placeDocRef);
+
+      if (placeDoc.exists()) {
+        const placeData = placeDoc.data();
+
+        console.log(
+          `[placesController] Found place in Firebase places collection: ${placeData.name}`
+        );
+
+        // Convert GeoPoint back to lat/lng object
+        const place: Place = {
+          ...placeData,
+          geometry: {
+            location: {
+              lat: placeData.geometry.location.latitude,
+              lng: placeData.geometry.location.longitude,
+            },
+          },
+        } as Place;
+
+        // If it has full details, add to details cache
+        if (place.hasFullDetails) {
+          detailsCache.set(placeId, {
+            placeId,
+            place,
+            fetchedAt: placeData.lastDetailsUpdate?.toDate().getTime() || Date.now(),
+            lastViewed: Date.now(),
+          });
+
+          return place;
+        }
+
+        // Otherwise fetch details on demand
+        return await fetchPlaceDetailsOnDemand(placeId);
+      }
+    }
+
+    // STEP 5: Not found anywhere, fetch directly from Google
+    return await fetchPlaceDetailsFromGoogle(placeId);
+  } catch (error) {
+    console.error(`[placesController] Error in fetchPlaceById:`, error);
+    return null;
+  }
+};
+
+/**
+ * Clear caches (for debugging or troubleshooting)
+ */
+export const clearPlacesCache = async (): Promise<void> => {
+  memoryCache = { cacheEntry: null, places: [] };
+  detailsCache.clear();
+  await AsyncStorage.removeItem(LOCAL_CACHE_KEY);
+  await AsyncStorage.removeItem(LOCAL_DETAILS_CACHE_KEY);
+  console.log("[placesController] Cleared all place caches");
+};
+
+/**
+ * Get cache statistics
+ */
+/**
+ * Get cache statistics
+ */
+export const getCacheStats = async (): Promise<{
+  memoryCache: {
+    places: number;
+    cacheCenter?: string;
+    ageInDays?: number;
+  };
+  detailsCache: {
+    count: number;
+    freshCount: number;
+    staleCount: number;
+  };
+  firebaseCache?: {
+    areas: number;
+    places: number;
+    permanentDetails: number;
+  };
+}> => {
+  let stats: any = {
+    memoryCache: {
+      places: memoryCache.places.length,
+    },
+    detailsCache: {
+      count: detailsCache.size,
+      freshCount: 0,
+      staleCount: 0,
+    },
+  };
+
+  if (memoryCache.cacheEntry) {
+    stats.memoryCache.cacheCenter = `${memoryCache.cacheEntry.centerLatitude.toFixed(
+      4
+    )}, ${memoryCache.cacheEntry.centerLongitude.toFixed(4)}`;
+
+    const now = new Date();
+    // Use the safe function here too
+    const timestamp = safeGetDate(memoryCache.cacheEntry.timestamp);
+    const ageMs = now.getTime() - timestamp.getTime();
+    stats.memoryCache.ageInDays = Math.round((ageMs / (1000 * 60 * 60 * 24)) * 10) / 10;
+  }
+
+  // Calculate details cache freshness
+  const now = Date.now();
+  detailsCache.forEach((entry) => {
+    if (now - entry.fetchedAt <= DETAILS_REFRESH_THRESHOLD) {
+      stats.detailsCache.freshCount++;
+    } else {
+      stats.detailsCache.staleCount++;
+    }
+  });
+
+  // Get Firebase stats if logged in
+  if (auth.currentUser) {
+    try {
+      const cachesSnapshot = await getDocs(collection(db, "placeCaches"));
+      const placesSnapshot = await getDocs(collection(db, "places"));
+      const detailsSnapshot = await getDocs(collection(db, "placeDetails"));
+
+      stats.firebaseCache = {
+        areas: cachesSnapshot.size,
+        places: placesSnapshot.size,
+        permanentDetails: detailsSnapshot.size,
+      };
+    } catch (error) {
+      console.error("[placesController] Error getting Firebase stats:", error);
+    }
+  }
+
+  return stats;
+};
+
+/**
+ * Check and create necessary Firebase indexes
+ * This helper function logs what indexes are needed
+ */
+export const checkRequiredIndexes = async (): Promise<void> => {
+  // Log the message about required indexes
+  console.log(`
+-------------------------------------------------
+REQUIRED FIREBASE INDEXES:
+-------------------------------------------------
+For preloadPopularPlaceDetails function to work correctly,
+create a composite index in Firebase for:
+
+Collection: placeDetails
+Fields:
+1. viewCount (Descending)
+2. fetchedAt (Ascending)
+
+You can create this index in the Firebase Console:
+Firestore Database → Indexes → Composite → Add Index
+-------------------------------------------------
+  `);
+};
+
+/**
+ * Get details for popular places to preload them
+ * Modified to avoid index issues
+ */
+export const preloadPopularPlaceDetails = async (): Promise<number> => {
+  try {
+    // Only run if we're online and if user is logged in
+    const netInfo = await NetInfo.fetch();
+    if (!netInfo.isConnected || !auth.currentUser) {
+      return 0;
+    }
+
+    // Check quota
+    if (!(await hasQuotaAvailable("places"))) {
+      return 0;
+    }
+
+    console.log("[placesController] Preloading details for popular places");
+
+    try {
+      // SIMPLIFIED APPROACH: Instead of using complex queries that require indexes,
+      // let's just get a list of place IDs and filter them programmatically
+
+      // Get all place details docs
+      const detailsRef = collection(db, "placeDetails");
+      const detailsQuery = query(detailsRef, limit(100));
+      const detailsDocs = await getDocs(detailsQuery);
+
+      if (detailsDocs.empty) {
+        console.log("[placesController] No places found for preloading");
+        return 0;
+      }
+
+      // Filter the results locally to find places that need refreshing
+      const placesToRefresh = detailsDocs.docs
+        .map((doc) => {
+          const data = doc.data();
+          return {
+            id: doc.id,
+            fetchedAt: data.fetchedAt?.toDate?.() || new Date(0),
+            viewCount: data.viewCount || 0,
+          };
+        })
+        .filter((place) => {
+          // Check if needs refresh based on age
+          const now = new Date();
+          const age = now.getTime() - place.fetchedAt.getTime();
+          return age > DETAILS_REFRESH_THRESHOLD;
+        })
+        // Sort by view count (most viewed first)
+        .sort((a, b) => b.viewCount - a.viewCount)
+        // Take top 5
+        .slice(0, 5);
+
+      if (placesToRefresh.length === 0) {
+        console.log("[placesController] No popular places need refreshing");
+        return 0;
+      }
+
+      let refreshCount = 0;
+
+      for (const place of placesToRefresh) {
+        if (await hasQuotaAvailable("places")) {
+          try {
+            const placeId = place.id;
+            console.log(`[placesController] Refreshing popular place: ${placeId}`);
+
+            await fetchPlaceDetailsFromGoogle(placeId, true);
+            refreshCount++;
+
+            // Add a small delay between requests
+            await new Promise((resolve) => setTimeout(resolve, 1000));
+          } catch (error) {
+            console.error("[placesController] Error refreshing popular place:", error);
+          }
+        } else {
+          break;
+        }
+      }
+
+      console.log(`[placesController] Refreshed ${refreshCount} popular places`);
+      return refreshCount;
+    } catch (queryError) {
+      // If we get an index error, log helpful information
+      if (queryError instanceof Error && queryError.toString().includes("index")) {
+        console.error("[placesController] Firebase index error:", queryError);
+        // Log instructions for creating indexes
+        checkRequiredIndexes();
+      } else {
+        console.error("[placesController] Query error:", queryError);
+      }
+      return 0;
+    }
+  } catch (error) {
+    console.error("[placesController] Error preloading popular places:", error);
+    return 0;
+  }
 };

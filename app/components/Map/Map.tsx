@@ -1,4 +1,4 @@
-// Map.tsx - Updated to support showing discover card for a place
+// Map.tsx - Updated with optimized Firebase-first place details caching
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import MapView, { PROVIDER_DEFAULT, Circle, Marker, PROVIDER_GOOGLE } from "react-native-maps";
 import { View, StyleSheet, Vibration, Alert, Text } from "react-native";
@@ -13,6 +13,7 @@ import { customMapStyle } from "../../constants/mapStyle";
 import { useNavigation } from "expo-router";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../../navigation/types";
+import NetInfo from "@react-native-community/netinfo";
 
 // Import controllers and global state
 import {
@@ -48,10 +49,16 @@ import {
   LOCATION_UPDATE_THROTTLE,
   MapViewDirectionsMode,
 } from "../../constants/Map/mapConstants";
-import { Place, Coordinate, NavigationStep } from "../../types/MapTypes";
+import { Place, Coordinate, NavigationStep, VisitedPlaceDetails } from "../../types/MapTypes";
 import * as mapUtils from "../../utils/mapUtils";
-import { fetchPlaceDetailsOnDemand } from "../../controllers/Map/placesController";
+import {
+  fetchPlaceDetailsOnDemand,
+  fetchNearbyPlaces,
+  preloadPopularPlaceDetails,
+  getCacheStats,
+} from "../../controllers/Map/placesController";
 import { hasMovedSignificantly } from "../../controllers/Map/locationController";
+import { getQuotaRecord, getRemainingQuota } from "../../controllers/Map/quotaController";
 
 type MapNavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -59,9 +66,11 @@ type MapNavigationProp = NativeStackNavigationProp<RootStackParamList>;
 interface MapProps {
   placeToShow?: Place | null;
   onPlaceCardShown?: () => void;
+  isInitialized?: boolean;
 }
 
 const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
+  getQuotaRecord();
   const navigation = useNavigation<MapNavigationProp>();
   const [placeProcessingAttempts, setPlaceProcessingAttempts] = useState<number>(0);
   const MAX_PROCESSING_ATTEMPTS = 5;
@@ -84,6 +93,8 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
 
   // Add state to track user camera control
   const [userControllingCamera, setUserControllingCamera] = useState<boolean>(false);
+  // Add state to track network connectivity
+  const [isConnected, setIsConnected] = useState<boolean>(true);
 
   // Route state variables
   const [routeCoordinates, setRouteCoordinates] = useState<Coordinate[]>([]);
@@ -96,6 +107,7 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
   const cameraUserControlTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const pendingPlaceToShowRef = useRef<Place | null>(null);
   const placeCardShownRef = useRef<boolean>(false);
+  const preloadTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Custom hooks
   const location = useMapLocation();
@@ -113,72 +125,131 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
     cardShown: false,
   });
 
+  // Monitor network connectivity
+  useEffect(() => {
+    const unsubscribe = NetInfo.addEventListener((state) => {
+      setIsConnected(state.isConnected ?? false);
+    });
+
+    // Initial check
+    NetInfo.fetch().then((state) => {
+      setIsConnected(state.isConnected ?? false);
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, []);
+
   // Track placeToShow in ref to prevent processing it multiple times
   useEffect(() => {
     if (placeToShow && !showCard && !journeyStarted) {
       console.log(`Map: DIRECT processing for place: ${placeToShow.name}`);
       setDebugInfo((prev) => ({ ...prev, placeReceived: true }));
 
-      // Set the place directly to state
-      places.setSelectedPlace(placeToShow);
+      try {
+        // Set the place directly to state
+        places.setSelectedPlace(placeToShow);
 
-      // Use existing travelTime state
-      setTravelTime("Calculating...");
+        // Use existing travelTime state
+        setTravelTime("Calculating...");
 
-      // Calculate a rough travel time estimate as a fallback
-      if (location.userLocation) {
-        try {
-          const userLoc = location.userLocation;
-          const placeLoc = {
-            latitude: placeToShow.geometry.location.lat,
-            longitude: placeToShow.geometry.location.lng,
-          };
+        // Calculate a rough travel time estimate as a fallback
+        if (location.userLocation) {
+          try {
+            const userLoc = location.userLocation;
+            const placeLoc = {
+              latitude: placeToShow.geometry.location.lat,
+              longitude: placeToShow.geometry.location.lng,
+            };
 
-          // Calculate straight-line distance as fallback
-          const distanceInKm =
-            mapUtils.haversineDistance(
-              userLoc.latitude,
-              userLoc.longitude,
-              placeLoc.latitude,
-              placeLoc.longitude
-            ) / 1000;
+            // Calculate straight-line distance as fallback
+            const distanceInKm =
+              mapUtils.haversineDistance(
+                userLoc.latitude,
+                userLoc.longitude,
+                placeLoc.latitude,
+                placeLoc.longitude
+              ) / 1000;
 
-          // Roughly estimate travel time (assumes 30km/h average speed)
-          const estimatedMinutes = Math.ceil(distanceInKm * 2);
-          setTravelTime(`~${estimatedMinutes} min`);
+            // Roughly estimate travel time (assumes 30km/h average speed)
+            const estimatedMinutes = Math.ceil(distanceInKm * 2);
+            setTravelTime(`~${estimatedMinutes} min`);
 
-          // Start more accurate travel time calculation in the background
-          setTimeout(async () => {
-            try {
-              const result = await places.handlePlaceSelection(
-                placeToShow,
-                userLoc,
-                location.region
-              );
-              console.log("Background place processing complete");
-            } catch (error) {
-              console.error("Error in background processing:", error);
+            // Set this immediately to show the card
+            setShowCard(true);
+            setDebugInfo((prev) => ({ ...prev, cardShown: true }));
+
+            // Start more accurate travel time calculation in the background
+            setTimeout(async () => {
+              try {
+                // Process place selection while fetching details if needed
+                const result = await places.handlePlaceSelection(
+                  placeToShow,
+                  userLoc,
+                  location.region
+                );
+
+                // Check if we need to fetch more details using Firebase-first approach
+                if (!placeToShow.hasFullDetails) {
+                  // Check network connectivity first
+                  if (isConnected) {
+                    console.log(`Map: Fetching details from Firebase/API for ${placeToShow.name}`);
+                    try {
+                      // First check Firebase before making any API call
+                      const detailedPlace = await fetchPlaceDetailsOnDemand(placeToShow.place_id);
+                      if (
+                        detailedPlace &&
+                        places.selectedPlace?.place_id === detailedPlace.place_id
+                      ) {
+                        // Update the place with detailed info
+                        places.setSelectedPlace(detailedPlace);
+                        console.log(`Map: Updated with full details for ${detailedPlace.name}`);
+                      }
+                    } catch (detailError) {
+                      console.warn("Error fetching place details:", detailError);
+                      // Continue with basic place info
+                    }
+                  } else {
+                    console.log("Map: Offline, using basic place data");
+                  }
+                } else {
+                  console.log(`Map: Place ${placeToShow.name} already has full details`);
+                }
+
+                console.log("Background place processing complete");
+              } catch (error) {
+                console.error("Error in background processing:", error);
+              }
+            }, 300);
+
+            // Notify parent that card is shown
+            if (onPlaceCardShown) {
+              setTimeout(() => {
+                onPlaceCardShown();
+              }, 300);
             }
-          }, 500);
-        } catch (estimateError) {
-          console.warn("Error estimating travel time:", estimateError);
+
+            setDebugInfo((prev) => ({ ...prev, placeProcessed: true }));
+          } catch (estimateError) {
+            console.warn("Error estimating travel time:", estimateError);
+            // Fallback - show the card anyway
+            setShowCard(true);
+            if (onPlaceCardShown) onPlaceCardShown();
+          }
+        } else {
+          // No location yet, but still show the card
+          setShowCard(true);
+          if (onPlaceCardShown) onPlaceCardShown();
         }
+      } catch (error) {
+        console.error("Error processing place to show:", error);
+        // Fallback - attempt to show the card even on error
+        setShowCard(true);
+        if (onPlaceCardShown) onPlaceCardShown();
       }
-
-      // Set this immediately to show the card
-      setShowCard(true);
-      setDebugInfo((prev) => ({ ...prev, cardShown: true }));
-
-      // Notify parent that card is shown
-      if (onPlaceCardShown) {
-        setTimeout(() => {
-          onPlaceCardShown();
-        }, 500);
-      }
-
-      setDebugInfo((prev) => ({ ...prev, placeProcessed: true }));
     }
-  }, [placeToShow, showCard, journeyStarted]);
+  }, [placeToShow, showCard, journeyStarted, isConnected, location.userLocation]);
 
   // Separate effect to handle processing the pending place
   // This runs on a timer to keep trying until successful or max attempts reached
@@ -214,19 +285,35 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
               // Show the card immediately for better UX
               setShowCard(true);
 
-              // Try to get more details in the background
-              if (!placeToProcess.formatted_address || !placeToProcess.reviews) {
-                try {
-                  console.log(`Map: Fetching additional details for ${placeToProcess.name}`);
-                  const detailedPlace = await fetchPlaceDetailsOnDemand(placeToProcess.place_id);
-                  if (detailedPlace && places.selectedPlace?.place_id === detailedPlace.place_id) {
-                    // Update the place with detailed info
-                    places.setSelectedPlace(detailedPlace);
+              // Try to get more details in the background only if needed
+              if (!placeToProcess.hasFullDetails) {
+                // Check network connectivity first
+                if (isConnected) {
+                  try {
+                    // First check if it exists in Firebase before making API call
+                    console.log(
+                      `Map: Fetching details from Firebase/permanent storage for ${placeToProcess.name}`
+                    );
+                    const detailedPlace = await fetchPlaceDetailsOnDemand(placeToProcess.place_id);
+                    if (
+                      detailedPlace &&
+                      places.selectedPlace?.place_id === detailedPlace.place_id
+                    ) {
+                      // Update the place with detailed info
+                      places.setSelectedPlace(detailedPlace);
+                      console.log(`Map: Updated with full details for ${detailedPlace.name}`);
+                    }
+                  } catch (detailError) {
+                    console.warn("Error fetching place details:", detailError);
+                    // Continue with basic place info
                   }
-                } catch (detailError) {
-                  console.warn("Error fetching place details:", detailError);
-                  // Continue with basic place info
+                } else {
+                  console.log("Map: Offline, using basic place data");
                 }
+              } else {
+                console.log(
+                  `Map: Place ${placeToProcess.name} already has full details, no need to fetch`
+                );
               }
 
               // Notify parent
@@ -248,7 +335,14 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
       const timer = setTimeout(attemptToProcessPlace, 500);
       return () => clearTimeout(timer);
     }
-  }, [loading, placeProcessingAttempts, pendingPlaceToShowRef.current, placeCardShownRef.current]);
+  }, [
+    loading,
+    placeProcessingAttempts,
+    pendingPlaceToShowRef.current,
+    placeCardShownRef.current,
+    isConnected,
+  ]);
+
   // Function to handle retry when map fails
   const handleRetry = useCallback(() => {
     console.log("Retrying map load...");
@@ -381,8 +475,63 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
       if (cameraUserControlTimeoutRef.current) {
         clearTimeout(cameraUserControlTimeoutRef.current);
       }
+      // Clear preload timeout
+      if (preloadTimeoutRef.current) {
+        clearTimeout(preloadTimeoutRef.current);
+      }
     };
   }, []);
+
+  // Add a new useEffect for preloading popular places when the app is idle
+  useEffect(() => {
+    const preloadPopularDetails = async () => {
+      // Only run when map is already loaded and user isn't actively navigating
+      if (!loading && !journeyStarted && !showCard && !showDiscoveredCard && isConnected) {
+        try {
+          // First check available quota
+          const quota = await getRemainingQuota();
+          if (quota > 0) {
+            // Get cache stats to check if we have a decent amount of places already
+            const stats = await getCacheStats();
+
+            // If we have less than 50 permanently stored place details, or have quota to spare
+            if (
+              !stats.firebaseCache?.permanentDetails ||
+              stats.firebaseCache.permanentDetails < 50 ||
+              quota > 10
+            ) {
+              console.log(
+                `Map: Starting background preload of popular places (${quota} API calls remaining)`
+              );
+              const refreshedCount = await preloadPopularPlaceDetails();
+
+              if (refreshedCount > 0) {
+                console.log(
+                  `Map: Preloaded details for ${refreshedCount} popular places in background`
+                );
+              }
+            } else {
+              console.log(
+                `Map: Skipping preload - already have ${stats.firebaseCache.permanentDetails} cached places`
+              );
+            }
+          }
+        } catch (e) {
+          console.log("Error in preload:", e);
+        }
+      }
+
+      // Schedule next preload attempt - relatively infrequent to preserve quota
+      preloadTimeoutRef.current = setTimeout(preloadPopularDetails, 10 * 60 * 1000); // Run every 10 minutes
+    };
+
+    // Start the preload cycle after initial load with a delay
+    preloadTimeoutRef.current = setTimeout(preloadPopularDetails, 60 * 1000); // First run after 60 seconds
+
+    return () => {
+      if (preloadTimeoutRef.current) clearTimeout(preloadTimeoutRef.current);
+    };
+  }, [loading, journeyStarted, showCard, showDiscoveredCard, isConnected]);
 
   // Effect to finish loading when both location and places are ready
   useEffect(() => {
@@ -407,32 +556,51 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
       ) {
         console.log(`Processing pending place to show: ${pendingPlaceToShowRef.current.name}`);
 
-        // Mark as shown to prevent multiple processing
-        placeCardShownRef.current = true;
+        try {
+          // Mark as shown to prevent multiple processing
+          placeCardShownRef.current = true;
 
-        // Use a small delay to ensure the map is fully rendered
-        setTimeout(async () => {
-          const placeToProcess = pendingPlaceToShowRef.current;
-          if (placeToProcess) {
-            await handlePlaceSelection(placeToProcess);
+          // Use a small delay to ensure the map is fully rendered
+          setTimeout(async () => {
+            const placeToProcess = pendingPlaceToShowRef.current;
+            if (placeToProcess) {
+              try {
+                await handlePlaceSelection(placeToProcess);
 
-            // Move camera to show both user and place
-            if (location.userLocation && places.selectedPlace) {
-              const placeCoord = {
-                latitude: places.selectedPlace.geometry.location.lat,
-                longitude: places.selectedPlace.geometry.location.lng,
-              };
+                // Move camera to show both user and place
+                if (location.userLocation && places.selectedPlace) {
+                  const placeCoord = {
+                    latitude: places.selectedPlace.geometry.location.lat,
+                    longitude: places.selectedPlace.geometry.location.lng,
+                  };
 
-              // Fit camera to show both user location and place
-              camera.showRouteOverview(location.userLocation, placeCoord, () => {});
+                  // Fit camera to show both user location and place
+                  camera.showRouteOverview(location.userLocation, placeCoord, () => {});
+                }
+
+                // Notify parent that place card has been shown
+                if (onPlaceCardShown) {
+                  onPlaceCardShown();
+                }
+              } catch (processError) {
+                console.error("Error processing selected place:", processError);
+
+                // Reset shown flag to allow retry
+                placeCardShownRef.current = false;
+
+                // Try again with a delay
+                setTimeout(() => {
+                  placeCardShownRef.current = false;
+                  setPlaceProcessingAttempts(0);
+                }, 2000);
+              }
             }
-
-            // Notify parent that place card has been shown
-            if (onPlaceCardShown) {
-              onPlaceCardShown();
-            }
-          }
-        }, 500);
+          }, 500);
+        } catch (error) {
+          console.error("Error in place processing setup:", error);
+          // Reset shown flag to allow retry
+          placeCardShownRef.current = false;
+        }
       }
     };
 
@@ -702,6 +870,7 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
 
   /**
    * Handle place selection with auto-detection for proximity
+   * Updated to use Firebase-first approach
    */
   const handlePlaceSelection = async (place: Place) => {
     try {
@@ -732,6 +901,7 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
           setTravelTime(`~${estimatedMinutes} min`);
         } catch (error) {
           console.warn("Error estimating travel time:", error);
+          setTravelTime("Available soon"); // Fallback
         }
       }
 
@@ -768,27 +938,89 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
               setShowDiscoveredCard(true);
             }
           }
+
+          // Fetch detailed place info in the background if needed and connected
+          if (!place.hasFullDetails && isConnected) {
+            console.log(
+              `Map: Background fetching details from Firebase/permanent storage for ${place.name}`
+            );
+            try {
+              // First check Firebase before attempting any API call
+              const detailedPlace = await fetchPlaceDetailsOnDemand(place.place_id);
+              if (detailedPlace && places.selectedPlace?.place_id === detailedPlace.place_id) {
+                // Update the place with detailed info
+                places.setSelectedPlace(detailedPlace);
+                console.log(`Map: Updated with full details for ${place.name}`);
+              }
+            } catch (detailError) {
+              console.warn("Error fetching place details:", detailError);
+              // Continue with basic place info
+            }
+          } else if (place.hasFullDetails) {
+            console.log(`Map: Place ${place.name} already has full details`);
+          } else {
+            console.log("Map: Offline, using basic place data");
+          }
         } catch (backgroundError) {
           console.warn("Background place processing error:", backgroundError);
         }
-      }, 500);
+      }, 300);
     } catch (error) {
       console.error("Error in place selection:", error);
+      // Keep showing the card even if there's an error in the background processing
+      setShowCard(true);
     }
   };
 
   /**
    * Handle learn more action from destination card
+   * Updated to use the permanent cache before navigating
+   * FIXED: Properly handle null values and type checking
    */
   const handleLearnMore = () => {
     try {
       if (places.selectedPlace) {
         console.log(`Navigating to place details for: ${places.selectedPlace.name}`);
-        // Use the correctly typed navigation.navigate
-        navigation.navigate("PlaceDetails", {
-          placeId: places.selectedPlace.place_id,
-          place: places.selectedPlace,
-        });
+
+        // If place doesn't have full details and we're online, try to load them before navigation
+        if (!places.selectedPlace.hasFullDetails && isConnected) {
+          // This creates a smoother experience - try to get details before navigation
+          // but don't block navigation if details aren't immediately available
+          fetchPlaceDetailsOnDemand(places.selectedPlace.place_id)
+            .then((detailedPlace) => {
+              if (detailedPlace) {
+                // Use the correctly typed navigation.navigate with the detailed place
+                navigation.navigate("PlaceDetails", {
+                  placeId: detailedPlace.place_id,
+                  place: detailedPlace,
+                });
+              } else if (places.selectedPlace) {
+                // Fall back to basic place if details aren't available
+                navigation.navigate("PlaceDetails", {
+                  placeId: places.selectedPlace.place_id,
+                  place: places.selectedPlace,
+                });
+              }
+            })
+            .catch((error) => {
+              console.error("Error fetching place details before navigation:", error);
+              // Navigate anyway with basic place if it exists
+              if (places.selectedPlace) {
+                navigation.navigate("PlaceDetails", {
+                  placeId: places.selectedPlace.place_id,
+                  place: places.selectedPlace,
+                });
+              }
+            });
+        } else {
+          // Already has full details or offline, navigate directly
+          navigation.navigate("PlaceDetails", {
+            placeId: places.selectedPlace.place_id,
+            place: places.selectedPlace,
+          });
+        }
+      } else {
+        console.error("Cannot navigate: No place selected");
       }
     } catch (error) {
       console.error("Error navigating to place details:", error);
@@ -929,17 +1161,59 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
 
   /**
    * Handle view discovered details
+   * FIXED: Updated to properly handle null values and type checking
    */
   const handleViewDiscoveredDetails = () => {
     try {
       setShowDiscoveredCard(false);
       if (places.selectedPlace) {
         console.log(`View details for discovered place: ${places.selectedPlace.name}`);
-        // Use the correctly typed navigation.navigate
-        navigation.navigate("PlaceDetails", {
-          placeId: places.selectedPlace.place_id,
-          place: places.visitedPlaceDetails || places.selectedPlace,
-        });
+
+        // If we're online, ensure we have the latest details from Firebase/permanent cache
+        if (isConnected && !places.selectedPlace.hasFullDetails) {
+          fetchPlaceDetailsOnDemand(places.selectedPlace.place_id)
+            .then((detailedPlace) => {
+              // Navigate with either the detailed place or the visited place if available
+              if (detailedPlace) {
+                navigation.navigate("PlaceDetails", {
+                  placeId: places.selectedPlace!.place_id,
+                  place: detailedPlace,
+                });
+              } else if (places.visitedPlaceDetails) {
+                navigation.navigate("PlaceDetails", {
+                  placeId: places.selectedPlace!.place_id,
+                  place: places.visitedPlaceDetails,
+                });
+              } else if (places.selectedPlace) {
+                navigation.navigate("PlaceDetails", {
+                  placeId: places.selectedPlace.place_id,
+                  place: places.selectedPlace,
+                });
+              }
+            })
+            .catch((error) => {
+              console.error("Error fetching place details:", error);
+              // Navigate with what we have, checking for null
+              if (places.selectedPlace) {
+                const placeToUse = places.visitedPlaceDetails || places.selectedPlace;
+                navigation.navigate("PlaceDetails", {
+                  placeId: places.selectedPlace.place_id,
+                  place: placeToUse,
+                });
+              }
+            });
+        } else {
+          // Navigate with what we have, ensuring it's not null
+          if (places.selectedPlace) {
+            const placeToUse = places.visitedPlaceDetails || places.selectedPlace;
+            navigation.navigate("PlaceDetails", {
+              placeId: places.selectedPlace.place_id,
+              place: placeToUse,
+            });
+          }
+        }
+      } else {
+        console.error("Cannot navigate: No place selected");
       }
     } catch (error) {
       console.error("Error viewing discovered details:", error);
@@ -980,7 +1254,7 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
           initialRegion={location.region || undefined}
           customMapStyle={customMapStyle}
           showsPointsOfInterest={false}
-          provider={PROVIDER_GOOGLE}
+          provider={PROVIDER_DEFAULT}
           followsUserLocation={!userControllingCamera && viewMode === "follow"} // Only follow if not user-controlled
           showsUserLocation={true}
           rotateEnabled={true}
@@ -1117,6 +1391,13 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
           )}
         </MapView>
 
+        {/* Network status indicator if offline */}
+        {!isConnected && (
+          <View style={styles.networkStatusContainer}>
+            <Text style={styles.networkStatusText}>Offline Mode</Text>
+          </View>
+        )}
+
         {/* Location status indicator if needed */}
         {!location.userLocation && (
           <View style={styles.locationStatusContainer}>
@@ -1237,6 +1518,11 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
   }
 };
 
+// Type guard for checking if place exists and isn't null
+const placeExists = (place: Place | null | undefined): place is Place => {
+  return place !== null && place !== undefined;
+};
+
 // Map component styles
 const styles = StyleSheet.create({
   container: {
@@ -1280,6 +1566,20 @@ const styles = StyleSheet.create({
   locationStatusText: {
     color: "white",
     fontSize: 14,
+  },
+  networkStatusContainer: {
+    position: "absolute",
+    top: 70,
+    alignSelf: "center",
+    backgroundColor: "rgba(255,0,0,0.7)",
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 20,
+  },
+  networkStatusText: {
+    color: "white",
+    fontSize: 14,
+    fontWeight: "bold",
   },
 });
 

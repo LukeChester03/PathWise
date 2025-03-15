@@ -88,6 +88,12 @@ export interface Place {
   isVisited?: boolean; // Flag to indicate if the place has been visited
   visitedAt?: string; // Timestamp when the place was visited
   editorial_summary?: EditorialSummary; // Add this here so it's available across the app
+
+  // New fields for enhanced place details caching
+  hasFullDetails?: boolean; // Flag indicating whether the place has full details
+  detailsFetchedAt?: number; // Timestamp when the details were fetched
+  viewCount?: number; // Number of times this place has been viewed
+  lastViewed?: string; // ISO timestamp of when the place was last viewed
 }
 
 export interface PlaceDetails {
@@ -131,8 +137,20 @@ export interface PlaceDetails {
     international_phone_number?: string;
     isVisited?: boolean; // Flag to indicate if the place has been visited
     visitedAt?: string; // Timestamp when the place was visited
+
+    // New fields for enhanced place details caching
+    hasFullDetails?: boolean; // Flag indicating whether the place has full details
+    detailsFetchedAt?: number; // Timestamp when the details were fetched
   };
   status: string;
+}
+
+// New interface for place details caching
+export interface DetailsCacheEntry {
+  placeId: string;
+  place: Place;
+  fetchedAt: number;
+  lastViewed?: number;
 }
 
 export interface ApiResponse {
@@ -174,6 +192,25 @@ export interface PlacePhoto {
 
 export interface VisitedPlaceDetails extends Place {
   visitedAt: string;
+}
+
+// Cache statistics response interface
+export interface CacheStats {
+  memoryCache: {
+    places: number;
+    cacheCenter?: string;
+    ageInDays?: number;
+  };
+  detailsCache: {
+    count: number;
+    freshCount: number;
+    staleCount: number;
+  };
+  firebaseCache?: {
+    areas: number;
+    places: number;
+    permanentDetails: number;
+  };
 }
 
 // Navigation types

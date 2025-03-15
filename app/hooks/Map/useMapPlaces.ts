@@ -1,6 +1,7 @@
-// useMapPlaces.ts - Hook for managing places data
+// useMapPlaces.ts - Enhanced hook for managing places data with on-demand details fetching
 import { useState, useCallback, useRef } from "react";
 import { Alert } from "react-native";
+import NetInfo from "@react-native-community/netinfo"; // Add NetInfo import for connection checks
 import {
   fetchNearbyPlaces,
   fetchPlaceDetailsOnDemand,
@@ -52,7 +53,8 @@ export interface UseMapPlacesReturn {
   setVisitedPlaceDetails: React.Dispatch<React.SetStateAction<VisitedPlaceDetails | null>>;
   setSelectedPlace: React.Dispatch<React.SetStateAction<Place | null>>;
   initialLoadingComplete: boolean;
-  updatePlaces: (newPlaces: Place[]) => void; // Add this new method
+  updatePlaces: (newPlaces: Place[]) => void;
+  isLoadingDetails: boolean; // Added to track when details are being loaded
 }
 
 const useMapPlaces = (): UseMapPlacesReturn => {
@@ -65,6 +67,7 @@ const useMapPlaces = (): UseMapPlacesReturn => {
   const [routeKey, setRouteKey] = useState<number>(0);
   const [circleRadius, setCircleRadius] = useState<number>(DEFAULT_CIRCLE_RADIUS);
   const [isRefreshingPlaces, setIsRefreshingPlaces] = useState<boolean>(false);
+  const [isLoadingDetails, setIsLoadingDetails] = useState<boolean>(false); // New state for tracking details loading
   const [initialLoadingComplete, setInitialLoadingComplete] = useState<boolean>(false);
   const [visitedPlaceDetails, setVisitedPlaceDetails] = useState<VisitedPlaceDetails | null>(null);
 
@@ -72,23 +75,44 @@ const useMapPlaces = (): UseMapPlacesReturn => {
   const lastRefreshPositionRef = useRef<Coordinate | null>(null);
   const lastRefreshTimeRef = useRef<number>(0);
   const destinationCoordinateRef = useRef<Coordinate | null>(null);
+  // Add a ref to track details fetch attempts to prevent duplicate calls
+  const detailsFetchingRef = useRef<Set<string>>(new Set());
 
   /**
    * Load nearby places based on coordinates
+   * ENHANCED: More conservative refresh strategy, better logging
    */
   const refreshNearbyPlaces = useCallback(
     async (latitude: number, longitude: number): Promise<boolean> => {
-      if (isRefreshingPlaces) return false;
+      if (isRefreshingPlaces) {
+        console.log("[useMapPlaces] Already refreshing places, skipping");
+        return false;
+      }
 
       try {
-        console.log(`Refreshing nearby places at ${latitude}, ${longitude}`);
+        console.log(
+          `[useMapPlaces] Refreshing nearby places at ${latitude.toFixed(6)}, ${longitude.toFixed(
+            6
+          )}`
+        );
         setIsRefreshingPlaces(true);
+
+        // Check network connectivity first
+        const networkState = await NetInfo.fetch();
+        if (!networkState.isConnected) {
+          console.log("[useMapPlaces] No network connection, using cached places");
+          // If we have places already, don't clear them - just use what we have
+          if (places.length > 0) {
+            setIsRefreshingPlaces(false);
+            return true;
+          }
+        }
 
         // Get places using the updated controller that returns places and furthestDistance
         const placesResponse: NearbyPlacesResponse = await fetchNearbyPlaces(latitude, longitude);
 
         console.log(
-          `Fetched ${placesResponse.places.length} places with radius ${placesResponse.furthestDistance}m`
+          `[useMapPlaces] Fetched ${placesResponse.places.length} places with radius ${placesResponse.furthestDistance}m`
         );
 
         // Set the circle radius based on the furthest place
@@ -114,6 +138,12 @@ const useMapPlaces = (): UseMapPlacesReturn => {
           } else {
             setPlaces(placesWithVisitedStatus);
           }
+
+          // Log the types of places received for debugging
+          const placeTypes = placesWithVisitedStatus
+            .map((p) => p.types?.join(", ") || "no-type")
+            .slice(0, 3);
+          console.log(`[useMapPlaces] Sample place types: ${placeTypes.join(" | ")}`);
         } else if (placesResponse.places && placesResponse.places.length === 0) {
           // If no places found, keep selected place if it exists
           if (selectedPlace) {
@@ -122,6 +152,7 @@ const useMapPlaces = (): UseMapPlacesReturn => {
           } else {
             setPlaces([]);
           }
+          console.log("[useMapPlaces] No places found in the area");
         }
 
         lastRefreshPositionRef.current = { latitude, longitude };
@@ -134,7 +165,7 @@ const useMapPlaces = (): UseMapPlacesReturn => {
 
         return true;
       } catch (error) {
-        console.error("Error refreshing nearby places:", error);
+        console.error("[useMapPlaces] Error refreshing nearby places:", error);
 
         // Still mark initial loading as complete even if there was an error
         if (!initialLoadingComplete) {
@@ -146,12 +177,12 @@ const useMapPlaces = (): UseMapPlacesReturn => {
         setIsRefreshingPlaces(false);
       }
     },
-    [selectedPlace, isRefreshingPlaces, initialLoadingComplete]
+    [selectedPlace, isRefreshingPlaces, initialLoadingComplete, places.length]
   );
 
   /**
    * Check if we should refresh places based on user movement
-   * UPDATED: Less frequent refreshes based on movement
+   * ENHANCED: Even more conservative refreshes to minimize API calls
    */
   const checkAndRefreshPlaces = useCallback(
     (newLocation: Coordinate): boolean => {
@@ -161,9 +192,9 @@ const useMapPlaces = (): UseMapPlacesReturn => {
       const currentTime = Date.now();
       const timeSinceLastRefresh = currentTime - lastRefreshTimeRef.current;
 
-      // UPDATED: Increase minimum time between refreshes to reduce API calls
-      // Only refresh if enough time has passed since the last refresh (60 seconds minimum)
-      if (timeSinceLastRefresh < MARKER_REFRESH_THRESHOLD) {
+      // ENHANCED: Even more conservative - increase to 2 minutes minimum between refreshes
+      // Only refresh if enough time has passed since the last refresh (120 seconds minimum)
+      if (timeSinceLastRefresh < 120000) {
         return false;
       }
 
@@ -174,9 +205,13 @@ const useMapPlaces = (): UseMapPlacesReturn => {
         newLocation.longitude
       );
 
-      // UPDATED: If user has moved more than 75% of the circle radius (instead of 50%), refresh places
-      if (distance > circleRadius * 0.75) {
-        console.log(`User moved ${distance.toFixed(2)}m, refreshing places`);
+      // ENHANCED: Even more conservative - only refresh if moved 90% of circle radius
+      if (distance > circleRadius * 0.9) {
+        console.log(
+          `[useMapPlaces] User moved ${distance.toFixed(0)}m (${(distance / 1000).toFixed(
+            2
+          )}km), refreshing places`
+        );
         refreshNearbyPlaces(newLocation.latitude, newLocation.longitude);
         return true;
       }
@@ -196,7 +231,7 @@ const useMapPlaces = (): UseMapPlacesReturn => {
       region: Region | null
     ): Promise<boolean> => {
       try {
-        console.log(`Getting route to ${place.name}`);
+        console.log(`[useMapPlaces] Getting route to ${place.name}`);
 
         const origin = `${userLocation?.latitude || region?.latitude},${
           userLocation?.longitude || region?.longitude
@@ -216,7 +251,7 @@ const useMapPlaces = (): UseMapPlacesReturn => {
 
           // Log the detected travel mode and distance
           console.log(
-            `Route calculation: ${distanceKm.toFixed(
+            `[useMapPlaces] Route calculation: ${distanceKm.toFixed(
               1
             )}km, mode: ${routeTravelMode}, time: ${duration}`
           );
@@ -246,11 +281,11 @@ const useMapPlaces = (): UseMapPlacesReturn => {
 
           return true;
         } else {
-          console.warn("Could not calculate a route to this destination.");
+          console.warn("[useMapPlaces] Could not calculate a route to this destination");
           return false;
         }
       } catch (error) {
-        console.error("Error getting route:", error);
+        console.error("[useMapPlaces] Error getting route:", error);
         return false;
       }
     },
@@ -258,8 +293,68 @@ const useMapPlaces = (): UseMapPlacesReturn => {
   );
 
   /**
+   * Fetch detailed place information
+   * NEW: Dedicated function for fetching place details that ensures we only fetch once
+   */
+  const fetchPlaceDetails = useCallback(
+    async (place: Place): Promise<Place | null> => {
+      // Skip if already fetching or if already has full details
+      if (detailsFetchingRef.current.has(place.place_id) || place.hasFullDetails) {
+        console.log(`[useMapPlaces] Already fetching or has details for ${place.name}, skipping`);
+        return null;
+      }
+
+      try {
+        // Mark as fetching to prevent duplicate calls
+        detailsFetchingRef.current.add(place.place_id);
+        setIsLoadingDetails(true);
+
+        console.log(`[useMapPlaces] Fetching full details for ${place.name}`);
+
+        // Check connectivity
+        const networkState = await NetInfo.fetch();
+        if (!networkState.isConnected) {
+          console.log("[useMapPlaces] No network connection, using basic place info");
+          detailsFetchingRef.current.delete(place.place_id);
+          setIsLoadingDetails(false);
+          return null;
+        }
+
+        // Use the enhanced fetchPlaceDetailsOnDemand which checks Firebase first
+        const detailedPlace = await fetchPlaceDetailsOnDemand(place.place_id);
+
+        if (detailedPlace) {
+          console.log(`[useMapPlaces] Successfully fetched details for ${detailedPlace.name}`);
+
+          // If our selected place is still the same, update it
+          if (selectedPlace?.place_id === place.place_id) {
+            setSelectedPlace(detailedPlace);
+          }
+
+          // Also update in the main places array
+          setPlaces((prevPlaces) =>
+            prevPlaces.map((p) => (p.place_id === detailedPlace.place_id ? detailedPlace : p))
+          );
+
+          return detailedPlace;
+        }
+
+        return null;
+      } catch (error) {
+        console.error(`[useMapPlaces] Error fetching details for ${place.name}:`, error);
+        return null;
+      } finally {
+        // Clean up
+        detailsFetchingRef.current.delete(place.place_id);
+        setIsLoadingDetails(false);
+      }
+    },
+    [selectedPlace?.place_id]
+  );
+
+  /**
    * Handle place selection
-   * UPDATED: Progressive loading with initial basic data and fetch details only when needed
+   * ENHANCED: Always fetch full details when a marker is clicked
    */
   const handlePlaceSelection = useCallback(
     async (
@@ -272,18 +367,18 @@ const useMapPlaces = (): UseMapPlacesReturn => {
         return false;
       }
 
-      // Set the selected place with basic info first
+      // Set the selected place with basic info first for immediate feedback
       setSelectedPlace(place);
-      console.log(`Selected place: ${place.name}`);
+      console.log(`[useMapPlaces] Selected place: ${place.name}`);
 
       try {
         // Check if this place is already visited and fetch details if necessary
         const isVisited = await isPlaceVisited(place.place_id);
-        console.log(`Place visited status: ${isVisited}`);
+        console.log(`[useMapPlaces] Place visited status: ${isVisited}`);
 
         // For visited places, get the full details from the database
         if (isVisited) {
-          console.log("Selected place has been discovered:", place.name);
+          console.log("[useMapPlaces] Selected place has been discovered:", place.name);
 
           // Fetch the visited place details from the controller
           const visitedDetails = await getVisitedPlaceDetails(place.place_id);
@@ -294,6 +389,13 @@ const useMapPlaces = (): UseMapPlacesReturn => {
 
             // Still get route info for reference
             await getRouteInfo(place, userLocation, region);
+
+            // ENHANCED: Always fetch full details from Google/Firebase in background
+            // This ensures our database stays updated with the latest info
+            fetchPlaceDetails(place).catch((err) =>
+              console.warn("[useMapPlaces] Background fetch error:", err)
+            );
+
             return {
               isDiscovered: true,
               isAlreadyAt: false,
@@ -306,29 +408,26 @@ const useMapPlaces = (): UseMapPlacesReturn => {
         if (place.isVisited === true) {
           const visitedDetails = await getVisitedPlaceDetails(place.place_id);
           setVisitedPlaceDetails(visitedDetails || null);
+
+          // ENHANCED: Always fetch full details for database building
+          fetchPlaceDetails(place).catch((err) =>
+            console.warn("[useMapPlaces] Background fetch error:", err)
+          );
+
           return {
             isDiscovered: true,
             isAlreadyAt: false,
             details: visitedDetails,
           };
         } else {
-          // Always get route information
+          // Always get route information first for immediate feedback
           await getRouteInfo(place, userLocation, region);
 
-          // ADDED: Fetch detailed place info in the background if needed
-          if (!place.formatted_address || !place.reviews) {
-            console.log(`Fetching additional details for ${place.name}`);
-            fetchPlaceDetailsOnDemand(place.place_id)
-              .then((detailedPlace) => {
-                if (detailedPlace && selectedPlace?.place_id === detailedPlace.place_id) {
-                  console.log(`Updated selected place with details: ${detailedPlace.name}`);
-                  setSelectedPlace(detailedPlace);
-                }
-              })
-              .catch((error) => {
-                console.error("Error fetching place details:", error);
-              });
-          }
+          // ENHANCED: Always fetch detailed place info in the background
+          // This is the key change - we always fetch details for every marker click
+          fetchPlaceDetails(place).catch((err) =>
+            console.warn("[useMapPlaces] Error fetching details:", err)
+          );
 
           return {
             isDiscovered: false,
@@ -336,12 +435,12 @@ const useMapPlaces = (): UseMapPlacesReturn => {
           };
         }
       } catch (error) {
-        console.error("Error in place selection:", error);
+        console.error("[useMapPlaces] Error in place selection:", error);
         Alert.alert("Error", "There was a problem processing this place.");
         return false;
       }
     },
-    [getRouteInfo, selectedPlace?.place_id]
+    [getRouteInfo, fetchPlaceDetails]
   );
 
   /**
@@ -371,13 +470,14 @@ const useMapPlaces = (): UseMapPlacesReturn => {
    * Reset places and routes when journey ends
    */
   const resetPlacesAndRoutes = useCallback((): void => {
-    console.log("Resetting places and routes");
+    console.log("[useMapPlaces] Resetting places and routes");
     setSelectedPlace(null);
     setRouteCoordinates([]);
     setTravelTime(null);
     setDistance(null);
     destinationCoordinateRef.current = null;
     setRouteKey(0);
+    detailsFetchingRef.current.clear(); // Clear any pending details fetches
   }, []);
 
   const updatePlaces = useCallback((newPlaces: Place[]) => {
@@ -406,6 +506,7 @@ const useMapPlaces = (): UseMapPlacesReturn => {
     setSelectedPlace,
     initialLoadingComplete,
     updatePlaces,
+    isLoadingDetails,
   };
 };
 

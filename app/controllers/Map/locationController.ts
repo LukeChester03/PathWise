@@ -1,17 +1,38 @@
-// controllers/Map/locationController.ts
+// src/controllers/Map/locationController.ts
 import * as Location from "expo-location";
-import { Alert, Platform } from "react-native";
-import { Region, Coordinate, Place } from "../../types/MapTypes";
-import { fetchNearbyPlaces } from "./placesController";
+import { Alert, Platform, AppState } from "react-native";
+import { Region, Coordinate } from "../../types/MapTypes";
 import { haversineDistance } from "../../utils/mapUtils";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import {
+  doc,
+  getDoc,
+  setDoc,
+  collection,
+  query,
+  where,
+  getDocs,
+  serverTimestamp,
+  GeoPoint,
+  Timestamp,
+} from "firebase/firestore";
+import { db, auth } from "../../config/firebaseConfig";
+import { fetchNearbyPlaces } from "./placesController"; // Ensure this import exists
 
-console.log("Loading locationController module...");
+// Constants for location tracking
+const LOCATION_UPDATE_DISTANCE_THRESHOLD = 2000; // 2km for significant movement
+const LOCATION_STORAGE_KEY = "last_location_v1";
+const PLACES_UPDATE_THRESHOLD_KM = 15; // 15km movement before refreshing places
+const MIN_PLACES_UPDATE_INTERVAL = 24 * 60 * 60 * 1000; // 24 hours
 
 // Store last location to check if user has moved significantly
 let lastKnownLocation: Coordinate | null = null;
+let lastPlacesUpdateTime = 0;
+let lastPlacesUpdateLocation: Coordinate | null = null;
 
-// UPDATED: Increase threshold from 10 to 50 meters
-const LOCATION_UPDATE_DISTANCE_THRESHOLD = 50; // 50 meters threshold for significant movement
+// Track initialization status to prevent duplicate initialization
+let initializationInProgress = false;
+let placesPreloadComplete = false;
 
 // Global state for location and nearby places
 export const globalLocationState = {
@@ -28,18 +49,162 @@ export const globalLocationState = {
 
 // Global state for nearby places
 export const globalPlacesState = {
-  places: [] as Place[],
+  places: [],
   furthestDistance: 0,
   isLoading: false,
   lastUpdated: 0,
   hasPreloaded: false,
-  isPreloading: true, // Initially true to indicate we're in first-time loading
+  isPreloading: true,
 };
 
 // Callbacks for place updates
 const placeUpdateCallbacks: ((places: any) => void)[] = [];
 // Callbacks for location updates
 const locationUpdateCallbacks: ((location: any) => void)[] = [];
+
+/**
+ * Save location to Firebase for analytics and tracking
+ */
+const saveLocationToFirebase = async (location: Coordinate): Promise<void> => {
+  try {
+    const currentUser = auth.currentUser;
+    if (!currentUser) return;
+
+    // Save to user's location history
+    const locationData = {
+      location: new GeoPoint(location.latitude, location.longitude),
+      timestamp: serverTimestamp(),
+      accuracy: 0, // Not available in this context
+      heading: globalLocationState.userHeading || 0,
+    };
+
+    // Use a unique ID based on timestamp to avoid duplicates
+    const locationId = `loc_${Date.now()}`;
+    const locationRef = doc(db, "users", currentUser.uid, "locationHistory", locationId);
+
+    await setDoc(locationRef, locationData);
+
+    // Also update the user's last known location
+    const userDocRef = doc(db, "users", currentUser.uid);
+    await setDoc(
+      userDocRef,
+      {
+        lastLocation: new GeoPoint(location.latitude, location.longitude),
+        lastLocationTimestamp: serverTimestamp(),
+        lastUpdated: serverTimestamp(),
+      },
+      { merge: true }
+    );
+  } catch (error) {
+    console.error("[locationController] Error saving location to Firebase:", error);
+    // Continue even if Firebase save fails
+  }
+};
+
+/**
+ * Load last known location from storage and Firebase
+ */
+const loadLastKnownLocation = async () => {
+  try {
+    // First try Firebase if user is logged in
+    const currentUser = auth.currentUser;
+    if (currentUser) {
+      const userDocRef = doc(db, "users", currentUser.uid);
+      const userDoc = await getDoc(userDocRef);
+
+      if (userDoc.exists() && userDoc.data().lastLocation) {
+        const firestoreLocation = userDoc.data().lastLocation;
+        lastKnownLocation = {
+          latitude: firestoreLocation.latitude,
+          longitude: firestoreLocation.longitude,
+        };
+
+        // Also try to get places update info
+        if (userDoc.data().lastPlacesUpdateTime) {
+          lastPlacesUpdateTime = userDoc.data().lastPlacesUpdateTime.toDate().getTime();
+        }
+
+        if (userDoc.data().lastPlacesUpdateLocation) {
+          const placeUpdateLoc = userDoc.data().lastPlacesUpdateLocation;
+          lastPlacesUpdateLocation = {
+            latitude: placeUpdateLoc.latitude,
+            longitude: placeUpdateLoc.longitude,
+          };
+        }
+
+        console.log(
+          `[locationController] Loaded last location from Firebase: ${lastKnownLocation.latitude}, ${lastKnownLocation.longitude}`
+        );
+
+        // Use this to initialize global state if we have nothing else
+        if (!globalLocationState.userLocation) {
+          globalLocationState.userLocation = lastKnownLocation;
+          globalLocationState.region = {
+            latitude: lastKnownLocation.latitude,
+            longitude: lastKnownLocation.longitude,
+            latitudeDelta: 0.02,
+            longitudeDelta: 0.02,
+          };
+        }
+
+        return;
+      }
+    }
+
+    // Try AsyncStorage as fallback
+    const storedLocation = await AsyncStorage.getItem(LOCATION_STORAGE_KEY);
+    if (storedLocation) {
+      const locationData = JSON.parse(storedLocation);
+      lastKnownLocation = locationData.location;
+      lastPlacesUpdateTime = locationData.placesUpdateTime || 0;
+      lastPlacesUpdateLocation = locationData.placesUpdateLocation || null;
+
+      console.log(
+        `[locationController] Loaded last location from storage: ${lastKnownLocation.latitude}, ${lastKnownLocation.longitude}`
+      );
+
+      // Use this to initialize global state if we have nothing else
+      if (!globalLocationState.userLocation) {
+        globalLocationState.userLocation = lastKnownLocation;
+        globalLocationState.region = {
+          latitude: lastKnownLocation.latitude,
+          longitude: lastKnownLocation.longitude,
+          latitudeDelta: 0.02,
+          longitudeDelta: 0.02,
+        };
+      }
+    }
+  } catch (error) {
+    console.error("[locationController] Error loading last location:", error);
+  }
+};
+
+/**
+ * Save location to persistent storage and Firebase
+ */
+const saveLocationToPersistentStorage = async () => {
+  if (!lastKnownLocation) return;
+
+  try {
+    // Save to AsyncStorage
+    const locationData = {
+      location: lastKnownLocation,
+      placesUpdateTime: lastPlacesUpdateTime,
+      placesUpdateLocation: lastPlacesUpdateLocation,
+      timestamp: Date.now(),
+    };
+
+    await AsyncStorage.setItem(LOCATION_STORAGE_KEY, JSON.stringify(locationData));
+
+    // Also save to Firebase
+    saveLocationToFirebase(lastKnownLocation);
+  } catch (error) {
+    console.error("[locationController] Error saving location:", error);
+  }
+};
+
+// Initialize by loading last location
+loadLastKnownLocation();
 
 /**
  * Register a callback to be notified when location is updated
@@ -97,11 +262,6 @@ const notifyLocationUpdates = () => {
 export const onPlacesUpdate = (callback: (places: any) => void): (() => void) => {
   // Immediately send current state to the callback
   setTimeout(() => {
-    // Log the status of cached places when callback is registered
-    console.log(
-      `[locationController] onPlacesUpdate registered: hasPreloaded=${globalPlacesState.hasPreloaded}, places.length=${globalPlacesState.places.length}`
-    );
-
     callback({
       places: globalPlacesState.places,
       isLoading: globalPlacesState.isLoading,
@@ -142,17 +302,20 @@ const notifyPlaceUpdates = () => {
   });
 };
 
-// Mark preloading as complete, transition to normal state
+/**
+ * Mark initialization as complete
+ */
 const markPreloadingComplete = () => {
   globalPlacesState.isPreloading = false;
   globalLocationState.isInitializing = false;
+  placesPreloadComplete = true;
   notifyPlaceUpdates();
   notifyLocationUpdates();
+  console.log("[locationController] Preloading complete - marked all states as ready");
 };
 
 /**
  * Requests foreground location permissions.
- * @returns A Promise resolving to `true` if permission is granted, otherwise `false`.
  */
 export const requestLocationPermission = async (): Promise<boolean> => {
   const { status } = await Location.requestForegroundPermissionsAsync();
@@ -180,15 +343,6 @@ export const getLocationState = () => {
  * Get the current nearby places state
  */
 export const getNearbyPlacesState = () => {
-  // Add debug logging
-  console.log(
-    `[locationController] getNearbyPlacesState: hasPreloaded=${
-      globalPlacesState.hasPreloaded
-    }, places.length=${globalPlacesState.places.length}, lastUpdated=${new Date(
-      globalPlacesState.lastUpdated
-    ).toLocaleTimeString()}`
-  );
-
   return {
     places: globalPlacesState.places,
     isLoading: globalPlacesState.isLoading,
@@ -200,9 +354,182 @@ export const getNearbyPlacesState = () => {
 };
 
 /**
- * Requests foreground location permissions and fetches the current location.
- * @returns A Promise resolving to the user's current location as a `Region` object.
- *          Returns `null` if permission is denied or an error occurs.
+ * Check if user has moved significantly from last known location
+ */
+export const hasMovedSignificantly = (currentLocation: Coordinate): boolean => {
+  if (!lastKnownLocation) {
+    // If no last location, consider it significant
+    lastKnownLocation = currentLocation;
+    saveLocationToPersistentStorage();
+    return true;
+  }
+
+  const distance = haversineDistance(
+    lastKnownLocation.latitude,
+    lastKnownLocation.longitude,
+    currentLocation.latitude,
+    currentLocation.longitude
+  );
+
+  // Only update last location if moved significantly
+  if (distance >= LOCATION_UPDATE_DISTANCE_THRESHOLD) {
+    lastKnownLocation = currentLocation;
+    saveLocationToPersistentStorage();
+    console.log(`User moved ${distance.toFixed(2)}m - updating location`);
+    return true;
+  }
+
+  return false;
+};
+
+/**
+ * Update user heading based on movement
+ */
+export const updateHeadingFromMovement = (newLocation: Coordinate): boolean => {
+  if (!lastKnownLocation) return false;
+
+  const distance = haversineDistance(
+    lastKnownLocation.latitude,
+    lastKnownLocation.longitude,
+    newLocation.latitude,
+    newLocation.longitude
+  );
+
+  // Only calculate heading if we've moved enough
+  if (distance > 10) {
+    // At least 10 meters of movement
+    // Calculate bearing/heading
+    const y =
+      Math.sin(newLocation.longitude - lastKnownLocation.longitude) *
+      Math.cos(newLocation.latitude);
+    const x =
+      Math.cos(lastKnownLocation.latitude) * Math.sin(newLocation.latitude) -
+      Math.sin(lastKnownLocation.latitude) *
+        Math.cos(newLocation.latitude) *
+        Math.cos(newLocation.longitude - lastKnownLocation.longitude);
+    const bearing = (Math.atan2(y, x) * 180) / Math.PI;
+
+    // Convert to 0-360 degrees
+    const heading = (bearing + 360) % 360;
+
+    // Update global state
+    globalLocationState.userHeading = heading;
+
+    return true;
+  }
+
+  return false;
+};
+
+/**
+ * Check if places should be updated based on location and time
+ */
+export const shouldUpdatePlaces = (currentLocation: Coordinate): boolean => {
+  // If we already have places and it's been less than MIN_PLACES_UPDATE_INTERVAL
+  // since the last update, don't update
+  const timeSinceLastUpdate = Date.now() - globalPlacesState.lastUpdated;
+
+  if (
+    globalPlacesState.places.length > 0 &&
+    timeSinceLastUpdate < MIN_PLACES_UPDATE_INTERVAL &&
+    globalPlacesState.lastUpdated > 0
+  ) {
+    console.log(
+      `[locationController] Places last updated ${Math.round(
+        timeSinceLastUpdate / 1000 / 60
+      )} minutes ago - too recent to update`
+    );
+    return false;
+  }
+
+  if (!lastPlacesUpdateLocation || !lastPlacesUpdateTime) {
+    console.log(`[locationController] No previous places update, should update`);
+    return true;
+  }
+
+  // Check if enough time has passed
+  if (timeSinceLastUpdate < MIN_PLACES_UPDATE_INTERVAL) {
+    console.log(
+      `[locationController] Last places update was ${Math.round(
+        timeSinceLastUpdate / 1000 / 60 / 60
+      )} hours ago - too recent to update`
+    );
+    return false;
+  }
+
+  // Check if user has moved significantly from last places update location
+  const distanceFromLastUpdate = haversineDistance(
+    lastPlacesUpdateLocation.latitude,
+    lastPlacesUpdateLocation.longitude,
+    currentLocation.latitude,
+    currentLocation.longitude
+  );
+
+  // Convert to km for readability
+  const distanceKm = distanceFromLastUpdate / 1000;
+
+  if (distanceKm >= PLACES_UPDATE_THRESHOLD_KM) {
+    console.log(
+      `[locationController] Moved ${distanceKm.toFixed(
+        1
+      )}km since last places update - should update`
+    );
+    return true;
+  }
+
+  console.log(
+    `[locationController] Moved ${distanceKm.toFixed(
+      1
+    )}km since last places update - not enough to update`
+  );
+  return false;
+};
+
+/**
+ * Record that places were updated at current location and time
+ */
+export const recordPlacesUpdate = async (location: Coordinate): Promise<void> => {
+  lastPlacesUpdateLocation = location;
+  lastPlacesUpdateTime = Date.now();
+  saveLocationToPersistentStorage();
+  console.log(
+    `[locationController] Recorded places update at ${location.latitude.toFixed(
+      6
+    )}, ${location.longitude.toFixed(6)}`
+  );
+
+  // Also record to Firebase if logged in
+  const currentUser = auth.currentUser;
+  if (currentUser) {
+    try {
+      const userDocRef = doc(db, "users", currentUser.uid);
+      await setDoc(
+        userDocRef,
+        {
+          lastPlacesUpdateLocation: new GeoPoint(location.latitude, location.longitude),
+          lastPlacesUpdateTime: serverTimestamp(),
+          lastUpdated: serverTimestamp(),
+        },
+        { merge: true }
+      );
+    } catch (error) {
+      console.error("[locationController] Error recording places update to Firebase:", error);
+    }
+  }
+};
+
+/**
+ * Reset the last known location.
+ */
+export const resetLastKnownLocation = (): void => {
+  lastKnownLocation = null;
+  lastPlacesUpdateLocation = null;
+  lastPlacesUpdateTime = 0;
+  saveLocationToPersistentStorage();
+};
+
+/**
+ * Retrieves the current location.
  */
 export const getCurrentLocation = async (): Promise<Region | null> => {
   try {
@@ -232,20 +559,21 @@ export const getCurrentLocation = async (): Promise<Region | null> => {
     }
 
     const location = await Location.getCurrentPositionAsync({
-      accuracy: Location.Accuracy.Highest,
+      accuracy: Location.Accuracy.Balanced, // Changed from Highest to Balanced
     });
 
     const { latitude, longitude } = location.coords;
 
     // Update last known location
     lastKnownLocation = { latitude, longitude };
+    saveLocationToPersistentStorage();
 
     // Create a region for map display
     const region = {
       latitude,
       longitude,
-      latitudeDelta: 0.002,
-      longitudeDelta: 0.002,
+      latitudeDelta: 0.01,
+      longitudeDelta: 0.01,
     };
 
     // Update global state
@@ -270,41 +598,82 @@ export const getCurrentLocation = async (): Promise<Region | null> => {
 };
 
 /**
- * Check if user has moved significantly from last known location.
- * UPDATED: Increased threshold from 10m to 50m for significant movement
- * @param currentLocation - The current user location.
- * @returns True if user has moved more than the threshold, false otherwise.
+ * Update nearby places based on current location
+ * This function:
+ * 1. Updates global state to indicate loading
+ * 2. Fetches places from cache or API
+ * 3. Updates global state with results
+ * 4. Notifies all subscribers
  */
-export const hasMovedSignificantly = (currentLocation: Coordinate): boolean => {
-  if (!lastKnownLocation) {
-    // If no last location, consider it significant
-    lastKnownLocation = currentLocation;
+export const updateNearbyPlaces = async (
+  location: Coordinate | Region,
+  forceRefresh: boolean = false
+): Promise<boolean> => {
+  try {
+    // Check if app is in background
+    if (AppState.currentState !== "active") {
+      console.log("[locationController] App is in background, skipping places update");
+      return false;
+    }
+
+    // Extract coordinates from location
+    const latitude = "latitudeDelta" in location ? location.latitude : location.latitude;
+    const longitude = "longitudeDelta" in location ? location.longitude : location.longitude;
+
+    // Sanity check for coordinates
+    if (latitude === undefined || longitude === undefined) {
+      console.error("[locationController] Invalid coordinates for updateNearbyPlaces");
+      return false;
+    }
+
+    console.log(
+      `[locationController] Updating nearby places at ${latitude.toFixed(6)}, ${longitude.toFixed(
+        6
+      )}, force=${forceRefresh}`
+    );
+
+    // If we already have places loaded and this isn't a forced refresh,
+    // check if we really need to update
+    if (
+      !forceRefresh &&
+      globalPlacesState.places.length > 0 &&
+      !shouldUpdatePlaces({ latitude, longitude })
+    ) {
+      console.log("[locationController] Using existing places data, no need to refresh");
+      return true;
+    }
+
+    // Update global state to indicate loading
+    globalPlacesState.isLoading = true;
+    notifyPlaceUpdates();
+
+    // Fetch nearby places
+    const placesResponse = await fetchNearbyPlaces(latitude, longitude, forceRefresh);
+
+    // Update global state with results
+    globalPlacesState.places = placesResponse.places;
+    globalPlacesState.furthestDistance = placesResponse.furthestDistance;
+    globalPlacesState.isLoading = false;
+    globalPlacesState.lastUpdated = Date.now();
+    globalPlacesState.hasPreloaded = true;
+    globalPlacesState.isPreloading = false;
+
+    // Record this update
+    await recordPlacesUpdate({ latitude, longitude });
+
+    // Notify all subscribers
+    notifyPlaceUpdates();
+
+    console.log(
+      `[locationController] Updated nearby places: ${placesResponse.places.length} places`
+    );
     return true;
+  } catch (error) {
+    console.error("[locationController] Error updating nearby places:", error);
+    globalPlacesState.isLoading = false;
+    notifyPlaceUpdates();
+    return false;
   }
-
-  const distance = haversineDistance(
-    lastKnownLocation.latitude,
-    lastKnownLocation.longitude,
-    currentLocation.latitude,
-    currentLocation.longitude
-  );
-
-  // Only update last location if moved significantly (50m instead of 10m)
-  if (distance >= LOCATION_UPDATE_DISTANCE_THRESHOLD) {
-    lastKnownLocation = currentLocation;
-    console.log(`User moved ${distance.toFixed(2)}m - updating location`);
-    return true;
-  }
-
-  console.log(`User moved ${distance.toFixed(2)}m - not significant enough to update`);
-  return false;
-};
-
-/**
- * Reset the last known location.
- */
-export const resetLastKnownLocation = (): void => {
-  lastKnownLocation = null;
 };
 
 /**
@@ -312,7 +681,14 @@ export const resetLastKnownLocation = (): void => {
  */
 export const initLocationAndPlaces = async (): Promise<void> => {
   try {
-    console.log("Starting location and places initialization...");
+    // Prevent multiple initializations running at once
+    if (initializationInProgress) {
+      console.log("[locationController] Initialization already in progress, skipping");
+      return;
+    }
+
+    initializationInProgress = true;
+    console.log("Starting location initialization...");
 
     // Set initialization in progress
     globalLocationState.isInitializing = true;
@@ -322,12 +698,24 @@ export const initLocationAndPlaces = async (): Promise<void> => {
     notifyLocationUpdates();
     notifyPlaceUpdates();
 
+    // If we already have preloaded data, use it
+    if (placesPreloadComplete && globalPlacesState.places.length > 0) {
+      console.log("[locationController] Using already preloaded places data");
+      globalPlacesState.isPreloading = false;
+      globalLocationState.isInitializing = false;
+      initializationInProgress = false;
+      notifyLocationUpdates();
+      notifyPlaceUpdates();
+      return;
+    }
+
     // Request location permissions first
     const hasPermission = await requestLocationPermission();
     if (!hasPermission) {
       console.warn("Location permission denied during initialization");
       globalLocationState.locationError = "Location permission denied";
       markPreloadingComplete();
+      initializationInProgress = false;
       return;
     }
 
@@ -343,49 +731,119 @@ export const initLocationAndPlaces = async (): Promise<void> => {
 
     console.log("Getting initial location...");
 
-    // Get initial location with high accuracy
-    const locationResult = await Location.getCurrentPositionAsync({
-      accuracy: Location.Accuracy.Highest,
-    });
+    // First try to use last known location from storage
+    if (lastKnownLocation) {
+      console.log("Using stored last known location for initialization");
+      globalLocationState.userLocation = lastKnownLocation;
+      globalLocationState.region = {
+        latitude: lastKnownLocation.latitude,
+        longitude: lastKnownLocation.longitude,
+        latitudeDelta: 0.02,
+        longitudeDelta: 0.02,
+      };
+      globalLocationState.isInitialized = true;
+      globalLocationState.isInitializing = false;
+      globalLocationState.lastUpdated = Date.now();
+      notifyLocationUpdates();
 
-    const { latitude, longitude } = locationResult.coords;
+      // If we don't have places yet, get them based on the stored location
+      if (globalPlacesState.places.length === 0) {
+        console.log("[locationController] Loading places based on stored location");
+        await updateNearbyPlaces(lastKnownLocation, false);
+      }
 
-    // Create a region for map display
-    const region = {
-      latitude,
-      longitude,
-      latitudeDelta: 0.002,
-      longitudeDelta: 0.002,
-    };
+      // Mark preloading as complete after a short delay
+      setTimeout(() => {
+        markPreloadingComplete();
+        initializationInProgress = false;
+      }, 500);
 
-    console.log("Initial location acquired:", { latitude, longitude });
+      // Also try to get a fresh location in the background
+      Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      })
+        .then((location) => {
+          // Only update if significantly different
+          const { latitude, longitude } = location.coords;
+          const currentLocation = { latitude, longitude };
 
-    // Update global location state
-    globalLocationState.userLocation = { latitude, longitude };
-    globalLocationState.region = region;
-    globalLocationState.isInitialized = true;
-    globalLocationState.isInitializing = false;
-    globalLocationState.lastUpdated = Date.now();
+          if (hasMovedSignificantly(currentLocation)) {
+            globalLocationState.userLocation = currentLocation;
+            globalLocationState.region = {
+              latitude,
+              longitude,
+              latitudeDelta: 0.02,
+              longitudeDelta: 0.02,
+            };
+            globalLocationState.lastUpdated = Date.now();
+            notifyLocationUpdates();
 
-    // Update last known location for movement detection
-    lastKnownLocation = { latitude, longitude };
+            // Update places if needed
+            if (shouldUpdatePlaces(currentLocation)) {
+              updateNearbyPlaces(currentLocation, false);
+            }
+          }
+        })
+        .catch((error) => {
+          console.warn("Background location update failed:", error);
+        });
 
-    // Notify location listeners
-    notifyLocationUpdates();
+      return;
+    }
 
-    // Fetch nearby places based on this location
-    await updateNearbyPlaces(region, true);
+    // If no stored location, get a fresh one
+    try {
+      const locationResult = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
 
-    // Start watching for location updates
-    startLocationWatching();
+      const { latitude, longitude } = locationResult.coords;
 
-    console.log("Location and places initialization complete");
+      // Create a region for map display
+      const region = {
+        latitude,
+        longitude,
+        latitudeDelta: 0.02,
+        longitudeDelta: 0.02,
+      };
+
+      console.log("Initial location acquired:", { latitude, longitude });
+
+      // Update global location state
+      globalLocationState.userLocation = { latitude, longitude };
+      globalLocationState.region = region;
+      globalLocationState.isInitialized = true;
+      globalLocationState.isInitializing = false;
+      globalLocationState.lastUpdated = Date.now();
+
+      // Update last known location for movement detection
+      lastKnownLocation = { latitude, longitude };
+      saveLocationToPersistentStorage();
+
+      // Notify location listeners
+      notifyLocationUpdates();
+
+      // Load nearby places
+      if (globalPlacesState.places.length === 0) {
+        await updateNearbyPlaces({ latitude, longitude }, false);
+      }
+
+      // Mark preloading as complete
+      setTimeout(() => {
+        markPreloadingComplete();
+        initializationInProgress = false;
+      }, 500);
+    } catch (error) {
+      console.error("Error getting initial location:", error);
+      globalLocationState.locationError = "Error getting initial location";
+      globalLocationState.isInitialized = false;
+      markPreloadingComplete();
+      initializationInProgress = false;
+    }
   } catch (error) {
-    console.error("Error initializing location and places:", error);
-    globalLocationState.locationError = error.message;
-    globalLocationState.isInitializing = false;
-    notifyLocationUpdates();
+    console.error("Error in location initialization:", error);
     markPreloadingComplete();
+    initializationInProgress = false;
   }
 };
 
@@ -404,24 +862,30 @@ export const startLocationWatching = async (): Promise<() => void> => {
 
     const subscription = await Location.watchPositionAsync(
       {
-        accuracy: Location.Accuracy.Highest,
-        // UPDATED: Increase distance interval from 5m to 25m to reduce updates
-        distanceInterval: 25,
-        // UPDATED: Increase time interval from 1000ms to 5000ms to reduce updates
-        timeInterval: 5000,
+        accuracy: Location.Accuracy.Balanced, // Changed from Highest to Balanced
+        // Increase distance interval to reduce updates
+        distanceInterval: 100, // 100 meters
+        // Increase time interval to reduce updates
+        timeInterval: 30000, // 30 seconds
       },
       (location) => {
+        // Check if app is in background
+        if (AppState.currentState !== "active") {
+          // Skip processing location updates when app is in background
+          return;
+        }
+
         const { latitude, longitude } = location.coords;
         const newCoordinate = { latitude, longitude };
 
-        // UPDATED: Only update if movement is significant
+        // Only update if movement is significant
         if (hasMovedSignificantly(newCoordinate)) {
           // Create updated region and coordinate
           const newRegion = {
             latitude,
             longitude,
-            latitudeDelta: globalLocationState.region?.latitudeDelta || 0.002,
-            longitudeDelta: globalLocationState.region?.longitudeDelta || 0.002,
+            latitudeDelta: globalLocationState.region?.latitudeDelta || 0.02,
+            longitudeDelta: globalLocationState.region?.longitudeDelta || 0.02,
           };
 
           // Update global state
@@ -429,18 +893,11 @@ export const startLocationWatching = async (): Promise<() => void> => {
           globalLocationState.region = newRegion;
           globalLocationState.lastUpdated = Date.now();
 
+          // Update heading based on movement
+          updateHeadingFromMovement(newCoordinate);
+
           // Notify listeners
           notifyLocationUpdates();
-
-          // Check for places update less frequently
-          // Add timestamp check - only update places every 60 seconds maximum
-          const currentTime = Date.now();
-          const timeSinceLastPlacesUpdate = currentTime - globalPlacesState.lastUpdated;
-          const MIN_PLACES_UPDATE_INTERVAL = 60000; // 60 seconds
-
-          if (timeSinceLastPlacesUpdate > MIN_PLACES_UPDATE_INTERVAL) {
-            updateNearbyPlaces(newRegion, false);
-          }
         }
       }
     );
@@ -461,219 +918,33 @@ export const startLocationWatching = async (): Promise<() => void> => {
 };
 
 /**
- * Updates nearby places based on location
- * UPDATED: Added debouncing mechanism to prevent frequent calls
+ * Auto-initialize when this module is imported
  */
-// Track last places update time for throttling
-let lastPlacesUpdateTime = 0;
-const MIN_PLACES_UPDATE_INTERVAL = 60000; // 60 seconds
-
-export const updateNearbyPlaces = async (
-  location: Region,
-  forceRefresh: boolean = false
-): Promise<void> => {
-  // Check if an update is already in progress
-  if (globalPlacesState.isLoading) {
-    console.log("Already fetching nearby places, skipping request");
-    return;
-  }
-
-  // Check if we need to throttle updates (except for forced refreshes)
-  const currentTime = Date.now();
-  const timeSinceLastUpdate = currentTime - lastPlacesUpdateTime;
-
-  if (!forceRefresh && timeSinceLastUpdate < MIN_PLACES_UPDATE_INTERVAL) {
-    console.log(
-      `Places updated recently (${Math.round(timeSinceLastUpdate / 1000)}s ago), skipping`
-    );
-    return;
-  }
-
-  try {
-    // Set loading state and notify listeners
-    globalPlacesState.isLoading = true;
-    notifyPlaceUpdates();
-
-    console.log(`Fetching nearby places (force: ${forceRefresh})`);
-    const result = await fetchNearbyPlaces(location.latitude, location.longitude, forceRefresh);
-
-    // Update timestamp for throttling
-    lastPlacesUpdateTime = Date.now();
-
-    // Update global places state
-    globalPlacesState.places = result.places;
-    globalPlacesState.furthestDistance = result.furthestDistance;
-    globalPlacesState.lastUpdated = Date.now();
-    globalPlacesState.isLoading = false;
-    globalPlacesState.hasPreloaded = true; // Always ensure this is set to true after successful fetch
-
-    // Explicitly log that places have been preloaded
-    console.log(
-      `[locationController] Places preloaded: ${result.places.length} places, hasPreloaded=${globalPlacesState.hasPreloaded}`
-    );
-
-    // Notify listeners
-    notifyPlaceUpdates();
-    console.log(`Updated nearby places: found ${result.places.length} places`);
-  } catch (error) {
-    console.error("Error updating nearby places:", error);
-    globalPlacesState.isLoading = false;
-    notifyPlaceUpdates();
-  }
-};
-
-/**
- * Starts watching the user's location in real-time.
- * UPDATED: More efficient location watching with less frequent updates
- * @param onLocationUpdate - Callback function to handle location updates.
- * @param onError - Callback function to handle errors.
- * @param onSignificantMove - Optional callback when user moves significantly.
- * @returns A cleanup function to stop watching the location.
- */
-export const watchUserLocation = async (
-  onLocationUpdate: (region: Region) => void,
-  onError: (error: any) => void,
-  onSignificantMove?: (region: Region) => void
-): Promise<() => void> => {
-  const hasPermission = await requestLocationPermission();
-  if (!hasPermission) {
-    Alert.alert("Permission to access location was denied");
-    return () => {};
-  }
-
-  try {
-    const subscription = await Location.watchPositionAsync(
-      {
-        accuracy: Location.Accuracy.High,
-        // UPDATED: Increase from 5m to 25m
-        distanceInterval: 25,
-        // UPDATED: Increase from 1000ms to 5000ms
-        timeInterval: 5000,
-      },
-      (location) => {
-        const { latitude, longitude } = location.coords;
-        const currentRegion = {
-          latitude,
-          longitude,
-          latitudeDelta: 0.002,
-          longitudeDelta: 0.002,
-        };
-
-        // Only call regular update if movement is significant to reduce processing
-        if (hasMovedSignificantly({ latitude, longitude })) {
-          onLocationUpdate(currentRegion);
-
-          // Call the significant move callback if provided
-          if (onSignificantMove) {
-            onSignificantMove(currentRegion);
-          }
-        }
-      }
-    );
-
-    // Return a cleanup function to stop watching the location
-    return () => {
-      if (subscription) {
-        subscription.remove();
-      }
-    };
-  } catch (error: any) {
-    console.error("Error watching location:", error);
-    onError(error);
-    return () => {};
-  }
-};
-
-// Self-executing async function that runs immediately when the module is imported
 (async function initializeAutomatically() {
   try {
-    console.log("🚀 Automatically initializing location tracking and places preloading...");
+    console.log("🚀 Automatically initializing location tracking...");
 
-    // Set initialization in progress
-    globalLocationState.isInitializing = true;
-    globalPlacesState.isPreloading = true;
+    // Setup app state change listener to avoid updating when in background
+    AppState.addEventListener("change", (nextAppState) => {
+      const appIsActive = nextAppState === "active";
+      console.log(`App state changed to: ${nextAppState}`);
 
-    // Notify listeners of initialization status
-    notifyLocationUpdates();
-    notifyPlaceUpdates();
-
-    const hasPermission = await requestLocationPermission();
-
-    if (!hasPermission) {
-      console.warn("⚠️ Location permission denied during automatic initialization");
-      globalLocationState.locationError = "Location permission denied";
-      markPreloadingComplete();
-      return;
-    }
-
-    // Configure location for better accuracy on Android
-    if (Platform.OS === "android") {
-      try {
-        await Location.enableNetworkProviderAsync();
-      } catch (error) {
-        console.warn("Error enabling network provider:", error);
-        // Continue anyway - this is not critical
+      // When app returns to active state, check if we need to refresh
+      if (appIsActive && globalLocationState.userLocation) {
+        // Consider refreshing places data if it's been a while
+        const timeSinceLastUpdate = Date.now() - globalPlacesState.lastUpdated;
+        if (timeSinceLastUpdate > 5 * 60 * 1000) {
+          // 5 minutes
+          console.log("[locationController] App returned to foreground, refreshing places");
+          updateNearbyPlaces(globalLocationState.userLocation, false);
+        }
       }
-    }
+    });
 
-    // Get current location with highest accuracy
-    try {
-      const locationResult = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Highest,
-      });
-
-      const { latitude, longitude } = locationResult.coords;
-
-      // Create a region for map display
-      const region = {
-        latitude,
-        longitude,
-        latitudeDelta: 0.002,
-        longitudeDelta: 0.002,
-      };
-
-      console.log("📍 Initial location acquired:", { latitude, longitude });
-
-      // Update global location state
-      globalLocationState.userLocation = { latitude, longitude };
-      globalLocationState.region = region;
-      globalLocationState.isInitialized = true;
-      globalLocationState.lastUpdated = Date.now();
-
-      // Update last known location for movement detection
-      lastKnownLocation = { latitude, longitude };
-
-      // Notify location listeners
-      notifyLocationUpdates();
-
-      // Fetch places data
-      console.log("Fetching nearby places based on location");
-      const placesData = await fetchNearbyPlaces(latitude, longitude, false);
-
-      // Update global places state
-      globalPlacesState.places = placesData.places;
-      globalPlacesState.furthestDistance = placesData.furthestDistance;
-      globalPlacesState.lastUpdated = Date.now();
-      globalPlacesState.hasPreloaded = true; // Make sure this is set
-      globalPlacesState.isLoading = false;
-
-      console.log(`✅ Successfully preloaded ${placesData.places.length} places`);
-      console.log(`✅ globalPlacesState.hasPreloaded set to: ${globalPlacesState.hasPreloaded}`);
-
-      // Notify place update listeners
-      notifyPlaceUpdates();
-
-      // Start location watching to keep state updated
-      startLocationWatching();
-    } catch (locationError) {
-      console.error("❌ Error getting initial location:", locationError);
-      globalLocationState.locationError = "Error getting initial location";
-      globalLocationState.isInitialized = false;
-    }
+    await initLocationAndPlaces();
   } catch (error) {
     console.error("❌ Error in automatic location initialization:", error);
-  } finally {
-    // Mark preloading as complete regardless of success/failure
     markPreloadingComplete();
+    initializationInProgress = false;
   }
 })();
