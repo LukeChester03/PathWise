@@ -27,14 +27,7 @@ export default function Layout() {
       <Stack.Screen name="Landing" component={LandingScreen} />
       <Stack.Screen name="ViewAll" component={ViewAllScreen} />
       <Stack.Screen name="MyJourney" component={MyJourneyScreen} />
-      <Stack.Screen
-        name="PlaceDetails"
-        component={PlaceDetailsScreen}
-        options={{
-          animation: "slide_from_bottom",
-          presentation: "modal",
-        }}
-      />
+      <Stack.Screen name="PlaceDetails" component={PlaceDetailsScreen} />
     </Stack.Navigator>
   );
 }

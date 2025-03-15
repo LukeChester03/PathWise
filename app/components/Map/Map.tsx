@@ -1,4 +1,4 @@
-// Map.tsx - Updated with optimized Firebase-first place details caching
+// Map.tsx - Updated to only show 40 closest places dynamically
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import MapView, { PROVIDER_DEFAULT, Circle, Marker, PROVIDER_GOOGLE } from "react-native-maps";
 import { View, StyleSheet, Vibration, Alert, Text } from "react-native";
@@ -60,6 +60,9 @@ import {
 import { hasMovedSignificantly } from "../../controllers/Map/locationController";
 import { getQuotaRecord, getRemainingQuota } from "../../controllers/Map/quotaController";
 
+// Constants for visible places
+const MAX_VISIBLE_PLACES = 40; // Show only the 40 closest places on the map
+
 type MapNavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 // Define props interface for Map component
@@ -95,6 +98,9 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
   const [userControllingCamera, setUserControllingCamera] = useState<boolean>(false);
   // Add state to track network connectivity
   const [isConnected, setIsConnected] = useState<boolean>(true);
+
+  // NEW STATE: Track visible places - limited to the closest 40
+  const [visiblePlaces, setVisiblePlaces] = useState<Place[]>([]);
 
   // Route state variables
   const [routeCoordinates, setRouteCoordinates] = useState<Coordinate[]>([]);
@@ -140,6 +146,42 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
       unsubscribe();
     };
   }, []);
+
+  /**
+   * NEW FUNCTION: Update visible places based on current location
+   * This filters all cached places to show only the 40 closest ones
+   */
+  const updateVisiblePlaces = useCallback(() => {
+    if (!location.userLocation || places.places.length === 0) return;
+
+    // Calculate distance for each place from current user location
+    const placesWithDistance = places.places.map((place) => {
+      // Calculate or use existing distance
+      const distance =
+        place.distance ||
+        mapUtils.haversineDistance(
+          location.userLocation!.latitude,
+          location.userLocation!.longitude,
+          place.geometry.location.lat,
+          place.geometry.location.lng
+        );
+
+      return {
+        ...place,
+        distance,
+      };
+    });
+
+    // Sort by distance (closest first) and take only MAX_VISIBLE_PLACES
+    const closestPlaces = placesWithDistance
+      .sort((a, b) => (a.distance || 0) - (b.distance || 0))
+      .slice(0, MAX_VISIBLE_PLACES);
+
+    console.log(
+      `Showing ${closestPlaces.length} closest places out of ${places.places.length} total places`
+    );
+    setVisiblePlaces(closestPlaces);
+  }, [location.userLocation, places.places]);
 
   // Track placeToShow in ref to prevent processing it multiple times
   useEffect(() => {
@@ -427,6 +469,11 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
         console.log(`Using ${placesState.places.length} preloaded places`);
         places.updatePlaces(placesState.places);
         setPlacesReady(true);
+
+        // Initialize visible places once places are loaded
+        if (locationState.userLocation) {
+          setTimeout(() => updateVisiblePlaces(), 500);
+        }
       } else if (placesState.isPreloading) {
         console.log("Places still preloading, waiting for completion...");
 
@@ -436,6 +483,12 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
             console.log(`Places preloaded: ${updatedPlaces.places.length} places`);
             places.updatePlaces(updatedPlaces.places);
             setPlacesReady(true);
+
+            // Initialize visible places once places are loaded
+            if (locationState.userLocation) {
+              setTimeout(() => updateVisiblePlaces(), 500);
+            }
+
             unsubscribePlaces(); // Unsubscribe once we have the places
           }
         });
@@ -481,6 +534,13 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
       }
     };
   }, []);
+
+  // Effect to update visible places when the overall places list changes
+  useEffect(() => {
+    if (places.places.length > 0 && location.userLocation) {
+      updateVisiblePlaces();
+    }
+  }, [places.places, updateVisiblePlaces]);
 
   // Add a new useEffect for preloading popular places when the app is idle
   useEffect(() => {
@@ -538,8 +598,13 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
     if (locationReady && placesReady && loading) {
       console.log("Both location and places are ready, finishing loading");
       setLoading(false);
+
+      // Initialize visible places once everything is loaded
+      if (location.userLocation && places.places.length > 0) {
+        updateVisiblePlaces();
+      }
     }
-  }, [locationReady, placesReady, loading]);
+  }, [locationReady, placesReady, loading, updateVisiblePlaces]);
 
   // Process place to show after map is fully loaded
   useEffect(() => {
@@ -620,7 +685,12 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
       camera.focusOnUserLocation(location.userLocation, true);
       camera.initialCameraSetRef.current = true;
     }
-  }, [location.userLocation, camera, userControllingCamera]);
+
+    // Initialize visible places
+    if (location.userLocation && places.places.length > 0) {
+      updateVisiblePlaces();
+    }
+  }, [location.userLocation, camera, userControllingCamera, updateVisiblePlaces]);
 
   /**
    * Handle map drag to detect user controlling camera
@@ -648,6 +718,7 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
 
   /**
    * Update user heading and check for destination when location changes
+   * MODIFIED: Now also updates visible places when location changes significantly
    */
   useEffect(() => {
     if (!location.userLocation) return;
@@ -677,6 +748,12 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
 
       // Check for nearby places that might need refreshing (dynamic updates based on movement)
       places.checkAndRefreshPlaces(location.userLocation);
+
+      // Update visible places if we've moved significantly
+      // This ensures we're always showing the closest 40 as user moves
+      if (hasMovedSignificantly(location.userLocation)) {
+        updateVisiblePlaces();
+      }
 
       // If journey started, check if we've reached the destination
       if (journeyStarted && places.destinationCoordinateRef.current && !destinationReached) {
@@ -748,7 +825,7 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
       console.error("Error in location update effect:", error);
       // Don't set map error here to avoid interrupting the user experience
     }
-  }, [location.userLocation, userControllingCamera]);
+  }, [location.userLocation, userControllingCamera, updateVisiblePlaces]);
 
   // Add a separate effect to ensure place is saved when destination is reached
   useEffect(() => {
@@ -1242,8 +1319,9 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
   }
 
   // Only display the selected place marker if journey is started
+  // MODIFIED: Use visiblePlaces array instead of all places
   const markersToDisplay =
-    journeyStarted && places.selectedPlace ? [places.selectedPlace] : places.places;
+    journeyStarted && places.selectedPlace ? [places.selectedPlace] : visiblePlaces;
 
   try {
     return (
@@ -1307,6 +1385,9 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
                       longitudeDelta: location.region.longitudeDelta,
                     });
                   }
+
+                  // Update visible places when location changes significantly
+                  updateVisiblePlaces();
                 }
               }
             } catch (error) {
@@ -1314,7 +1395,7 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
             }
           }}
         >
-          {/* Place markers */}
+          {/* Place markers - using the filtered visiblePlaces array instead of all places */}
           {markersToDisplay.map((place) => (
             <Marker
               key={place.place_id}
@@ -1404,6 +1485,13 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
             <Text style={styles.locationStatusText}>Waiting for location...</Text>
           </View>
         )}
+
+        {/* Display number of visible vs. total places - Can be removed in production */}
+        {/* <View style={styles.placesInfoContainer}>
+          <Text style={styles.placesInfoText}>
+            Showing {visiblePlaces.length} of {places.places.length} places
+          </Text>
+        </View> */}
 
         {/* View mode toggle button */}
         {journeyStarted && <ViewModeToggle viewMode={viewMode} onToggle={handleToggleViewMode} />}
@@ -1580,6 +1668,19 @@ const styles = StyleSheet.create({
     color: "white",
     fontSize: 14,
     fontWeight: "bold",
+  },
+  placesInfoContainer: {
+    position: "absolute",
+    bottom: 20,
+    right: 10,
+    backgroundColor: "rgba(0,0,0,0.7)",
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 20,
+  },
+  placesInfoText: {
+    color: "white",
+    fontSize: 12,
   },
 });
 

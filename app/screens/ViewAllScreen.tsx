@@ -374,7 +374,6 @@ const ViewAllScreen: React.FC<ViewAllScreenProps> = ({ route, navigation }) => {
             `[ViewAllScreen] Fetching full details for ${placeObject.name} before navigation`
           );
           // Show loading feedback
-          Alert.alert("Loading place details...");
 
           // Use the Firebase-first approach to fetch details
           const detailedPlace = await fetchPlaceDetailsOnDemand(placeId);

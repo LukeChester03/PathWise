@@ -94,6 +94,7 @@ export interface Place {
   detailsFetchedAt?: number; // Timestamp when the details were fetched
   viewCount?: number; // Number of times this place has been viewed
   lastViewed?: string; // ISO timestamp of when the place was last viewed
+  tourismScore?: number;
 }
 
 export interface PlaceDetails {

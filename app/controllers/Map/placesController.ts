@@ -30,9 +30,9 @@ import {
 import { db, auth } from "../../config/firebaseConfig";
 
 // CONSTANTS FOR CACHING
-const SEARCH_RADIUS_KM = 25; // 25km radius
+const SEARCH_RADIUS_KM = 25; // 25km radius (5km buffer beyond our refresh threshold)
 const SEARCH_RADIUS_METERS = SEARCH_RADIUS_KM * 1000; // 25km in meters
-const MAX_PLACES_TO_FETCH = 100; // Get up to 100 places in the wide radius
+const MAX_PLACES_TO_FETCH = 100; // Limit to 100 places
 const RECACHE_THRESHOLD_KM = 20; // Only re-fetch when user moves 20km from cache center
 const CACHE_EXPIRATION_TIME = 30 * 24 * 60 * 60 * 1000; // 30 days for area cache
 const LOCAL_CACHE_KEY = "local_places_cache_v2"; // Fallback local cache key
@@ -42,6 +42,8 @@ const MAX_DETAILS_TO_FETCH = 20; // Pre-fetch details for the closest 20 places 
 const DETAILS_REFRESH_THRESHOLD = 90 * 24 * 60 * 60 * 1000; // 90 days before refreshing place details
 const BACKGROUND_FETCH_DELAY = 500; // Delay between background detail fetches to not overwhelm the system
 const BATCH_SIZE = 10; // Size of batches for Firebase operations
+const MIN_TOURISM_SCORE_THRESHOLD = 40; // Minimum tourism score to consider a place as a tourist attraction
+const DEFINITELY_NOT_TOURIST_SCORE = -50; // Score for places that are definitely not tourist attractions
 
 // Types of places we want to exclude (not tourist attractions)
 const NON_TOURIST_TYPES = [
@@ -64,7 +66,7 @@ const NON_TOURIST_TYPES = [
   "salon",
   "school",
   "subway_station",
-  "train_station",
+  "train_station", // Railway stations should be excluded unless specifically marked as historic
   "bus_station",
   "shopping_mall",
   "convenience_store",
@@ -82,6 +84,8 @@ const NON_TOURIST_TYPES = [
   "electrician",
   "plumber",
   "local_government_office",
+  "transit_station",
+  "airport",
 ];
 
 // Types that strongly indicate tourist attractions
@@ -105,6 +109,22 @@ const TOURIST_TYPES = [
   "temple",
   "cathedral",
   "synagogue",
+  "archaeological_site",
+  "unesco_site",
+];
+
+// High-priority tourist types that should almost always be included
+const HIGH_PRIORITY_TOURIST_TYPES = [
+  "tourist_attraction",
+  "museum",
+  "aquarium",
+  "art_gallery",
+  "zoo",
+  "landmark",
+  "castle",
+  "monument",
+  "national_park",
+  "cathedral",
   "archaeological_site",
   "unesco_site",
 ];
@@ -141,6 +161,41 @@ const TOURIST_KEYWORDS = [
   "national",
   "memorial",
   "historic",
+  "museum",
+  "visitor",
+  "exhibition",
+  "hall",
+  "center",
+  "centre",
+  "gallery",
+  "queens",
+  "kings",
+  "royal",
+  "gardens",
+];
+
+// Specific keywords that are strongly associated with non-tourist places
+const NON_TOURIST_KEYWORDS = [
+  "railway station",
+  "train station",
+  "bus station",
+  "airport",
+  "terminal",
+  "supermarket",
+  "grocery",
+  "shopping centre",
+  "mall",
+  "hospital",
+  "clinic",
+  "doctor",
+  "school",
+  "university",
+  "college",
+  "gas station",
+  "petrol station",
+  "police",
+  "council",
+  "office",
 ];
 
 // Standard descriptions by place type for when no editorial summary is available
@@ -309,9 +364,6 @@ const getAreaKey = (lat: number, lng: number): string => {
 /**
  * Check if a Firebase cache entry is valid for current position
  */
-/**
- * Check if a Firebase cache entry is valid for current position
- */
 const isCacheEntryValidForPosition = (
   cacheEntry: FirebaseCacheEntry,
   latitude: number,
@@ -444,9 +496,6 @@ const needsDetailsRefresh = (detailsEntry: DetailsCacheEntry): boolean => {
   return age > DETAILS_REFRESH_THRESHOLD;
 };
 
-/**
- * Fetch a cache entry from Firebase for a given position
- */
 /**
  * Fetch a cache entry from Firebase for a given position
  */
@@ -703,57 +752,150 @@ const getPlaceDescription = (place: any): string => {
 };
 
 /**
+ * Check if a place has any of the provided types
+ */
+const hasAnyType = (place: any, typeList: string[]): boolean => {
+  if (!place.types || !Array.isArray(place.types)) return false;
+  return place.types.some((type: string) => typeList.includes(type));
+};
+
+/**
+ * Check if a place name or vicinity contains any of the provided keywords
+ */
+const containsAnyKeyword = (place: any, keywordList: string[]): boolean => {
+  if (!place.name && !place.vicinity) return false;
+
+  const nameLower = (place.name || "").toLowerCase();
+  const vicinityLower = (place.vicinity || "").toLowerCase();
+
+  return keywordList.some(
+    (keyword) =>
+      nameLower.includes(keyword.toLowerCase()) || vicinityLower.includes(keyword.toLowerCase())
+  );
+};
+
+/**
  * Calculate a tourism score for a place to identify legitimate attractions
+ * IMPROVED: Better scoring algorithm that properly identifies actual tourist places
  */
 const calculateTourismScore = (place: any): number => {
   let score = 0;
 
-  // Base score from types
-  const hasValidTouristType = place.types.some((type: string) => TOURIST_TYPES.includes(type));
+  // Start with checking for definite non-tourist places
+  // Transport hubs and other non-tourist places should be excluded
+  // unless they have historical/cultural significance
+  if (hasAnyType(place, NON_TOURIST_TYPES)) {
+    // Start with a negative score for non-tourist types
+    score -= 20;
 
-  if (hasValidTouristType) {
-    score += 30; // High base score for having tourist-specific types
+    // If it's a transport hub, check if it might actually be historic/tourist
+    const mightBeHistoric =
+      hasAnyType(place, ["historic"]) ||
+      containsAnyKeyword(place, ["historic", "heritage", "museum", "attraction"]);
 
-    // Give extra points for specific high-value tourist types
-    if (place.types.includes("tourist_attraction")) score += 15;
-    if (place.types.includes("museum")) score += 10;
-    if (place.types.includes("landmark")) score += 10;
-    if (place.types.includes("historic")) score += 10;
-    if (place.types.includes("natural_feature")) score += 8;
-    if (place.types.includes("park")) score += 5;
+    if (!mightBeHistoric) {
+      // Double-check if it's a typical non-tourist place
+      if (containsAnyKeyword(place, NON_TOURIST_KEYWORDS)) {
+        return DEFINITELY_NOT_TOURIST_SCORE; // Definitely not a tourist place
+      }
+    }
   }
 
-  // Boost for higher ratings
-  if (place.rating) {
-    score += (place.rating - 3) * 10; // Rating boost (3.0=0, 4.0=10, 5.0=20)
+  // High-priority tourist types get a big boost
+  if (hasAnyType(place, HIGH_PRIORITY_TOURIST_TYPES)) {
+    score += 60; // These should almost always be included
+  }
+  // Regular tourist types get a good boost
+  else if (hasAnyType(place, TOURIST_TYPES)) {
+    score += 40;
+  }
+
+  // Additional scoring for specific types
+  if (hasAnyType(place, ["museum"])) score += 20;
+  if (hasAnyType(place, ["park"])) score += 15;
+  if (hasAnyType(place, ["tourist_attraction"])) score += 20;
+  if (hasAnyType(place, ["historic"])) score += 15;
+  if (hasAnyType(place, ["natural_feature"])) score += 15;
+
+  // Boost for higher ratings, but only if there are enough ratings
+  if (place.rating && place.user_ratings_total) {
+    score += (place.rating - 3) * 5; // Rating boost (3.0=0, 4.0=5, 5.0=10)
+
+    // More weight to ratings if there are many of them
+    if (place.user_ratings_total > 100) {
+      score += (place.rating - 3) * 5; // Double the rating importance for well-reviewed places
+    }
+
+    // Add points based on number of ratings (logarithmic scale to avoid extremely popular places dominating)
+    score += Math.min(Math.log(place.user_ratings_total) * 2, 20);
   }
 
   // Boost for having photos (tourist attractions usually have photos)
   if (place.photos && place.photos.length > 0) {
-    score += Math.min(place.photos.length * 2, 10); // Up to 10 points for photos
+    score += Math.min(place.photos.length * 2, 15);
   }
 
-  // Boost for having many reviews
-  if (place.user_ratings_total) {
-    score += Math.min(Math.log(place.user_ratings_total) * 3, 15); // Logarithmic scale, up to 15 points
-  }
+  // Check name and vicinity for tourist keywords
+  const nameLower = (place.name || "").toLowerCase();
+  const vicinityLower = (place.vicinity || "").toLowerCase();
 
-  // Check if name contains tourist keywords
-  const nameLower = place.name.toLowerCase();
   let keywordMatches = 0;
-
   for (const keyword of TOURIST_KEYWORDS) {
-    if (nameLower.includes(keyword.toLowerCase())) {
-      keywordMatches++;
+    const keywordLower = keyword.toLowerCase();
+    if (nameLower.includes(keywordLower)) {
+      keywordMatches += 2; // Double points for matches in the name
+    }
+    if (vicinityLower.includes(keywordLower)) {
+      keywordMatches += 1;
     }
   }
 
-  // Add points for keyword matches in name
-  score += keywordMatches * 3;
+  // Add points for keyword matches
+  score += keywordMatches * 2;
 
-  // Boost for being a prominent place (Google often gives prominence to major attractions)
-  if (place.business_status === "OPERATIONAL" && place.plus_code) {
-    score += 5;
+  // Check for non-tourist keywords that should reduce the score
+  let nonTouristMatches = 0;
+  for (const keyword of NON_TOURIST_KEYWORDS) {
+    const keywordLower = keyword.toLowerCase();
+    if (nameLower.includes(keywordLower)) {
+      nonTouristMatches += 2;
+    }
+    if (vicinityLower.includes(keywordLower)) {
+      nonTouristMatches += 1;
+    }
+  }
+
+  // Subtract points for non-tourist keyword matches
+  score -= nonTouristMatches * 3;
+
+  // Additional checks for specific place names
+  if (nameLower.includes("museum") || nameLower.includes("gallery")) score += 30;
+  if (nameLower.includes("castle") || nameLower.includes("palace")) score += 30;
+  if (nameLower.includes("cathedral") || nameLower.includes("church")) score += 25;
+  if (nameLower.includes("monument") || nameLower.includes("memorial")) score += 25;
+  if (nameLower.includes("park") && !nameLower.includes("parking")) score += 20;
+  if (nameLower.includes("garden") || nameLower.includes("gardens")) score += 20;
+
+  // Special case: Train/railway stations are not tourist attractions unless historic
+  if (
+    (nameLower.includes("station") || nameLower.includes("terminal")) &&
+    !(
+      nameLower.includes("historic") ||
+      nameLower.includes("heritage") ||
+      nameLower.includes("museum")
+    )
+  ) {
+    score -= 40;
+  }
+
+  // If it has a website and is operational, it's more likely to be an attraction
+  if (place.website && place.business_status === "OPERATIONAL") {
+    score += 10;
+  }
+
+  // If it has an editorial summary, it's more likely to be notable
+  if (place.editorial_summary && place.editorial_summary.overview) {
+    score += 15;
   }
 
   return score;
@@ -795,6 +937,7 @@ const createPlaceObjectFromApiResult = (place: any, latitude: number, longitude:
     formatted_phone_number: place.formatted_phone_number || null,
     opening_hours: place.opening_hours || null,
     reviews: place.reviews || [],
+    tourismScore: place.tourismScore || 0,
   };
 };
 
@@ -975,6 +1118,9 @@ const fetchPlaceDetailsFromGoogle = async (
         );
       }
 
+      // Calculate tourism score for the place
+      const tourismScore = calculateTourismScore(data.result);
+
       // Create place object with full details - use nulls not undefined
       const detailedPlace: Place = {
         place_id: data.result.place_id,
@@ -1005,6 +1151,7 @@ const fetchPlaceDetailsFromGoogle = async (
         opening_hours: data.result.opening_hours || null,
         reviews: data.result.reviews || [],
         hasFullDetails: true,
+        tourismScore: tourismScore,
       };
 
       // Sanitize the place data before saving to Firebase
@@ -1054,6 +1201,7 @@ const fetchPlaceDetailsFromGoogle = async (
             updatedAt: serverTimestamp(),
             hasFullDetails: true,
             lastDetailsUpdate: serverTimestamp(),
+            tourismScore: tourismScore,
           };
 
           await setDoc(placeRef, firestorePlace, { merge: true });
@@ -1246,6 +1394,8 @@ const processPendingPlacesBatch = async () => {
 
 /**
  * MAIN FUNCTION: Fetch places with details in one go and cache them
+ * MAJOR UPDATE: Improved to ensure only genuine tourist attractions are returned,
+ * and we only query for new places when the user moves outside the 20km radius
  */
 export const fetchNearbyPlaces = async (
   latitude: number,
@@ -1286,33 +1436,36 @@ export const fetchNearbyPlaces = async (
     ) {
       console.log(`[placesController] Using memory cache with ${memoryCache.places.length} places`);
 
-      // Calculate distance to each place and sort by proximity
-      const placesWithDistance = memoryCache.places
-        .map((place) => {
-          const distance = haversineDistance(
-            latitude,
-            longitude,
-            place.geometry.location.lat,
-            place.geometry.location.lng
-          );
+      // Calculate distance to each place
+      const placesWithDistance = memoryCache.places.map((place) => {
+        const distance = haversineDistance(
+          latitude,
+          longitude,
+          place.geometry.location.lat,
+          place.geometry.location.lng
+        );
 
-          return {
-            ...place,
-            distance,
-          };
-        })
-        .sort((a, b) => (a.distance || 0) - (b.distance || 0));
+        return {
+          ...place,
+          distance,
+        };
+      });
 
-      // Find furthest distance of closest 20 places
+      // IMPORTANT FIX: Sort by distance first and take only MAX_PLACES_TO_FETCH (100) closest places
+      const sortedByDistance = placesWithDistance
+        .sort((a, b) => (a.distance || 0) - (b.distance || 0))
+        .slice(0, MAX_PLACES_TO_FETCH);
+
+      // Find furthest distance of closest places
       let furthestDistance = 0;
-      placesWithDistance.slice(0, 20).forEach((place) => {
+      sortedByDistance.forEach((place) => {
         if (place.distance && place.distance > furthestDistance) {
           furthestDistance = place.distance;
         }
       });
 
       return {
-        places: placesWithDistance,
+        places: sortedByDistance,
         furthestDistance: Math.max(furthestDistance + 200, 1000),
       };
     }
@@ -1337,34 +1490,39 @@ export const fetchNearbyPlaces = async (
             persistCaches();
 
             // Calculate distance and sort
-            const placesWithDistance = places
-              .map((place) => {
-                const distance = haversineDistance(
-                  latitude,
-                  longitude,
-                  place.geometry.location.lat,
-                  place.geometry.location.lng
-                );
+            const placesWithDistance = places.map((place) => {
+              const distance = haversineDistance(
+                latitude,
+                longitude,
+                place.geometry.location.lat,
+                place.geometry.location.lng
+              );
 
-                return {
-                  ...place,
-                  distance,
-                };
-              })
-              .sort((a, b) => (a.distance || 0) - (b.distance || 0));
+              return {
+                ...place,
+                distance,
+              };
+            });
 
-            // Find furthest distance of closest 20 places
+            // IMPORTANT FIX: Sort by distance first and take only MAX_PLACES_TO_FETCH (100) closest places
+            const sortedByDistance = placesWithDistance
+              .sort((a, b) => (a.distance || 0) - (b.distance || 0))
+              .slice(0, MAX_PLACES_TO_FETCH);
+
+            // Find furthest distance of closest places
             let furthestDistance = 0;
-            placesWithDistance.slice(0, 20).forEach((place) => {
+            sortedByDistance.forEach((place) => {
               if (place.distance && place.distance > furthestDistance) {
                 furthestDistance = place.distance;
               }
             });
 
-            console.log(`[placesController] Using Firebase cache with ${places.length} places`);
+            console.log(
+              `[placesController] Using Firebase cache with ${places.length} places, returning ${sortedByDistance.length} closest`
+            );
 
             return {
-              places: placesWithDistance,
+              places: sortedByDistance,
               furthestDistance: Math.max(furthestDistance + 200, 1000),
             };
           }
@@ -1397,7 +1555,8 @@ export const fetchNearbyPlaces = async (
               distance,
             };
           })
-          .sort((a, b) => (a.distance || 0) - (b.distance || 0));
+          .sort((a, b) => (a.distance || 0) - (b.distance || 0))
+          .slice(0, MAX_PLACES_TO_FETCH);
 
         return {
           places: placesWithDistance,
@@ -1422,7 +1581,8 @@ export const fetchNearbyPlaces = async (
               distance,
             };
           })
-          .sort((a, b) => (a.distance || 0) - (b.distance || 0));
+          .sort((a, b) => (a.distance || 0) - (b.distance || 0))
+          .slice(0, MAX_PLACES_TO_FETCH);
 
         return {
           places: placesWithDistance,
@@ -1444,7 +1604,7 @@ export const fetchNearbyPlaces = async (
 
     // STEP 4: Make API calls with pagination to get up to 100 places
     console.log(`[placesController] Fetching places from API in ${SEARCH_RADIUS_KM}km radius`);
-
+    console.warn("API CALL BEING MADE");
     // Record the API call for nearbysearch
     await recordApiCall("places");
 
@@ -1456,11 +1616,12 @@ export const fetchNearbyPlaces = async (
 
     do {
       // Build URL for wide-area search with BASIC details only
+      // IMPORTANT FIX: Updated place types to better target tourist attractions
       let apiUrl =
         `https://maps.googleapis.com/maps/api/place/nearbysearch/json?` +
         `location=${latitude},${longitude}&` +
         `radius=${SEARCH_RADIUS_METERS}&` +
-        `type=tourist_attraction|museum|park|point_of_interest|art_gallery|church|natural_feature&` +
+        `type=tourist_attraction|museum|art_gallery|park|amusement_park|aquarium|church|city_hall|hindu_temple|landmark|monument|mosque|synagogue|point_of_interest|natural_feature|zoo&` +
         `fields=place_id,name,formatted_address,rating,photos,geometry,types,business_status,price_level,vicinity&` +
         `key=${GOOGLE_MAPS_APIKEY}`;
 
@@ -1517,49 +1678,41 @@ export const fetchNearbyPlaces = async (
     }
 
     // STEP 5: Process and filter results
-    // First filter and process results
-    const filteredResults = allResults
-      .filter((place: any) => {
-        // Make sure it's not in exclusion list
-        const hasBlockedType = place.types.some((type: string) => NON_TOURIST_TYPES.includes(type));
+    // Calculate tourism score for each place
+    allResults.forEach((place) => {
+      place.tourismScore = calculateTourismScore(place);
+    });
 
-        if (hasBlockedType) return false;
+    // IMPROVED FILTERING: Better filtering to include actual tourist attractions
+    const filteredResults = allResults.filter((place: any) => {
+      // Skip places with very negative scores (definitely not tourist attractions)
+      if (place.tourismScore <= DEFINITELY_NOT_TOURIST_SCORE) {
+        return false;
+      }
 
-        // Calculate tourism score
-        place.tourismScore = calculateTourismScore(place);
+      // High-priority tourist types should almost always be included if they have decent ratings
+      if (hasAnyType(place, HIGH_PRIORITY_TOURIST_TYPES)) {
+        return !place.rating || place.rating >= 3.0;
+      }
 
-        // Apply quality filtering
-        return (
-          (place.rating && place.rating >= 3.5) ||
-          place.tourismScore >= 35 ||
-          (!place.rating && place.tourismScore >= 25)
-        );
-      })
-      // Sort by tourism score and rating
-      .sort((a: any, b: any) => {
-        const scoreDiff = b.tourismScore - a.tourismScore;
-        if (Math.abs(scoreDiff) < 10) {
-          const aRating = a.rating || 0;
-          const bRating = b.rating || 0;
-          return bRating - aRating;
-        }
-        return scoreDiff;
-      })
-      // Limit to configured max places - allow up to 100 places
-      .slice(0, MAX_PLACES_TO_FETCH);
+      // For regular tourist types, apply a stricter tourism score threshold
+      return (
+        place.tourismScore >= MIN_TOURISM_SCORE_THRESHOLD || (place.rating && place.rating >= 4.5)
+      ); // Include very highly rated places
+    });
 
     // STEP 6: Create place objects from basic API results
-    // We only store basic place data and fetch details on-demand when a user selects a place
-    const basicPlaces: Place[] = filteredResults.map((place: any) =>
+    let basicPlaces: Place[] = filteredResults.map((place: any) =>
       createPlaceObjectFromApiResult(place, latitude, longitude)
     );
 
-    // STEP 7: Sort places by distance from current location
+    // IMPORTANT FIX: Sort by distance first then limit to MAX_PLACES_TO_FETCH
     basicPlaces.sort((a, b) => (a.distance || 0) - (b.distance || 0));
+    basicPlaces = basicPlaces.slice(0, MAX_PLACES_TO_FETCH);
 
-    // Find furthest distance of closest 20 places
+    // Find furthest distance of closest places
     let furthestDistance = 0;
-    basicPlaces.slice(0, 20).forEach((place) => {
+    basicPlaces.forEach((place) => {
       if (place.distance && place.distance > furthestDistance) {
         furthestDistance = place.distance;
       }
@@ -1567,7 +1720,7 @@ export const fetchNearbyPlaces = async (
 
     furthestDistance = Math.max(furthestDistance + 200, 1000);
 
-    // STEP 9: Save to Firebase if user is logged in
+    // STEP 7: Save to Firebase if user is logged in - save all filtered places
     if (auth.currentUser) {
       createNewCacheEntry(latitude, longitude, basicPlaces)
         .then((newCacheEntry) => {
@@ -1842,9 +1995,6 @@ export const clearPlacesCache = async (): Promise<void> => {
   console.log("[placesController] Cleared all place caches");
 };
 
-/**
- * Get cache statistics
- */
 /**
  * Get cache statistics
  */

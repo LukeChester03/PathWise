@@ -590,7 +590,7 @@ const PlaceDetailsScreen: React.FC = () => {
                   <OpeningHoursCard placeDetails={placeDetails} fontSize={dynamicStyles.fontSize} />
                 </View>
               )}
-
+              {/* 
               {hasContactInfo && (
                 <View style={{ marginBottom: dynamicStyles.spacing.cardMargin }}>
                   <ContactInfoCard
@@ -599,7 +599,7 @@ const PlaceDetailsScreen: React.FC = () => {
                     iconSize={dynamicStyles.iconSize}
                   />
                 </View>
-              )}
+              )} */}
 
               {/* 7. Ask AI Section */}
               <CollapsibleCard
@@ -688,7 +688,7 @@ const PlaceDetailsScreen: React.FC = () => {
               )}
 
               {/* Contact Information Card */}
-              {hasContactInfo && (
+              {/* {hasContactInfo && (
                 <View style={{ marginBottom: dynamicStyles.spacing.cardMargin }}>
                   <ContactInfoCard
                     placeDetails={placeDetails}
@@ -696,7 +696,7 @@ const PlaceDetailsScreen: React.FC = () => {
                     iconSize={dynamicStyles.iconSize}
                   />
                 </View>
-              )}
+              )} */}
 
               {/* Opening Hours Card */}
               {hasOpeningHours && (
