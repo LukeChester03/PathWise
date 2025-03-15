@@ -410,8 +410,9 @@ const PlaceDetailsScreen: React.FC = () => {
   }
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="light-content" />
+    <View style={styles.container}>
+      {/* Status bar with translucent background */}
+      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
 
       {/* Hero Header with Image and Navigation Controls */}
       <Animated.View
@@ -435,18 +436,6 @@ const PlaceDetailsScreen: React.FC = () => {
           onShare={handleShare}
         />
       </Animated.View>
-
-      {/* Fixed navigation header - only back button */}
-      <Animated.View
-        style={[
-          styles.fixedNavHeader,
-          {
-            opacity: animations.navControlsOpacity,
-            height: Platform.OS === "ios" ? 90 : 70,
-            paddingTop: Platform.OS === "ios" ? 40 : 20,
-          },
-        ]}
-      ></Animated.View>
 
       {/* Main Content Container that slides over image when scrolling */}
       <Animated.View
@@ -734,7 +723,7 @@ const PlaceDetailsScreen: React.FC = () => {
           <View style={styles.bottomPadding} />
         </Animated.ScrollView>
       </Animated.View>
-    </SafeAreaView>
+    </View>
   );
 };
 
@@ -752,10 +741,9 @@ const cardShadow = Platform.select({
 });
 
 const styles = StyleSheet.create({
-  safeArea: {
+  container: {
     flex: 1,
     backgroundColor: "#000",
-    paddingBottom: 32,
   },
   heroHeaderWrapper: {
     position: "absolute",
@@ -859,28 +847,6 @@ const styles = StyleSheet.create({
   },
   bottomPadding: {
     height: 100, // Significantly increased from 30 to 100
-  },
-  fixedNavHeader: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: "transparent",
-    zIndex: 3,
-  },
-  fixedNavContent: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 16,
-  },
-  primaryBackButton: {
-    width: 40,
-    height: 40,
-    justifyContent: "center",
-    alignItems: "center",
-    borderRadius: 20,
-    backgroundColor: "#0066CC",
-    ...cardShadow,
   },
   // Styles for limited view mode
   limitedViewContainer: {

@@ -463,7 +463,8 @@ const styles = StyleSheet.create({
   factContentContainer: {
     flex: 1,
     justifyContent: "center",
-    alignItems: "flex-start",
+    alignItems: "center",
+    paddingHorizontal: 10,
   },
   eraIndicator: {
     fontSize: 11,
@@ -471,13 +472,13 @@ const styles = StyleSheet.create({
     color: Colors.primary,
     marginBottom: 10,
     letterSpacing: 1,
-    alignSelf: "center",
   },
   factText: {
     color: Colors.text,
     lineHeight: 22,
-    paddingRight: 26,
+    paddingRight: 10,
     textAlign: "center",
+    width: "100%",
   },
 
   // ===== Vintage Corner Styles =====
