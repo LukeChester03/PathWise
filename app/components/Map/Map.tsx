@@ -54,7 +54,6 @@ import * as mapUtils from "../../utils/mapUtils";
 import {
   fetchPlaceDetailsOnDemand,
   fetchNearbyPlaces,
-  preloadPopularPlaceDetails,
   getCacheStats,
 } from "../../controllers/Map/placesController";
 import { hasMovedSignificantly } from "../../controllers/Map/locationController";
@@ -113,7 +112,6 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
   const cameraUserControlTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const pendingPlaceToShowRef = useRef<Place | null>(null);
   const placeCardShownRef = useRef<boolean>(false);
-  const preloadTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Custom hooks
   const location = useMapLocation();
@@ -452,7 +450,7 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
         setTimeout(() => {
           if (!locationReady) {
             console.warn("Location initialization timeout");
-            setLocationReady(true); // Continue anyway
+            setLocationReady(true);
             unsubscribeLocation();
           }
         }, 5000);
@@ -483,13 +481,11 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
             console.log(`Places preloaded: ${updatedPlaces.places.length} places`);
             places.updatePlaces(updatedPlaces.places);
             setPlacesReady(true);
-
-            // Initialize visible places once places are loaded
             if (locationState.userLocation) {
               setTimeout(() => updateVisiblePlaces(), 500);
             }
 
-            unsubscribePlaces(); // Unsubscribe once we have the places
+            unsubscribePlaces();
           }
         });
 
@@ -497,7 +493,7 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
         setTimeout(() => {
           if (!placesReady) {
             console.warn("Places preloading timeout");
-            setPlacesReady(true); // Continue anyway
+            setPlacesReady(true);
             unsubscribePlaces();
           }
         }, 5000);
@@ -528,10 +524,6 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
       if (cameraUserControlTimeoutRef.current) {
         clearTimeout(cameraUserControlTimeoutRef.current);
       }
-      // Clear preload timeout
-      if (preloadTimeoutRef.current) {
-        clearTimeout(preloadTimeoutRef.current);
-      }
     };
   }, []);
 
@@ -541,57 +533,6 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
       updateVisiblePlaces();
     }
   }, [places.places, updateVisiblePlaces]);
-
-  // Add a new useEffect for preloading popular places when the app is idle
-  useEffect(() => {
-    const preloadPopularDetails = async () => {
-      // Only run when map is already loaded and user isn't actively navigating
-      if (!loading && !journeyStarted && !showCard && !showDiscoveredCard && isConnected) {
-        try {
-          // First check available quota
-          const quota = await getRemainingQuota();
-          if (quota > 0) {
-            // Get cache stats to check if we have a decent amount of places already
-            const stats = await getCacheStats();
-
-            // If we have less than 50 permanently stored place details, or have quota to spare
-            if (
-              !stats.firebaseCache?.permanentDetails ||
-              stats.firebaseCache.permanentDetails < 50 ||
-              quota > 10
-            ) {
-              console.log(
-                `Map: Starting background preload of popular places (${quota} API calls remaining)`
-              );
-              const refreshedCount = await preloadPopularPlaceDetails();
-
-              if (refreshedCount > 0) {
-                console.log(
-                  `Map: Preloaded details for ${refreshedCount} popular places in background`
-                );
-              }
-            } else {
-              console.log(
-                `Map: Skipping preload - already have ${stats.firebaseCache.permanentDetails} cached places`
-              );
-            }
-          }
-        } catch (e) {
-          console.log("Error in preload:", e);
-        }
-      }
-
-      // Schedule next preload attempt - relatively infrequent to preserve quota
-      preloadTimeoutRef.current = setTimeout(preloadPopularDetails, 10 * 60 * 1000); // Run every 10 minutes
-    };
-
-    // Start the preload cycle after initial load with a delay
-    preloadTimeoutRef.current = setTimeout(preloadPopularDetails, 60 * 1000); // First run after 60 seconds
-
-    return () => {
-      if (preloadTimeoutRef.current) clearTimeout(preloadTimeoutRef.current);
-    };
-  }, [loading, journeyStarted, showCard, showDiscoveredCard, isConnected]);
 
   // Effect to finish loading when both location and places are ready
   useEffect(() => {
