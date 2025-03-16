@@ -11,6 +11,8 @@ import {
   updateNearbyPlaces,
   onPlacesUpdate,
   getNearbyPlacesState,
+  setPlacesLoadingEnabled,
+  checkAuthAndEnablePlacesLoading, // Add new function
 } from "./controllers/Map/locationController";
 import { checkRequiredIndexes, getCacheStats } from "./controllers/Map/placesController";
 import { Colors } from "./constants/colours";
@@ -37,14 +39,34 @@ export default function Index() {
   useEffect(() => {
     console.log("🚀 App initialization starting...");
 
+    // Explicitly disable places loading until user logs in
+    setPlacesLoadingEnabled(false);
+
     // Listen for auth state changes
     const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
       authReadyRef.current = true;
-      console.log(`👤 Auth state determined: User ${user ? "signed in" : "not signed in"}`);
 
-      // Once auth is ready and we have a user, ensure places are loaded
-      if (user && !placesLoadedRef.current) {
+      if (user) {
+        console.log(`👤 User signed in: ${user.uid}`);
+        // User is logged in - NOW enable places loading and kick off the process
+        setPlacesLoadingEnabled(true);
+
+        // Only load places data after login
+        setInitStatus("User authenticated. Loading places data...");
+
+        // Ensure location is initialized first if needed
+        if (!locationInitializedRef.current) {
+          await initLocationAndPlaces();
+          locationInitializedRef.current = true;
+        }
+
+        // Now that user is logged in, start the places loading process
         ensurePlacesAreLoaded();
+      } else {
+        console.log(`👤 User not signed in`);
+        // Make sure places loading stays disabled for unauthenticated users
+        setPlacesLoadingEnabled(false);
+        completeInitialization();
       }
     });
 
@@ -64,10 +86,10 @@ export default function Index() {
         // Check Firebase indexes early to help with debugging
         await checkRequiredIndexes();
 
-        // Initialize location tracking and preload places data
+        // Initialize location tracking BUT don't load places
         setInitStatus("Initializing location services...");
-        console.log("📍 Initializing location and places...");
-        await initLocationAndPlaces();
+        console.log("📍 Initializing location tracking only (no places yet)...");
+        await initLocationAndPlaces(); // This won't load places since we disabled places loading
         locationInitializedRef.current = true;
 
         // Subscribe to places updates
@@ -89,8 +111,12 @@ export default function Index() {
 
         unsubscribeFunctionsRef.current.push(unsubscribePlaces);
 
-        // Start loading places immediately
-        ensurePlacesAreLoaded();
+        // Check if user is already logged in, if so enable places loading
+        if (auth.currentUser) {
+          console.log("User already logged in during initialization, enabling places loading");
+          setPlacesLoadingEnabled(true);
+          // Still wait for auth listener to kick off place loading
+        }
 
         // Safety timeout - allow app to proceed after 8 seconds regardless
         setTimeout(() => {
@@ -106,7 +132,7 @@ export default function Index() {
       }
     };
 
-    // Helper function to ensure places are loaded
+    // Helper function to ensure places are loaded - only called after login
     const ensurePlacesAreLoaded = async () => {
       try {
         if (placesLoadedRef.current) {
@@ -123,8 +149,8 @@ export default function Index() {
           return;
         }
 
-        setInitStatus("Loading places data...");
-        console.log("🔄 Performing explicit places refresh...");
+        setInitStatus("Loading places data after authentication...");
+        console.log("🔄 Checking for cached places after login...");
 
         // Get current location
         const currentLocation = await getCurrentLocation();
@@ -148,13 +174,16 @@ export default function Index() {
           return;
         }
 
-        console.log(`📍 Got location: ${currentLocation.latitude}, ${currentLocation.longitude}`);
+        console.log(
+          `📍 Got location after login: ${currentLocation.latitude}, ${currentLocation.longitude}`
+        );
 
-        // Fetch places with force=true to ensure fresh data
-        const result = await updateNearbyPlaces(currentLocation, true);
+        // IMPORTANT: Use forceRefresh=false to try cache first!
+        console.log("Attempting to load places from cache first after login...");
+        let result = await updateNearbyPlaces(currentLocation, false);
 
         if (result) {
-          console.log("✅ Places refresh initiated successfully");
+          console.log("✅ Places loaded successfully (from cache or API if needed)");
 
           // We don't set placesLoadedRef.current=true here because we'll wait for the
           // places update callback to confirm places are actually loaded

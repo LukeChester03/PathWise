@@ -1096,8 +1096,10 @@ const fetchPlaceDetailsFromGoogle = async (
 
         // Make the API call
         const response = await fetch(
-          `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}` +
-            `&fields=place_id,name,formatted_address,rating,photos,website,url,formatted_phone_number,opening_hours,reviews,editorial_summary,geometry,types,business_status,price_level,vicinity` +
+          `https://maps.googleapis.com/maps/api/place/details/json?` +
+            `place_id=${placeId}` +
+            `&fields=place_id,name,formatted_address,rating,geometry,photos,website,url,` +
+            `formatted_phone_number,opening_hours,reviews,editorial_summary,types,business_status,price_level,vicinity` +
             `&key=${GOOGLE_MAPS_APIKEY}`
         );
 
@@ -1435,7 +1437,51 @@ export const fetchNearbyPlaces = async (
       `[placesController] DEBUG: Firebase auth state - User logged in: ${authUser !== null}`
     );
 
-    // DEBUG: Check network state
+    // AUTHENTICATION CHECK: Only proceed with API calls if user is logged in
+    if (!authUser) {
+      console.log("[placesController] User not logged in - using cache only, no API calls");
+
+      // If we have anything in memory cache, return it without API calls
+      if (memoryCache.places.length > 0) {
+        console.log(
+          `[placesController] Returning ${memoryCache.places.length} cached places for unauthenticated user`
+        );
+
+        // Calculate distance to each place
+        const placesWithDistance = memoryCache.places.map((place) => {
+          const distance = haversineDistance(
+            latitude,
+            longitude,
+            place.geometry.location.lat,
+            place.geometry.location.lng
+          );
+
+          return {
+            ...place,
+            distance,
+          };
+        });
+
+        // Sort by distance
+        const sortedByDistance = placesWithDistance
+          .sort((a, b) => (a.distance || 0) - (b.distance || 0))
+          .slice(0, MAX_PLACES_TO_FETCH);
+
+        return {
+          places: sortedByDistance,
+          furthestDistance: SEARCH_RADIUS_METERS,
+        };
+      }
+
+      // If no cache at all, return empty result
+      console.log("[placesController] No cached places available and user not logged in");
+      return {
+        places: [],
+        furthestDistance: SEARCH_RADIUS_METERS,
+      };
+    }
+
+    // DEBUG: Continue with normal function only for authenticated users
     const netInfo = await NetInfo.fetch();
     console.log(`[placesController] DEBUG: Network connected: ${netInfo.isConnected}`);
 

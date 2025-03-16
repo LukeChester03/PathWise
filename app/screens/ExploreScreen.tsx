@@ -36,6 +36,7 @@ import {
   getNearbyPlacesState,
   updateNearbyPlaces,
   globalPlacesState,
+  checkAuthAndEnablePlacesLoading,
 } from "../controllers/Map/locationController";
 import { Colors, NeutralColors } from "../constants/colours";
 import PlacesCarousel from "../components/Places/PlacesCarousel";
@@ -62,6 +63,13 @@ export const preloadNearbyPlaces = async () => {
     }
 
     console.log("Starting place preloading from app initialization");
+
+    // Check auth state first - this enables places loading if user is logged in
+    const isLoggedIn = checkAuthAndEnablePlacesLoading();
+    if (!isLoggedIn) {
+      console.log("User not logged in, skipping places preload");
+      return;
+    }
 
     // Check if we're online first
     const netInfo = await NetInfo.fetch();
@@ -296,6 +304,15 @@ const ExploreScreen: React.FC<ExploreScreenProps> = ({ navigation }) => {
       }
       setError(null);
       setNoPlacesFound(false);
+
+      // Check auth state first - this enables places loading if user is logged in
+      const isLoggedIn = checkAuthAndEnablePlacesLoading();
+      if (!isLoggedIn) {
+        console.log("User not logged in, skipping places fetch");
+        setLoading(false);
+        setNoPlacesFound(true);
+        return;
+      }
 
       const currentLocation = await getCurrentLocation();
       if (!currentLocation) {

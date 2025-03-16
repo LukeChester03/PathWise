@@ -53,6 +53,7 @@ import { formatVisitDate } from "../utils/placeUtils";
 import AddressSection from "../components/PlaceDetails/AddressSection";
 import { Colors } from "../constants/colours";
 import NavigationService from "../services/Map/navigationService";
+import MapLoading from "../components/Map/MapLoading";
 
 // Create the navigation and route types
 type PlaceDetailsRouteProp = RouteProp<RootStackParamList, "PlaceDetails">;
@@ -377,12 +378,7 @@ const PlaceDetailsScreen: React.FC = () => {
     sectionsVisible;
 
   if (loading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#0066CC" />
-        <Text style={styles.loadingText}>Loading place details...</Text>
-      </View>
-    );
+    return <MapLoading />;
   }
 
   if (!placeDetails) {

@@ -23,6 +23,7 @@ import {
   updateNearbyPlaces,
   getLocationState,
   getNearbyPlacesState,
+  checkAuthAndEnablePlacesLoading,
 } from "../controllers/Map/locationController";
 import NetInfo from "@react-native-community/netinfo";
 
@@ -56,6 +57,40 @@ const MapScreen = () => {
   // Track the app state to prevent data fetching when app is in background
   const appStateRef = useRef<string>("active");
 
+  // This function needs to be OUTSIDE the useFocusEffect
+  const handleMapRetry = useCallback(() => {
+    // Only proceed if component is mounted
+    if (!isMountedRef.current) return;
+
+    // Check auth state first
+    const isLoggedIn = checkAuthAndEnablePlacesLoading();
+    if (!isLoggedIn) {
+      console.log("MapScreen: User not logged in, not retrying places load");
+      // Just update map to refresh view without places
+      setMapKey((prev) => prev + 1);
+      return;
+    }
+
+    // Reset the initialization flag to force a fresh data load
+    initialDataLoadedRef.current = false;
+
+    // Update map key to force re-rendering
+    setMapKey((prev) => prev + 1);
+
+    // Reset placeToShow on retry for a fresh state
+    setPlaceToShow(null);
+    processingPlaceRef.current = false;
+
+    // Force reload
+    getCurrentLocation().then((location) => {
+      if (location && isMountedRef.current) {
+        updateNearbyPlaces(location, true).then(() => {
+          console.log("MapScreen: Map data reloaded after retry");
+        });
+      }
+    });
+  }, []);
+
   // Force load data when the screen gains focus or becomes active
   useFocusEffect(
     useCallback(() => {
@@ -63,6 +98,15 @@ const MapScreen = () => {
         try {
           // Only proceed if component is mounted and app is active
           if (!isMountedRef.current || appStateRef.current !== "active") {
+            return;
+          }
+
+          // Check auth state first - this enables places loading if user is logged in
+          const isLoggedIn = checkAuthAndEnablePlacesLoading();
+          if (!isLoggedIn) {
+            console.log("MapScreen: User not logged in, skipping places data load");
+            setIsInitialized(true);
+            // Allow map to show but without places
             return;
           }
 
@@ -201,30 +245,6 @@ const MapScreen = () => {
   const handleCloseSettingsModal = () => {
     setShowDistanceSettingsModal(false);
   };
-
-  const handleMapRetry = useCallback(() => {
-    // Only proceed if component is mounted
-    if (!isMountedRef.current) return;
-
-    // Reset the initialization flag to force a fresh data load
-    initialDataLoadedRef.current = false;
-
-    // Update map key to force re-rendering
-    setMapKey((prev) => prev + 1);
-
-    // Reset placeToShow on retry for a fresh state
-    setPlaceToShow(null);
-    processingPlaceRef.current = false;
-
-    // Force reload
-    getCurrentLocation().then((location) => {
-      if (location && isMountedRef.current) {
-        updateNearbyPlaces(location, true).then(() => {
-          console.log("MapScreen: Map data reloaded after retry");
-        });
-      }
-    });
-  }, []);
 
   // Handle saving map settings and refreshing the map
   const handleSaveSettings = (newMaxPlaces: number, newSearchRadius: number): void => {

@@ -34,6 +34,15 @@ let lastPlacesUpdateLocation: Coordinate | null = null;
 let initializationInProgress = false;
 let placesPreloadComplete = false;
 
+// Flag to control places loading - DISABLED by default until user logs in
+let placesLoadingEnabled = false;
+
+// Function to enable/disable places loading
+export const setPlacesLoadingEnabled = (enabled: boolean) => {
+  console.log(`[locationController] Places loading ${enabled ? "ENABLED" : "DISABLED"}`);
+  placesLoadingEnabled = enabled;
+};
+
 // Global state for location and nearby places
 export const globalLocationState = {
   userLocation: null as Coordinate | null,
@@ -610,6 +619,12 @@ export const updateNearbyPlaces = async (
   forceRefresh: boolean = false
 ): Promise<boolean> => {
   try {
+    // Check if places loading is enabled
+    if (!placesLoadingEnabled) {
+      console.log(`[locationController] Places loading is disabled - skipping fetch`);
+      return false;
+    }
+
     // Check if app is in background
     if (AppState.currentState !== "active") {
       console.log("[locationController] App is in background, skipping places update");
@@ -746,10 +761,13 @@ export const initLocationAndPlaces = async (): Promise<void> => {
       globalLocationState.lastUpdated = Date.now();
       notifyLocationUpdates();
 
-      // If we don't have places yet, get them based on the stored location
-      if (globalPlacesState.places.length === 0) {
+      // If places loading is enabled and we don't have places yet, get them based on the stored location
+      // NOTE: This will be skipped until user logs in because placesLoadingEnabled starts as false
+      if (placesLoadingEnabled && globalPlacesState.places.length === 0) {
         console.log("[locationController] Loading places based on stored location");
         await updateNearbyPlaces(lastKnownLocation, false);
+      } else {
+        console.log("[locationController] Places loading not enabled, skipping place fetch");
       }
 
       // Mark preloading as complete after a short delay
@@ -778,8 +796,8 @@ export const initLocationAndPlaces = async (): Promise<void> => {
             globalLocationState.lastUpdated = Date.now();
             notifyLocationUpdates();
 
-            // Update places if needed
-            if (shouldUpdatePlaces(currentLocation)) {
+            // Update places if needed and if places loading is enabled
+            if (placesLoadingEnabled && shouldUpdatePlaces(currentLocation)) {
               updateNearbyPlaces(currentLocation, false);
             }
           }
@@ -823,9 +841,11 @@ export const initLocationAndPlaces = async (): Promise<void> => {
       // Notify location listeners
       notifyLocationUpdates();
 
-      // Load nearby places
-      if (globalPlacesState.places.length === 0) {
+      // Load nearby places only if placesLoadingEnabled is true (after login)
+      if (placesLoadingEnabled && globalPlacesState.places.length === 0) {
         await updateNearbyPlaces({ latitude, longitude }, false);
+      } else {
+        console.log("[locationController] Places loading not enabled, skipping place fetch");
       }
 
       // Mark preloading as complete
@@ -924,6 +944,74 @@ export const startLocationWatching = async (): Promise<() => void> => {
   try {
     console.log("🚀 Automatically initializing location tracking...");
 
+    // Start with places loading disabled - will be enabled after login
+    setPlacesLoadingEnabled(false);
+
+    // Setup app state change listener to avoid updating when in background
+    AppState.addEventListener("change", (nextAppState) => {
+      const appIsActive = nextAppState === "active";
+      console.log(`App state changed to: ${nextAppState}`);
+
+      // When app returns to active state, check if we need to refresh
+      if (appIsActive && globalLocationState.userLocation && placesLoadingEnabled) {
+        // Consider refreshing places data if it's been a while
+        const timeSinceLastUpdate = Date.now() - globalPlacesState.lastUpdated;
+        if (timeSinceLastUpdate > 5 * 60 * 1000) {
+          // 5 minutes
+          console.log("[locationController] App returned to foreground, refreshing places");
+          updateNearbyPlaces(globalLocationState.userLocation, false);
+        }
+      }
+    });
+
+    await initLocationAndPlaces();
+  } catch (error) {
+    console.error("❌ Error in automatic location initialization:", error);
+    markPreloadingComplete();
+    initializationInProgress = false;
+  }
+})();
+
+/**
+ * Public function to check if places loading is enabled
+ */
+export const isPlacesLoadingEnabled = (): boolean => {
+  return placesLoadingEnabled;
+};
+
+/**
+ * Auto-check authentication and enable places loading if needed
+ * Call this from screens that need places data
+ */
+export const checkAuthAndEnablePlacesLoading = (): boolean => {
+  const currentUser = auth.currentUser;
+  const wasEnabled = placesLoadingEnabled;
+
+  if (currentUser) {
+    // User is logged in, enable places loading
+    if (!placesLoadingEnabled) {
+      console.log("[locationController] User is logged in, enabling places loading");
+      setPlacesLoadingEnabled(true);
+    }
+    return true;
+  } else {
+    // User is not logged in, disable places loading
+    if (placesLoadingEnabled) {
+      console.log("[locationController] User is not logged in, disabling places loading");
+      setPlacesLoadingEnabled(false);
+    }
+    return false;
+  }
+};
+
+// Also modify the auto-init function to check auth on startup:
+(async function initializeAutomatically() {
+  try {
+    console.log("🚀 Automatically initializing location tracking...");
+
+    // Check auth state right away - if logged in, enable places loading
+    checkAuthAndEnablePlacesLoading();
+
     // Setup app state change listener to avoid updating when in background
     AppState.addEventListener("change", (nextAppState) => {
       const appIsActive = nextAppState === "active";
@@ -931,12 +1019,17 @@ export const startLocationWatching = async (): Promise<() => void> => {
 
       // When app returns to active state, check if we need to refresh
       if (appIsActive && globalLocationState.userLocation) {
-        // Consider refreshing places data if it's been a while
-        const timeSinceLastUpdate = Date.now() - globalPlacesState.lastUpdated;
-        if (timeSinceLastUpdate > 5 * 60 * 1000) {
-          // 5 minutes
-          console.log("[locationController] App returned to foreground, refreshing places");
-          updateNearbyPlaces(globalLocationState.userLocation, false);
+        // Check auth state again
+        const isEnabled = checkAuthAndEnablePlacesLoading();
+
+        // Consider refreshing places data if logged in and it's been a while
+        if (isEnabled) {
+          const timeSinceLastUpdate = Date.now() - globalPlacesState.lastUpdated;
+          if (timeSinceLastUpdate > 5 * 60 * 1000) {
+            // 5 minutes
+            console.log("[locationController] App returned to foreground, refreshing places");
+            updateNearbyPlaces(globalLocationState.userLocation, false);
+          }
         }
       }
     });
