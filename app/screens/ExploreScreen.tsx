@@ -464,7 +464,6 @@ const ExploreScreen: React.FC<ExploreScreenProps> = ({ navigation }) => {
       if (isConnected && !place.hasFullDetails) {
         try {
           console.log(`Fetching full details for ${place.name} before navigation`);
-          Alert.alert("Loading place details...");
 
           const detailedPlace = await fetchPlaceDetailsOnDemand(place.place_id);
 
