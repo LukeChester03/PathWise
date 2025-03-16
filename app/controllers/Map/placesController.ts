@@ -26,24 +26,29 @@ import {
   increment,
   limit,
   orderBy,
+  deleteDoc,
 } from "firebase/firestore";
 import { db, auth } from "../../config/firebaseConfig";
 
-// CONSTANTS FOR CACHING
+// CONSTANTS FOR CACHING - STANDARDIZED TO 2 MONTHS
+const TWO_MONTHS_MS = 60 * 24 * 60 * 60 * 1000; // 60 days in milliseconds
 const SEARCH_RADIUS_KM = 25; // 25km radius (5km buffer beyond our refresh threshold)
 const SEARCH_RADIUS_METERS = SEARCH_RADIUS_KM * 1000; // 25km in meters
 const MAX_PLACES_TO_FETCH = 100; // Limit to 100 places
 const RECACHE_THRESHOLD_KM = 20; // Only re-fetch when user moves 20km from cache center
-const CACHE_EXPIRATION_TIME = 30 * 24 * 60 * 60 * 1000; // 30 days for area cache
-const LOCAL_CACHE_KEY = "local_places_cache_v2"; // Fallback local cache key
-const LOCAL_DETAILS_CACHE_KEY = "place_details_cache_v1"; // Local cache for place details
+const CACHE_EXPIRATION_TIME = TWO_MONTHS_MS; // Standardized to 2 months for all caches
+const LOCAL_CACHE_KEY = "local_places_cache_v3"; // Updated version for new cache format
+const LOCAL_DETAILS_CACHE_KEY = "place_details_cache_v2"; // Updated version for new cache format
 const DETAILS_CACHE_SIZE = 200; // Maximum number of place details to cache locally
-const MAX_DETAILS_TO_FETCH = 20; // Pre-fetch details for the closest 20 places to ensure they're ready when clicked
-const DETAILS_REFRESH_THRESHOLD = 90 * 24 * 60 * 60 * 1000; // 90 days before refreshing place details
-const BACKGROUND_FETCH_DELAY = 500; // Delay between background detail fetches to not overwhelm the system
+const MAX_DETAILS_TO_FETCH = 20; // Pre-fetch details for the closest 20 places
+const DETAILS_REFRESH_THRESHOLD = TWO_MONTHS_MS; // Standardized to 2 months
+const BACKGROUND_FETCH_DELAY = 500; // Delay between background detail fetches
 const BATCH_SIZE = 10; // Size of batches for Firebase operations
+const CACHE_CLEANUP_INTERVAL = 7 * 24 * 60 * 60 * 1000; // Clean cache weekly
+const LAST_CLEANUP_KEY = "last_cache_cleanup"; // Key to track last cleanup time
 const MIN_TOURISM_SCORE_THRESHOLD = 40; // Minimum tourism score to consider a place as a tourist attraction
 const DEFINITELY_NOT_TOURIST_SCORE = -50; // Score for places that are definitely not tourist attractions
+const MAX_PAGES = 2; // Reduced from 3 to 2 to limit API calls
 
 // Types of places we want to exclude (not tourist attractions)
 const NON_TOURIST_TYPES = [
@@ -228,6 +233,7 @@ interface FirebaseCacheEntry {
   radiusKm: number;
   timestamp: Timestamp;
   updatedAt: Timestamp;
+  expiresAt: Timestamp; // NEW: Explicit expiration timestamp
   placeIds: string[];
 }
 
@@ -235,13 +241,15 @@ interface FirebaseCacheEntry {
 interface MemoryCache {
   cacheEntry: FirebaseCacheEntry | null;
   places: Place[];
+  lastUpdated: number; // NEW: Track when the cache was last updated
 }
 
-// Details cache entry
+// Details cache entry - Updated with explicit expiration
 interface DetailsCacheEntry {
   placeId: string;
   place: Place;
   fetchedAt: number;
+  expiresAt: number; // NEW: Explicit expiration time
   lastViewed?: number;
 }
 
@@ -249,6 +257,7 @@ interface DetailsCacheEntry {
 let memoryCache: MemoryCache = {
   cacheEntry: null,
   places: [],
+  lastUpdated: 0,
 };
 
 // In-memory details cache
@@ -260,6 +269,9 @@ let detailsFetchQueue: Set<string> = new Set();
 // Flag to track background processing status
 let isProcessingBackground = false;
 let detailsFetchPromises: Map<string, Promise<Place | null>> = new Map();
+
+// NEW: Track last cache cleanup time
+let lastCacheCleanupTime = 0;
 
 /**
  * Safe timestamp helper function
@@ -325,7 +337,7 @@ const safeGetDate = (timestamp: any): Date => {
 
 /**
  * Sanitize place data to make it Firestore-compatible
- * Replaces undefined values with null and handles nested objects
+ * Removes undefined values, functions, and redundant data
  */
 const sanitizeForFirebase = (data: any): any => {
   if (data === undefined) {
@@ -346,6 +358,12 @@ const sanitizeForFirebase = (data: any): any => {
     if (typeof data[key] === "function" || typeof data[key] === "symbol") {
       continue;
     }
+
+    // Skip redundant fields to reduce storage size
+    if (key === "hasFullDetails" || key === "detailsFetchedAt") {
+      continue;
+    }
+
     result[key] = sanitizeForFirebase(data[key]);
   }
 
@@ -363,7 +381,7 @@ const getAreaKey = (lat: number, lng: number): string => {
 };
 
 /**
- * Check if a Firebase cache entry is valid for current position
+ * Check if a Firebase cache entry is valid for current position and not expired
  */
 const isCacheEntryValidForPosition = (
   cacheEntry: FirebaseCacheEntry,
@@ -373,17 +391,26 @@ const isCacheEntryValidForPosition = (
   // Check if cache entry is expired
   const now = new Date();
 
-  // Use the safe function to get the date from timestamp
-  const cacheDate = safeGetDate(cacheEntry.timestamp);
-  const ageMs = now.getTime() - cacheDate.getTime();
+  // First check explicit expiration date if available
+  if (cacheEntry.expiresAt) {
+    const expiryDate = safeGetDate(cacheEntry.expiresAt);
+    if (now > expiryDate) {
+      console.log("[placesController] Cache entry expired based on explicit expiresAt");
+      return false;
+    }
+  } else {
+    // Fallback to checking based on timestamp
+    const cacheDate = safeGetDate(cacheEntry.timestamp);
+    const ageMs = now.getTime() - cacheDate.getTime();
 
-  if (ageMs > CACHE_EXPIRATION_TIME) {
-    console.log(
-      `[placesController] Cache entry expired (${Math.round(
-        ageMs / (1000 * 60 * 60 * 24)
-      )} days old)`
-    );
-    return false;
+    if (ageMs > CACHE_EXPIRATION_TIME) {
+      console.log(
+        `[placesController] Cache entry expired (${Math.round(
+          ageMs / (1000 * 60 * 60 * 24)
+        )} days old)`
+      );
+      return false;
+    }
   }
 
   // Check if current position is within cached area
@@ -408,10 +435,150 @@ const isCacheEntryValidForPosition = (
 };
 
 /**
- * Initialize memory caches from local storage
+ * NEW: Clean up expired cache entries from all storage
+ */
+const cleanupExpiredCacheEntries = async (): Promise<void> => {
+  const now = Date.now();
+
+  // Only run cleanup if it's been at least CACHE_CLEANUP_INTERVAL since the last cleanup
+  const lastCleanup = await AsyncStorage.getItem(LAST_CLEANUP_KEY);
+  const lastCleanupTime = lastCleanup ? parseInt(lastCleanup, 10) : 0;
+
+  if (now - lastCleanupTime < CACHE_CLEANUP_INTERVAL) {
+    console.log("[placesController] Skipping cache cleanup, last cleanup was recent");
+    return;
+  }
+
+  console.log("[placesController] Starting cache cleanup process");
+
+  try {
+    // 1. Clean memory caches
+    // Clean details cache
+    const expiredDetailIds: string[] = [];
+    detailsCache.forEach((entry, id) => {
+      if (now > entry.expiresAt) {
+        expiredDetailIds.push(id);
+      }
+    });
+
+    expiredDetailIds.forEach((id) => detailsCache.delete(id));
+    console.log(
+      `[placesController] Removed ${expiredDetailIds.length} expired entries from details cache`
+    );
+
+    // 2. Clean AsyncStorage (will be done when we persist the cleaned memory cache)
+
+    // 3. Clean Firebase if user is logged in
+    if (auth.currentUser) {
+      // Clean expired cache entries
+      try {
+        const cachesRef = collection(db, "placeCaches");
+        const cachesSnapshot = await getDocs(cachesRef);
+
+        const batch = writeBatch(db);
+        let batchCount = 0;
+        let deleteCount = 0;
+
+        for (const cacheDoc of cachesSnapshot.docs) {
+          const cacheData = cacheDoc.data();
+          let isExpired = false;
+
+          // Check explicit expiration
+          if (cacheData.expiresAt) {
+            const expiryDate = safeGetDate(cacheData.expiresAt);
+            isExpired = new Date() > expiryDate;
+          } else {
+            // Check based on timestamp
+            const timestamp = safeGetDate(cacheData.timestamp);
+            isExpired = now - timestamp.getTime() > CACHE_EXPIRATION_TIME;
+          }
+
+          if (isExpired) {
+            batch.delete(doc(db, "placeCaches", cacheDoc.id));
+            deleteCount++;
+            batchCount++;
+
+            // Commit batch if it reaches the limit
+            if (batchCount >= BATCH_SIZE) {
+              await batch.commit();
+              batchCount = 0;
+            }
+          }
+        }
+
+        // Commit any remaining deletes
+        if (batchCount > 0) {
+          await batch.commit();
+        }
+
+        console.log(
+          `[placesController] Deleted ${deleteCount} expired cache entries from Firebase`
+        );
+      } catch (error) {
+        console.error("[placesController] Error cleaning up Firebase cache:", error);
+      }
+
+      // Clean expired place details
+      try {
+        const twoMonthsAgo = new Date(now - CACHE_EXPIRATION_TIME);
+        const detailsRef = collection(db, "placeDetails");
+        const oldDetailsQuery = query(
+          detailsRef,
+          where("fetchedAt", "<", Timestamp.fromDate(twoMonthsAgo)),
+          limit(BATCH_SIZE * 5) // Limit to avoid excessive operations
+        );
+
+        const oldDetailsSnapshot = await getDocs(oldDetailsQuery);
+
+        if (!oldDetailsSnapshot.empty) {
+          const batch = writeBatch(db);
+          let batchCount = 0;
+
+          oldDetailsSnapshot.forEach((doc) => {
+            batch.delete(doc.ref);
+            batchCount++;
+
+            if (batchCount >= BATCH_SIZE) {
+              batch.commit().catch((e) => console.error("Error committing delete batch:", e));
+              batchCount = 0;
+            }
+          });
+
+          if (batchCount > 0) {
+            batch.commit().catch((e) => console.error("Error committing final delete batch:", e));
+          }
+
+          console.log(
+            `[placesController] Deleted ${oldDetailsSnapshot.size} old place details from Firebase`
+          );
+        }
+      } catch (error) {
+        console.error("[placesController] Error cleaning up old place details:", error);
+      }
+    }
+
+    // Update the last cleanup time
+    await AsyncStorage.setItem(LAST_CLEANUP_KEY, now.toString());
+    lastCacheCleanupTime = now;
+
+    console.log("[placesController] Cache cleanup completed");
+  } catch (error) {
+    console.error("[placesController] Error during cache cleanup:", error);
+  }
+};
+
+/**
+ * Initialize memory caches from local storage with expiration checks
  */
 const initializeCaches = async () => {
   try {
+    const now = Date.now();
+
+    // Check if cleanup is needed
+    cleanupExpiredCacheEntries().catch((e) =>
+      console.error("[placesController] Error during cache cleanup:", e)
+    );
+
     // Load the area cache first
     const cacheData = await AsyncStorage.getItem(LOCAL_CACHE_KEY);
     if (cacheData) {
@@ -422,15 +589,21 @@ const initializeCaches = async () => {
         parsedCache.places.length > 0
       ) {
         // Check if cache is expired
-        const cacheAge = Date.now() - parsedCache.timestamp;
-        if (cacheAge <= CACHE_EXPIRATION_TIME) {
+        const isCacheExpired = parsedCache.expiresAt
+          ? now > parsedCache.expiresAt
+          : now - parsedCache.timestamp > CACHE_EXPIRATION_TIME;
+
+        if (!isCacheExpired) {
           memoryCache = {
             cacheEntry: parsedCache.cacheEntry,
             places: parsedCache.places,
+            lastUpdated: parsedCache.timestamp || Date.now(),
           };
           console.log(
             `[placesController] Loaded ${memoryCache.places.length} places from local storage`
           );
+        } else {
+          console.log("[placesController] Local cache is expired, not loading");
         }
       }
     }
@@ -440,13 +613,24 @@ const initializeCaches = async () => {
     if (detailsData) {
       const parsedDetails = JSON.parse(detailsData);
       if (Array.isArray(parsedDetails) && parsedDetails.length > 0) {
-        // Convert array back to Map
+        // Convert array back to Map, filtering out expired entries
         detailsCache = new Map();
         parsedDetails.forEach((entry: DetailsCacheEntry) => {
-          detailsCache.set(entry.placeId, entry);
+          // Skip expired entries
+          const isExpired = entry.expiresAt
+            ? now > entry.expiresAt
+            : now - entry.fetchedAt > DETAILS_REFRESH_THRESHOLD;
+
+          if (!isExpired) {
+            // Ensure expiresAt is set
+            if (!entry.expiresAt) {
+              entry.expiresAt = entry.fetchedAt + DETAILS_REFRESH_THRESHOLD;
+            }
+            detailsCache.set(entry.placeId, entry);
+          }
         });
         console.log(
-          `[placesController] Loaded ${detailsCache.size} place details from local storage`
+          `[placesController] Loaded ${detailsCache.size} valid place details from local storage`
         );
       }
     }
@@ -456,16 +640,18 @@ const initializeCaches = async () => {
 };
 
 /**
- * Save memory caches to local storage
+ * Save memory caches to local storage with expiration data
  */
 const persistCaches = async () => {
   try {
     // Save area cache
     if (memoryCache.places.length > 0) {
+      const now = Date.now();
       const cacheData = {
         cacheEntry: memoryCache.cacheEntry,
         places: memoryCache.places,
-        timestamp: Date.now(),
+        timestamp: now,
+        expiresAt: now + CACHE_EXPIRATION_TIME,
       };
       await AsyncStorage.setItem(LOCAL_CACHE_KEY, JSON.stringify(cacheData));
     }
@@ -489,10 +675,17 @@ const persistCaches = async () => {
 initializeCaches();
 
 /**
- * Check if place details need a refresh based on age
+ * Check if place details need a refresh based on explicit expiration or age
  */
 const needsDetailsRefresh = (detailsEntry: DetailsCacheEntry): boolean => {
   const now = Date.now();
+
+  // Check explicit expiration first
+  if (detailsEntry.expiresAt) {
+    return now > detailsEntry.expiresAt;
+  }
+
+  // Fallback to age check
   const age = now - detailsEntry.fetchedAt;
   return age > DETAILS_REFRESH_THRESHOLD;
 };
@@ -590,7 +783,7 @@ const fetchCacheEntryForPosition = async (
 };
 
 /**
- * Create a new cache entry in Firebase with proper batch handling
+ * Create a new cache entry in Firebase with proper batch handling and explicit expiration
  */
 const createNewCacheEntry = async (
   latitude: number,
@@ -606,12 +799,13 @@ const createNewCacheEntry = async (
 
     const areaKey = getAreaKey(latitude, longitude);
     const now = new Date();
+    const expiryDate = new Date(now.getTime() + CACHE_EXPIRATION_TIME);
 
     // Track place IDs to include in cache entry
     const placeIds: string[] = [];
 
     // Process places in smaller batches to avoid issues
-    const batchSize = 10; // Maximum 10 places per batch
+    const batchSize = BATCH_SIZE; // Maximum 10 places per batch
 
     for (let i = 0; i < places.length; i += batchSize) {
       // Create a new batch for each group of places
@@ -640,6 +834,7 @@ const createNewCacheEntry = async (
           },
           cachedAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
+          expiresAt: Timestamp.fromDate(expiryDate), // Add explicit expiration
           viewCount: increment(0), // Initialize if doesn't exist
         };
 
@@ -662,6 +857,7 @@ const createNewCacheEntry = async (
       radiusKm: SEARCH_RADIUS_KM,
       timestamp: Timestamp.fromDate(now),
       updatedAt: Timestamp.fromDate(now),
+      expiresAt: Timestamp.fromDate(expiryDate), // Add explicit expiration
       placeIds: placeIds,
     };
 
@@ -943,7 +1139,7 @@ const createPlaceObjectFromApiResult = (place: any, latitude: number, longitude:
 };
 
 /**
- * Check the permanent details collection for existing place details
+ * Check the permanent details collection for existing place details with expiration awareness
  */
 const checkPlaceDetailsCollection = async (placeId: string): Promise<Place | null> => {
   try {
@@ -957,9 +1153,19 @@ const checkPlaceDetailsCollection = async (placeId: string): Promise<Place | nul
       const detailsData = detailsDoc.data();
 
       // Check if details are still valid or need refreshing
-      const fetchedAt = detailsData.fetchedAt?.toDate().getTime() || 0;
-      const now = Date.now();
-      const age = now - fetchedAt;
+      // First check explicit expiration if available
+      let needsRefresh = false;
+
+      if (detailsData.expiresAt) {
+        const expiryDate = safeGetDate(detailsData.expiresAt);
+        needsRefresh = new Date() > expiryDate;
+      } else {
+        // Fallback to checking timestamp
+        const fetchedAt = detailsData.fetchedAt?.toDate().getTime() || 0;
+        const now = Date.now();
+        const age = now - fetchedAt;
+        needsRefresh = age > DETAILS_REFRESH_THRESHOLD;
+      }
 
       // Convert GeoPoint back to lat/lng object
       const place: Place = {
@@ -971,7 +1177,7 @@ const checkPlaceDetailsCollection = async (placeId: string): Promise<Place | nul
           },
         },
         hasFullDetails: true,
-        detailsFetchedAt: fetchedAt,
+        detailsFetchedAt: detailsData.fetchedAt?.toDate().getTime() || Date.now(),
       } as Place;
 
       // Record usage stats
@@ -986,16 +1192,14 @@ const checkPlaceDetailsCollection = async (placeId: string): Promise<Place | nul
         console.log("Error updating place view stats:", statsError);
       }
 
-      if (age <= DETAILS_REFRESH_THRESHOLD) {
+      if (!needsRefresh) {
         console.log(
           `[placesController] Found fresh details in permanent collection for: ${placeId}`
         );
         return place;
       } else {
         console.log(
-          `[placesController] Found stale details (age: ${Math.round(
-            age / 86400000
-          )} days) in permanent collection for: ${placeId} - will refresh in background`
+          `[placesController] Found stale details in permanent collection for: ${placeId} - will refresh in background`
         );
 
         // Return existing details but queue a refresh in the background if online
@@ -1027,7 +1231,7 @@ const checkPlaceDetailsCollection = async (placeId: string): Promise<Place | nul
 };
 
 /**
- * Save place details to the permanent collection
+ * Save place details to the permanent collection with explicit expiration
  */
 const savePlaceDetailsPermanently = async (place: Place): Promise<void> => {
   try {
@@ -1035,6 +1239,10 @@ const savePlaceDetailsPermanently = async (place: Place): Promise<void> => {
 
     // Sanitize place data for Firebase
     const sanitizedPlace = sanitizeForFirebase(place);
+
+    // Calculate expiration date
+    const now = new Date();
+    const expiryDate = new Date(now.getTime() + CACHE_EXPIRATION_TIME);
 
     // Convert place to Firestore-compatible format
     const placeData = {
@@ -1044,6 +1252,7 @@ const savePlaceDetailsPermanently = async (place: Place): Promise<void> => {
       },
       fetchedAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
+      expiresAt: Timestamp.fromDate(expiryDate), // Add explicit expiration
       viewCount: increment(1),
       lastViewed: serverTimestamp(),
       hasFullDetails: true,
@@ -1062,6 +1271,7 @@ const savePlaceDetailsPermanently = async (place: Place): Promise<void> => {
 
 /**
  * Fetch place details directly from Google API
+ * IMPROVED: Better deduplication and caching
  */
 const fetchPlaceDetailsFromGoogle = async (
   placeId: string,
@@ -1127,6 +1337,10 @@ const fetchPlaceDetailsFromGoogle = async (
         // Calculate tourism score for the place
         const tourismScore = calculateTourismScore(data.result);
 
+        // Set expiration time for the details
+        const now = Date.now();
+        const expiresAt = now + CACHE_EXPIRATION_TIME;
+
         // Create place object with full details - use nulls not undefined
         const detailedPlace: Place = {
           place_id: data.result.place_id,
@@ -1171,12 +1385,13 @@ const fetchPlaceDetailsFromGoogle = async (
           // Continue anyway - we still want to return the data
         }
 
-        // Update the details cache
+        // Update the details cache with expiration time
         detailsCache.set(placeId, {
           placeId,
           place: detailedPlace,
-          fetchedAt: Date.now(),
-          lastViewed: Date.now(),
+          fetchedAt: now,
+          expiresAt: expiresAt, // Add explicit expiration
+          lastViewed: now,
         });
 
         // Update memory cache
@@ -1195,7 +1410,7 @@ const fetchPlaceDetailsFromGoogle = async (
           try {
             const placeRef = doc(db, "places", placeId);
 
-            // Create a Firestore-compatible object with GeoPoint
+            // Create a Firestore-compatible object with GeoPoint and expiration
             const firestorePlace = {
               ...sanitizedPlace,
               geometry: {
@@ -1205,6 +1420,7 @@ const fetchPlaceDetailsFromGoogle = async (
                 ),
               },
               updatedAt: serverTimestamp(),
+              expiresAt: Timestamp.fromDate(new Date(expiresAt)), // Add explicit expiration
               hasFullDetails: true,
               lastDetailsUpdate: serverTimestamp(),
               tourismScore: tourismScore,
@@ -1252,7 +1468,7 @@ const fetchPlaceDetailsFromGoogle = async (
  * Process batch of places in the background
  * This checks Firebase FIRST before making API calls
  */
-const processPendingPlacesBatch = async () => {
+const processPendingPlacesBatch = async (): Promise<void> => {
   if (isProcessingBackground) return;
 
   try {
@@ -1313,6 +1529,24 @@ const processPendingPlacesBatch = async () => {
         foundInFirebase.add(placeId);
 
         const detailsData = detailsDoc.data();
+
+        // Check if the Firebase entry is expired
+        let isExpired = false;
+        if (detailsData.expiresAt) {
+          const expiryDate = safeGetDate(detailsData.expiresAt);
+          isExpired = new Date() > expiryDate;
+        } else {
+          // Fallback to checking timestamp
+          const fetchedAt = detailsData.fetchedAt?.toDate().getTime() || 0;
+          const now = Date.now();
+          isExpired = now - fetchedAt > DETAILS_REFRESH_THRESHOLD;
+        }
+
+        if (isExpired) {
+          // Skip expired entries
+          continue;
+        }
+
         const place = {
           ...detailsData,
           geometry: {
@@ -1334,11 +1568,17 @@ const processPendingPlacesBatch = async () => {
           };
         }
 
+        // Calculate expiration if missing
+        const expiresAt = detailsData.expiresAt
+          ? safeGetDate(detailsData.expiresAt).getTime()
+          : (place.detailsFetchedAt || Date.now()) + DETAILS_REFRESH_THRESHOLD;
+
         // Update details cache
         detailsCache.set(placeId, {
           placeId,
           place,
           fetchedAt: place.detailsFetchedAt || Date.now(),
+          expiresAt: expiresAt,
           lastViewed: Date.now(),
         });
 
@@ -1412,8 +1652,7 @@ const processPendingPlacesBatch = async () => {
 
 /**
  * MAIN FUNCTION: Fetch places with details in one go and cache them
- * MAJOR UPDATE: Improved to ensure only genuine tourist attractions are returned,
- * and we only query for new places when the user moves outside the 20km radius
+ * IMPROVED: Optimized API calls, better caching, and standardized expiration
  */
 export const fetchNearbyPlaces = async (
   latitude: number,
@@ -1428,14 +1667,12 @@ export const fetchNearbyPlaces = async (
     );
 
     // DEBUG: Log cache state at the beginning
-    console.log(`[placesController] DEBUG: Memory cache has ${memoryCache.places.length} places`);
-    console.log(`[placesController] DEBUG: Cache entry exists? ${memoryCache.cacheEntry !== null}`);
+    console.log(`[placesController] Memory cache has ${memoryCache.places.length} places`);
+    console.log(`[placesController] Cache entry exists? ${memoryCache.cacheEntry !== null}`);
 
     // DEBUG: Check Firebase authentication state
     const authUser = auth.currentUser;
-    console.log(
-      `[placesController] DEBUG: Firebase auth state - User logged in: ${authUser !== null}`
-    );
+    console.log(`[placesController] Firebase auth state - User logged in: ${authUser !== null}`);
 
     // AUTHENTICATION CHECK: Only proceed with API calls if user is logged in
     if (!authUser) {
@@ -1481,13 +1718,30 @@ export const fetchNearbyPlaces = async (
       };
     }
 
-    // DEBUG: Continue with normal function only for authenticated users
+    // Check network status first
     const netInfo = await NetInfo.fetch();
-    console.log(`[placesController] DEBUG: Network connected: ${netInfo.isConnected}`);
+    if (!netInfo.isConnected && memoryCache.places.length > 0) {
+      console.log("[placesController] No network connection, using cache only");
 
-    // DEBUG: Check quota
-    const quota = await hasQuotaAvailable("places");
-    console.log(`[placesController] DEBUG: API quota available: ${quota}`);
+      // Return cached places with updated distances
+      const placesWithDistance = memoryCache.places
+        .map((place) => ({
+          ...place,
+          distance: haversineDistance(
+            latitude,
+            longitude,
+            place.geometry.location.lat,
+            place.geometry.location.lng
+          ),
+        }))
+        .sort((a, b) => (a.distance || 0) - (b.distance || 0))
+        .slice(0, MAX_PLACES_TO_FETCH);
+
+      return {
+        places: placesWithDistance,
+        furthestDistance: SEARCH_RADIUS_METERS,
+      };
+    }
 
     // STEP 1: Check if we have this in memory cache
     if (
@@ -1546,6 +1800,7 @@ export const fetchNearbyPlaces = async (
             memoryCache = {
               cacheEntry,
               places,
+              lastUpdated: Date.now(),
             };
 
             // Save to local storage as backup
@@ -1674,7 +1929,6 @@ export const fetchNearbyPlaces = async (
     let allResults: any[] = [];
     let nextPageToken: string | null = null;
     let pageCount = 0;
-    const MAX_PAGES = 3; // Limit to 3 pages (up to 60 results) to avoid excessive API calls
 
     do {
       // Build URL for wide-area search with BASIC details only
@@ -1791,6 +2045,7 @@ export const fetchNearbyPlaces = async (
             memoryCache = {
               cacheEntry: newCacheEntry,
               places: basicPlaces,
+              lastUpdated: Date.now(),
             };
 
             // Save to local storage as backup
@@ -1805,6 +2060,7 @@ export const fetchNearbyPlaces = async (
       memoryCache = {
         cacheEntry: null,
         places: basicPlaces,
+        lastUpdated: Date.now(),
       };
 
       // Save to local storage if not using Firebase
@@ -1839,7 +2095,7 @@ export const fetchNearbyPlaces = async (
 
 /**
  * Fetch place details on demand - used when a user selects a place
- * ENHANCED: Always fetches full details on marker click and permanently stores them
+ * ENHANCED: Better caching, single API call strategy, and standardized expiration
  */
 export const fetchPlaceDetailsOnDemand = async (placeId: string): Promise<Place | null> => {
   try {
@@ -1871,8 +2127,14 @@ export const fetchPlaceDetailsOnDemand = async (placeId: string): Promise<Place 
       // Update last viewed time
       cachedDetails.lastViewed = Date.now();
 
+      // Check if expired
+      const now = Date.now();
+      const isExpired = cachedDetails.expiresAt
+        ? now > cachedDetails.expiresAt
+        : needsDetailsRefresh(cachedDetails);
+
       // If details are stale, queue a refresh in the background
-      if (needsDetailsRefresh(cachedDetails)) {
+      if (isExpired) {
         console.log(`[placesController] Details are stale, queuing background refresh`);
         NetInfo.fetch().then((state) => {
           if (state.isConnected) {
@@ -1896,13 +2158,14 @@ export const fetchPlaceDetailsOnDemand = async (placeId: string): Promise<Place 
         `[placesController] Found place with full details in memory cache: ${cachedPlace.name}`
       );
 
-      // Add to details cache
+      // Add to details cache with expiration
+      const now = Date.now();
       detailsCache.set(placeId, {
         placeId,
         place: cachedPlace,
-        fetchedAt:
-          cachedPlace.detailsFetchedAt || Date.now() - DETAILS_REFRESH_THRESHOLD + 86400000,
-        lastViewed: Date.now(),
+        fetchedAt: cachedPlace.detailsFetchedAt || now - DETAILS_REFRESH_THRESHOLD + 86400000,
+        expiresAt: (cachedPlace.detailsFetchedAt || now) + DETAILS_REFRESH_THRESHOLD,
+        lastViewed: now,
       });
 
       return cachedPlace;
@@ -1923,12 +2186,15 @@ export const fetchPlaceDetailsOnDemand = async (placeId: string): Promise<Place 
               `[placesController] Found permanent details in Firebase for: ${permanentDetails.name}`
             );
 
-            // Add to details cache
+            // Add to details cache with expiration
+            const now = Date.now();
+            const fetchedAt = permanentDetails.detailsFetchedAt || now;
             detailsCache.set(placeId, {
               placeId,
               place: permanentDetails,
-              fetchedAt: permanentDetails.detailsFetchedAt || Date.now(),
-              lastViewed: Date.now(),
+              fetchedAt: fetchedAt,
+              expiresAt: fetchedAt + DETAILS_REFRESH_THRESHOLD,
+              lastViewed: now,
             });
 
             return permanentDetails;
@@ -1976,8 +2242,14 @@ export const fetchPlaceById = async (placeId: string): Promise<Place | null> => 
       // Update last viewed time
       cachedDetails.lastViewed = Date.now();
 
-      // Background refresh if stale
-      if (needsDetailsRefresh(cachedDetails)) {
+      // Check if expired
+      const now = Date.now();
+      const isExpired = cachedDetails.expiresAt
+        ? now > cachedDetails.expiresAt
+        : needsDetailsRefresh(cachedDetails);
+
+      // Background refresh if expired
+      if (isExpired) {
         NetInfo.fetch().then((state) => {
           if (state.isConnected && !detailsFetchQueue.has(placeId)) {
             setTimeout(() => {
@@ -1999,11 +2271,15 @@ export const fetchPlaceById = async (placeId: string): Promise<Place | null> => 
 
       // If it has full details, add to details cache
       if (cachedPlace.hasFullDetails) {
+        const now = Date.now();
+        const fetchedAt = cachedPlace.detailsFetchedAt || now;
+
         detailsCache.set(placeId, {
           placeId,
           place: cachedPlace,
-          fetchedAt: cachedPlace.detailsFetchedAt || Date.now(),
-          lastViewed: Date.now(),
+          fetchedAt: fetchedAt,
+          expiresAt: fetchedAt + DETAILS_REFRESH_THRESHOLD,
+          lastViewed: now,
         });
 
         return cachedPlace;
@@ -2033,6 +2309,21 @@ export const fetchPlaceById = async (placeId: string): Promise<Place | null> => 
       if (placeDoc.exists()) {
         const placeData = placeDoc.data();
 
+        // Check if expired
+        let isExpired = false;
+        if (placeData.expiresAt) {
+          const expiryDate = safeGetDate(placeData.expiresAt);
+          isExpired = new Date() > expiryDate;
+        } else if (placeData.fetchedAt) {
+          const fetchedAt = safeGetDate(placeData.fetchedAt).getTime();
+          isExpired = Date.now() - fetchedAt > DETAILS_REFRESH_THRESHOLD;
+        }
+
+        // If expired, fetch new version
+        if (isExpired) {
+          return await fetchPlaceDetailsOnDemand(placeId);
+        }
+
         console.log(
           `[placesController] Found place in Firebase places collection: ${placeData.name}`
         );
@@ -2050,11 +2341,17 @@ export const fetchPlaceById = async (placeId: string): Promise<Place | null> => 
 
         // If it has full details, add to details cache
         if (place.hasFullDetails) {
+          const now = Date.now();
+          const fetchedAt = placeData.lastDetailsUpdate?.toDate().getTime() || now;
+
           detailsCache.set(placeId, {
             placeId,
             place,
-            fetchedAt: placeData.lastDetailsUpdate?.toDate().getTime() || Date.now(),
-            lastViewed: Date.now(),
+            fetchedAt: fetchedAt,
+            expiresAt: placeData.expiresAt
+              ? safeGetDate(placeData.expiresAt).getTime()
+              : fetchedAt + DETAILS_REFRESH_THRESHOLD,
+            lastViewed: now,
           });
 
           return place;
@@ -2077,7 +2374,7 @@ export const fetchPlaceById = async (placeId: string): Promise<Place | null> => 
  * Clear caches (for debugging or troubleshooting)
  */
 export const clearPlacesCache = async (): Promise<void> => {
-  memoryCache = { cacheEntry: null, places: [] };
+  memoryCache = { cacheEntry: null, places: [], lastUpdated: 0 };
   detailsCache.clear();
   await AsyncStorage.removeItem(LOCAL_CACHE_KEY);
   await AsyncStorage.removeItem(LOCAL_DETAILS_CACHE_KEY);
@@ -2130,7 +2427,12 @@ export const getCacheStats = async (): Promise<{
   // Calculate details cache freshness
   const now = Date.now();
   detailsCache.forEach((entry) => {
-    if (now - entry.fetchedAt <= DETAILS_REFRESH_THRESHOLD) {
+    // Check expiration first
+    const isExpired = entry.expiresAt
+      ? now > entry.expiresAt
+      : now - entry.fetchedAt > DETAILS_REFRESH_THRESHOLD;
+
+    if (!isExpired) {
       stats.detailsCache.freshCount++;
     } else {
       stats.detailsCache.staleCount++;
@@ -2140,9 +2442,10 @@ export const getCacheStats = async (): Promise<{
   // Get Firebase stats if logged in
   if (auth.currentUser) {
     try {
-      const cachesSnapshot = await getDocs(collection(db, "placeCaches"));
-      const placesSnapshot = await getDocs(collection(db, "places"));
-      const detailsSnapshot = await getDocs(collection(db, "placeDetails"));
+      // Use more efficient queries with limits to avoid loading too much data
+      const cachesSnapshot = await getDocs(query(collection(db, "placeCaches"), limit(1000)));
+      const placesSnapshot = await getDocs(query(collection(db, "places"), limit(1000)));
+      const detailsSnapshot = await getDocs(query(collection(db, "placeDetails"), limit(1000)));
 
       stats.firebaseCache = {
         areas: cachesSnapshot.size,
@@ -2155,127 +2458,4 @@ export const getCacheStats = async (): Promise<{
   }
 
   return stats;
-};
-
-/**
- * Check and create necessary Firebase indexes
- * This helper function logs what indexes are needed
- */
-export const checkRequiredIndexes = async (): Promise<void> => {
-  // Log the message about required indexes
-  console.log(`
--------------------------------------------------
-REQUIRED FIREBASE INDEXES:
--------------------------------------------------
-For preloadPopularPlaceDetails function to work correctly,
-create a composite index in Firebase for:
-
-Collection: placeDetails
-Fields:
-1. viewCount (Descending)
-2. fetchedAt (Ascending)
-
-You can create this index in the Firebase Console:
-Firestore Database → Indexes → Composite → Add Index
--------------------------------------------------
-  `);
-};
-
-/**
- * Get details for popular places to preload them
- * Modified to avoid index issues
- */
-export const preloadPopularPlaceDetails = async (): Promise<number> => {
-  try {
-    // Only run if we're online and if user is logged in
-    const netInfo = await NetInfo.fetch();
-    if (!netInfo.isConnected || !auth.currentUser) {
-      return 0;
-    }
-
-    // Check quota
-    if (!(await hasQuotaAvailable("places"))) {
-      return 0;
-    }
-
-    console.log("[placesController] Preloading details for popular places");
-
-    try {
-      // SIMPLIFIED APPROACH: Instead of using complex queries that require indexes,
-      // let's just get a list of place IDs and filter them programmatically
-
-      // Get all place details docs
-      const detailsRef = collection(db, "placeDetails");
-      const detailsQuery = query(detailsRef, limit(100));
-      const detailsDocs = await getDocs(detailsQuery);
-
-      if (detailsDocs.empty) {
-        console.log("[placesController] No places found for preloading");
-        return 0;
-      }
-
-      // Filter the results locally to find places that need refreshing
-      const placesToRefresh = detailsDocs.docs
-        .map((doc) => {
-          const data = doc.data();
-          return {
-            id: doc.id,
-            fetchedAt: data.fetchedAt?.toDate?.() || new Date(0),
-            viewCount: data.viewCount || 0,
-          };
-        })
-        .filter((place) => {
-          // Check if needs refresh based on age
-          const now = new Date();
-          const age = now.getTime() - place.fetchedAt.getTime();
-          return age > DETAILS_REFRESH_THRESHOLD;
-        })
-        // Sort by view count (most viewed first)
-        .sort((a, b) => b.viewCount - a.viewCount)
-        // Take top 5
-        .slice(0, 5);
-
-      if (placesToRefresh.length === 0) {
-        console.log("[placesController] No popular places need refreshing");
-        return 0;
-      }
-
-      let refreshCount = 0;
-
-      for (const place of placesToRefresh) {
-        if (await hasQuotaAvailable("places")) {
-          try {
-            const placeId = place.id;
-            console.log(`[placesController] Refreshing popular place: ${placeId}`);
-
-            await fetchPlaceDetailsFromGoogle(placeId, true);
-            refreshCount++;
-
-            // Add a small delay between requests
-            await new Promise((resolve) => setTimeout(resolve, 1000));
-          } catch (error) {
-            console.error("[placesController] Error refreshing popular place:", error);
-          }
-        } else {
-          break;
-        }
-      }
-
-      console.log(`[placesController] Refreshed ${refreshCount} popular places`);
-      return refreshCount;
-    } catch (queryError) {
-      // If we get an index error, log helpful information
-      if (queryError instanceof Error && queryError.toString().includes("index")) {
-        console.error("[placesController] Firebase index error:", queryError);
-        // Log instructions for creating indexes
-        checkRequiredIndexes();
-      } else {
-        console.error("[placesController] Query error:", queryError);
-      }
-      return 0;
-    }
-  } catch (error) {
-    console.error("[placesController] Error preloading popular places:", error);
-    return 0;
-  }
 };

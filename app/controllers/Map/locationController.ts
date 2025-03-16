@@ -15,15 +15,20 @@ import {
   serverTimestamp,
   GeoPoint,
   Timestamp,
+  deleteDoc,
 } from "firebase/firestore";
 import { db, auth } from "../../config/firebaseConfig";
 import { fetchNearbyPlaces } from "./placesController"; // Ensure this import exists
 
-// Constants for location tracking
+// Constants for location tracking - standardized to 2 months
+const TWO_MONTHS_MS = 60 * 24 * 60 * 60 * 1000; // 60 days in milliseconds
 const LOCATION_UPDATE_DISTANCE_THRESHOLD = 2000; // 2km for significant movement
-const LOCATION_STORAGE_KEY = "last_location_v1";
+const LOCATION_STORAGE_KEY = "last_location_v2"; // Updated version for expiration support
 const PLACES_UPDATE_THRESHOLD_KM = 15; // 15km movement before refreshing places
 const MIN_PLACES_UPDATE_INTERVAL = 24 * 60 * 60 * 1000; // 24 hours
+const LOCATION_HISTORY_MAX_ENTRIES = 100; // Maximum location history entries to keep
+const LOCATION_CLEANUP_INTERVAL = 7 * 24 * 60 * 60 * 1000; // Clean location history weekly
+const LAST_LOCATION_CLEANUP_KEY = "last_location_cleanup"; // Key to track last cleanup
 
 // Store last location to check if user has moved significantly
 let lastKnownLocation: Coordinate | null = null;
@@ -36,12 +41,6 @@ let placesPreloadComplete = false;
 
 // Flag to control places loading - DISABLED by default until user logs in
 let placesLoadingEnabled = false;
-
-// Function to enable/disable places loading
-export const setPlacesLoadingEnabled = (enabled: boolean) => {
-  console.log(`[locationController] Places loading ${enabled ? "ENABLED" : "DISABLED"}`);
-  placesLoadingEnabled = enabled;
-};
 
 // Global state for location and nearby places
 export const globalLocationState = {
@@ -72,7 +71,82 @@ const placeUpdateCallbacks: ((places: any) => void)[] = [];
 const locationUpdateCallbacks: ((location: any) => void)[] = [];
 
 /**
+ * Function to enable/disable places loading
+ */
+export const setPlacesLoadingEnabled = (enabled: boolean) => {
+  console.log(`[locationController] Places loading ${enabled ? "ENABLED" : "DISABLED"}`);
+  placesLoadingEnabled = enabled;
+};
+
+/**
+ * Clean up old location history entries to prevent unlimited growth
+ */
+const cleanupLocationHistory = async (): Promise<void> => {
+  try {
+    const currentUser = auth.currentUser;
+    if (!currentUser) return;
+
+    // Check if cleanup is due
+    const now = Date.now();
+    const lastCleanupStr = await AsyncStorage.getItem(LAST_LOCATION_CLEANUP_KEY);
+    const lastCleanup = lastCleanupStr ? parseInt(lastCleanupStr, 10) : 0;
+
+    if (now - lastCleanup < LOCATION_CLEANUP_INTERVAL) {
+      console.log("[locationController] Location history cleanup not due yet");
+      return;
+    }
+
+    console.log("[locationController] Starting location history cleanup");
+
+    // Get location history sorted by timestamp (most recent first)
+    const locationHistoryRef = collection(db, "users", currentUser.uid, "locationHistory");
+    const historyQuery = query(locationHistoryRef, where("timestamp", "!=", null));
+    const historySnapshot = await getDocs(historyQuery);
+
+    // Sort entries by timestamp (newest first)
+    const entries = historySnapshot.docs
+      .map((doc) => ({
+        id: doc.id,
+        timestamp: doc.data().timestamp,
+      }))
+      .sort((a, b) => {
+        const aTime = a.timestamp?.toDate().getTime() || 0;
+        const bTime = b.timestamp?.toDate().getTime() || 0;
+        return bTime - aTime; // Descending (newest first)
+      });
+
+    // Keep most recent LOCATION_HISTORY_MAX_ENTRIES entries, delete the rest
+    if (entries.length > LOCATION_HISTORY_MAX_ENTRIES) {
+      const entriesToDelete = entries.slice(LOCATION_HISTORY_MAX_ENTRIES);
+
+      console.log(
+        `[locationController] Deleting ${entriesToDelete.length} old location history entries`
+      );
+
+      for (const entry of entriesToDelete) {
+        try {
+          const entryRef = doc(db, "users", currentUser.uid, "locationHistory", entry.id);
+          await deleteDoc(entryRef);
+        } catch (error) {
+          console.error(
+            `[locationController] Error deleting location history entry ${entry.id}:`,
+            error
+          );
+        }
+      }
+    }
+
+    // Update last cleanup time
+    await AsyncStorage.setItem(LAST_LOCATION_CLEANUP_KEY, now.toString());
+    console.log("[locationController] Location history cleanup completed");
+  } catch (error) {
+    console.error("[locationController] Error cleaning up location history:", error);
+  }
+};
+
+/**
  * Save location to Firebase for analytics and tracking
+ * Added expiration date and optimized to reduce data size
  */
 const saveLocationToFirebase = async (location: Coordinate): Promise<void> => {
   try {
@@ -80,9 +154,13 @@ const saveLocationToFirebase = async (location: Coordinate): Promise<void> => {
     if (!currentUser) return;
 
     // Save to user's location history
+    const now = new Date();
+    const expiryDate = new Date(now.getTime() + TWO_MONTHS_MS);
+
     const locationData = {
       location: new GeoPoint(location.latitude, location.longitude),
       timestamp: serverTimestamp(),
+      expiresAt: Timestamp.fromDate(expiryDate), // Add explicit expiration
       accuracy: 0, // Not available in this context
       heading: globalLocationState.userHeading || 0,
     };
@@ -103,6 +181,11 @@ const saveLocationToFirebase = async (location: Coordinate): Promise<void> => {
         lastUpdated: serverTimestamp(),
       },
       { merge: true }
+    );
+
+    // Clean up old location history entries periodically
+    cleanupLocationHistory().catch((e) =>
+      console.error("[locationController] Error during history cleanup:", e)
     );
   } catch (error) {
     console.error("[locationController] Error saving location to Firebase:", error);
@@ -164,6 +247,13 @@ const loadLastKnownLocation = async () => {
     const storedLocation = await AsyncStorage.getItem(LOCATION_STORAGE_KEY);
     if (storedLocation) {
       const locationData = JSON.parse(storedLocation);
+
+      // Check if data has expired
+      if (locationData.expiresAt && Date.now() > locationData.expiresAt) {
+        console.log("[locationController] Stored location has expired");
+        return;
+      }
+
       lastKnownLocation = locationData.location;
       lastPlacesUpdateTime = locationData.placesUpdateTime || 0;
       lastPlacesUpdateLocation = locationData.placesUpdateLocation || null;
@@ -189,18 +279,21 @@ const loadLastKnownLocation = async () => {
 };
 
 /**
- * Save location to persistent storage and Firebase
+ * Save location to persistent storage and Firebase with expiration
  */
 const saveLocationToPersistentStorage = async () => {
   if (!lastKnownLocation) return;
 
   try {
-    // Save to AsyncStorage
+    const now = Date.now();
+
+    // Save to AsyncStorage with expiration
     const locationData = {
       location: lastKnownLocation,
       placesUpdateTime: lastPlacesUpdateTime,
       placesUpdateLocation: lastPlacesUpdateLocation,
-      timestamp: Date.now(),
+      timestamp: now,
+      expiresAt: now + TWO_MONTHS_MS, // Add explicit expiration
     };
 
     await AsyncStorage.setItem(LOCATION_STORAGE_KEY, JSON.stringify(locationData));
@@ -608,11 +701,6 @@ export const getCurrentLocation = async (): Promise<Region | null> => {
 
 /**
  * Update nearby places based on current location
- * This function:
- * 1. Updates global state to indicate loading
- * 2. Fetches places from cache or API
- * 3. Updates global state with results
- * 4. Notifies all subscribers
  */
 export const updateNearbyPlaces = async (
   location: Coordinate | Region,
@@ -936,41 +1024,6 @@ export const startLocationWatching = async (): Promise<() => void> => {
     return () => {};
   }
 };
-
-/**
- * Auto-initialize when this module is imported
- */
-(async function initializeAutomatically() {
-  try {
-    console.log("🚀 Automatically initializing location tracking...");
-
-    // Start with places loading disabled - will be enabled after login
-    setPlacesLoadingEnabled(false);
-
-    // Setup app state change listener to avoid updating when in background
-    AppState.addEventListener("change", (nextAppState) => {
-      const appIsActive = nextAppState === "active";
-      console.log(`App state changed to: ${nextAppState}`);
-
-      // When app returns to active state, check if we need to refresh
-      if (appIsActive && globalLocationState.userLocation && placesLoadingEnabled) {
-        // Consider refreshing places data if it's been a while
-        const timeSinceLastUpdate = Date.now() - globalPlacesState.lastUpdated;
-        if (timeSinceLastUpdate > 5 * 60 * 1000) {
-          // 5 minutes
-          console.log("[locationController] App returned to foreground, refreshing places");
-          updateNearbyPlaces(globalLocationState.userLocation, false);
-        }
-      }
-    });
-
-    await initLocationAndPlaces();
-  } catch (error) {
-    console.error("❌ Error in automatic location initialization:", error);
-    markPreloadingComplete();
-    initializationInProgress = false;
-  }
-})();
 
 /**
  * Public function to check if places loading is enabled
