@@ -471,6 +471,44 @@ const ExploreScreen: React.FC<ExploreScreenProps> = ({ navigation }) => {
     }
   };
 
+  /**
+   * Helper function to make place objects serializable for navigation
+   * Converts Date objects to ISO strings
+   */
+  const makeSerializable = (obj: any): any => {
+    if (obj === null || obj === undefined) {
+      return obj;
+    }
+
+    // Handle Date objects
+    if (obj instanceof Date) {
+      return obj.toISOString();
+    }
+
+    // Handle arrays
+    if (Array.isArray(obj)) {
+      return obj.map((item) => makeSerializable(item));
+    }
+
+    // Handle objects
+    if (typeof obj === "object") {
+      const result: any = {};
+      for (const key in obj) {
+        if (Object.prototype.hasOwnProperty.call(obj, key)) {
+          result[key] = makeSerializable(obj[key]);
+        }
+      }
+      return result;
+    }
+
+    // Return primitives as is
+    return obj;
+  };
+
+  /**
+   * Navigate to place details with optimized data fetching strategy
+   * No API calls for visited places
+   */
   const navigateToPlaceDetails = async (placeId: string, place?: Place): Promise<void> => {
     if (!place) {
       console.error("Cannot navigate: No place provided");
@@ -478,26 +516,56 @@ const ExploreScreen: React.FC<ExploreScreenProps> = ({ navigation }) => {
     }
 
     try {
+      // Check if this is a visited place
+      if (place.isVisited) {
+        console.log(`${place.name} is a visited place, using existing data from Firebase`);
+        // For visited places, we already have all the data we need in Firebase
+        // Just serialize and navigate directly without any API calls
+        const serializablePlace = makeSerializable(place);
+        navigation.navigate("PlaceDetails", { placeId, place: serializablePlace });
+        return;
+      }
+
+      // Only for non-visited places, try to get full details before navigation
       if (isConnected && !place.hasFullDetails) {
         try {
           console.log(`Fetching full details for ${place.name} before navigation`);
 
-          const detailedPlace = await fetchPlaceDetailsOnDemand(place.place_id);
+          // Add a timeout to prevent hanging indefinitely
+          const timeoutPromise = new Promise<null>((resolve) => {
+            setTimeout(() => {
+              console.log(`Timeout fetching details for ${place.name}, proceeding with basic info`);
+              resolve(null);
+            }, 5000); // 5 second timeout
+          });
+
+          // Race between the fetch and the timeout
+          const detailedPlace = await Promise.race([
+            fetchPlaceDetailsOnDemand(placeId),
+            timeoutPromise,
+          ]);
 
           if (detailedPlace) {
             console.log(`Got full details for ${detailedPlace.name}, navigating`);
+            // Make the place object serializable before navigation
+            const serializablePlace = makeSerializable(detailedPlace);
             navigation.navigate("PlaceDetails", {
               placeId,
-              place: detailedPlace,
+              place: serializablePlace,
             });
             return;
           }
+
+          console.log(`Falling back to basic place info for ${place.name}`);
         } catch (error) {
           console.error("Error fetching place details:", error);
         }
       }
 
-      navigation.navigate("PlaceDetails", { placeId, place });
+      // Navigate with basic place info as fallback
+      console.log(`Navigating to place ${place.name} with basic info`);
+      const serializablePlace = makeSerializable(place);
+      navigation.navigate("PlaceDetails", { placeId, place: serializablePlace });
     } catch (error) {
       console.error("Error during navigation:", error);
       Alert.alert("Navigation Error", "Could not navigate to place details");

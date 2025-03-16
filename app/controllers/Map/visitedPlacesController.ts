@@ -356,7 +356,7 @@ export const getVisitedPlaceDetails = async (placeId: string, userId = null) => 
     const placeDoc = await getDoc(placeDocRef);
 
     if (placeDoc.exists()) {
-      console.log(`Retrieved visited place details for ${placeId}`);
+      console.log(`Retrieved visited place details for ${placeId} from firebase`);
       const placeData = placeDoc.data();
 
       // Convert GeoPoint back to normal lat/lng
