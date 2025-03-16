@@ -259,6 +259,7 @@ let detailsFetchQueue: Set<string> = new Set();
 
 // Flag to track background processing status
 let isProcessingBackground = false;
+let detailsFetchPromises: Map<string, Promise<Place | null>> = new Map();
 
 /**
  * Safe timestamp helper function
@@ -1067,165 +1068,180 @@ const fetchPlaceDetailsFromGoogle = async (
   isBackgroundRefresh = false
 ): Promise<Place | null> => {
   try {
-    // If already in fetch queue, return null to avoid duplicate fetches
-    if (detailsFetchQueue.has(placeId) && !isBackgroundRefresh) {
-      console.log(`[placesController] Place ${placeId} already being fetched, skipping`);
-      return null;
+    // If there's already a fetch in progress for this place, return that promise
+    // unless this is a background refresh which should run independently
+    if (!isBackgroundRefresh && detailsFetchPromises.has(placeId)) {
+      console.log(`[placesController] Reusing existing fetch promise for: ${placeId}`);
+      return detailsFetchPromises.get(placeId)!;
     }
 
-    // Add to fetch queue
-    detailsFetchQueue.add(placeId);
-
-    // Check quota before making an API call
-    const hasQuota = await hasQuotaAvailable("places");
-    if (!hasQuota) {
-      console.warn(`[placesController] No API quota left for place details`);
-      detailsFetchQueue.delete(placeId);
-      return null;
-    }
-
-    // Record this API call in our quota
-    await recordApiCall("places");
-    console.log(`[placesController] Fetching details from Google API for: ${placeId}`);
-
-    try {
-      // Make the API call
-      const response = await fetch(
-        `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}` +
-          `&fields=place_id,name,formatted_address,rating,photos,website,url,formatted_phone_number,opening_hours,reviews,editorial_summary,geometry,types,business_status,price_level,vicinity` +
-          `&key=${GOOGLE_MAPS_APIKEY}`
-      );
-
-      const data = await response.json();
-
-      if (data.status !== "OK" || !data.result) {
-        console.warn(`[placesController] API error for place details: ${data.status}`);
-        detailsFetchQueue.delete(placeId);
-        return null;
-      }
-
-      // Calculate distance if we have it in memory cache
-      let distance = 0;
-      const basicPlace = memoryCache.places.find((p) => p.place_id === placeId);
-      if (basicPlace && basicPlace.distance) {
-        distance = basicPlace.distance;
-      } else if (memoryCache.cacheEntry) {
-        distance = haversineDistance(
-          memoryCache.cacheEntry.centerLatitude,
-          memoryCache.cacheEntry.centerLongitude,
-          data.result.geometry.location.lat,
-          data.result.geometry.location.lng
-        );
-      }
-
-      // Calculate tourism score for the place
-      const tourismScore = calculateTourismScore(data.result);
-
-      // Create place object with full details - use nulls not undefined
-      const detailedPlace: Place = {
-        place_id: data.result.place_id,
-        id: data.result.id || data.result.place_id,
-        name: data.result.name || "",
-        formatted_address:
-          data.result.formatted_address || data.result.vicinity || "Address unavailable",
-        address: data.result.formatted_address || data.result.vicinity || "Address unavailable",
-        geometry: data.result.geometry,
-        description:
-          data.result.editorial_summary?.overview ||
-          basicPlace?.description ||
-          getPlaceDescription(data.result),
-        types: data.result.types || [],
-        rating: data.result.rating || null,
-        user_ratings_total: data.result.user_ratings_total || null,
-        price_level: data.result.price_level || null,
-        photos: data.result.photos || [],
-        icon: data.result.icon || null,
-        icon_background_color: data.result.icon_background_color || null,
-        icon_mask_base_uri: data.result.icon_mask_base_uri || null,
-        vicinity: data.result.vicinity || null,
-        business_status: data.result.business_status || null,
-        distance: distance || 0,
-        website: data.result.website || null,
-        url: data.result.url || null,
-        formatted_phone_number: data.result.formatted_phone_number || null,
-        opening_hours: data.result.opening_hours || null,
-        reviews: data.result.reviews || [],
-        hasFullDetails: true,
-        tourismScore: tourismScore,
-      };
-
-      // Sanitize the place data before saving to Firebase
-      const sanitizedPlace = sanitizeForFirebase(detailedPlace);
-
-      // Save to the permanent collection
+    // Create a new promise for this fetch
+    const fetchPromise = (async () => {
       try {
-        await savePlaceDetailsPermanently(sanitizedPlace as Place);
-      } catch (saveError) {
-        console.error(`[placesController] Error saving place details permanently:`, saveError);
-        // Continue anyway - we still want to return the data
-      }
+        // Track that we're fetching this place
+        detailsFetchQueue.add(placeId);
 
-      // Update the details cache
-      detailsCache.set(placeId, {
-        placeId,
-        place: detailedPlace,
-        fetchedAt: Date.now(),
-        lastViewed: Date.now(),
-      });
+        // Check quota before making an API call
+        const hasQuota = await hasQuotaAvailable("places");
+        console.log(`[placesController] Has quota for places API: ${hasQuota}`);
 
-      // Update memory cache
-      if (basicPlace) {
-        const index = memoryCache.places.findIndex((p) => p.place_id === placeId);
-        if (index !== -1) {
-          memoryCache.places[index] = detailedPlace;
+        if (!hasQuota) {
+          console.warn(`[placesController] No API quota left for place details`);
+          return null;
         }
-      } else {
-        // Add to memory cache if not there
-        memoryCache.places.push(detailedPlace);
-      }
 
-      // Update regular places collection in Firebase if user is logged in
-      if (auth.currentUser) {
+        // Record this API call in our quota
+        await recordApiCall("places");
+        console.log(`[placesController] Fetching details from Google API for: ${placeId}`);
+
+        // Make the API call
+        const response = await fetch(
+          `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}` +
+            `&fields=place_id,name,formatted_address,rating,photos,website,url,formatted_phone_number,opening_hours,reviews,editorial_summary,geometry,types,business_status,price_level,vicinity` +
+            `&key=${GOOGLE_MAPS_APIKEY}`
+        );
+
+        const data = await response.json();
+
+        if (data.status !== "OK" || !data.result) {
+          console.warn(`[placesController] API error for place details: ${data.status}`);
+          return null;
+        }
+
+        // Calculate distance if we have it in memory cache
+        let distance = 0;
+        const basicPlace = memoryCache.places.find((p) => p.place_id === placeId);
+        if (basicPlace && basicPlace.distance) {
+          distance = basicPlace.distance;
+        } else if (memoryCache.cacheEntry) {
+          distance = haversineDistance(
+            memoryCache.cacheEntry.centerLatitude,
+            memoryCache.cacheEntry.centerLongitude,
+            data.result.geometry.location.lat,
+            data.result.geometry.location.lng
+          );
+        }
+
+        // Calculate tourism score for the place
+        const tourismScore = calculateTourismScore(data.result);
+
+        // Create place object with full details - use nulls not undefined
+        const detailedPlace: Place = {
+          place_id: data.result.place_id,
+          id: data.result.id || data.result.place_id,
+          name: data.result.name || "",
+          formatted_address:
+            data.result.formatted_address || data.result.vicinity || "Address unavailable",
+          address: data.result.formatted_address || data.result.vicinity || "Address unavailable",
+          geometry: data.result.geometry,
+          description:
+            data.result.editorial_summary?.overview ||
+            basicPlace?.description ||
+            getPlaceDescription(data.result),
+          types: data.result.types || [],
+          rating: data.result.rating || null,
+          user_ratings_total: data.result.user_ratings_total || null,
+          price_level: data.result.price_level || null,
+          photos: data.result.photos || [],
+          icon: data.result.icon || null,
+          icon_background_color: data.result.icon_background_color || null,
+          icon_mask_base_uri: data.result.icon_mask_base_uri || null,
+          vicinity: data.result.vicinity || null,
+          business_status: data.result.business_status || null,
+          distance: distance || 0,
+          website: data.result.website || null,
+          url: data.result.url || null,
+          formatted_phone_number: data.result.formatted_phone_number || null,
+          opening_hours: data.result.opening_hours || null,
+          reviews: data.result.reviews || [],
+          hasFullDetails: true,
+          tourismScore: tourismScore,
+        };
+
+        // Sanitize the place data before saving to Firebase
+        const sanitizedPlace = sanitizeForFirebase(detailedPlace);
+
+        // Save to the permanent collection
         try {
-          const placeRef = doc(db, "places", placeId);
-
-          // Create a Firestore-compatible object with GeoPoint
-          const firestorePlace = {
-            ...sanitizedPlace,
-            geometry: {
-              location: new GeoPoint(
-                detailedPlace.geometry.location.lat,
-                detailedPlace.geometry.location.lng
-              ),
-            },
-            updatedAt: serverTimestamp(),
-            hasFullDetails: true,
-            lastDetailsUpdate: serverTimestamp(),
-            tourismScore: tourismScore,
-          };
-
-          await setDoc(placeRef, firestorePlace, { merge: true });
-        } catch (updateError) {
-          console.warn(`[placesController] Error updating regular place:`, updateError);
-          // Continue anyway - this is a non-critical update
+          await savePlaceDetailsPermanently(sanitizedPlace as Place);
+        } catch (saveError) {
+          console.error(`[placesController] Error saving place details permanently:`, saveError);
+          // Continue anyway - we still want to return the data
         }
+
+        // Update the details cache
+        detailsCache.set(placeId, {
+          placeId,
+          place: detailedPlace,
+          fetchedAt: Date.now(),
+          lastViewed: Date.now(),
+        });
+
+        // Update memory cache
+        if (basicPlace) {
+          const index = memoryCache.places.findIndex((p) => p.place_id === placeId);
+          if (index !== -1) {
+            memoryCache.places[index] = detailedPlace;
+          }
+        } else {
+          // Add to memory cache if not there
+          memoryCache.places.push(detailedPlace);
+        }
+
+        // Update regular places collection in Firebase if user is logged in
+        if (auth.currentUser) {
+          try {
+            const placeRef = doc(db, "places", placeId);
+
+            // Create a Firestore-compatible object with GeoPoint
+            const firestorePlace = {
+              ...sanitizedPlace,
+              geometry: {
+                location: new GeoPoint(
+                  detailedPlace.geometry.location.lat,
+                  detailedPlace.geometry.location.lng
+                ),
+              },
+              updatedAt: serverTimestamp(),
+              hasFullDetails: true,
+              lastDetailsUpdate: serverTimestamp(),
+              tourismScore: tourismScore,
+            };
+
+            await setDoc(placeRef, firestorePlace, { merge: true });
+          } catch (updateError) {
+            console.warn(`[placesController] Error updating regular place:`, updateError);
+            // Continue anyway - this is a non-critical update
+          }
+        }
+
+        // Save caches to local storage
+        persistCaches();
+
+        return detailedPlace;
+      } catch (error) {
+        console.error(`[placesController] Error fetching place details from Google:`, error);
+        return null;
+      } finally {
+        // Always clean up
+        detailsFetchQueue.delete(placeId);
+        // Remove from promises map after a brief delay (to allow concurrent requests to use it)
+        setTimeout(() => {
+          detailsFetchPromises.delete(placeId);
+        }, 500);
       }
+    })();
 
-      // Save caches to local storage
-      persistCaches();
-
-      // Remove from fetch queue
-      detailsFetchQueue.delete(placeId);
-
-      return detailedPlace;
-    } catch (apiError) {
-      console.error(`[placesController] API error for place details:`, apiError);
-      detailsFetchQueue.delete(placeId);
-      return null;
+    // Store the promise for reuse
+    if (!isBackgroundRefresh) {
+      detailsFetchPromises.set(placeId, fetchPromise);
     }
+
+    return fetchPromise;
   } catch (error) {
-    console.error(`[placesController] Error fetching place details from Google:`, error);
+    console.error(`[placesController] Error setting up fetch promise:`, error);
     detailsFetchQueue.delete(placeId);
+    detailsFetchPromises.delete(placeId);
     return null;
   }
 };
@@ -1783,7 +1799,25 @@ export const fetchPlaceDetailsOnDemand = async (placeId: string): Promise<Place 
   try {
     console.log(`[placesController] fetchPlaceDetailsOnDemand: ${placeId}`);
 
-    // STEP 1: Check in-memory details cache first (fastest)
+    // STEP 1: Check if this place is already being fetched
+    if (detailsFetchPromises.has(placeId)) {
+      console.log(`[placesController] Existing fetch promise found for: ${placeId}`);
+      return detailsFetchPromises.get(placeId)!;
+    }
+
+    // If using the old queue, wait for the other fetch
+    if (detailsFetchQueue.has(placeId)) {
+      console.log(`[placesController] Place is already being fetched with old system, waiting`);
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+
+      // Check if it's now in cache
+      const cachedAfterWait = detailsCache.get(placeId);
+      if (cachedAfterWait) {
+        return cachedAfterWait.place;
+      }
+    }
+
+    // STEP 2: Check in-memory details cache
     const cachedDetails = detailsCache.get(placeId);
     if (cachedDetails) {
       console.log(`[placesController] Found place in details cache: ${cachedDetails.place.name}`);
@@ -1791,17 +1825,13 @@ export const fetchPlaceDetailsOnDemand = async (placeId: string): Promise<Place 
       // Update last viewed time
       cachedDetails.lastViewed = Date.now();
 
-      // If details are stale, queue a refresh in the background but still return cached version
+      // If details are stale, queue a refresh in the background
       if (needsDetailsRefresh(cachedDetails)) {
         console.log(`[placesController] Details are stale, queuing background refresh`);
-
-        // Queue a background refresh if we're online
         NetInfo.fetch().then((state) => {
-          if (state.isConnected && !detailsFetchQueue.has(placeId)) {
+          if (state.isConnected) {
             setTimeout(() => {
-              fetchPlaceDetailsFromGoogle(placeId, true)
-                .then(() => detailsFetchQueue.delete(placeId))
-                .catch(() => detailsFetchQueue.delete(placeId));
+              fetchPlaceDetailsFromGoogle(placeId, true);
             }, BACKGROUND_FETCH_DELAY);
           }
         });
@@ -1810,7 +1840,7 @@ export const fetchPlaceDetailsOnDemand = async (placeId: string): Promise<Place 
       return cachedDetails.place;
     }
 
-    // STEP 2: Check memory cache for place with full details
+    // STEP 3: Check memory cache for place with full details
     const cachedPlace = memoryCache.places.find(
       (p) => p.place_id === placeId && p.hasFullDetails && (p.reviews || p.website)
     );
@@ -1825,49 +1855,62 @@ export const fetchPlaceDetailsOnDemand = async (placeId: string): Promise<Place 
         placeId,
         place: cachedPlace,
         fetchedAt:
-          cachedPlace.detailsFetchedAt || Date.now() - DETAILS_REFRESH_THRESHOLD + 86400000, // Default to refresh tomorrow
+          cachedPlace.detailsFetchedAt || Date.now() - DETAILS_REFRESH_THRESHOLD + 86400000,
         lastViewed: Date.now(),
       });
 
       return cachedPlace;
     }
 
-    // STEP 3: Check the permanent details collection in Firebase
-    if (auth.currentUser) {
-      console.log(`[placesController] Checking Firebase placeDetails collection for: ${placeId}`);
-      const permanentDetails = await checkPlaceDetailsCollection(placeId);
-      if (permanentDetails) {
+    // STEP 4: Create a promise for the entire remaining process
+    const fullFetchPromise = (async () => {
+      try {
+        // Check Firebase first if user is logged in
+        if (auth.currentUser) {
+          console.log(
+            `[placesController] Checking Firebase placeDetails collection for: ${placeId}`
+          );
+          const permanentDetails = await checkPlaceDetailsCollection(placeId);
+
+          if (permanentDetails) {
+            console.log(
+              `[placesController] Found permanent details in Firebase for: ${permanentDetails.name}`
+            );
+
+            // Add to details cache
+            detailsCache.set(placeId, {
+              placeId,
+              place: permanentDetails,
+              fetchedAt: permanentDetails.detailsFetchedAt || Date.now(),
+              lastViewed: Date.now(),
+            });
+
+            return permanentDetails;
+          }
+        }
+
+        // Fetch from Google API as last resort
         console.log(
-          `[placesController] Found permanent details in Firebase for: ${permanentDetails.name}`
+          `[placesController] Not found in Firebase, fetching from Google API: ${placeId}`
         );
-
-        // Add to details cache
-        detailsCache.set(placeId, {
-          placeId,
-          place: permanentDetails,
-          fetchedAt: permanentDetails.detailsFetchedAt || Date.now(),
-          lastViewed: Date.now(),
-        });
-
-        return permanentDetails;
+        return await fetchPlaceDetailsFromGoogle(placeId);
+      } finally {
+        // Clean up promises map after a delay
+        setTimeout(() => {
+          detailsFetchPromises.delete(placeId);
+        }, 500);
       }
-    }
+    })();
 
-    // STEP 4: Fetch from Google API
-    console.log(`[placesController] Not found in Firebase, fetching from Google API: ${placeId}`);
-    const googleDetails = await fetchPlaceDetailsFromGoogle(placeId);
+    // Store the promise for reuse
+    detailsFetchPromises.set(placeId, fullFetchPromise);
 
-    if (googleDetails) {
-      console.log(
-        `[placesController] Successfully fetched from Google API and stored permanently: ${googleDetails.name}`
-      );
-    } else {
-      console.log(`[placesController] Failed to fetch details from Google API: ${placeId}`);
-    }
-
-    return googleDetails;
+    // Return the promise result
+    return fullFetchPromise;
   } catch (error) {
     console.error(`[placesController] Error in fetchPlaceDetailsOnDemand:`, error);
+    detailsFetchQueue.delete(placeId);
+    detailsFetchPromises.delete(placeId);
     return null;
   }
 };

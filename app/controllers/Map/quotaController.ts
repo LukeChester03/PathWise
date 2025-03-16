@@ -2,9 +2,10 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { db, auth } from "../../config/firebaseConfig";
+import { Place } from "@/app/types/MapTypes";
 
 // STRICT LIMIT: Maximum 20 API calls per day (doubled from 10)
-const MAX_DAILY_QUOTA = 100;
+const MAX_DAILY_QUOTA = 20;
 const QUOTA_STORAGE_KEY = "places_api_quota_v2";
 
 interface QuotaRecord {
@@ -142,13 +143,27 @@ export const hasQuotaAvailable = async (apiType: "places" | "directions"): Promi
   try {
     const quota = await getQuotaRecord();
 
-    // Allow high-priority calls even if quota is almost consumed
-    const priorityAllowance = apiType === "places" ? 16 : 4; // Doubled from 8 and 2
+    // Reserve a smaller number of calls for each type to ensure we have some quota left
+    // for important operations. We're using much smaller values than before.
+    const priorityAllowance = apiType === "places" ? 5 : 2;
 
-    // If we're under total quota and specific API type has allowance
-    return quota.count < MAX_DAILY_QUOTA - priorityAllowance;
+    // Log current quota status
+    console.log(
+      `[quotaController] Quota: ${quota.count}/${MAX_DAILY_QUOTA}, Reserved for ${apiType}: ${priorityAllowance}`
+    );
+
+    // Check if we have enough unreserved quota available
+    // This means we can use (MAX_DAILY_QUOTA - priorityAllowance) calls before hitting the reserved quota
+    const hasUnreservedQuota = quota.count < MAX_DAILY_QUOTA - priorityAllowance;
+
+    if (!hasUnreservedQuota) {
+      console.log(`[quotaController] Using reserved quota for ${apiType}`);
+    }
+
+    // Allow the call if we're under the total quota (always allow if we haven't hit absolute max)
+    return quota.count < MAX_DAILY_QUOTA;
   } catch (error) {
-    console.error("Error checking quota:", error);
+    console.error("[quotaController] Error checking quota:", error);
     // Be conservative and return false on error
     return false;
   }
