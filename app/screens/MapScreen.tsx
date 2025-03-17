@@ -1,17 +1,223 @@
-import React, { useState, useEffect } from "react";
-import { View, StyleSheet, Dimensions, TouchableOpacity } from "react-native";
+import React, { useState, useEffect, useCallback, useRef } from "react";
+import { View, StyleSheet, Dimensions, TouchableOpacity, Alert } from "react-native";
 import { globalStyles } from "../constants/globalStyles";
 import Map from "../components/Map/Map";
+import MapErrorBoundary from "../components/Map/MapErrorBoundary";
 import ScreenWithNavBar from "../components/Global/ScreenWithNavbar";
 import Header from "../components/Global/Header";
 import { Colors } from "../constants/colours";
 import MapGettingStartedModal from "../components/Map/MapGettingStartedModal";
+import MapDistanceSettingsModal from "../components/Map/MapDistanceSettingsModal";
 import { Ionicons } from "@expo/vector-icons";
+import {
+  updateMapSettings,
+  getMapSettings,
+  refreshMap,
+} from "../controllers/Map/mapSettingsController";
+import { useRoute, useNavigation, useFocusEffect } from "@react-navigation/native";
+import { Place } from "../types/MapTypes";
+import NavigationService from "../services/Map/navigationService";
+// Import necessary controller functions
+import {
+  getCurrentLocation,
+  updateNearbyPlaces,
+  getLocationState,
+  getNearbyPlacesState,
+  checkAuthAndEnablePlacesLoading,
+} from "../controllers/Map/locationController";
+import NetInfo from "@react-native-community/netinfo";
 
 const MapScreen = () => {
   const [screenHeight, setScreenHeight] = useState(Dimensions.get("window").height);
   const [showHelpModal, setShowHelpModal] = useState(false);
   const [showDistanceSettingsModal, setShowDistanceSettingsModal] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [mapKey, setMapKey] = useState(0);
+  const [isInitialized, setIsInitialized] = useState(false);
+
+  // Map settings state - initialize from settings controller
+  const initialSettings = getMapSettings();
+  const [maxPlaces, setMaxPlaces] = useState(initialSettings.maxPlaces);
+  const [searchRadius, setSearchRadius] = useState(initialSettings.searchRadius);
+  const [refreshKey, setRefreshKey] = useState(0); // To force map refresh
+
+  // Navigation and route
+  const route = useRoute();
+  const navigation = useNavigation();
+
+  // State to store place from route params
+  const [placeToShow, setPlaceToShow] = useState<Place | null>(null);
+
+  // Use a ref to track if we're currently processing a place
+  const processingPlaceRef = useRef<boolean>(false);
+  // Track if initial data load has been performed
+  const initialDataLoadedRef = useRef<boolean>(false);
+  // Ref to track if component is mounted
+  const isMountedRef = useRef<boolean>(true);
+  // Track the app state to prevent data fetching when app is in background
+  const appStateRef = useRef<string>("active");
+
+  // This function needs to be OUTSIDE the useFocusEffect
+  const handleMapRetry = useCallback(() => {
+    // Only proceed if component is mounted
+    if (!isMountedRef.current) return;
+
+    // Check auth state first
+    const isLoggedIn = checkAuthAndEnablePlacesLoading();
+    if (!isLoggedIn) {
+      console.log("MapScreen: User not logged in, not retrying places load");
+      // Just update map to refresh view without places
+      setMapKey((prev) => prev + 1);
+      return;
+    }
+
+    // Reset the initialization flag to force a fresh data load
+    initialDataLoadedRef.current = false;
+
+    // Update map key to force re-rendering
+    setMapKey((prev) => prev + 1);
+
+    // Reset placeToShow on retry for a fresh state
+    setPlaceToShow(null);
+    processingPlaceRef.current = false;
+
+    // Force reload
+    getCurrentLocation().then((location) => {
+      if (location && isMountedRef.current) {
+        updateNearbyPlaces(location, true).then(() => {
+          console.log("MapScreen: Map data reloaded after retry");
+        });
+      }
+    });
+  }, []);
+
+  // Force load data when the screen gains focus or becomes active
+  useFocusEffect(
+    useCallback(() => {
+      const loadInitialData = async () => {
+        try {
+          // Only proceed if component is mounted and app is active
+          if (!isMountedRef.current || appStateRef.current !== "active") {
+            return;
+          }
+
+          // Check auth state first - this enables places loading if user is logged in
+          const isLoggedIn = checkAuthAndEnablePlacesLoading();
+          if (!isLoggedIn) {
+            console.log("MapScreen: User not logged in, skipping places data load");
+            setIsInitialized(true);
+            // Allow map to show but without places
+            return;
+          }
+
+          // Check if places are already loaded in global state
+          const placesState = getNearbyPlacesState();
+          const locationState = getLocationState();
+
+          if (placesState.places.length > 0 && locationState.userLocation) {
+            console.log("MapScreen: Using existing places data, already loaded");
+            setIsInitialized(true);
+            initialDataLoadedRef.current = true;
+            return;
+          }
+
+          // Only load initial data once per session
+          if (!initialDataLoadedRef.current) {
+            console.log("MapScreen: Loading initial map data...");
+            setIsRefreshing(true);
+
+            // Check network connectivity
+            const netInfo = await NetInfo.fetch();
+            console.log(`MapScreen: Network connected: ${netInfo.isConnected}`);
+
+            // Get current location
+            const location = await getCurrentLocation();
+            if (location) {
+              console.log(`MapScreen: Got location: ${location.latitude}, ${location.longitude}`);
+
+              // Force update the nearby places with the current location
+              // This call ensures places are loaded from Firebase or API
+              const success = await updateNearbyPlaces(location, false);
+
+              if (success) {
+                console.log("MapScreen: Successfully loaded initial places data");
+                initialDataLoadedRef.current = true;
+              } else {
+                console.warn("MapScreen: Failed to load initial places data");
+              }
+            } else {
+              console.warn("MapScreen: Couldn't get current location");
+            }
+
+            // Force refresh by updating the map key
+            setMapKey((prevKey) => prevKey + 1);
+            setIsInitialized(true);
+            setIsRefreshing(false);
+          }
+        } catch (error) {
+          console.error("MapScreen: Error loading initial data:", error);
+          setIsRefreshing(false);
+        }
+      };
+
+      loadInitialData();
+
+      return () => {
+        // Cleanup when screen loses focus - nothing to clean up here
+      };
+    }, [])
+  );
+
+  // Set mounted/unmounted status for proper cleanup
+  useEffect(() => {
+    isMountedRef.current = true;
+
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
+  // Check for place to show from route params
+  useEffect(() => {
+    const checkForPlaceToShow = async () => {
+      try {
+        // Only proceed if component is mounted
+        if (!isMountedRef.current) return;
+
+        // Get place from route params
+        const placeFromRoute = NavigationService.getShowPlaceCardFromRoute(route);
+
+        if (placeFromRoute && !processingPlaceRef.current) {
+          console.log(`MapScreen: Received place to show: ${placeFromRoute.name}`);
+
+          // Mark that we're processing a place
+          processingPlaceRef.current = true;
+
+          // Clear current place first to ensure state reset
+          setPlaceToShow(null);
+
+          // Use a slight delay to ensure clean state before setting new place
+          setTimeout(() => {
+            if (isMountedRef.current) {
+              setPlaceToShow(placeFromRoute);
+              console.log(`MapScreen: Set place to show: ${placeFromRoute.name}`);
+
+              // Reset processing flag after a delay to prevent rapid re-processing
+              setTimeout(() => {
+                processingPlaceRef.current = false;
+              }, 1000);
+            }
+          }, 100);
+        }
+      } catch (error) {
+        console.error("MapScreen: Error checking for place to show:", error);
+        processingPlaceRef.current = false;
+      }
+    };
+
+    checkForPlaceToShow();
+  }, [route]);
+
   useEffect(() => {
     const updateDimensions = () => {
       setScreenHeight(Dimensions.get("window").height);
@@ -36,17 +242,108 @@ const MapScreen = () => {
     setShowDistanceSettingsModal(true);
   };
 
+  const handleCloseSettingsModal = () => {
+    setShowDistanceSettingsModal(false);
+  };
+
+  // Handle saving map settings and refreshing the map
+  const handleSaveSettings = (newMaxPlaces: number, newSearchRadius: number): void => {
+    // Only proceed if component is mounted
+    if (!isMountedRef.current) return;
+
+    // Show loading indicator
+    setIsRefreshing(true);
+
+    console.log(
+      `Updating map settings: max places = ${newMaxPlaces}, radius = ${newSearchRadius}km`
+    );
+
+    try {
+      // Update settings in controller
+      updateMapSettings(newMaxPlaces, newSearchRadius);
+
+      // Update local state
+      setMaxPlaces(newMaxPlaces);
+      setSearchRadius(newSearchRadius);
+
+      // Force refresh the map
+      refreshMap()
+        .then((success) => {
+          if (!isMountedRef.current) return;
+
+          if (success) {
+            console.log("Map refreshed successfully with new settings");
+          } else {
+            console.warn("Failed to refresh map with new settings");
+            Alert.alert(
+              "Warning",
+              "The map settings were updated but we couldn't refresh the places. Pull to refresh or restart the app to see the changes."
+            );
+          }
+
+          // Force re-render of Map component
+          setRefreshKey((prevKey) => prevKey + 1);
+
+          // Hide loading indicator
+          setIsRefreshing(false);
+
+          // Close the settings modal
+          handleCloseSettingsModal();
+        })
+        .catch((error) => {
+          if (!isMountedRef.current) return;
+
+          console.error("Error refreshing map:", error);
+          Alert.alert(
+            "Error",
+            "There was an error refreshing the map. Your settings have been saved and will apply next time you open the app."
+          );
+          setIsRefreshing(false);
+          handleCloseSettingsModal();
+        });
+    } catch (error) {
+      if (!isMountedRef.current) return;
+
+      console.error("Error in handleSaveSettings:", error);
+      Alert.alert("Error", "Failed to update settings. Please try again.");
+      setIsRefreshing(false);
+    }
+  };
+
   const headerRightComponent = (
-    <TouchableOpacity
-      style={styles.distanceSettingsButton}
-      onPress={() => handleDistanceSettingsModal}
-    >
-      <View style={styles.distanceSettingsIconContainer}>
-        <Ionicons name="settings-outline" size={20} color={Colors.primary} />
-        <View style={styles.distanceSettingsBadge} />
-      </View>
-    </TouchableOpacity>
+    <></>
+    // Settings button removed - uncomment if needed
+    // <TouchableOpacity
+    //   style={styles.distanceSettingsButton}
+    //   onPress={handleDistanceSettingsModal}
+    //   disabled={isRefreshing}
+    // >
+    //   <View style={styles.distanceSettingsIconContainer}>
+    //     <Ionicons
+    //       name="settings-outline"
+    //       size={20}
+    //       color={isRefreshing ? Colors.primary + "80" : Colors.primary}
+    //     />
+    //     <View style={styles.distanceSettingsBadge} />
+    //   </View>
+    // </TouchableOpacity>
   );
+
+  // Report when placeToShow changes
+  useEffect(() => {
+    if (placeToShow) {
+      console.log(`MapScreen: placeToShow updated: ${placeToShow.name}`);
+    }
+  }, [placeToShow]);
+
+  // Handle when place card is shown in Map component
+  const handlePlaceCardShown = useCallback(() => {
+    // Only proceed if component is mounted
+    if (!isMountedRef.current) return;
+
+    console.log("MapScreen: Place card has been shown in Map component");
+    setPlaceToShow(null);
+  }, []);
 
   return (
     <ScreenWithNavBar>
@@ -61,12 +358,29 @@ const MapScreen = () => {
           iconColor={Colors.primary}
           onHelpPress={handleHelpModal}
           onBackPress={handleCloseModal}
+          showHelp={true}
         />
         <View style={styles.mapContainer}>
-          <Map />
+          <MapErrorBoundary onRetry={handleMapRetry}>
+            <Map
+              key={`${refreshKey}-${mapKey}`}
+              placeToShow={placeToShow}
+              onPlaceCardShown={handlePlaceCardShown}
+              isInitialized={isInitialized}
+            />
+          </MapErrorBoundary>
         </View>
       </View>
+
       <MapGettingStartedModal visible={showHelpModal} onClose={handleCloseModal} />
+
+      <MapDistanceSettingsModal
+        visible={showDistanceSettingsModal}
+        onClose={handleCloseSettingsModal}
+        initialMaxPlaces={maxPlaces}
+        initialRadius={searchRadius}
+        onSave={handleSaveSettings}
+      />
     </ScreenWithNavBar>
   );
 };

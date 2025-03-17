@@ -53,7 +53,7 @@ const useMapCamera = (): UseMapCameraReturn => {
   const aspectRatio = screenWidth / screenHeight;
 
   // Refs for camera state management
-  const mapRef = useRef<MapView>(null);
+  const mapRef = useRef<MapView>();
   const routeOverviewTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const cameraUpdateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const cameraUpdatePendingRef = useRef<boolean>(false);

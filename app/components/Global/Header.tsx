@@ -4,6 +4,21 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { Colors, NeutralColors } from "../../constants/colours";
 
+interface HeaderProps {
+  title?: string;
+  showLogo?: boolean;
+  subtitle?: string;
+  customStyles?: any;
+  logoSource?: any;
+  showIcon?: boolean;
+  iconName?: string;
+  iconColor?: string;
+  rightComponent?: any;
+  showBackButton?: boolean;
+  onBackPress?: () => void;
+  onHelpPress: () => void;
+  showHelp: boolean;
+}
 const Header = ({
   title,
   showLogo = false,
@@ -18,7 +33,7 @@ const Header = ({
   onBackPress = () => {},
   onHelpPress = () => {},
   showHelp = true,
-}) => {
+}: HeaderProps) => {
   const insets = useSafeAreaInsets();
 
   // Ensure the header is positioned correctly

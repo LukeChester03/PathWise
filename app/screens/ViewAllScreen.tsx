@@ -1,4 +1,6 @@
-import React, { useState, useEffect } from "react";
+// Updated ViewAllScreen.tsx with all place settings removed
+
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   View,
   Text,
@@ -8,31 +10,84 @@ import {
   TouchableOpacity,
   SafeAreaView,
   StatusBar,
-  ActivityIndicator,
   Dimensions,
+  ListRenderItem,
+  RefreshControl,
+  Alert,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { collection, getDocs } from "firebase/firestore";
 import { auth, db } from "../config/firebaseConfig";
-import { fetchNearbyPlaces } from "../controllers/Map/placesController";
-import { getCurrentLocation } from "../controllers/Map/locationController";
+import {
+  fetchNearbyPlaces,
+  clearPlacesCache,
+  fetchPlaceDetailsOnDemand,
+  getCacheStats,
+} from "../controllers/Map/placesController";
+import {
+  getCurrentLocation,
+  getNearbyPlacesState,
+  onPlacesUpdate,
+  globalPlacesState,
+  updateNearbyPlaces,
+} from "../controllers/Map/locationController";
 import { Colors, NeutralColors } from "../constants/colours";
 import { getPlaceCardImageUrl } from "../utils/mapImageUtils";
-import { formatDistanceToNow } from "date-fns"; // Make sure to install this package
+import { formatDistanceToNow } from "date-fns";
 import Header from "../components/Global/Header";
+import { RouteProp, useFocusEffect } from "@react-navigation/native";
+import { StackNavigationProp } from "@react-navigation/stack";
+import { Place, NearbyPlacesResponse, VisitedPlaceDetails, Region } from "../types/MapTypes";
+import MapLoading from "../components/Map/MapLoading";
+import NetInfo from "@react-native-community/netinfo"; // Added for network detection
 
 const { width } = Dimensions.get("window");
-const GRID_CARD_WIDTH = (width - 48) / 2; // Two columns with margins
+const GRID_CARD_WIDTH = (width - 48) / 2;
 
-const ViewAllScreen = ({ route, navigation }) => {
+type RootStackParamList = {
+  ViewAll: { viewType?: ViewType; preloadedPlaces?: (Place | VisitedPlaceDetails)[] };
+  PlaceDetails: { placeId: string; place?: Place | VisitedPlaceDetails };
+  Explore: undefined;
+};
+
+type ViewAllScreenRouteProp = RouteProp<RootStackParamList, "ViewAll">;
+type ViewAllScreenNavigationProp = StackNavigationProp<RootStackParamList>;
+type ViewType = "nearbyPlaces" | "myPlaces";
+
+interface HeaderConfig {
+  title: string;
+  subtitle: string;
+  icon: string;
+  color: string;
+}
+
+interface ViewAllScreenProps {
+  route: ViewAllScreenRouteProp;
+  navigation: ViewAllScreenNavigationProp;
+}
+
+const ViewAllScreen: React.FC<ViewAllScreenProps> = ({ route, navigation }) => {
+  // Extract route params
   const { viewType = "nearbyPlaces" } = route.params || {};
-  const [places, setPlaces] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+
+  console.log(`[ViewAllScreen] Rendered with viewType: ${viewType}`);
+
+  // State for the component
+  const [places, setPlaces] = useState<(Place | VisitedPlaceDetails)[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [refreshing, setRefreshing] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
+  const [debugInfo, setDebugInfo] = useState<string>("");
+  const [isConnected, setIsConnected] = useState<boolean>(true);
+
+  // Flags to control behavior
+  const ignoreSubscriptionUpdates = useRef<boolean>(false);
+  const isInitialized = useRef(false);
+  const placesSubscriptionRef = useRef<(() => void) | null>(null);
 
   // Set dynamic header properties based on view type
-  const headerConfig = {
+  const headerConfig: Record<ViewType, HeaderConfig> = {
     myPlaces: {
       title: "My Places",
       subtitle: "Places you've visited",
@@ -50,13 +105,131 @@ const ViewAllScreen = ({ route, navigation }) => {
   // Get current header configuration
   const currentHeaderConfig = headerConfig[viewType] || headerConfig.nearbyPlaces;
 
+  // Monitor network connectivity
   useEffect(() => {
-    fetchData();
+    const unsubscribe = NetInfo.addEventListener((state) => {
+      const connected = state.isConnected ?? false;
+      setIsConnected(connected);
+      console.log(
+        `[ViewAllScreen] Network status changed: ${connected ? "connected" : "disconnected"}`
+      );
+    });
+
+    // Initial check
+    NetInfo.fetch().then((state) => {
+      setIsConnected(state.isConnected ?? false);
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, []);
+
+  // Initialize component
+  useEffect(() => {
+    // Now that settings are loaded, check for preloaded data
+    const initializeComponent = async () => {
+      if (viewType === "nearbyPlaces") {
+        // Get places state
+        const placesState = getNearbyPlacesState();
+
+        // If we have preloaded data, use it
+        if (placesState.hasPreloaded && placesState.places && placesState.places.length > 0) {
+          console.log(`[ViewAllScreen] Using ${placesState.places.length} preloaded places`);
+          setPlaces(placesState.places);
+          setLoading(false);
+          isInitialized.current = true;
+        } else {
+          console.log("[ViewAllScreen] No preloaded places, need to fetch");
+          // Fetch data if no preloaded places
+          await fetchData(false);
+        }
+      } else {
+        // For MyPlaces view, fetch from Firestore
+        await fetchVisitedPlacesFromFirestore();
+      }
+
+      isInitialized.current = true;
+    };
+
+    initializeComponent();
+
+    // Cleanup
+    return () => {
+      // Clean up subscription if it exists
+      if (placesSubscriptionRef.current) {
+        placesSubscriptionRef.current();
+        placesSubscriptionRef.current = null;
+      }
+    };
   }, [viewType]);
 
-  const fetchData = async () => {
+  // Subscribe to global places updates
+  useEffect(() => {
+    // Only needed for nearby places
+    if (viewType !== "nearbyPlaces") return;
+
+    // Clean up any existing subscription
+    if (placesSubscriptionRef.current) {
+      placesSubscriptionRef.current();
+      placesSubscriptionRef.current = null;
+    }
+
+    // Subscribe to global places updates
+    const unsubscribe = onPlacesUpdate((placesState) => {
+      // Skip updates while applying settings
+      if (ignoreSubscriptionUpdates.current) {
+        console.log("[ViewAllScreen] Ignoring subscription update");
+        return;
+      }
+
+      // Only update if we have meaningful data
+      if (placesState.hasPreloaded && placesState.places && placesState.places.length > 0) {
+        // Update places state from global data
+        setPlaces(placesState.places);
+
+        // Update loading state
+        setLoading(false);
+
+        console.log(
+          `[ViewAllScreen] Updated places from subscription: ${placesState.places.length} places`
+        );
+      }
+    });
+
+    // Store the unsubscribe function
+    placesSubscriptionRef.current = unsubscribe;
+
+    return () => {
+      if (placesSubscriptionRef.current) {
+        placesSubscriptionRef.current();
+        placesSubscriptionRef.current = null;
+      }
+    };
+  }, [viewType]);
+
+  // Track when the screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      console.log("[ViewAllScreen] Screen focused");
+
+      return () => {
+        console.log("[ViewAllScreen] Screen unfocused");
+      };
+    }, [viewType])
+  );
+
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    // When user manually refreshes, we force refresh
+    fetchData(true).finally(() => setRefreshing(false));
+  }, []);
+
+  const fetchData = async (forceRefresh: boolean = false): Promise<void> => {
     try {
-      setLoading(true);
+      if (!refreshing) {
+        setLoading(true);
+      }
       setError(null);
 
       if (viewType === "myPlaces") {
@@ -64,36 +237,64 @@ const ViewAllScreen = ({ route, navigation }) => {
         await fetchVisitedPlacesFromFirestore();
       } else {
         // For Nearby Places, fetch from Google Places API
-        const location = await getCurrentLocation();
+        const location: Region | null = await getCurrentLocation();
         if (!location) {
           setError("Unable to get your location");
           setLoading(false);
           return;
         }
 
-        // Use destructuring to get places from the returned object
-        const { places: nearbyPlaces, furthestDistance } = await fetchNearbyPlaces(
-          location.latitude,
-          location.longitude
-        );
+        console.log(`[ViewAllScreen] Fetching places with params: forceRefresh=${forceRefresh}`);
 
-        setPlaces(nearbyPlaces || []);
-        setLoading(false);
+        // Use the updateNearbyPlaces function which properly uses the Firebase cache
+        try {
+          // This will update the global state which our subscription will pick up
+          await updateNearbyPlaces(location, forceRefresh);
+
+          // No need to set places directly, our subscription will handle it
+          console.log("[ViewAllScreen] Called updateNearbyPlaces successfully");
+
+          // We'll let the subscription update the places, but we can stop loading now if there was an initial delay
+          setTimeout(() => {
+            if (loading) {
+              const placesState = getNearbyPlacesState();
+              if (placesState.places && placesState.places.length > 0) {
+                setPlaces(placesState.places);
+              }
+              setLoading(false);
+            }
+          }, 1000);
+        } catch (apiError) {
+          console.error("[ViewAllScreen] Error in updateNearbyPlaces:", apiError);
+
+          // Fallback to direct API call if the global approach fails
+          console.log("[ViewAllScreen] Falling back to direct fetchNearbyPlaces");
+
+          // Fixed: Only pass the correct number of arguments
+          const { places: nearbyPlaces }: NearbyPlacesResponse = await fetchNearbyPlaces(
+            location.latitude,
+            location.longitude,
+            forceRefresh
+          );
+
+          console.log(`[ViewAllScreen] Fetched ${nearbyPlaces?.length || 0} places directly`);
+          setPlaces(nearbyPlaces || []);
+          setLoading(false);
+        }
       }
     } catch (error) {
-      console.error("Error fetching places:", error);
+      console.error("[ViewAllScreen] Error fetching places:", error);
       setError("Something went wrong");
       setLoading(false);
     }
   };
 
-  // New function to fetch user's visited places from Firestore
-  const fetchVisitedPlacesFromFirestore = async () => {
+  const fetchVisitedPlacesFromFirestore = async (): Promise<void> => {
     try {
       // Check if user is authenticated
       const currentUser = auth.currentUser;
       if (!currentUser) {
-        console.log("No authenticated user found");
+        console.log("[ViewAllScreen] No authenticated user found");
         setPlaces([]);
         setLoading(false);
         return;
@@ -104,59 +305,119 @@ const ViewAllScreen = ({ route, navigation }) => {
       const querySnapshot = await getDocs(userVisitedPlacesRef);
 
       if (querySnapshot.empty) {
-        console.log("No saved places found in Firestore");
+        console.log("[ViewAllScreen] No saved places found in Firestore");
         setPlaces([]);
       } else {
         // Transform Firestore documents to place objects
-        const userPlacesData = querySnapshot.docs.map((doc) => {
-          const data = doc.data();
+        const userPlacesData = querySnapshot.docs
+          .filter((doc) => {
+            // Filter out the initialization document and any invalid entries
+            const data = doc.data();
+            return !data._isInitDocument && data.name; // Ensure there's at least a name
+          })
+          .map((doc) => {
+            const data = doc.data();
 
-          return {
-            id: doc.id,
-            place_id: data.place_id,
-            name: data.name,
-            vicinity: data.vicinity || "",
-            description: data.description || "",
-            geometry: data.geometry,
-            photos: data.photos || [],
-            // Format the visited date for display
-            visitedAt: data.visitedAt,
-            visitDate: data.visitedAt ? new Date(data.visitedAt) : new Date(),
-            // Add isVisited flag to indicate these are places that have been visited
-            isVisited: true,
-          };
-        });
+            // Always use null instead of undefined for optional fields
+            return {
+              id: doc.id,
+              place_id: data.place_id || doc.id,
+              name: data.name || "Unknown Place",
+              vicinity: data.vicinity || "",
+              description: data.description || "",
+              geometry: data.geometry || {
+                location: { lat: 0, lng: 0 },
+              },
+              photos: data.photos || [],
+              // Use null instead of undefined
+              rating: data.rating || null,
+              user_ratings_total: data.user_ratings_total || null,
+              price_level: data.price_level || null,
+              visitedAt: data.visitedAt || null,
+              isVisited: true,
+              // Add any other necessary fields with null fallbacks
+              website: data.website || null,
+              url: data.url || null,
+              formatted_phone_number: data.formatted_phone_number || null,
+              opening_hours: data.opening_hours || null,
+              icon: data.icon || null,
+              types: data.types || [],
+            } as VisitedPlaceDetails;
+          });
 
-        console.log(`Found ${userPlacesData.length} places in Firestore`);
+        console.log(`[ViewAllScreen] Found ${userPlacesData.length} places in Firestore`);
         setPlaces(userPlacesData);
       }
     } catch (error) {
-      console.error("Error fetching visited places from Firestore:", error);
+      console.error("[ViewAllScreen] Error fetching visited places from Firestore:", error);
       setError("Failed to load your visited places");
     } finally {
       setLoading(false);
     }
   };
 
-  const navigateToPlaceDetails = (placeId) => {
-    navigation.navigate("Place", { placeId });
+  const navigateToPlaceDetails = async (placeId: string): Promise<void> => {
+    try {
+      // Find the place object in the places array
+      const placeObject = places.find((place) => place.place_id === placeId);
+
+      if (!placeObject) {
+        console.error("[ViewAllScreen] Place not found for navigation:", placeId);
+        Alert.alert("Error", "Could not find place details");
+        return;
+      }
+
+      // If online and place doesn't have full details, try to fetch them using Firebase-first approach
+      if (isConnected && !placeObject.hasFullDetails && viewType === "nearbyPlaces") {
+        try {
+          console.log(
+            `[ViewAllScreen] Fetching full details for ${placeObject.name} before navigation`
+          );
+          // Show loading feedback
+
+          // Use the Firebase-first approach to fetch details
+          const detailedPlace = await fetchPlaceDetailsOnDemand(placeId);
+
+          // If we got details, navigate with those
+          if (detailedPlace) {
+            console.log(`[ViewAllScreen] Got full details for ${detailedPlace.name}, navigating`);
+            navigation.navigate("PlaceDetails", {
+              placeId,
+              place: detailedPlace,
+            });
+            return;
+          }
+        } catch (error) {
+          console.error("[ViewAllScreen] Error fetching place details:", error);
+          // Continue with basic place object if fetch fails
+        }
+      }
+
+      // Navigate with the basic place object if we couldn't get details
+      navigation.navigate("PlaceDetails", {
+        placeId,
+        place: placeObject,
+      });
+    } catch (error) {
+      console.error("[ViewAllScreen] Error during navigation:", error);
+      Alert.alert("Navigation Error", "Could not navigate to place details");
+    }
   };
 
   // Format the date for display
-  const formatVisitDate = (dateString) => {
+  const formatVisitDate = (dateString?: string): string => {
     if (!dateString) return "Visited recently";
 
     try {
       const visitDate = new Date(dateString);
       return `Visited ${formatDistanceToNow(visitDate, { addSuffix: true })}`;
     } catch (error) {
-      console.error("Error formatting date:", error);
       return "Visited recently";
     }
   };
 
   // Render a grid item for nearby places
-  const renderGridItem = ({ item }) => {
+  const renderGridItem: ListRenderItem<Place | VisitedPlaceDetails> = ({ item }) => {
     return (
       <TouchableOpacity
         style={styles.gridCard}
@@ -170,7 +431,7 @@ const ViewAllScreen = ({ route, navigation }) => {
         <LinearGradient colors={["transparent", "rgba(0,0,0,0.7)"]} style={styles.cardGradient} />
         <View style={styles.cardContent}>
           <Text style={styles.placeName} numberOfLines={2}>
-            {item.name}
+            {item.name || "Unknown Place"}
           </Text>
           {item.rating && (
             <View style={styles.ratingContainer}>
@@ -190,7 +451,7 @@ const ViewAllScreen = ({ route, navigation }) => {
   };
 
   // Render a list item for my places
-  const renderListItem = ({ item }) => {
+  const renderListItem: ListRenderItem<Place | VisitedPlaceDetails> = ({ item }) => {
     return (
       <TouchableOpacity
         style={styles.listCard}
@@ -203,7 +464,7 @@ const ViewAllScreen = ({ route, navigation }) => {
         />
         <LinearGradient colors={["transparent", "rgba(0,0,0,0.7)"]} style={styles.cardGradient} />
         <View style={styles.cardContent}>
-          <Text style={styles.placeName}>{item.name}</Text>
+          <Text style={styles.placeName}>{item.name || "Unknown Place"}</Text>
           <View style={styles.placeInfo}>
             <Ionicons name="location" size={14} color="#fff" style={{ marginRight: 4 }} />
             <Text style={styles.placeVicinity} numberOfLines={1}>
@@ -227,7 +488,7 @@ const ViewAllScreen = ({ route, navigation }) => {
   };
 
   // Empty state based on view type
-  const renderEmptyState = () => {
+  const renderEmptyState = (): React.ReactNode => {
     if (viewType === "myPlaces") {
       return (
         <View style={styles.emptyContainer}>
@@ -253,31 +514,13 @@ const ViewAllScreen = ({ route, navigation }) => {
             We couldn't find any tourist attractions nearby. Try again later or in a different
             location.
           </Text>
-          <TouchableOpacity style={styles.retryButton} onPress={fetchData}>
+          <TouchableOpacity style={styles.retryButton} onPress={() => fetchData(true)}>
             <Text style={styles.retryButtonText}>Try Again</Text>
           </TouchableOpacity>
         </View>
       );
     }
   };
-
-  // Create a right component for filter and sort options
-  const headerRightComponent = (
-    <View style={styles.headerRightContainer}>
-      {/* {viewType === "nearbyPlaces" && (
-        <TouchableOpacity style={styles.headerButton}>
-          <View style={styles.iconContainer}>
-            <Ionicons name="filter" size={20} color={Colors.primary} />
-          </View>
-        </TouchableOpacity>
-      )} */}
-      {/* <TouchableOpacity style={styles.headerButton}>
-        <View style={styles.iconContainer}>
-          <Ionicons name="options" size={20} color={Colors.primary} />
-        </View>
-      </TouchableOpacity> */}
-    </View>
-  );
 
   return (
     <SafeAreaView style={styles.container}>
@@ -290,23 +533,27 @@ const ViewAllScreen = ({ route, navigation }) => {
         showIcon={false}
         iconName={currentHeaderConfig.icon}
         iconColor={currentHeaderConfig.color}
-        // rightComponent={headerRightComponent}
         showBackButton={true}
         showHelp={false}
+        onHelpPress={() => {}}
         onBackPress={() => navigation.goBack()}
       />
 
+      {/* Network Status Indicator - Show when offline */}
+      {!isConnected && (
+        <View style={styles.networkStatusContainer}>
+          <Text style={styles.networkStatusText}>Offline Mode</Text>
+        </View>
+      )}
+
       {/* Content */}
       {loading ? (
-        <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color={Colors.primary} />
-          <Text style={styles.loadingText}>Loading places...</Text>
-        </View>
+        <MapLoading />
       ) : error ? (
         <View style={styles.centerContainer}>
           <Ionicons name="alert-circle-outline" size={60} color="#ccc" />
           <Text style={styles.errorText}>{error}</Text>
-          <TouchableOpacity style={styles.retryButton} onPress={fetchData}>
+          <TouchableOpacity style={styles.retryButton} onPress={() => fetchData(true)}>
             <Text style={styles.retryButtonText}>Try Again</Text>
           </TouchableOpacity>
         </View>
@@ -315,20 +562,41 @@ const ViewAllScreen = ({ route, navigation }) => {
       ) : viewType === "nearbyPlaces" ? (
         <FlatList
           data={places}
-          keyExtractor={(item) => item.place_id}
+          keyExtractor={(item) => item.place_id || item.id || Math.random().toString()}
           renderItem={renderGridItem}
           numColumns={2}
           contentContainerStyle={styles.gridContent}
           columnWrapperStyle={styles.gridRow}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={[Colors.primary]}
+            />
+          }
+          ListHeaderComponent={
+            debugInfo ? (
+              <View style={styles.debugContainer}>
+                <Text style={styles.debugText}>{debugInfo}</Text>
+              </View>
+            ) : null
+          }
         />
       ) : (
         <FlatList
           data={places}
-          keyExtractor={(item) => item.place_id}
+          keyExtractor={(item) => item.place_id || item.id || Math.random().toString()}
           renderItem={renderListItem}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={[Colors.primary]}
+            />
+          }
         />
       )}
     </SafeAreaView>
@@ -345,11 +613,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     padding: 20,
-  },
-  loadingText: {
-    marginTop: 10,
-    fontSize: 16,
-    color: NeutralColors.gray500,
   },
   errorText: {
     marginTop: 10,
@@ -371,9 +634,39 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  // Grid Layout (for Nearby Places)
+
+  // Network status indicator
+  networkStatusContainer: {
+    backgroundColor: "rgba(255, 59, 48, 0.1)",
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    marginHorizontal: 16,
+    marginVertical: 8,
+    alignItems: "center",
+  },
+  networkStatusText: {
+    color: "#FF3B30",
+    fontSize: 14,
+    fontWeight: "500",
+  },
+
+  debugContainer: {
+    padding: 8,
+    backgroundColor: "rgba(0,0,0,0.05)",
+    marginBottom: 8,
+    borderRadius: 8,
+    marginHorizontal: 16,
+  },
+  debugText: {
+    fontSize: 12,
+    color: "#666",
+    textAlign: "center",
+  },
+
   gridContent: {
     padding: 16,
+    paddingBottom: 80,
   },
   gridRow: {
     justifyContent: "space-between",
@@ -396,9 +689,10 @@ const styles = StyleSheet.create({
     height: "100%",
     resizeMode: "cover",
   },
-  // List Layout (for My Places)
+
   listContent: {
     padding: 16,
+    paddingBottom: 80,
   },
   listCard: {
     height: 180,
@@ -417,7 +711,6 @@ const styles = StyleSheet.create({
     height: "100%",
     resizeMode: "cover",
   },
-  // Shared styles
   cardGradient: {
     position: "absolute",
     bottom: 0,
@@ -507,7 +800,6 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     marginLeft: 3,
   },
-  // Empty state
   emptyContainer: {
     flex: 1,
     justifyContent: "center",

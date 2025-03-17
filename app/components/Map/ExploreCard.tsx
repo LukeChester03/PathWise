@@ -20,7 +20,7 @@ interface ExploreCardProps {
   placeName: string;
   placeDescription?: string;
   placeImage?: string;
-  travelTime: string;
+  travelTime: string | null;
   onStartJourney: () => void;
   onCancel: () => void;
   visible?: boolean;
@@ -262,7 +262,7 @@ const ExploreCard: React.FC<ExploreCardProps> = ({
       {/* Header Image */}
       <View style={styles.imageContainer}>
         <Animated.Image
-          source={placeImage ? { uri: placeImage } : require("../../assets/discover.png")}
+          source={{ uri: placeImage }}
           style={[
             styles.headerImage,
             {
@@ -277,7 +277,6 @@ const ExploreCard: React.FC<ExploreCardProps> = ({
               ],
             },
           ]}
-          defaultSource={require("../../assets/discover.png")}
         />
         <LinearGradient colors={["transparent", "rgba(0,0,0,0.8)"]} style={styles.imageGradient} />
 

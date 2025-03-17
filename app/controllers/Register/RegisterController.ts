@@ -34,6 +34,7 @@ export const handleRegister = async (
       const userData = {
         name,
         email,
+        isNewUser: true,
         createdAt,
 
         // Initialize stats for tracking visited places properly

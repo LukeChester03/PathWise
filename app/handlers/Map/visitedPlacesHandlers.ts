@@ -109,7 +109,7 @@ export const getVisitedPlaceDetails = async (placeId, userId = null) => {
     const placeDoc = await getDoc(placeDocRef);
 
     if (placeDoc.exists()) {
-      console.log(`Retrieved visited place details for ${placeId}`);
+      console.log(`Retrieved visited place details for ${placeId} from firebase`);
       return {
         ...placeDoc.data(),
         id: placeId,

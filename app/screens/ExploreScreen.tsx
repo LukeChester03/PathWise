@@ -1,3 +1,5 @@
+// Updated ExploreScreen.tsx with Firebase caching fixes
+
 import React, { useState, useEffect, useRef } from "react";
 import {
   View,
@@ -13,6 +15,7 @@ import {
   AppState,
   AppStateStatus,
   RefreshControl,
+  Alert,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
@@ -20,8 +23,12 @@ import { collection, getDocs, DocumentData } from "firebase/firestore";
 import { auth, db } from "../config/firebaseConfig";
 import ScreenWithNavBar from "../components/Global/ScreenWithNavbar";
 import Header from "../components/Global/Header";
-import { SearchBar } from "../components/Global/SearchBar";
-import { fetchNearbyPlaces, clearPlacesCache } from "../controllers/Map/placesController";
+import {
+  fetchNearbyPlaces,
+  clearPlacesCache,
+  fetchPlaceDetailsOnDemand, // Added this import
+  getCacheStats, // Added this import for debugging
+} from "../controllers/Map/placesController";
 import {
   getCurrentLocation,
   startLocationWatching,
@@ -29,33 +36,46 @@ import {
   getNearbyPlacesState,
   updateNearbyPlaces,
   globalPlacesState,
+  checkAuthAndEnablePlacesLoading,
 } from "../controllers/Map/locationController";
 import { Colors, NeutralColors } from "../constants/colours";
 import PlacesCarousel from "../components/Places/PlacesCarousel";
 import GettingStartedModal from "../components/Places/GettingStartedModal";
 import { Coordinate, Region, Place } from "../types/MapTypes";
 import { StackScreenProps } from "@react-navigation/stack";
+import { RootStackParamList } from "../navigation/types";
+import NetInfo from "@react-native-community/netinfo"; // Add this import for network detection
 
 const { width } = Dimensions.get("window");
-
-// Define navigation type
-type RootStackParamList = {
-  Home: undefined;
-  Search: { initialQuery: string };
-
-  ViewAll: { viewType: string };
-  Place: { placeId: string };
-  Discover: undefined;
-};
 
 type ExploreScreenProps = StackScreenProps<RootStackParamList, "Home">;
 
 /**
  * Preload nearby places when app initializes
+ * Updated to use the Firebase cache correctly
  */
 export const preloadNearbyPlaces = async () => {
   try {
+    // Check if we already have places in the global state
+    if (globalPlacesState.places.length > 0 && !globalPlacesState.isPreloading) {
+      console.log("Places already preloaded, skipping preload");
+      return;
+    }
+
     console.log("Starting place preloading from app initialization");
+
+    // Check auth state first - this enables places loading if user is logged in
+    const isLoggedIn = checkAuthAndEnablePlacesLoading();
+    if (!isLoggedIn) {
+      console.log("User not logged in, skipping places preload");
+      return;
+    }
+
+    // Check if we're online first
+    const netInfo = await NetInfo.fetch();
+    const isConnected = netInfo.isConnected ?? false;
+    console.log(`Network connected: ${isConnected}`);
+
     // Get current location
     const location = await getCurrentLocation();
     if (!location) {
@@ -63,8 +83,17 @@ export const preloadNearbyPlaces = async () => {
       return;
     }
 
-    // Fetch places - this will update the global state
+    // Fetch places - this will use Firebase cache if available
+    console.log(`Got location for preload: ${location.latitude}, ${location.longitude}`);
+
+    // Only pass forceRefresh=true if we're specifically wanting to ignore cache
+    // Here we want to USE the cache if available, so forceRefresh=false
     await updateNearbyPlaces(location, false);
+
+    // Log cache stats for debugging
+    const stats = await getCacheStats();
+    console.log("Place cache stats:", JSON.stringify(stats));
+
     console.log("Place preloading complete");
   } catch (error) {
     console.error("Error preloading nearby places:", error);
@@ -77,24 +106,43 @@ const ExploreScreen: React.FC<ExploreScreenProps> = ({ navigation }) => {
   const [helpModalVisible, setHelpModalVisible] = useState<boolean>(false);
   const [myPlaces, setMyPlaces] = useState<Place[]>([]);
   const [nearbyPlaces, setNearbyPlaces] = useState<Place[]>([]);
-  const [loading, setLoading] = useState<boolean>(false);
+  const [loading, setLoading] = useState<boolean>(true);
   const [loadingMyPlaces, setLoadingMyPlaces] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [noPlacesFound, setNoPlacesFound] = useState<boolean>(false);
   const [noMyPlacesFound, setNoMyPlacesFound] = useState<boolean>(false);
+  const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
+  const [isConnected, setIsConnected] = useState<boolean>(true);
 
-  // Reference to track if we already have a location watcher
+  // Refs for component lifecycle and data loading
+  const componentVisibleRef = useRef<boolean>(true);
+  const initialLoadCompletedRef = useRef<boolean>(false);
   const locationWatcherRef = useRef<(() => void) | null>(null);
-
-  // Reference to track app state
   const appState = useRef<AppStateStatus>(AppState.currentState);
+  const loadingSafetyTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const placesLoadedRef = useRef<boolean>(false);
 
-  // Handle app state changes to optimize location tracking
+  // Monitor network connectivity
+  useEffect(() => {
+    const unsubscribe = NetInfo.addEventListener((state) => {
+      const connected = state.isConnected ?? false;
+      setIsConnected(connected);
+    });
+
+    NetInfo.fetch().then((state) => {
+      setIsConnected(state.isConnected ?? false);
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, []);
+
+  // Handle app state changes
   useEffect(() => {
     const subscription = AppState.addEventListener("change", handleAppStateChange);
     return () => {
       subscription.remove();
-      // Clean up location watcher when component unmounts
       if (locationWatcherRef.current) {
         locationWatcherRef.current();
         locationWatcherRef.current = null;
@@ -102,12 +150,11 @@ const ExploreScreen: React.FC<ExploreScreenProps> = ({ navigation }) => {
     };
   }, []);
 
-  // Handle app state changes
   const handleAppStateChange = (nextAppState: AppStateStatus): void => {
     if (appState.current.match(/inactive|background/) && nextAppState === "active") {
-      console.log("App has come to the foreground - refreshing data");
-      // App has come to the foreground, refresh data
-      refreshAllData();
+      if (componentVisibleRef.current) {
+        refreshAllData();
+      }
     }
     appState.current = nextAppState;
   };
@@ -115,6 +162,8 @@ const ExploreScreen: React.FC<ExploreScreenProps> = ({ navigation }) => {
   // Initial data load and setup
   useEffect(() => {
     console.log("ExploreScreen mounted - initializing data...");
+    componentVisibleRef.current = true;
+    placesLoadedRef.current = false;
 
     // Register for place updates
     const unsubscribeFromPlaceUpdates = onPlacesUpdate(handlePlacesUpdate);
@@ -124,39 +173,60 @@ const ExploreScreen: React.FC<ExploreScreenProps> = ({ navigation }) => {
       setupLocationWatcher();
     }
 
-    // Load user's places
+    // Load user's places from Firestore
     fetchUserPlacesFromFirestore();
 
     // Check if we already have preloaded places
-    console.log("Checking for preloaded places data...");
+    const placesState = getNearbyPlacesState();
 
-    // Get current state before doing anything else
-    if (globalPlacesState.hasPreloaded && globalPlacesState.places.length > 0) {
-      console.log(`Using ${globalPlacesState.places.length} preloaded places`);
-      setNearbyPlaces(globalPlacesState.places);
+    if (placesState.hasPreloaded && placesState.places.length > 0) {
+      console.log(`Using ${placesState.places.length} preloaded places`);
+      setNearbyPlaces(placesState.places);
       setNoPlacesFound(false);
       setLoading(false);
-    } else if (globalPlacesState.isLoading || globalPlacesState.isPreloading) {
-      // Show loading if preloading is in progress or regular loading is happening
+      placesLoadedRef.current = true;
+      initialLoadCompletedRef.current = true;
+    } else if (placesState.isLoading || placesState.isPreloading) {
       console.log("Places are currently being loaded or preloaded");
       setLoading(true);
-      setNoPlacesFound(false); // Important: don't set as "not found" while still loading
+      setNoPlacesFound(false);
     } else {
       console.log("No preloaded places available, fetching now");
-      // If no places are preloaded yet, fetch them
-      fetchNearbyData();
+      fetchNearbyData(false);
     }
 
-    // Cleanup on unmount
+    // Override safety timeout - CRITICAL FIX
+    // This will only set initial loading to false if places haven't loaded by the timeout
+    loadingSafetyTimeoutRef.current = setTimeout(() => {
+      if (componentVisibleRef.current && loading && !placesLoadedRef.current) {
+        console.log("Safety timeout: still loading after timeout, showing empty state");
+        setLoading(false);
+        if (nearbyPlaces.length === 0) {
+          setNoPlacesFound(true);
+        }
+      }
+    }, 15000);
+
     return () => {
+      componentVisibleRef.current = false;
       unsubscribeFromPlaceUpdates();
+
+      // Clear all timers
+      if (loadingSafetyTimeoutRef.current) {
+        clearTimeout(loadingSafetyTimeoutRef.current);
+        loadingSafetyTimeoutRef.current = null;
+      }
+
+      // Clean up location watcher
+      if (locationWatcherRef.current) {
+        locationWatcherRef.current();
+        locationWatcherRef.current = null;
+      }
     };
   }, []);
 
-  // Set up the location watcher
   const setupLocationWatcher = async () => {
     try {
-      // Start watching for significant location changes
       const cleanup = await startLocationWatching();
       locationWatcherRef.current = cleanup;
       console.log("Location watcher set up successfully");
@@ -167,7 +237,7 @@ const ExploreScreen: React.FC<ExploreScreenProps> = ({ navigation }) => {
 
   // Handle places updates from global state
   const handlePlacesUpdate = (placesData: any): void => {
-    if (!placesData) return;
+    if (!componentVisibleRef.current || !placesData) return;
 
     console.log(
       "Received places update:",
@@ -178,108 +248,208 @@ const ExploreScreen: React.FC<ExploreScreenProps> = ({ navigation }) => {
       placesData.isPreloading
     );
 
-    // First handle loading state
     setLoading(placesData.isLoading || placesData.isPreloading);
 
-    // If we have places, show them regardless of loading state
     if (placesData.places && placesData.places.length > 0) {
+      console.log(`Setting ${placesData.places.length} places from update`);
+
+      if (!initialLoadCompletedRef.current) {
+        initialLoadCompletedRef.current = true;
+      }
+
+      // CRITICAL FIX: Mark places as loaded to prevent safety timeout from showing empty state
+      placesLoadedRef.current = true;
+
       setNearbyPlaces(placesData.places);
       setNoPlacesFound(false);
-    }
-    // Only set noPlacesFound to true if we're not loading and not preloading
-    else if (!placesData.isLoading && !placesData.isPreloading) {
+
+      // Clear safety timeout since we have places
+      if (loadingSafetyTimeoutRef.current) {
+        clearTimeout(loadingSafetyTimeoutRef.current);
+        loadingSafetyTimeoutRef.current = null;
+      }
+    } else if (!placesData.isLoading && !placesData.isPreloading) {
       setNoPlacesFound(true);
     }
   };
 
-  // Function to refresh all data
   const refreshAllData = async (): Promise<void> => {
     try {
-      fetchUserPlacesFromFirestore();
-      fetchNearbyData(true);
+      if (!componentVisibleRef.current) return;
+
+      setIsRefreshing(true);
+
+      await fetchUserPlacesFromFirestore();
+      await fetchNearbyData(true);
+
+      setIsRefreshing(false);
     } catch (error) {
       console.error("Error refreshing data:", error);
+      if (componentVisibleRef.current) {
+        setIsRefreshing(false);
+        Alert.alert(
+          "Refresh Failed",
+          "There was a problem refreshing the data. Please try again later."
+        );
+      }
     }
   };
 
   const fetchNearbyData = async (forceRefresh: boolean = false): Promise<void> => {
     try {
-      // Update loading state
-      setLoading(true);
-      setError(null);
+      if (!componentVisibleRef.current) return;
 
-      // Get current location
-      const currentLocation = await getCurrentLocation();
-      if (!currentLocation) {
-        setError("Unable to get your location");
+      if (!isRefreshing) {
+        setLoading(true);
+      }
+      setError(null);
+      setNoPlacesFound(false);
+
+      // Check auth state first - this enables places loading if user is logged in
+      const isLoggedIn = checkAuthAndEnablePlacesLoading();
+      if (!isLoggedIn) {
+        console.log("User not logged in, skipping places fetch");
         setLoading(false);
+        setNoPlacesFound(true);
         return;
       }
 
-      // Fetch nearby places through the location service
-      await updateNearbyPlaces(currentLocation, forceRefresh);
+      const currentLocation = await getCurrentLocation();
+      if (!currentLocation) {
+        console.error("ExploreScreen: Unable to get current location");
+        if (componentVisibleRef.current) {
+          setError("Unable to get your location");
+          setLoading(false);
+        }
+        return;
+      }
 
-      // Note: We don't need to set nearbyPlaces here as we'll get the update via handlePlacesUpdate
+      // Reset safety timeout
+      if (loadingSafetyTimeoutRef.current) {
+        clearTimeout(loadingSafetyTimeoutRef.current);
+      }
+
+      // Set new safety timeout ONLY for initial loading, not refreshes
+      if (!initialLoadCompletedRef.current) {
+        loadingSafetyTimeoutRef.current = setTimeout(() => {
+          if (componentVisibleRef.current && loading && !placesLoadedRef.current) {
+            console.log("Safety timeout: still loading after refresh timeout, showing empty state");
+            setLoading(false);
+            if (nearbyPlaces.length === 0) {
+              setNoPlacesFound(true);
+            }
+          }
+        }, 15000);
+      }
+
+      const success = await updateNearbyPlaces(currentLocation, forceRefresh);
+
+      // Check global state immediately after update
+      const placesState = getNearbyPlacesState();
+
+      if (placesState.places.length > 0) {
+        placesLoadedRef.current = true;
+        setNearbyPlaces(placesState.places);
+        setNoPlacesFound(false);
+        setLoading(false);
+
+        if (loadingSafetyTimeoutRef.current) {
+          clearTimeout(loadingSafetyTimeoutRef.current);
+          loadingSafetyTimeoutRef.current = null;
+        }
+        return;
+      }
+
+      if (!success && componentVisibleRef.current) {
+        setError("Failed to fetch nearby places");
+        setLoading(false);
+
+        if (nearbyPlaces.length > 0) {
+          setNoPlacesFound(false);
+        } else {
+          setNoPlacesFound(true);
+        }
+      } else {
+        // Success but no update callback, set loading to false after a short delay
+        setTimeout(() => {
+          if (componentVisibleRef.current && loading) {
+            setLoading(false);
+          }
+        }, 2000);
+      }
     } catch (error) {
       console.error("Error fetching nearby data:", error);
-      setError("Something went wrong");
+
+      if (!componentVisibleRef.current) return;
+
+      setError("Something went wrong while fetching nearby places");
       setLoading(false);
+
+      if (nearbyPlaces.length > 0) {
+        setNoPlacesFound(false);
+      } else {
+        setNoPlacesFound(true);
+      }
     }
   };
 
   const fetchUserPlacesFromFirestore = async (): Promise<void> => {
     try {
+      if (!componentVisibleRef.current) return;
+
       setLoadingMyPlaces(true);
       setNoMyPlacesFound(false);
 
-      // Check if user is authenticated
       const currentUser = auth.currentUser;
       if (!currentUser) {
         console.log("No authenticated user found");
-        setNoMyPlacesFound(true);
-        setLoadingMyPlaces(false);
+        if (componentVisibleRef.current) {
+          setNoMyPlacesFound(true);
+          setLoadingMyPlaces(false);
+        }
         return;
       }
 
-      // visitedPlaces is a subcollection under the user document
       const userVisitedPlacesRef = collection(db, "users", currentUser.uid, "visitedPlaces");
       const querySnapshot = await getDocs(userVisitedPlacesRef);
+
+      if (!componentVisibleRef.current) return;
 
       if (querySnapshot.empty) {
         console.log("No saved places found in Firestore");
         setNoMyPlacesFound(true);
         setMyPlaces([]);
       } else {
-        // Transform Firestore documents to place objects
         const userPlacesData = querySnapshot.docs
           .filter((doc) => {
-            // Filter out the initialization document
             const data = doc.data();
             return !data._isInitDocument;
           })
           .map((doc) => {
             const data = doc.data();
-
-            // Include ALL properties including rating
             return {
-              ...data, // Keep all original properties
+              ...data,
               id: doc.id,
               place_id: data.place_id || doc.id,
-              name: data.name,
+              name: data.name || "Unknown Place",
               vicinity: data.vicinity || "",
               description: data.description || "",
-              geometry: data.geometry,
+              geometry: data.geometry || {
+                location: { lat: 0, lng: 0 },
+              },
               photos: data.photos || [],
-              // Make sure rating info is included
               rating: data.rating || null,
-              // Date formatting
-              visitedAt: data.visitedAt,
+              user_ratings_total: data.user_ratings_total || null,
+              visitedAt: data.visitedAt || null,
               visitDate: data.visitedAt ? new Date(data.visitedAt) : new Date(),
-              isVisited: true, // Explicitly mark as visited
+              isVisited: true,
+              website: data.website || null,
             } as Place;
           });
 
         console.log(`Found ${userPlacesData.length} places in Firestore (excluding init doc)`);
+
+        if (!componentVisibleRef.current) return;
 
         if (userPlacesData.length === 0) {
           setNoMyPlacesFound(true);
@@ -293,32 +463,150 @@ const ExploreScreen: React.FC<ExploreScreenProps> = ({ navigation }) => {
       setLoadingMyPlaces(false);
     } catch (error) {
       console.error("Error fetching user places from Firestore:", error);
+
+      if (!componentVisibleRef.current) return;
+
       setNoMyPlacesFound(true);
       setLoadingMyPlaces(false);
     }
   };
 
-  const handleSearch = (): void => {
-    if (searchQuery.trim() === "") return;
-    navigation.navigate("Search", { initialQuery: searchQuery });
+  /**
+   * Helper function to make place objects serializable for navigation
+   * Converts Date objects to ISO strings
+   */
+  const makeSerializable = (obj: any): any => {
+    if (obj === null || obj === undefined) {
+      return obj;
+    }
+
+    // Handle Date objects
+    if (obj instanceof Date) {
+      return obj.toISOString();
+    }
+
+    // Handle arrays
+    if (Array.isArray(obj)) {
+      return obj.map((item) => makeSerializable(item));
+    }
+
+    // Handle objects
+    if (typeof obj === "object") {
+      const result: any = {};
+      for (const key in obj) {
+        if (Object.prototype.hasOwnProperty.call(obj, key)) {
+          result[key] = makeSerializable(obj[key]);
+        }
+      }
+      return result;
+    }
+
+    // Return primitives as is
+    return obj;
+  };
+
+  /**
+   * Navigate to place details with optimized data fetching strategy
+   * No API calls for visited places
+   */
+  const navigateToPlaceDetails = async (placeId: string, place?: Place): Promise<void> => {
+    if (!place) {
+      console.error("Cannot navigate: No place provided");
+      return;
+    }
+
+    try {
+      // Check if this is a visited place
+      if (place.isVisited) {
+        console.log(`${place.name} is a visited place, using existing data from Firebase`);
+        // For visited places, we already have all the data we need in Firebase
+        // Just serialize and navigate directly without any API calls
+        const serializablePlace = makeSerializable(place);
+        navigation.navigate("PlaceDetails", { placeId, place: serializablePlace });
+        return;
+      }
+
+      // Only for non-visited places, try to get full details before navigation
+      if (isConnected && !place.hasFullDetails) {
+        try {
+          console.log(`Fetching full details for ${place.name} before navigation`);
+
+          // Add a timeout to prevent hanging indefinitely
+          const timeoutPromise = new Promise<null>((resolve) => {
+            setTimeout(() => {
+              console.log(`Timeout fetching details for ${place.name}, proceeding with basic info`);
+              resolve(null);
+            }, 5000); // 5 second timeout
+          });
+
+          // Race between the fetch and the timeout
+          const detailedPlace = await Promise.race([
+            fetchPlaceDetailsOnDemand(placeId),
+            timeoutPromise,
+          ]);
+
+          if (detailedPlace) {
+            console.log(`Got full details for ${detailedPlace.name}, navigating`);
+            // Make the place object serializable before navigation
+            const serializablePlace = makeSerializable(detailedPlace);
+            navigation.navigate("PlaceDetails", {
+              placeId,
+              place: serializablePlace,
+            });
+            return;
+          }
+
+          console.log(`Falling back to basic place info for ${place.name}`);
+        } catch (error) {
+          console.error("Error fetching place details:", error);
+        }
+      }
+
+      // Navigate with basic place info as fallback
+      console.log(`Navigating to place ${place.name} with basic info`);
+      const serializablePlace = makeSerializable(place);
+      navigation.navigate("PlaceDetails", { placeId, place: serializablePlace });
+    } catch (error) {
+      console.error("Error during navigation:", error);
+      Alert.alert("Navigation Error", "Could not navigate to place details");
+    }
   };
 
   const navigateToViewAll = (type: string): void => {
     navigation.navigate("ViewAll", { viewType: type });
   };
 
-  const navigateToPlaceDetails = (placeId: string, place?: Place): void => {
-    navigation.navigate("Place", { placeId });
-  };
-
   const navigateToDiscover = (): void => {
     navigation.navigate("Discover");
   };
 
-  // Pull-to-refresh handler
   const handleRefresh = async (): Promise<void> => {
-    refreshAllData();
+    try {
+      if (!componentVisibleRef.current) return;
+
+      setIsRefreshing(true);
+      await refreshAllData();
+    } catch (error) {
+      console.error("Error during refresh:", error);
+    } finally {
+      if (componentVisibleRef.current) {
+        setIsRefreshing(false);
+      }
+    }
   };
+
+  // ADDITIONAL FIX: Effect to ensure we don't lose places data
+  useEffect(() => {
+    if (componentVisibleRef.current && !loading && nearbyPlaces.length === 0) {
+      // If no places but global state has them, update our state
+      const globalPlaces = getNearbyPlacesState();
+      if (globalPlaces.places.length > 0) {
+        console.log("Syncing from global state - found places when local state has none");
+        setNearbyPlaces(globalPlaces.places);
+        placesLoadedRef.current = true;
+      }
+    }
+  }, [loading, nearbyPlaces.length]);
 
   // Enhanced empty state component with better visuals
   const renderEmptyState = (
@@ -604,8 +892,15 @@ const ExploreScreen: React.FC<ExploreScreenProps> = ({ navigation }) => {
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
-        refreshControl={<RefreshControl refreshing={loading} onRefresh={handleRefresh} />}
+        refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} />}
       >
+        {/* Network Status Indicator - Show when offline */}
+        {!isConnected && (
+          <View style={styles.networkStatusContainer}>
+            <Text style={styles.networkStatusText}>Offline Mode</Text>
+          </View>
+        )}
+
         {/* My Places Section */}
         <View style={styles.sectionContainer}>{renderMyPlacesSection()}</View>
 
@@ -649,6 +944,7 @@ const ExploreScreen: React.FC<ExploreScreenProps> = ({ navigation }) => {
           rightComponent={headerRightComponent}
           customStyles={styles.headerCustomStyles}
           onHelpPress={handleHelpPress}
+          showHelp={false}
         />
 
         {/* Getting Started Modal */}
@@ -656,11 +952,6 @@ const ExploreScreen: React.FC<ExploreScreenProps> = ({ navigation }) => {
           visible={helpModalVisible}
           onClose={() => setHelpModalVisible(false)}
         />
-
-        {/* Search Bar */}
-        <View style={styles.searchBarContainer}>
-          <SearchBar value={searchQuery} onChangeText={setSearchQuery} onSearch={handleSearch} />
-        </View>
 
         {renderContent()}
       </SafeAreaView>
@@ -799,6 +1090,22 @@ const styles = StyleSheet.create({
     color: Colors.primary,
     fontWeight: "600",
     marginRight: 2,
+  },
+
+  // Network status indicator
+  networkStatusContainer: {
+    backgroundColor: "rgba(255, 59, 48, 0.1)",
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    marginHorizontal: 16,
+    marginBottom: 16,
+    alignItems: "center",
+  },
+  networkStatusText: {
+    color: "#FF3B30",
+    fontSize: 14,
+    fontWeight: "500",
   },
 
   // Featured grid
