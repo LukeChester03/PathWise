@@ -12,6 +12,7 @@ export interface TravelBadge {
     type: string;
     value: number;
     current: number;
+    category?: string; // For category-specific requirements
   }[];
 }
 
@@ -21,11 +22,27 @@ export interface TravelPreference {
   icon: string;
 }
 
+// New traveler trait interface
+export interface TravelerTrait {
+  id: string;
+  title: string;
+  description: string;
+  icon: string;
+  color: string;
+}
+
+// New travel milestone interface
+export interface TravelMilestone {
+  title: string;
+  value: string | number;
+  icon: string;
+  description?: string;
+}
+
 export interface TravelProfile {
   type: string;
   level: string;
   description: string;
-  badges: TravelBadge[];
   streak: number;
   visitFrequency: {
     weekdays: {
@@ -62,6 +79,12 @@ export interface TravelProfile {
     }[];
   };
   recentInsights: string[];
+  // New fields
+  travelerTraits?: TravelerTrait[];
+  travelMilestones?: TravelMilestone[];
+  firstVisitDate?: string; // ISO date string
+  bestDayToExplore?: string;
+  explorationScore?: number;
   isGenerating: boolean;
 }
 

@@ -22,8 +22,13 @@ import {
   TravelBadge,
   TravelPreference,
   BadgeTask,
+  TravelerTrait,
 } from "../../types/LearnScreen/TravelProfileTypes";
 import { getAllUserBadges, updateBadgeRequirements, completeBadge } from "./badgeService";
+import { AccentColors, Colors, NeutralColors } from "@/app/constants/colours";
+
+// services/LearnScreen/travelProfileService.ts
+// ... imports remain the same
 
 // Constants for profile refresh
 const PROFILE_REFRESH_INTERVAL = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
@@ -36,6 +41,20 @@ interface GeminiTravelProfileResponse {
   badges?: {
     name: string;
     description: string;
+  }[];
+  // Add traveler traits to the response type
+  travelerTraits?: {
+    id: string;
+    title: string;
+    description: string;
+    icon: string;
+  }[];
+  // Add travel milestones
+  travelMilestones?: {
+    title: string;
+    value: string | number;
+    icon: string;
+    description?: string;
   }[];
   visitFrequency?: {
     weekdays?: {
@@ -75,8 +94,10 @@ interface GeminiTravelProfileResponse {
     }[];
   };
   recentInsights?: string[];
+  firstVisitDate?: string;
+  bestDayToExplore?: string;
+  explorationScore?: number;
 }
-
 // Interface for Firestore document data
 interface VisitedPlaceDocument {
   _isInitDocument?: boolean;
@@ -142,31 +163,51 @@ interface ProfileDocument {
   recentInsights: string[];
   lastGeneratedAt: number;
   placeCount: number;
-  lastBadgeCheck: number; // Add timestamp for last badge check
+  travelerTraits?: TravelerTrait[]; // Include traveler traits in the document
+  travelMilestones?: any[]; // Include travel milestones
+  explorationScore?: number; // Include exploration score
 }
+
+// Function to generate default traveler traits if none are found
+const generateDefaultTraits = (): TravelerTrait[] => {
+  const traitColors = [
+    Colors.primary,
+    Colors.secondary,
+    AccentColors.accent1,
+    AccentColors.accent2,
+    AccentColors.accent3,
+  ];
+
+  return [
+    {
+      id: "explorer",
+      title: "Explorer",
+      description: "You enjoy discovering new places and expanding your travel horizons.",
+      icon: "compass",
+      color: traitColors[0],
+    },
+    {
+      id: "cultural-explorer",
+      title: "Cultural Explorer",
+      description: "You seek to understand the local culture and traditions in places you visit.",
+      icon: "color-palette",
+      color: traitColors[1],
+    },
+    {
+      id: "planner",
+      title: "Thoughtful Planner",
+      description: "You like to research and plan your visits with attention to detail.",
+      icon: "calendar",
+      color: traitColors[2],
+    },
+  ];
+};
 
 // Default profile for fallback scenarios
 const DEFAULT_TRAVEL_PROFILE: TravelProfile = {
   type: "Explorer",
   level: "Beginner",
   description: "You're starting your journey as a traveler, exploring a variety of destinations.",
-  badges: [
-    {
-      id: "first-steps",
-      name: "First Steps",
-      description: "Started your travel journey",
-      icon: "footsteps",
-      dateEarned: new Date(),
-      completed: false,
-      requirements: [
-        {
-          type: "visitCount",
-          value: 1,
-          current: 0,
-        },
-      ],
-    },
-  ],
   streak: 0,
   visitFrequency: {
     weekdays: {
@@ -214,6 +255,7 @@ const DEFAULT_TRAVEL_PROFILE: TravelProfile = {
     "You're starting to develop preferences in your travel choices",
     "Your exploration style is still evolving",
   ],
+  travelerTraits: generateDefaultTraits(), // Add default traits
   isGenerating: false,
 };
 
@@ -317,7 +359,9 @@ const saveProfileToFirebase = async (profile: TravelProfile, placeCount: number)
       recentInsights: profile.recentInsights,
       lastGeneratedAt: Date.now(),
       placeCount: placeCount,
-      lastBadgeCheck: Date.now(), // Add last badge check timestamp
+      travelerTraits: profile.travelerTraits, // Save traveler traits to Firebase
+      travelMilestones: profile.travelMilestones, // Save travel milestones
+      explorationScore: profile.explorationScore, // Save exploration score
     };
 
     batch.set(profileDocRef, profileDocument);
@@ -357,18 +401,29 @@ const getProfileFromFirebase = async (): Promise<{
     const now = Date.now();
     const age = now - profileData.lastGeneratedAt;
 
-    // Check if badge progress should be updated
-    await checkBadgeProgressUpdate();
-
     // 2. Get badges
     const badges = await getAllUserBadges();
 
     // Combine profile and badges
     const fullProfile: TravelProfile = {
       ...profileData,
-      badges,
       isGenerating: false,
     };
+
+    // Check if traveler traits exist, if not, generate them
+    if (!fullProfile.travelerTraits || fullProfile.travelerTraits.length === 0) {
+      console.log("No traveler traits found in Firebase profile, generating defaults");
+      fullProfile.travelerTraits = generateDefaultTraits();
+
+      // Save the updated profile with traits back to Firebase
+      await updateDoc(profileDocRef, {
+        travelerTraits: fullProfile.travelerTraits,
+      });
+
+      console.log("Default traveler traits saved to Firebase");
+    } else {
+      console.log(`Found ${fullProfile.travelerTraits.length} traveler traits in profile`);
+    }
 
     // Check if the profile is older than 24 hours
     if (age > PROFILE_REFRESH_INTERVAL) {
@@ -424,18 +479,28 @@ export const generateTravelProfile = async (
       } places a user has visited and generate a detailed travel profile:
       ${JSON.stringify(placesData)}
       
-      Consider patterns in the types of places visited, locations, frequency, and any other insights.
+      Consider patterns in the types of places visited, locations, frequency, and any other insights. Traveler Traits must be realistic based off the information you have received.
       Based on this data, determine the type of traveler this person is, their preferences, and suggest personalized insights. Provide the information as if you are talking directly to the user.
-      
+      You must not return unknown in any of your responses
       Return a JSON object with the following structure:
       {
         "type": "The primary traveler type (e.g., 'Cultural Explorer', 'Urban Adventurer', 'History Buff')",
         "level": "Experience level (e.g., 'Beginner', 'Enthusiast', 'Expert')",
         "description": "A 1-2 sentence personalized description of this traveler's style and preferences",
-        "badges": [
+        "travelerTraits": [
           {
-            "name": "Name of earned badge based on travel patterns",
-            "description": "Brief description of what this badge represents"
+            "id": "unique-trait-id", 
+            "title": "Trait title (e.g., 'Weekend Adventurer', 'Culture Seeker')",
+            "description": "Brief description of this trait and what it reveals about their travel style",
+            "icon": "icon-name from Ionicons (e.g., 'calendar', 'museum', 'compass')"
+          }
+        ],
+        "travelMilestones": [
+          {
+            "title": "Milestone title",
+            "value": "Achievement value (can be number or text)",
+            "icon": "icon-name from Ionicons",
+            "description": "Optional description of the milestone"
           }
         ],
         "visitFrequency": {
@@ -488,13 +553,17 @@ export const generateTravelProfile = async (
         "recentInsights": [
           "First personalized insight based on recent activity",
           "Second personalized insight"
-        ]
+        ],
+        "firstVisitDate": "ISO date string of first visited place if available",
+        "bestDayToExplore": "Suggested best day to explore based on their patterns",
+        "explorationScore": Numerical score (0-100) representing their exploration level
       }
     `;
 
     const responseData = await generateContent({ prompt, responseFormat: "json" });
     const response = responseData as GeminiTravelProfileResponse;
 
+    // Process existing data as before...
     // Map category names to icons
     const categoryIcons: Record<string, string> = {
       "Historical Sites": "business",
@@ -523,17 +592,46 @@ export const generateTravelProfile = async (
     await updateUserStats(visitedPlaces);
 
     // Update badge progress
-    await updateBadgeProgress();
+    await checkBadgeProgressUpdate();
 
     // Get updated badges after progress check
     const updatedBadges = await getAllUserBadges();
+
+    // Define a set of colors for traveler traits
+    const traitColors = [
+      Colors.primary,
+      Colors.secondary,
+      AccentColors.accent1,
+      AccentColors.accent2,
+      AccentColors.accent3,
+      "#FF7043", // Deep orange
+      "#5C6BC0", // Indigo
+      "#26A69A", // Teal
+    ];
+
+    // Process traveler traits with colors
+    let processedTraits: TravelerTrait[] = [];
+    if (response.travelerTraits && response.travelerTraits.length > 0) {
+      console.log("Processing traveler traits from API response");
+      processedTraits = response.travelerTraits.map((trait, index) => ({
+        ...trait,
+        color: traitColors[index % traitColors.length], // Assign colors in rotation
+      }));
+      console.log(`Generated ${processedTraits.length} traveler traits from API`);
+    } else {
+      console.log("No traveler traits in API response, using defaults");
+      processedTraits = generateDefaultTraits();
+      console.log(`Using ${processedTraits.length} default traveler traits`);
+    }
+
+    // Process travel milestones
+    const travelMilestones = response.travelMilestones || [];
 
     // Create the profile with safe fallbacks to default values
     const profile: TravelProfile = {
       type: response.type || DEFAULT_TRAVEL_PROFILE.type,
       level: response.level || DEFAULT_TRAVEL_PROFILE.level,
       description: response.description || DEFAULT_TRAVEL_PROFILE.description,
-      badges: updatedBadges,
       streak: calculateStreak(visitedPlaces),
       visitFrequency: {
         weekdays:
@@ -560,6 +658,12 @@ export const generateTravelProfile = async (
           response.preferences?.activities || DEFAULT_TRAVEL_PROFILE.preferences.activities,
       },
       recentInsights: response.recentInsights || DEFAULT_TRAVEL_PROFILE.recentInsights,
+      // Add new fields
+      travelerTraits: processedTraits, // Always include traveler traits
+      travelMilestones: travelMilestones.length > 0 ? travelMilestones : undefined,
+      firstVisitDate: response.firstVisitDate,
+      bestDayToExplore: response.bestDayToExplore,
+      explorationScore: response.explorationScore,
       isGenerating: false,
     };
 
@@ -569,7 +673,12 @@ export const generateTravelProfile = async (
     return profile;
   } catch (error) {
     console.error("Error generating travel profile:", error);
-    return DEFAULT_TRAVEL_PROFILE;
+    // Ensure the default profile has traveler traits
+    const defaultProfile = {
+      ...DEFAULT_TRAVEL_PROFILE,
+      travelerTraits: generateDefaultTraits(),
+    };
+    return defaultProfile;
   }
 };
 
@@ -805,11 +914,16 @@ const updateBadgeProgress = async (): Promise<void> => {
       }
     }
 
-    // Update profile document with last badge check time
-    const profileDocRef = doc(db, "users", currentUser.uid, "travelProfiles", "current");
-    await updateDoc(profileDocRef, {
-      lastBadgeCheck: Date.now(),
-    });
+    // Update badge settings with the last check timestamp
+    // Instead of updating the profile document, update the badge settings document
+    const badgeSettingsRef = doc(db, "users", currentUser.uid, "settings", "badges");
+    await setDoc(
+      badgeSettingsRef,
+      {
+        lastBadgeCheck: Date.now(),
+      },
+      { merge: true }
+    );
 
     // If any badges were completed, update achievementsEarned counter in userStats
     if (completedBadges.length > 0) {
@@ -837,16 +951,27 @@ const checkBadgeProgressUpdate = async (): Promise<void> => {
       return;
     }
 
-    const profileDocRef = doc(db, "users", currentUser.uid, "travelProfiles", "current");
-    const profileDoc = await getDoc(profileDocRef);
+    // Instead of checking the profile document which might not exist yet,
+    // we'll check the badge settings document
+    const badgeSettingsRef = doc(db, "users", currentUser.uid, "settings", "badges");
+    const badgeSettingsDoc = await getDoc(badgeSettingsRef);
 
-    if (!profileDoc.exists()) {
-      // No profile exists yet, so no need to check badges
+    if (!badgeSettingsDoc.exists()) {
+      // If badge settings don't exist, create them and trigger first badge progress check
+      await setDoc(badgeSettingsRef, {
+        lastBadgeCheck: Date.now(),
+        badgesGenerated: 0,
+      });
+
+      // Run initial badge progress update
+      console.log("First-time badge progress check");
+      await updateBadgeProgress();
       return;
     }
 
-    const profileData = profileDoc.data() as ProfileDocument;
-    const lastBadgeCheck = profileData.lastBadgeCheck || 0;
+    // Check when badges were last updated
+    const badgeSettings = badgeSettingsDoc.data();
+    const lastBadgeCheck = badgeSettings.lastBadgeCheck || 0;
     const now = Date.now();
     const timeSinceLastCheck = now - lastBadgeCheck;
 
@@ -877,6 +1002,22 @@ export const getTravelProfile = async (): Promise<{
 
     // If we have a valid profile in Firebase and it doesn't need refresh, use it
     if (existingProfile && !needsRefresh) {
+      // Double-check that traveler traits exist
+      if (!existingProfile.travelerTraits || existingProfile.travelerTraits.length === 0) {
+        console.log("Missing traveler traits in valid profile, adding defaults");
+        existingProfile.travelerTraits = generateDefaultTraits();
+
+        // Save the updated traits to Firebase
+        const currentUser = auth.currentUser;
+        if (currentUser) {
+          const profileDocRef = doc(db, "users", currentUser.uid, "travelProfiles", "current");
+          await updateDoc(profileDocRef, {
+            travelerTraits: existingProfile.travelerTraits,
+          });
+          console.log("Saved default traits to profile");
+        }
+      }
+
       return { profile: existingProfile, visitedPlaces };
     }
 
@@ -892,14 +1033,34 @@ export const getTravelProfile = async (): Promise<{
     if (needsRefresh || shouldForceRefresh) {
       console.log("Generating new travel profile");
       const profile = await generateTravelProfile(visitedPlaces);
+
+      // Final check: ensure traveler traits exist
+      if (!profile.travelerTraits || profile.travelerTraits.length === 0) {
+        console.log("Final check: Adding default traits to new profile");
+        profile.travelerTraits = generateDefaultTraits();
+      }
+
       return { profile, visitedPlaces };
+    }
+
+    // Ensure traits exist in the existing profile
+    if (
+      existingProfile &&
+      (!existingProfile.travelerTraits || existingProfile.travelerTraits.length === 0)
+    ) {
+      existingProfile.travelerTraits = generateDefaultTraits();
     }
 
     return { profile: existingProfile!, visitedPlaces };
   } catch (error) {
     console.error("Error getting travel profile:", error);
+    // Make sure default profile has traveler traits
+    const defaultProfile = {
+      ...DEFAULT_TRAVEL_PROFILE,
+      travelerTraits: generateDefaultTraits(),
+    };
     return {
-      profile: DEFAULT_TRAVEL_PROFILE,
+      profile: defaultProfile,
       visitedPlaces: [],
     };
   }

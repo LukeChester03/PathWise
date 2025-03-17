@@ -184,14 +184,6 @@ const AiTravelSnapshot: React.FC<AiTravelSnapshotProps> = ({
             <Text style={styles.aiSummaryDescription}>
               {profile.description} Based on your {placesToShow.length} visited locations.
             </Text>
-
-            <View style={styles.travelProfileBadges}>
-              {profile.badges.slice(0, 3).map((badge, index) => (
-                <View key={index} style={styles.travelProfileBadge}>
-                  <Text style={styles.travelProfileBadgeText}>{badge.name}</Text>
-                </View>
-              ))}
-            </View>
           </View>
 
           <View style={styles.aiActionsRow}>
