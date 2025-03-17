@@ -1,4 +1,3 @@
-// components/LearnScreen/PreferencesSection.tsx
 import React from "react";
 import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
@@ -6,19 +5,126 @@ import { TravelProfile } from "../../types/LearnScreen/TravelProfileTypes";
 import { Colors, NeutralColors, AccentColors } from "../../constants/colours";
 import SectionHeader from "./SectionHeader";
 
+// Comprehensive type definitions
+interface PreferenceCategory {
+  category?: string;
+  name?: string;
+  percentage: number;
+  icon?: string;
+}
+
 interface PreferencesSectionProps {
   profile: TravelProfile;
   expanded: boolean;
   toggleExpanded: () => void;
 }
 
+// Utility function for consistent percentage formatting
+const formatPercentage = (percentage: number | string | undefined): string => {
+  if (percentage === undefined) return "0%";
+
+  const numPercentage =
+    typeof percentage === "string" ? parseFloat(percentage.replace(/%/g, "")) : percentage;
+
+  return `${Math.round(numPercentage)}%`;
+};
+
+// Comprehensive icon mapping for different preference categories
+const getCategoryIcon = (category: string | undefined): string => {
+  const iconMap: { [key: string]: string } = {
+    // Travel Categories
+    "Historical Sites": "book-outline",
+    "Natural Landscapes": "leaf",
+    "Urban Exploration": "business",
+    "Cultural Experiences": "color-palette",
+    "Adventure Travel": "compass",
+    "Food and Dining": "restaurant",
+    "Beach Destinations": "beach",
+    "Mountain Destinations": "mountain",
+    "Art and Museums": "art",
+    "Architecture Tours": "build",
+
+    // Architectural Styles
+    Classical: "book",
+    Modern: "logo-react",
+    Gothic: "document",
+    Renaissance: "easel",
+    Baroque: "flower",
+
+    // Activities
+    "Guided Tours": "people",
+    Photography: "camera",
+    Hiking: "walk",
+    "Culinary Experiences": "restaurant",
+    "Historical Walks": "time",
+
+    // Fallback
+    default: "globe",
+  };
+
+  return category ? iconMap[category] || iconMap["default"] : iconMap["default"];
+};
+
+// Color generation for progress bars
+const getProgressBarColor = (index: number): string => {
+  const colorOptions = [
+    Colors.primary,
+    Colors.secondary,
+    AccentColors.accent1,
+    AccentColors.accent2,
+    AccentColors.accent3,
+  ];
+
+  return colorOptions[index % colorOptions.length];
+};
+
 const PreferencesSection: React.FC<PreferencesSectionProps> = ({
   profile,
   expanded,
   toggleExpanded,
 }) => {
+  // Defensive programming: Ensure preferences exist with safe defaults
+  const safePreferences = {
+    categories: profile.preferences?.categories || [],
+    architecturalStyles: profile.preferences?.architecturalStyles || [],
+    activities: profile.preferences?.activities || [],
+  };
+
+  // Determine if any preferences exist
+  const hasPreferences =
+    safePreferences.categories.length > 0 ||
+    safePreferences.architecturalStyles.length > 0 ||
+    safePreferences.activities.length > 0;
+
+  // If no preferences exist, return null or a placeholder
+  if (!hasPreferences) {
+    return (
+      <TouchableOpacity style={styles.section} onPress={toggleExpanded} activeOpacity={0.7}>
+        <SectionHeader
+          title="Travel Preferences"
+          icon="heart"
+          color={Colors.primary}
+          rightElement={
+            <Ionicons
+              name={expanded ? "chevron-up" : "chevron-down"}
+              size={22}
+              color={Colors.primary}
+            />
+          }
+        />
+        {expanded && (
+          <View style={styles.noDataContainer}>
+            <Text style={styles.noDataText}>
+              Continue exploring to reveal your travel preferences
+            </Text>
+          </View>
+        )}
+      </TouchableOpacity>
+    );
+  }
+
   return (
-    <TouchableOpacity style={styles.section} onPress={toggleExpanded}>
+    <TouchableOpacity style={styles.section} onPress={toggleExpanded} activeOpacity={0.7}>
       <SectionHeader
         title="Travel Preferences"
         icon="heart"
@@ -34,92 +140,80 @@ const PreferencesSection: React.FC<PreferencesSectionProps> = ({
 
       {expanded && (
         <View style={styles.preferencesContainer}>
-          <Text style={styles.subsectionTitle}>Place Categories</Text>
+          {/* Place Categories Section */}
+          {safePreferences.categories.length > 0 && (
+            <PreferencesSubsection
+              title="Place Categories"
+              preferences={safePreferences.categories}
+            />
+          )}
 
-          {profile.preferences.categories.map((category, index) => (
-            <View key={index} style={styles.preferenceItem}>
-              <View style={styles.preferenceHeader}>
-                <View style={styles.preferenceIconContainer}>
-                  <Ionicons name={category.icon as any} size={18} color={Colors.primary} />
-                </View>
-                <Text style={styles.preferenceLabel}>{category.category}</Text>
-                <Text style={styles.preferencePercentage}>{category.percentage}%</Text>
-              </View>
-              <View style={styles.preferenceBarContainer}>
-                <View
-                  style={[
-                    styles.preferenceBar,
-                    {
-                      width: `${category.percentage}%`,
-                      backgroundColor:
-                        index % 3 === 0
-                          ? Colors.primary
-                          : index % 3 === 1
-                          ? Colors.secondary
-                          : AccentColors.accent1,
-                    },
-                  ]}
-                />
-              </View>
-            </View>
-          ))}
+          {/* Architectural Styles Section */}
+          {safePreferences.architecturalStyles.length > 0 && (
+            <PreferencesSubsection
+              title="Architectural Styles"
+              preferences={safePreferences.architecturalStyles}
+              style={{ marginTop: 20 }}
+            />
+          )}
 
-          <Text style={[styles.subsectionTitle, { marginTop: 20 }]}>Architectural Styles</Text>
-
-          {profile.preferences.architecturalStyles.map((style, index) => (
-            <View key={index} style={styles.preferenceItem}>
-              <View style={styles.preferenceHeader}>
-                <Text style={styles.preferenceLabel}>{style.name}</Text>
-                <Text style={styles.preferencePercentage}>{style.percentage}%</Text>
-              </View>
-              <View style={styles.preferenceBarContainer}>
-                <View
-                  style={[
-                    styles.preferenceBar,
-                    {
-                      width: `${style.percentage}%`,
-                      backgroundColor:
-                        index % 3 === 0
-                          ? Colors.secondary
-                          : index % 3 === 1
-                          ? AccentColors.accent2
-                          : Colors.primary,
-                    },
-                  ]}
-                />
-              </View>
-            </View>
-          ))}
-
-          <Text style={[styles.subsectionTitle, { marginTop: 20 }]}>Activities</Text>
-
-          {profile.preferences.activities.map((activity, index) => (
-            <View key={index} style={styles.preferenceItem}>
-              <View style={styles.preferenceHeader}>
-                <Text style={styles.preferenceLabel}>{activity.name}</Text>
-                <Text style={styles.preferencePercentage}>{activity.percentage}%</Text>
-              </View>
-              <View style={styles.preferenceBarContainer}>
-                <View
-                  style={[
-                    styles.preferenceBar,
-                    {
-                      width: `${activity.percentage}%`,
-                      backgroundColor:
-                        index % 3 === 0
-                          ? AccentColors.accent3
-                          : index % 3 === 1
-                          ? Colors.primary
-                          : Colors.secondary,
-                    },
-                  ]}
-                />
-              </View>
-            </View>
-          ))}
+          {/* Activities Section */}
+          {safePreferences.activities.length > 0 && (
+            <PreferencesSubsection
+              title="Activities"
+              preferences={safePreferences.activities}
+              style={{ marginTop: 20 }}
+            />
+          )}
         </View>
       )}
     </TouchableOpacity>
+  );
+};
+
+// Reusable Subsection Component
+const PreferencesSubsection: React.FC<{
+  title: string;
+  preferences: PreferenceCategory[];
+  style?: object;
+}> = ({ title, preferences, style }) => {
+  return (
+    <>
+      <Text style={[styles.subsectionTitle, style]}>{title}</Text>
+      {preferences.map((preference, index) => (
+        <View key={index} style={styles.preferenceItem}>
+          <View style={styles.preferenceHeader}>
+            {/* Icon Container (optional) */}
+            {(preference.category || preference.icon) && (
+              <View style={styles.preferenceIconContainer}>
+                <Ionicons
+                  name={getCategoryIcon(preference.category || preference.icon)}
+                  size={18}
+                  color={Colors.primary}
+                />
+              </View>
+            )}
+            <Text style={styles.preferenceLabel}>
+              {preference.category || preference.name || "Unnamed Preference"}
+            </Text>
+            <Text style={styles.preferencePercentage}>
+              {formatPercentage(preference.percentage)}
+            </Text>
+          </View>
+          <View style={styles.preferenceBarContainer}>
+            <View
+              style={[
+                styles.preferenceBar,
+                {
+                  width: `${Math.min(100, Number(preference.percentage) || 0)}%`,
+                  backgroundColor: getProgressBarColor(index),
+                },
+              ]}
+            />
+          </View>
+        </View>
+      ))}
+    </>
   );
 };
 
@@ -181,6 +275,17 @@ const styles = StyleSheet.create({
     height: "100%",
     backgroundColor: Colors.primary,
     borderRadius: 4,
+  },
+  noDataContainer: {
+    paddingVertical: 20,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  noDataText: {
+    fontSize: 14,
+    color: NeutralColors.gray600,
+    fontStyle: "italic",
+    textAlign: "center",
   },
 });
 

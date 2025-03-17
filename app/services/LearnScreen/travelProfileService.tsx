@@ -481,7 +481,7 @@ export const generateTravelProfile = async (
       
       Consider patterns in the types of places visited, locations, frequency, and any other insights. Traveler Traits must be realistic based off the information you have received.
       Based on this data, determine the type of traveler this person is, their preferences, and suggest personalized insights. Provide the information as if you are talking directly to the user.
-      You must not return unknown in any of your responses
+      You must not return unknown in any of your responses. You must not skip anything required from this prompt. If there is no data for you to work with then just return "No Data"
       Return a JSON object with the following structure:
       {
         "type": "The primary traveler type (e.g., 'Cultural Explorer', 'Urban Adventurer', 'History Buff')",
@@ -562,6 +562,7 @@ export const generateTravelProfile = async (
 
     const responseData = await generateContent({ prompt, responseFormat: "json" });
     const response = responseData as GeminiTravelProfileResponse;
+    console.log(response, "AI RESPONSE");
 
     // Process existing data as before...
     // Map category names to icons

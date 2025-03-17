@@ -1,58 +1,102 @@
-// components/TravelMilestonesComponent.tsx
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { View, Text, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { TravelProfile, TravelMilestone } from "../../types/LearnScreen/TravelProfileTypes";
+import {
+  TravelProfile,
+  TravelMilestone,
+  TravelBadge,
+} from "../../types/LearnScreen/TravelProfileTypes";
 import { Colors, NeutralColors } from "../../constants/colours";
+import { getAllUserBadges } from "../../services/LearnScreen/badgeService";
+import { fetchUserVisitedPlaces } from "../../services/LearnScreen/travelProfileService";
 
 interface TravelMilestonesComponentProps {
   profile: TravelProfile | null;
 }
 
 const TravelMilestonesComponent: React.FC<TravelMilestonesComponentProps> = ({ profile }) => {
-  if (!profile) return null;
+  const [badges, setBadges] = useState<TravelBadge[]>([]);
+  const [visitedPlacesCount, setVisitedPlacesCount] = useState<number>(0);
 
-  // If no milestones are available, generate some based on profile data
-  const generateDefaultMilestones = (): TravelMilestone[] => {
+  useEffect(() => {
+    const fetchMilestoneData = async () => {
+      try {
+        // Fetch badges
+        const fetchedBadges = await getAllUserBadges();
+        setBadges(fetchedBadges);
+
+        // Fetch visited places
+        const visitedPlaces = await fetchUserVisitedPlaces();
+        setVisitedPlacesCount(visitedPlaces.length);
+      } catch (error) {
+        console.error("Error fetching milestone data:", error);
+      }
+    };
+
+    fetchMilestoneData();
+  }, []);
+
+  // Generate milestones based on available data
+  const generateMilestones = (): TravelMilestone[] => {
+    if (!profile) return [];
+
     const milestones: TravelMilestone[] = [];
 
-    // Places visited milestone
-    const completedBadgeCount = profile.badges.filter((b) => b.completed).length;
-
+    // Badges Milestone
+    const completedBadgesCount = badges.filter((b) => b.completed).length;
     milestones.push({
       title: "Badges Earned",
-      value: completedBadgeCount,
+      value: completedBadgesCount.toString(),
       icon: "ribbon",
       description:
-        completedBadgeCount > 0
-          ? "You've earned your first badges!"
-          : "Start exploring to earn badges",
+        completedBadgesCount > 0
+          ? `Congratulations on earning ${completedBadgesCount} badge${
+              completedBadgesCount !== 1 ? "s" : ""
+            }!`
+          : "Your journey to earning badges begins now",
     });
 
-    // Streak milestone
+    // Places Visited Milestone
     milestones.push({
-      title: "Current Streak",
-      value: profile.streak,
+      title: "Places Explored",
+      value: visitedPlacesCount.toString(),
+      icon: "map",
+      description:
+        visitedPlacesCount > 0
+          ? `You've discovered ${visitedPlacesCount} unique location${
+              visitedPlacesCount !== 1 ? "s" : ""
+            }`
+          : "Start exploring to track your visited places",
+    });
+
+    // Streak Milestone
+    milestones.push({
+      title: "Exploration Streak",
+      value: profile.streak.toString(),
       icon: "flame",
       description:
         profile.streak > 0
-          ? `You've been exploring for ${profile.streak} consecutive days`
-          : "Visit places regularly to build a streak",
+          ? `Consistent explorer with a ${profile.streak}-day streak`
+          : "Keep exploring to build your travel streak",
     });
 
-    // Top category
-    const topCategory = profile.preferences.categories[0]?.category || "Places";
+    // Exploration Score Milestone
+    const explorationScore = profile.explorationScore || 0;
     milestones.push({
-      title: "Favorite Category",
-      value: topCategory,
-      icon: "heart",
-      description: `You show a strong preference for ${topCategory.toLowerCase()}`,
+      title: "Exploration Score",
+      value: explorationScore.toString(),
+      icon: "trophy",
+      description:
+        explorationScore > 0
+          ? `Your travel curiosity is shining at ${explorationScore} points`
+          : "Explore more to boost your travel score",
     });
 
     return milestones;
   };
 
-  const milestones = profile.travelMilestones || generateDefaultMilestones();
+  // Generate milestones or use existing ones
+  const milestones = profile?.travelMilestones || generateMilestones();
 
   if (milestones.length === 0) {
     return null;

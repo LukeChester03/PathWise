@@ -42,7 +42,22 @@ const AiTravelSnapshot: React.FC<AiTravelSnapshotProps> = ({
       setLoading(true);
       setError(null);
 
+      // If fewer than 2 places visited, prevent profile generation
+      if (placesToShow.length < 2) {
+        setProfile(null);
+        setLoading(false);
+        return;
+      }
+
       const { profile } = await getTravelProfile();
+
+      // Additional check for "No Data"
+      if (profile === "No Data") {
+        setProfile(null);
+        setError("Unable to generate travel profile. Please try again later.");
+        return;
+      }
+
       setProfile(profile);
 
       if (onProfileUpdated) {
@@ -66,6 +81,46 @@ const AiTravelSnapshot: React.FC<AiTravelSnapshotProps> = ({
     fetchTravelProfile();
   };
 
+  // Render view for insufficient places
+  if (placesToShow.length < 2) {
+    return (
+      <Animated.View
+        style={[
+          styles.aiSummaryCard,
+          {
+            opacity: fadeAnim,
+            transform: [
+              {
+                translateY: fadeAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [50, 0],
+                }),
+              },
+            ],
+          },
+        ]}
+      >
+        <LinearGradient
+          colors={["#4F46E5", "#818CF8"]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.aiSummaryGradient}
+        >
+          <View style={styles.aiSummaryContent}>
+            <View style={styles.errorContainer}>
+              <Ionicons name="map-outline" size={40} color="#FFFFFF" />
+              <Text style={styles.errorText}>Unlock Your AI Travel Snapshot</Text>
+              <Text style={styles.errorSubtext}>
+                Visit at least 2 unique locations to generate your personalized travel profile.
+              </Text>
+            </View>
+          </View>
+        </LinearGradient>
+      </Animated.View>
+    );
+  }
+
+  // Error state (for other error scenarios)
   if (error) {
     return (
       <Animated.View
@@ -104,6 +159,7 @@ const AiTravelSnapshot: React.FC<AiTravelSnapshotProps> = ({
     );
   }
 
+  // Loading state
   if (loading || !profile) {
     return (
       <Animated.View
@@ -139,6 +195,7 @@ const AiTravelSnapshot: React.FC<AiTravelSnapshotProps> = ({
     );
   }
 
+  // Normal profile rendering
   return (
     <Animated.View
       style={[
@@ -181,9 +238,7 @@ const AiTravelSnapshot: React.FC<AiTravelSnapshotProps> = ({
               </View>
             </View>
 
-            <Text style={styles.aiSummaryDescription}>
-              {profile.description} Based on your {placesToShow.length} visited locations.
-            </Text>
+            <Text style={styles.aiSummaryDescription}>{profile.description}</Text>
           </View>
 
           <View style={styles.aiActionsRow}>
@@ -311,48 +366,6 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#FFFFFF",
   },
-  travelProfileBadges: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    marginTop: 8,
-    gap: 8,
-  },
-  travelProfileBadge: {
-    backgroundColor: "rgba(255, 255, 255, 0.2)",
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  travelProfileBadgeText: {
-    fontSize: 11,
-    fontWeight: "500",
-    color: "#FFFFFF",
-  },
-  travelProfileCompletionContainer: {
-    marginTop: 12,
-  },
-  travelProfileCompletionText: {
-    fontSize: 12,
-    color: "#FFFFFF",
-    marginBottom: 6,
-  },
-  travelProfileCompletionBar: {
-    height: 6,
-    backgroundColor: "rgba(255, 255, 255, 0.2)",
-    borderRadius: 3,
-    overflow: "hidden",
-    marginBottom: 4,
-  },
-  travelProfileCompletionFill: {
-    height: "100%",
-    backgroundColor: "#FFFFFF",
-    borderRadius: 3,
-  },
-  travelProfileCompletionPercentage: {
-    fontSize: 11,
-    color: "#FFFFFF",
-    textAlign: "right",
-  },
   loadingContainer: {
     alignItems: "center",
     padding: 20,
@@ -369,10 +382,18 @@ const styles = StyleSheet.create({
   },
   errorText: {
     marginTop: 10,
+    marginBottom: 10,
+    color: "#FFFFFF",
+    fontSize: 16,
+    textAlign: "center",
+    fontWeight: "600",
+  },
+  errorSubtext: {
     marginBottom: 15,
     color: "#FFFFFF",
-    fontSize: 14,
+    fontSize: 12,
     textAlign: "center",
+    opacity: 0.8,
   },
   retryButton: {
     backgroundColor: "rgba(255, 255, 255, 0.25)",

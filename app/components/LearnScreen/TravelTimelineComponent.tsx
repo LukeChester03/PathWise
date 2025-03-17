@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { View, Text, StyleSheet } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import { TravelProfile, TravelBadge } from "../../types/LearnScreen/TravelProfileTypes";
 import { Colors, NeutralColors, AccentColors } from "../../constants/colours";
 import { getAllUserBadges } from "../../services/LearnScreen/badgeService";
@@ -10,6 +10,7 @@ interface TravelTimelineComponentProps {
 
 const TravelTimelineComponent: React.FC<TravelTimelineComponentProps> = ({ profile }) => {
   const [badges, setBadges] = useState<TravelBadge[]>([]);
+  const [expanded, setExpanded] = useState<boolean>(true);
 
   useEffect(() => {
     const fetchBadges = async () => {
@@ -25,8 +26,6 @@ const TravelTimelineComponent: React.FC<TravelTimelineComponentProps> = ({ profi
   }, []);
 
   if (!profile) return null;
-
-  // If we have first visit date, create a timeline
   if (!profile.firstVisitDate) return null;
 
   const firstVisitDate = new Date(profile.firstVisitDate);
@@ -40,113 +39,208 @@ const TravelTimelineComponent: React.FC<TravelTimelineComponentProps> = ({ profi
   const completedBadges = badges.filter((b) => b.completed);
   const completedBadgesCount = completedBadges.length;
 
+  const formatDate = (date: Date) => {
+    const options: Intl.DateTimeFormatOptions = { month: "short", day: "numeric", year: "numeric" };
+    return date.toLocaleDateString(undefined, options);
+  };
+
   return (
     <View style={styles.timelineContainer}>
-      <Text style={styles.subsectionTitle}>Your Travel Journey</Text>
+      <TouchableOpacity
+        style={styles.headerContainer}
+        onPress={() => setExpanded(!expanded)}
+        activeOpacity={0.7}
+      >
+        <Text style={styles.subsectionTitle}>Your Travel Journey</Text>
+      </TouchableOpacity>
 
-      <View style={styles.timelineContent}>
-        <View style={styles.timelineLine} />
+      {expanded && (
+        <View style={styles.timelineContent}>
+          <View style={styles.timelineLine} />
 
-        <View style={styles.timelineEvent}>
-          <View style={[styles.timelineDot, { backgroundColor: Colors.primary }]} />
-          <View style={styles.timelineTextContainer}>
-            <Text style={styles.timelineDate}>{firstVisitDate.toLocaleDateString()}</Text>
-            <Text style={styles.timelineText}>First Place Visited</Text>
-          </View>
-        </View>
-
-        {completedBadgesCount > 0 && (
           <View style={styles.timelineEvent}>
-            <View style={[styles.timelineDot, { backgroundColor: Colors.secondary }]} />
-            <View style={styles.timelineTextContainer}>
+            <View style={styles.dotContainer}>
+              <View style={[styles.timelineDot, styles.primaryDot]} />
+            </View>
+            <View style={[styles.timelineTextContainer, styles.firstVisitCard]}>
+              <Text style={styles.timelineHeading}>First Place Visited</Text>
+              <Text style={styles.timelineDate}>{formatDate(firstVisitDate)}</Text>
               <Text style={styles.timelineText}>
-                First Badge Earned: {completedBadges[0]?.name || "Achievement"}
-              </Text>
-              <Text style={styles.timelineDate}>
-                {completedBadges[0]?.dateEarned
-                  ? new Date(completedBadges[0].dateEarned).toLocaleDateString()
-                  : ""}
+                Your journey began {daysSinceFirstVisit} days ago
               </Text>
             </View>
           </View>
-        )}
 
-        <View style={styles.timelineEvent}>
-          <View style={[styles.timelineDot, { backgroundColor: AccentColors.accent1 }]} />
-          <View style={styles.timelineTextContainer}>
-            <Text style={styles.timelineDate}>{now.toLocaleDateString()}</Text>
-            <Text style={styles.timelineText}>{daysSinceFirstVisit} days of exploration</Text>
-            {completedBadgesCount > 0 && (
-              <Text style={styles.timelineSubtext}>
-                {completedBadgesCount} badge{completedBadgesCount !== 1 ? "s" : ""} earned
-              </Text>
-            )}
+          {completedBadgesCount > 0 && (
+            <View style={styles.timelineEvent}>
+              <View style={styles.dotContainer}>
+                <View style={[styles.timelineDot, styles.secondaryDot]} />
+              </View>
+              <View style={[styles.timelineTextContainer, styles.badgeCard]}>
+                <Text style={styles.timelineHeading}>First Achievement</Text>
+                {completedBadges[0]?.dateEarned && (
+                  <Text style={styles.timelineDate}>
+                    {formatDate(new Date(completedBadges[0].dateEarned))}
+                  </Text>
+                )}
+                <Text style={styles.timelineText}>
+                  {completedBadges[0]?.name || "Achievement"} earned
+                </Text>
+              </View>
+            </View>
+          )}
+
+          <View style={styles.timelineEvent}>
+            <View style={styles.dotContainer}>
+              <View style={[styles.timelineDot, styles.accentDot]} />
+            </View>
+            <View style={[styles.timelineTextContainer, styles.currentCard]}>
+              <Text style={styles.timelineHeading}>Current Journey</Text>
+              <Text style={styles.timelineDate}>{formatDate(now)}</Text>
+              <Text style={styles.timelineText}>{daysSinceFirstVisit} days of exploration</Text>
+              {completedBadgesCount > 0 && (
+                <View style={styles.badgeCounter}>
+                  <Text style={styles.timelineSubtext}>
+                    {completedBadgesCount} badge{completedBadgesCount !== 1 ? "s" : ""} earned
+                  </Text>
+                </View>
+              )}
+            </View>
           </View>
         </View>
-      </View>
+      )}
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   timelineContainer: {
-    marginTop: 16,
-    marginBottom: 16,
+    marginVertical: 16,
+    backgroundColor: NeutralColors.white,
+    borderRadius: 12,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: NeutralColors.gray200,
+  },
+  headerContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: NeutralColors.gray200,
+    backgroundColor: NeutralColors.white,
   },
   subsectionTitle: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: "600",
     color: NeutralColors.gray800,
-    marginBottom: 12,
+  },
+  expandCollapseText: {
+    fontSize: 14,
+    color: Colors.primary,
+    fontWeight: "500",
   },
   timelineContent: {
     position: "relative",
     paddingLeft: 24,
-    marginTop: 16,
+    paddingVertical: 16,
+    paddingRight: 16,
+    backgroundColor: NeutralColors.white,
   },
   timelineLine: {
     position: "absolute",
     left: 8,
-    top: 0,
-    bottom: 0,
+    top: 8,
+    bottom: 8,
     width: 2,
     backgroundColor: NeutralColors.gray300,
   },
   timelineEvent: {
     flexDirection: "row",
-    marginBottom: 20,
+    marginBottom: 24,
     alignItems: "flex-start",
+  },
+  dotContainer: {
+    marginRight: 12,
+    zIndex: 1,
   },
   timelineDot: {
     width: 16,
     height: 16,
     borderRadius: 8,
-    position: "absolute",
-    left: -8,
-    top: 4,
     borderWidth: 2,
     borderColor: NeutralColors.white,
+    position: "relative",
+    left: -8,
+  },
+  primaryDot: {
+    backgroundColor: Colors.primary,
+  },
+  secondaryDot: {
+    backgroundColor: Colors.secondary,
+  },
+  accentDot: {
+    backgroundColor: AccentColors.accent1,
   },
   timelineTextContainer: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    backgroundColor: NeutralColors.gray100,
-    borderRadius: 8,
+    padding: 16,
+    backgroundColor: NeutralColors.white,
+    borderRadius: 10,
     flex: 1,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+    borderWidth: 1,
+    borderColor: NeutralColors.gray200,
+  },
+  firstVisitCard: {
+    borderLeftWidth: 3,
+    borderLeftColor: Colors.primary,
+  },
+  badgeCard: {
+    borderLeftWidth: 3,
+    borderLeftColor: Colors.secondary,
+  },
+  currentCard: {
+    borderLeftWidth: 3,
+    borderLeftColor: AccentColors.accent1,
+  },
+  timelineHeading: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: NeutralColors.gray800,
+    marginBottom: 4,
   },
   timelineDate: {
     fontSize: 12,
     color: NeutralColors.gray500,
-    marginBottom: 4,
+    marginBottom: 6,
   },
   timelineText: {
     fontSize: 14,
     color: Colors.text,
   },
   timelineSubtext: {
-    fontSize: 12,
-    color: NeutralColors.gray600,
-    marginTop: 4,
+    fontSize: 13,
+    color: NeutralColors.gray700,
+  },
+  badgeCounter: {
+    marginTop: 8,
+    backgroundColor: NeutralColors.white,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 16,
+    alignSelf: "flex-start",
+    borderWidth: 1,
+    borderColor: NeutralColors.gray200,
   },
 });
 

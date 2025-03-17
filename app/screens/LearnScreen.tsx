@@ -2026,7 +2026,7 @@ const LearnScreen = ({ route, navigation }) => {
     }
 
     // We have places to show (either real or mock)
-    const placesToShow = visitedPlaces.length > 0 ? visitedPlaces : mockPlaces;
+    const placesToShow = visitedPlaces;
     console.log("Showing places:", placesToShow.length);
 
     // Handle active question rendering
@@ -2108,7 +2108,7 @@ const LearnScreen = ({ route, navigation }) => {
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
       <View style={[globalStyles.container, styles.container]}>
         <Header
-          title={selectedPlaceId ? "Learn" : "Discover & Learn"}
+          title={"Learn"}
           subtitle={selectedPlaceId ? "AI-powered insights" : "Explore your visited places"}
           showBackButton={!!selectedPlaceId || activeQuestion !== null}
           onBackPress={handleBackPress}
