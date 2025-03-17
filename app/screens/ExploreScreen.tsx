@@ -663,43 +663,6 @@ const ExploreScreen: React.FC<ExploreScreenProps> = ({ navigation }) => {
     );
   };
 
-  const renderSavedPlacesSection = (): JSX.Element => {
-    if (loadingMyPlaces) {
-      return renderLoadingState("Loading your places...");
-    }
-
-    return (
-      <>
-        <View style={styles.sectionHeader}>
-          <View style={styles.sectionTitleContainer}>
-            <Ionicons name="bookmark" size={22} color={Colors.primary} style={styles.sectionIcon} />
-            <Text style={styles.sectionTitle}>Saved Places</Text>
-          </View>
-          {myPlaces.length > 0 && (
-            <TouchableOpacity
-              onPress={() => navigateToViewAll("myPlaces")}
-              style={styles.viewAllButton}
-            >
-              <Text style={styles.viewAllText}>View All</Text>
-              <Ionicons name="chevron-forward" size={14} color={Colors.primary} />
-            </TouchableOpacity>
-          )}
-        </View>
-
-        {noMyPlacesFound || myPlaces.length === 0 ? (
-          renderEmptyState(
-            "You haven't discovered any places yet. Start your journey by exploring new destinations!",
-            "footsteps-outline",
-            navigateToDiscover,
-            "Start Exploring"
-          )
-        ) : (
-          <PlacesCarousel places={myPlaces} onPlacePress={navigateToPlaceDetails} />
-        )}
-      </>
-    );
-  };
-
   const renderMyPlacesSection = (): JSX.Element => {
     if (loadingMyPlaces) {
       return renderLoadingState("Loading your places...");
@@ -903,10 +866,6 @@ const ExploreScreen: React.FC<ExploreScreenProps> = ({ navigation }) => {
 
         {/* My Places Section */}
         <View style={styles.sectionContainer}>{renderMyPlacesSection()}</View>
-
-        {/* Saved Places Section */}
-        <View style={styles.sectionContainer}>{renderSavedPlacesSection()}</View>
-
         {/* Nearby Places Section */}
         <View style={styles.sectionContainer}>{renderNearbyPlacesSection()}</View>
 
