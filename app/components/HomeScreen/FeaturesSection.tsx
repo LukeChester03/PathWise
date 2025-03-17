@@ -144,7 +144,7 @@ const FeaturesSection: React.FC<FeaturesSectionProps> = ({ navigateToScreen }) =
   }, []);
 
   const onScroll = Animated.event([{ nativeEvent: { contentOffset: { x: scrollX } } }], {
-    useNativeDriver: false,
+    useNativeDriver: true,
   });
 
   // Function to render decorative circles with different positions for each card
@@ -461,9 +461,7 @@ const FeaturesSection: React.FC<FeaturesSectionProps> = ({ navigateToScreen }) =
                 <Text style={styles.cardTitle}>{item.title}</Text>
               </View>
 
-              <Text style={styles.cardDescription} numberOfLines={4}>
-                {item.description}
-              </Text>
+              <Text style={styles.cardDescription}>{item.description}</Text>
 
               <View style={styles.cardFooter}>
                 <Animated.View
@@ -620,22 +618,11 @@ const styles = StyleSheet.create({
     width: CARD_WIDTH,
     marginHorizontal: SPACING,
     alignItems: "center",
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.1,
-        shadowRadius: 10,
-      },
-      android: {
-        elevation: 3,
-      },
-    }),
   },
   card: {
     borderRadius: 24,
     overflow: "hidden",
-    height: 220,
+    minHeight: 220,
     width: "100%",
     position: "relative",
   },
@@ -680,7 +667,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: "rgba(255,255,255,0.9)",
     lineHeight: 22,
-    flex: 1,
     paddingVertical: 6,
   },
   cardFooter: {
