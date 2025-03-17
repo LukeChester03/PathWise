@@ -10,9 +10,10 @@ import {
   Platform,
   Text,
   TouchableOpacity,
+  Image,
 } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
-import { Ionicons } from "@expo/vector-icons";
+import { Ionicons, MaterialCommunityIcons, FontAwesome5 } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import ScreenWithNavBar from "../components/Global/ScreenWithNavbar";
 import { Colors } from "../constants/colours";
@@ -20,37 +21,130 @@ import HeaderSection from "../components/HomeScreen/HeaderSection";
 import StatsSection from "../components/HomeScreen/StatsSection";
 import DiscoveredLocationsSection from "../components/HomeScreen/DiscoveredLocationsSection";
 import FeaturesSection from "../components/HomeScreen/FeaturesSection";
+import JourneyInspiration from "../components/HomeScreen/JourneyInspiration";
+import JourneyIntroOverlay from "../components/HomeScreen/JourneyIntroOverlay";
 import { fetchUserProfile } from "../services/userService";
+import { auth } from "../config/firebaseConfig";
 
 // TypeScript interfaces
 interface NavigationParams {
   [key: string]: any;
 }
 
-// Enhanced HomeScreen component with animations and modern design
+interface JourneyTip {
+  title: string;
+  description: string;
+  icon: string;
+}
+
+// Onboarding Tips Component
+const OnboardingTips: React.FC = () => {
+  const [currentTipIndex, setCurrentTipIndex] = useState(0);
+
+  const tips: JourneyTip[] = [
+    {
+      title: "Discover Nearby",
+      description: "Use the map to find interesting locations within walking distance",
+      icon: "location",
+    },
+    {
+      title: "Visiting a Place",
+      description:
+        "When you discover a new place, AI Technology will guide you through its history",
+      icon: "albums",
+    },
+    {
+      title: "Learn",
+      description:
+        "PathWise organically learns about you, and provides personalised recommendations for you",
+      icon: "school",
+    },
+    {
+      title: "Track Your Progress",
+      description: "Complete challenges to earn badges and progress on your explorer journey",
+      icon: "trophy",
+    },
+  ];
+
+  const nextTip = () => {
+    setCurrentTipIndex((prevIndex) => (prevIndex + 1) % tips.length);
+  };
+
+  const prevTip = () => {
+    setCurrentTipIndex((prevIndex) => (prevIndex - 1 + tips.length) % tips.length);
+  };
+
+  const currentTip = tips[currentTipIndex];
+
+  return (
+    <View style={styles.cardContainer}>
+      <View style={styles.sectionHeader}>
+        <Ionicons name="bulb" size={22} color={Colors.primary} />
+        <Text style={styles.sectionTitle}>Journey Tips</Text>
+      </View>
+
+      <View style={styles.tipCardContainer}>
+        <TouchableOpacity style={styles.tipNavButton} onPress={prevTip}>
+          <Ionicons name="chevron-back" size={22} color="#888" />
+        </TouchableOpacity>
+
+        <View style={styles.tipCard}>
+          <View style={styles.tipIconContainer}>
+            <Ionicons name={currentTip.icon} size={24} color={Colors.primary} />
+          </View>
+          <Text style={styles.tipTitle}>{currentTip.title}</Text>
+          <Text style={styles.tipDescription}>{currentTip.description}</Text>
+        </View>
+
+        <TouchableOpacity style={styles.tipNavButton} onPress={nextTip}>
+          <Ionicons name="chevron-forward" size={22} color="#888" />
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.tipIndicators}>
+        {tips.map((_, index) => (
+          <View
+            key={index}
+            style={[
+              styles.tipIndicator,
+              index === currentTipIndex ? styles.activeTipIndicator : {},
+            ]}
+          />
+        ))}
+      </View>
+    </View>
+  );
+};
+
+// Enhanced HomeScreen component with new journey-focused sections
 const HomeScreen: React.FC = () => {
   const navigation = useNavigation();
   const route = useRoute();
   const [userName, setUserName] = useState<string>("User");
   const [profileImage, setProfileImage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [showJourneyIntro, setShowJourneyIntro] = useState<boolean>(false);
+  const [isNewUser, setIsNewUser] = useState<boolean>(false);
 
   // Animation values
   const fadeAnim = useRef<Animated.Value>(new Animated.Value(0)).current;
   const scrollY = useRef<Animated.Value>(new Animated.Value(0)).current;
   const loadingAnim = useRef<Animated.Value>(new Animated.Value(0)).current;
-  const welcomeBubbleAnim = useRef<Animated.Value>(new Animated.Value(0)).current;
 
   // Refs to control staggered animations of sections
   const sections: {
     header: Animated.Value;
     stats: Animated.Value;
+    inspiration: Animated.Value;
     locations: Animated.Value;
+    tips: Animated.Value;
     features: Animated.Value;
   } = {
     header: useRef<Animated.Value>(new Animated.Value(0)).current,
     stats: useRef<Animated.Value>(new Animated.Value(0)).current,
+    inspiration: useRef<Animated.Value>(new Animated.Value(0)).current,
     locations: useRef<Animated.Value>(new Animated.Value(0)).current,
+    tips: useRef<Animated.Value>(new Animated.Value(0)).current,
     features: useRef<Animated.Value>(new Animated.Value(0)).current,
   };
 
@@ -83,9 +177,24 @@ const HomeScreen: React.FC = () => {
         // Fetch user profile from Firestore
         const userProfile = await fetchUserProfile(navigation);
 
+        // Add clear logging for debugging
+        console.log("User profile loaded:", JSON.stringify(userProfile));
+        console.log("Is new user value:", userProfile.isNewUser);
+
         // Update username and profile image
         setUserName(userProfile.name || "User");
         setProfileImage(userProfile.profileImage || null);
+
+        // Explicit check with triple equals for boolean type
+        if (userProfile.isNewUser === true) {
+          console.log("Setting showJourneyIntro to true - user is new");
+          setShowJourneyIntro(true);
+          setIsNewUser(true);
+        } else {
+          console.log("User is not new, not showing journey intro");
+          setShowJourneyIntro(false);
+          setIsNewUser(false);
+        }
 
         // Small delay to ensure smooth animation transition
         setTimeout(() => {
@@ -112,18 +221,15 @@ const HomeScreen: React.FC = () => {
       easing: Easing.out(Easing.cubic),
     }).start();
 
-    // Show welcome bubble after a delay
-    Animated.timing(welcomeBubbleAnim, {
-      toValue: 1,
-      duration: 700,
-      delay: 1000,
-      useNativeDriver: true,
-      easing: Easing.elastic(1.2),
-    }).start();
-
     // Staggered animation for sections
-    Animated.stagger(200, [
+    Animated.stagger(150, [
       Animated.timing(sections.header, {
+        toValue: 1,
+        duration: 800,
+        useNativeDriver: true,
+        easing: Easing.out(Easing.back(1.5)),
+      }),
+      Animated.timing(sections.features, {
         toValue: 1,
         duration: 800,
         useNativeDriver: true,
@@ -141,7 +247,13 @@ const HomeScreen: React.FC = () => {
         useNativeDriver: true,
         easing: Easing.out(Easing.back(1.5)),
       }),
-      Animated.timing(sections.features, {
+      Animated.timing(sections.inspiration, {
+        toValue: 1,
+        duration: 800,
+        useNativeDriver: true,
+        easing: Easing.out(Easing.back(1.5)),
+      }),
+      Animated.timing(sections.tips, {
         toValue: 1,
         duration: 800,
         useNativeDriver: true,
@@ -173,53 +285,6 @@ const HomeScreen: React.FC = () => {
   const handleScroll = Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], {
     useNativeDriver: true,
   });
-
-  // Render welcome bubble that appears after loading
-  const renderWelcomeBubble = () => {
-    return (
-      <Animated.View
-        style={[
-          styles.welcomeBubble,
-          {
-            opacity: welcomeBubbleAnim,
-            transform: [
-              { scale: welcomeBubbleAnim },
-              {
-                translateY: welcomeBubbleAnim.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [50, 0],
-                }),
-              },
-            ],
-          },
-        ]}
-      >
-        <LinearGradient
-          colors={["#9747FF", "#4A90E2"]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.welcomeBubbleGradient}
-        >
-          <Text style={styles.welcomeBubbleText}>Welcome back, {userName.split(" ")[0]}!</Text>
-          <Text style={styles.welcomeBubbleSubtext}>Ready to continue your journey?</Text>
-
-          <TouchableOpacity
-            style={styles.welcomeBubbleClose}
-            onPress={() => {
-              Animated.timing(welcomeBubbleAnim, {
-                toValue: 0,
-                duration: 400,
-                useNativeDriver: true,
-                easing: Easing.out(Easing.back(1.5)),
-              }).start();
-            }}
-          >
-            <Ionicons name="close" size={16} color="rgba(255,255,255,0.9)" />
-          </TouchableOpacity>
-        </LinearGradient>
-      </Animated.View>
-    );
-  };
 
   // Loading state with pulsing animation
   if (isLoading) {
@@ -253,7 +318,7 @@ const HomeScreen: React.FC = () => {
                 style={styles.loadingGradient}
               />
             </Animated.View>
-            <Text style={styles.loadingText}>Setting up your journey...</Text>
+            <Text style={styles.loadingText}>Preparing your journey...</Text>
           </View>
         </SafeAreaView>
       </ScreenWithNavBar>
@@ -297,7 +362,40 @@ const HomeScreen: React.FC = () => {
             </Animated.View>
 
             <View style={styles.contentContainer}>
-              {/* Stats Section with slide-up animation */}
+              {/* Features Section */}
+              <Animated.View
+                style={{
+                  opacity: sections.features,
+                  transform: [
+                    {
+                      translateY: sections.features.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [40, 0],
+                      }),
+                    },
+                  ],
+                }}
+              >
+                <FeaturesSection navigateToScreen={navigateToScreen} />
+              </Animated.View>
+              {/* Inspiration Quote Section */}
+              <Animated.View
+                style={{
+                  opacity: sections.inspiration,
+                  transform: [
+                    {
+                      translateY: sections.inspiration.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [40, 0],
+                      }),
+                    },
+                  ],
+                }}
+              >
+                <JourneyInspiration />
+              </Animated.View>
+
+              {/* Stats Section */}
               <Animated.View
                 style={{
                   opacity: sections.stats,
@@ -314,7 +412,7 @@ const HomeScreen: React.FC = () => {
                 <StatsSection />
               </Animated.View>
 
-              {/* Discovered Locations with slide-up animation */}
+              {/* Discovered Locations */}
               <Animated.View
                 style={{
                   opacity: sections.locations,
@@ -331,13 +429,13 @@ const HomeScreen: React.FC = () => {
                 <DiscoveredLocationsSection navigateToScreen={navigateToScreen} />
               </Animated.View>
 
-              {/* Features Section with slide-up animation */}
+              {/* Journey Tips Section */}
               <Animated.View
                 style={{
-                  opacity: sections.features,
+                  opacity: sections.tips,
                   transform: [
                     {
-                      translateY: sections.features.interpolate({
+                      translateY: sections.tips.interpolate({
                         inputRange: [0, 1],
                         outputRange: [40, 0],
                       }),
@@ -345,13 +443,16 @@ const HomeScreen: React.FC = () => {
                   ],
                 }}
               >
-                <FeaturesSection navigateToScreen={navigateToScreen} />
+                <OnboardingTips />
               </Animated.View>
             </View>
           </Animated.ScrollView>
 
-          {/* Welcome bubble that appears after initial load */}
-          {renderWelcomeBubble()}
+          {/* Journey introduction overlay for new users */}
+          <JourneyIntroOverlay
+            visible={showJourneyIntro}
+            onClose={() => setShowJourneyIntro(false)}
+          />
         </SafeAreaView>
       </Animated.View>
     </ScreenWithNavBar>
@@ -369,15 +470,26 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
-    paddingBottom: 80, // Reduced padding at the bottom for better spacing
+    paddingBottom: 90, // Consistent padding at the bottom to account for navbar
   },
   contentContainer: {
     flex: 1,
-    paddingHorizontal: 16, // Standardized horizontal padding
-    marginTop: 20, // Positive margin instead of negative for better layout
-    paddingTop: 10, // Reduced padding to compensate for positive margin
-    gap: 16, // Add gap between sections for consistent spacing
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    gap: 24, // Consistent spacing between all sections
   },
+  // Card container style shared by all card components
+  cardContainer: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    padding: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  // Loading styles
   loadingContainer: {
     flex: 1,
     justifyContent: "center",
@@ -400,45 +512,77 @@ const styles = StyleSheet.create({
     color: "#666",
     fontWeight: "500",
   },
-  welcomeBubble: {
-    position: "absolute",
-    bottom: 90, // Adjusted for better visibility
-    right: 20, // Consistent padding
-    width: 220,
-    borderRadius: 20,
-    overflow: "hidden",
-    elevation: 8,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    zIndex: 999,
+
+  // Section header styles (used in multiple components)
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 16,
   },
-  welcomeBubbleGradient: {
-    paddingHorizontal: 18,
-    paddingVertical: 16,
-    position: "relative",
-  },
-  welcomeBubbleText: {
-    color: "#fff",
-    fontSize: 15,
+  sectionTitle: {
+    fontSize: 18,
     fontWeight: "600",
-    marginBottom: 4,
+    color: "#333",
+    marginLeft: 8,
   },
-  welcomeBubbleSubtext: {
-    color: "rgba(255,255,255,0.9)",
-    fontSize: 13,
+  // Onboarding Tips Styles
+  tipCardContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 16,
   },
-  welcomeBubbleClose: {
-    position: "absolute",
-    top: 8,
-    right: 8,
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: "rgba(255,255,255,0.15)",
+  tipNavButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(0,0,0,0.03)",
     justifyContent: "center",
     alignItems: "center",
+  },
+  tipCard: {
+    flex: 1,
+    alignItems: "center",
+    paddingVertical: 20,
+    paddingHorizontal: 16,
+  },
+  tipIconContainer: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: "rgba(74, 144, 226, 0.1)",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  tipTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#333",
+    marginBottom: 8,
+    textAlign: "center",
+  },
+  tipDescription: {
+    fontSize: 14,
+    color: "#666",
+    textAlign: "center",
+    lineHeight: 20,
+  },
+  tipIndicators: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  tipIndicator: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "#DDD",
+    marginHorizontal: 4,
+  },
+  activeTipIndicator: {
+    backgroundColor: Colors.primary,
+    width: 16,
   },
 });
 
