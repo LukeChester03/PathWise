@@ -1,7 +1,5 @@
 import React, { useEffect, useState, useRef } from "react";
 import { SafeAreaView, StatusBar, View, ActivityIndicator, Text } from "react-native";
-import Layout from "./_layout";
-import { NavigationContainer } from "@react-navigation/native";
 import XPProvider from "./contexts/Levelling/xpContext";
 import XPNotificationsManager from "./components/Levelling/XPNotificationsManager";
 import { initStatsSystem } from "./services/statsService";
@@ -12,12 +10,12 @@ import {
   onPlacesUpdate,
   getNearbyPlacesState,
   setPlacesLoadingEnabled,
-  checkAuthAndEnablePlacesLoading, // Add new function
 } from "./controllers/Map/locationController";
 import { checkRequiredIndexes, getCacheStats } from "./controllers/Map/placesController";
 import { Colors } from "./constants/colours";
-import { auth } from "./config/firebaseConfig";
-import { onAuthStateChanged } from "firebase/auth";
+import { initAuth } from "./services/authService";
+import { AuthProvider } from "./contexts/authContext";
+import AuthNavigator from "./navigation/AuthNavigator";
 
 export default function Index() {
   // State to track initialization
@@ -42,39 +40,17 @@ export default function Index() {
     // Explicitly disable places loading until user logs in
     setPlacesLoadingEnabled(false);
 
-    // Listen for auth state changes
-    const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
-      authReadyRef.current = true;
-
-      if (user) {
-        console.log(`👤 User signed in: ${user.uid}`);
-        // User is logged in - NOW enable places loading and kick off the process
-        setPlacesLoadingEnabled(true);
-
-        // Only load places data after login
-        setInitStatus("User authenticated. Loading places data...");
-
-        // Ensure location is initialized first if needed
-        if (!locationInitializedRef.current) {
-          await initLocationAndPlaces();
-          locationInitializedRef.current = true;
-        }
-
-        // Now that user is logged in, start the places loading process
-        ensurePlacesAreLoaded();
-      } else {
-        console.log(`👤 User not signed in`);
-        // Make sure places loading stays disabled for unauthenticated users
-        setPlacesLoadingEnabled(false);
-        completeInitialization();
-      }
-    });
-
-    unsubscribeFunctionsRef.current.push(unsubscribeAuth);
-
     const initialize = async () => {
       try {
         setInitStatus("Initializing core systems...");
+
+        // Initialize authentication first - this will resolve with the current user state
+        setInitStatus("Checking authentication status...");
+        const currentUser = await initAuth();
+        authReadyRef.current = true;
+        console.log(
+          `🔐 Authentication initialized: User ${currentUser ? "signed in" : "signed out"}`
+        );
 
         // Initialize stats system
         const unsubscribeStats = await initStatsSystem(() => {
@@ -111,11 +87,19 @@ export default function Index() {
 
         unsubscribeFunctionsRef.current.push(unsubscribePlaces);
 
-        // Check if user is already logged in, if so enable places loading
-        if (auth.currentUser) {
-          console.log("User already logged in during initialization, enabling places loading");
+        if (currentUser) {
+          console.log(`👤 User authenticated: ${currentUser.uid}`);
+          // User is logged in - enable places loading and kick off the process
           setPlacesLoadingEnabled(true);
-          // Still wait for auth listener to kick off place loading
+          setInitStatus("User authenticated. Loading places data...");
+
+          // Now that user is logged in, start the places loading process
+          ensurePlacesAreLoaded();
+        } else {
+          console.log(`👤 User not authenticated`);
+          // Make sure places loading stays disabled for unauthenticated users
+          setPlacesLoadingEnabled(false);
+          completeInitialization();
         }
 
         // Safety timeout - allow app to proceed after 8 seconds regardless
@@ -149,8 +133,8 @@ export default function Index() {
           return;
         }
 
-        setInitStatus("Loading places data after authentication...");
-        console.log("🔄 Checking for cached places after login...");
+        setInitStatus("Loading places data...");
+        console.log("🔄 Checking for cached places...");
 
         // Get current location
         const currentLocation = await getCurrentLocation();
@@ -174,12 +158,10 @@ export default function Index() {
           return;
         }
 
-        console.log(
-          `📍 Got location after login: ${currentLocation.latitude}, ${currentLocation.longitude}`
-        );
+        console.log(`📍 Got location: ${currentLocation.latitude}, ${currentLocation.longitude}`);
 
         // IMPORTANT: Use forceRefresh=false to try cache first!
-        console.log("Attempting to load places from cache first after login...");
+        console.log("Attempting to load places from cache first...");
         let result = await updateNearbyPlaces(currentLocation, false);
 
         if (result) {
@@ -254,15 +236,13 @@ export default function Index() {
     );
   }
 
+  // When initialization is complete, render the app with authentication provider
   return (
-    <XPProvider>
-      <NavigationContainer>
-        <SafeAreaView style={{ flex: 1 }}>
-          <StatusBar barStyle="dark-content" />
-          <Layout />
-          <XPNotificationsManager />
-        </SafeAreaView>
-      </NavigationContainer>
-    </XPProvider>
+    <AuthProvider>
+      <XPProvider>
+        <AuthNavigator />
+        <XPNotificationsManager />
+      </XPProvider>
+    </AuthProvider>
   );
 }

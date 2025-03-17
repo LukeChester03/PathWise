@@ -1,5 +1,6 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
+import { View, ActivityIndicator } from "react-native";
 import { RootStackParamList } from "./navigation/types";
 import HomeScreen from "./screens/HomeScreen";
 import ProfileScreen from "./screens/ProfileScreen";
@@ -10,12 +11,70 @@ import LandingScreen from "./screens/LandingScreen";
 import ViewAllScreen from "./screens/ViewAllScreen";
 import MyJourneyScreen from "./screens/MyJourneyScreen";
 import PlaceDetailsScreen from "./screens/PlaceDetailsScreen";
+import { isAuthenticated } from "./services/authService";
+import { Colors } from "./constants/colours";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export default function Layout() {
+  const [initialRouteName, setInitialRouteName] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    // Function to determine the initial route
+    const checkAuthAndSetRoute = async () => {
+      try {
+        console.log("🧭 Determining initial route based on authentication state");
+
+        // Add a small delay for stability in Expo Go environment
+        await new Promise((resolve) => setTimeout(resolve, 500));
+
+        // Check both Firebase and AsyncStorage for auth state
+        const userAuthenticated = await isAuthenticated();
+
+        // Extra check for Expo Go specific issues
+        const storedUser = await AsyncStorage.getItem("@pathwise_auth_user");
+
+        if (userAuthenticated || storedUser) {
+          console.log("🧭 User is authenticated, setting initial route to Home");
+          setInitialRouteName("Home");
+        } else {
+          console.log("🧭 User is not authenticated, setting initial route to Landing");
+          setInitialRouteName("Landing");
+        }
+
+        setIsLoading(false);
+      } catch (error) {
+        console.error("Error checking authentication status:", error);
+        // Default to Landing in case of error
+        setInitialRouteName("Landing");
+        setIsLoading(false);
+      }
+    };
+
+    checkAuthAndSetRoute();
+  }, []);
+
+  // Show loading indicator while determining the initial route
+  if (isLoading || initialRouteName === null) {
+    return (
+      <View
+        style={{
+          flex: 1,
+          justifyContent: "center",
+          alignItems: "center",
+          backgroundColor: Colors.background,
+        }}
+      >
+        <ActivityIndicator size="large" color={Colors.primary} />
+      </View>
+    );
+  }
+
   return (
     <Stack.Navigator
-      initialRouteName="Landing"
+      initialRouteName={initialRouteName as any}
       id={undefined}
       screenOptions={{ headerShown: false }}
     >
