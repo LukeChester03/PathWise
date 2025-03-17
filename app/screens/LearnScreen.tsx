@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   ImageBackground,
   StatusBar,
+  Image,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
@@ -20,6 +21,8 @@ import { Colors, NeutralColors } from "../constants/colours";
 import ScreenWithNavBar from "../components/Global/ScreenWithNavbar";
 import Header from "../components/Global/Header";
 import PlacesCarousel from "../components/Places/PlacesCarousel";
+import AiTravelSnapshot from "../components/LearnScreen/AiTravelSnapshot";
+import { TravelProfile } from "../types/LearnScreen/TravelProfileTypes";
 
 const { width, height } = Dimensions.get("window");
 
@@ -40,6 +43,8 @@ const mockPlaces = [
       },
     ],
     placeType: "landmark",
+    category: "architectural",
+    tags: ["landmark", "historical", "architectural", "tourist"],
     description: "Iconic iron lattice tower on the Champ de Mars",
   },
   {
@@ -57,9 +62,342 @@ const mockPlaces = [
       },
     ],
     placeType: "historical",
+    category: "ancient",
+    tags: ["historical", "ancient", "roman", "ruins"],
     description: "Ancient Roman amphitheatre in the center of Rome",
   },
+  {
+    id: "mock3",
+    place_id: "mock3",
+    name: "Louvre Museum",
+    location: "Paris, France",
+    rating: 4.9,
+    visitDate: "March 5, 2025",
+    visitedAt: new Date(),
+    isVisited: true,
+    images: [
+      {
+        uri: "https://images.unsplash.com/photo-1565099824688-e93eb20fe622?auto=format&fit=crop&q=80&w=1000",
+      },
+    ],
+    placeType: "museum",
+    category: "cultural",
+    tags: ["museum", "art", "historical", "cultural", "indoor"],
+    description: "World's largest art museum and historic monument in Paris",
+  },
 ];
+
+// Enhanced mock data for AI features
+const mockAiData = {
+  // Feature 1: AI Travel Snapshot
+  travelProfile: {
+    type: "Cultural Explorer",
+    description:
+      "You have a strong preference for places with historical and cultural significance.",
+    level: "Enthusiast",
+    completionPercentage: 68,
+    badges: ["History Buff", "Architecture Enthusiast", "Museum Maven"],
+    streak: 7, // Days of consecutive exploration
+  },
+
+  // Feature 2: Language Assistant
+  localPhrases: [
+    {
+      language: "French",
+      phrase: "Je voudrais visiter le musée",
+      translation: "I would like to visit the museum",
+      useContext: "When asking for directions",
+      pronunciation: "Zhuh voo-dray vee-zee-tay luh moo-zay",
+    },
+    {
+      language: "Italian",
+      phrase: "Dov'è il Colosseo?",
+      translation: "Where is the Colosseum?",
+      useContext: "When asking for directions",
+      pronunciation: "Doh-veh eel ko-lo-say-oh",
+    },
+    {
+      language: "Italian",
+      phrase: "Quanto costa il biglietto?",
+      translation: "How much is the ticket?",
+      useContext: "When buying entrance tickets",
+      pronunciation: "Kwan-toh kos-tah eel bee-lyet-toh",
+    },
+    {
+      language: "French",
+      phrase: "C'est magnifique!",
+      translation: "It's magnificent!",
+      useContext: "When admiring landmarks",
+      pronunciation: "Say mag-nee-feek",
+    },
+  ],
+
+  // Feature 3: AI-Recommended Destinations
+  recommendedPlaces: [
+    {
+      name: "Vatican Museums",
+      location: "Vatican City",
+      reason: "Based on your interest in historical art collections",
+      distance: "1,435 km",
+      image: {
+        uri: "https://images.unsplash.com/photo-1577634081742-309a48ab9b6b?auto=format&fit=crop&q=80&w=1000",
+      },
+      matchPercentage: 92,
+    },
+    {
+      name: "British Museum",
+      location: "London, UK",
+      reason: "Matches your exploration of classical artifacts",
+      distance: "340 km",
+      image: {
+        uri: "https://images.unsplash.com/photo-1605972088248-4af23be1d9e8?auto=format&fit=crop&q=80&w=1000",
+      },
+      matchPercentage: 87,
+    },
+    {
+      name: "Palace of Versailles",
+      location: "Versailles, France",
+      reason: "Complements your interest in French architecture",
+      distance: "20 km",
+      image: {
+        uri: "https://images.unsplash.com/photo-1597584854944-57b54d0f0f0f?auto=format&fit=crop&q=80&w=1000",
+      },
+      matchPercentage: 89,
+    },
+  ],
+
+  // Feature 4: Cultural Context
+  culturalInsights: [
+    {
+      region: "Rome",
+      customs: [
+        {
+          title: "Aperitivo",
+          description: "Pre-dinner drinks with light snacks, usually between 7-9 PM",
+        },
+        {
+          title: "Siesta",
+          description: "Many shops close in the afternoon from approximately 1-4 PM",
+        },
+        {
+          title: "Dress Code",
+          description: "Modest attire required when visiting religious sites",
+        },
+      ],
+      etiquette:
+        "When entering small shops, greet with 'Buongiorno' (good day) or 'Buonasera' (good evening)",
+      diningTips: "Tipping is not expected, but rounding up the bill is appreciated",
+    },
+    {
+      region: "Paris",
+      customs: [
+        {
+          title: "Greeting",
+          description:
+            "The 'la bise' (cheek kiss) is common among friends, but handshakes are for formal situations",
+        },
+        {
+          title: "Dining Hours",
+          description: "Lunch from 12-2 PM, dinner typically starts at 8 PM",
+        },
+        {
+          title: "Museum Closures",
+          description: "Many museums close on Tuesdays instead of Mondays",
+        },
+      ],
+      etiquette:
+        "Always greet shop staff with 'Bonjour' when entering and 'Au revoir' when leaving",
+      diningTips: "Bread is placed directly on the table, not on a bread plate",
+    },
+  ],
+
+  // Feature 5: Advanced Travel Analysis
+  travelInsights: {
+    visitFrequency: {
+      weekdays: {
+        most: "Saturday",
+        percentage: 45,
+        insight: "You're a weekend explorer, making the most of your free time",
+      },
+      timeOfDay: {
+        most: "Afternoon",
+        percentage: 68,
+        insight: "You prefer visiting attractions during less crowded afternoon hours",
+      },
+      season: {
+        most: "Spring",
+        percentage: 50,
+        insight: "Your exploration peaks during comfortable spring weather",
+      },
+    },
+    visitation: {
+      averageDuration: "2.5 hours",
+      averageDistance: "12 km",
+      mostVisitedCity: "Paris",
+    },
+    patterns: [
+      "You typically visit multiple related sites on the same day",
+      "You show a preference for outdoor landmarks in the morning and indoor museums in the afternoon",
+      "Your visits often follow historical chronology, from ancient to modern",
+    ],
+  },
+
+  // Feature 6: Travel Preferences
+  preferences: {
+    categories: [
+      { name: "Historical Sites", percentage: 80, icon: "business" },
+      { name: "Urban Exploration", percentage: 65, icon: "map" },
+      { name: "Cultural Venues", percentage: 60, icon: "color-palette" },
+      { name: "Natural Settings", percentage: 35, icon: "leaf" },
+      { name: "Religious Sites", percentage: 55, icon: "home" },
+    ],
+    architecturalStyles: [
+      { name: "Classical", percentage: 70 },
+      { name: "Renaissance", percentage: 65 },
+      { name: "Gothic", percentage: 55 },
+      { name: "Modern", percentage: 25 },
+      { name: "Baroque", percentage: 60 },
+    ],
+    activities: [
+      { name: "Guided Tours", percentage: 45 },
+      { name: "Self-Guided Exploration", percentage: 85 },
+      { name: "Photography", percentage: 70 },
+      { name: "Local Cuisine", percentage: 50 },
+      { name: "Historical Research", percentage: 65 },
+    ],
+  },
+
+  // Feature 7: Knowledge Quest Game
+  knowledgeQuest: {
+    currentQuestions: [
+      {
+        question: "When was the Eiffel Tower completed?",
+        options: ["1799", "1889", "1910", "1925"],
+        correctAnswer: 1,
+        difficulty: "medium",
+        image: {
+          uri: "https://images.unsplash.com/photo-1543349689-9a4d426bee8e?auto=format&fit=crop&q=80&w=1000",
+        },
+        explanation:
+          "The Eiffel Tower was completed in 1889 for the Exposition Universelle (World's Fair) marking the 100th anniversary of the French Revolution.",
+      },
+      {
+        question: "Which emperor initiated the construction of the Colosseum?",
+        options: ["Julius Caesar", "Augustus", "Vespasian", "Constantine"],
+        correctAnswer: 2,
+        difficulty: "hard",
+        image: {
+          uri: "https://images.unsplash.com/photo-1552832230-c0197dd311b5?auto=format&fit=crop&q=80&w=1000",
+        },
+        explanation:
+          "Emperor Vespasian commissioned the Colosseum in 72 AD. It was completed by his son Titus in 80 AD.",
+      },
+      {
+        question: "In which wing of the Louvre is the Mona Lisa displayed?",
+        options: ["Richelieu", "Sully", "Denon", "Napoleon"],
+        correctAnswer: 2,
+        difficulty: "hard",
+        image: {
+          uri: "https://images.unsplash.com/photo-1565099824688-e93eb20fe622?auto=format&fit=crop&q=80&w=1000",
+        },
+        explanation:
+          "Leonardo da Vinci's Mona Lisa is displayed in the Denon Wing of the Louvre Museum.",
+      },
+    ],
+    statistics: {
+      questionsAnswered: 24,
+      correctAnswers: 18,
+      accuracy: 75,
+      streakRecord: 8,
+      currentStreak: 3,
+      lastPlayed: "2 days ago",
+    },
+    rewards: {
+      currentPoints: 1250,
+      nextMilestone: 1500,
+      nextReward: "Cultural Connoisseur Badge",
+      badges: ["Novice Explorer", "History Enthusiast"],
+    },
+  },
+
+  // Feature 8: AI Discovery Challenges
+  discoveryChallenges: {
+    active: [
+      {
+        id: "challenge1",
+        title: "Parisian Architectural Journey",
+        description: "Discover 3 distinct architectural styles within 2km of your location",
+        difficulty: "Medium",
+        duration: "3-4 hours",
+        points: 150,
+        progress: 67,
+        locations: [
+          { name: "Eiffel Tower", completed: true, style: "Iron Lattice" },
+          { name: "Notre-Dame Cathedral", completed: true, style: "Gothic" },
+          { name: "Sacré-Cœur Basilica", completed: false, style: "Romano-Byzantine" },
+        ],
+        reward: "Architectural Visionary Badge",
+      },
+      {
+        id: "challenge2",
+        title: "Roman Empire Expedition",
+        description: "Visit 3 sites showcasing Rome's imperial power",
+        difficulty: "Hard",
+        duration: "1-2 days",
+        points: 250,
+        progress: 33,
+        locations: [
+          { name: "Colosseum", completed: true, era: "Imperial" },
+          { name: "Roman Forum", completed: false, era: "Republican/Imperial" },
+          { name: "Pantheon", completed: false, era: "Imperial" },
+        ],
+        reward: "Roman Scholar Badge + 500 points",
+      },
+    ],
+    suggested: [
+      {
+        id: "challenge3",
+        title: "Hidden Paris",
+        description: "Explore 4 overlooked gems that tourists often miss",
+        difficulty: "Easy",
+        duration: "Half-day",
+        points: 100,
+        locations: [
+          "Rue Crémieux",
+          "Musée de la Chasse et de la Nature",
+          "Promenade Plantée",
+          "Belleville",
+        ],
+      },
+      {
+        id: "challenge4",
+        title: "Renaissance Masterpieces",
+        description: "Discover 5 Renaissance works in the Louvre from different Italian masters",
+        difficulty: "Medium",
+        duration: "2-3 hours",
+        points: 150,
+        locations: [
+          "Mona Lisa (da Vinci)",
+          "The Wedding at Cana (Veronese)",
+          "St. Francis of Assisi (Giotto)",
+          "The Pastoral Concert (Titian)",
+          "Apollo and Daphne (Bernini)",
+        ],
+      },
+    ],
+    completedRecent: [
+      {
+        id: "challenge5",
+        title: "Flavors of Italy",
+        description: "Sample 3 authentic Roman dishes in their traditional settings",
+        difficulty: "Easy",
+        completedDate: "February 17, 2025",
+        points: 100,
+        earnedReward: "Culinary Explorer Badge",
+      },
+    ],
+  },
+};
 
 const LearnScreen = ({ route, navigation }) => {
   const [selectedPlaceId, setSelectedPlaceId] = useState(null);
@@ -72,11 +410,50 @@ const LearnScreen = ({ route, navigation }) => {
   const [error, setError] = useState(null);
   const [useMockData, setUseMockData] = useState(false);
 
+  // Knowledge Quest game state
+  const [activeQuestion, setActiveQuestion] = useState(null);
+  const [selectedAnswer, setSelectedAnswer] = useState(null);
+  const [answerSubmitted, setAnswerSubmitted] = useState(false);
+  const [showQuizResults, setShowQuizResults] = useState(false);
+
+  // Challenge state
+  const [expandedChallenge, setExpandedChallenge] = useState(null);
+
+  //Travel profile
+  const [travelProfile, setTravelProfile] = useState<TravelProfile | null>(null);
+
+  // Feature expansion states
+  const [expandedFeatures, setExpandedFeatures] = useState({
+    travelProfile: false,
+    culturalInsights: false,
+    travelAnalysis: false,
+  });
+
+  const handleProfileUpdated = (profile: TravelProfile) => {
+    setTravelProfile(profile);
+    console.log("Travel profile updated:", profile.type);
+
+    // You can use the profile data to update other parts of your UI
+    // For example, you could update recommendations based on travel preferences
+
+    // If you want to persist this information:
+    // You could save it to local storage or your backend
+  };
   // Create separate animation values to avoid conflicts
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(50)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const explanationAnim = useRef(new Animated.Value(0)).current;
+  const cardAnimations = useRef({
+    travelSnapshot: new Animated.Value(0),
+    languageAssistant: new Animated.Value(0),
+    recommendations: new Animated.Value(0),
+    cultural: new Animated.Value(0),
+    analysis: new Animated.Value(0),
+    preferences: new Animated.Value(0),
+    quest: new Animated.Value(0),
+    challenges: new Animated.Value(0),
+  }).current;
 
   // Fetch user's visited places from Firestore
   useEffect(() => {
@@ -99,6 +476,18 @@ const LearnScreen = ({ route, navigation }) => {
         useNativeDriver: true,
       }),
     ]).start();
+
+    // Staggered animations for each card
+    const animations = Object.keys(cardAnimations).map((key, index) => {
+      return Animated.timing(cardAnimations[key], {
+        toValue: 1,
+        duration: 500,
+        delay: 100 + index * 100, // Stagger effect
+        useNativeDriver: true,
+      });
+    });
+
+    Animated.stagger(50, animations).start();
   }, []);
 
   // Create pulsing animation for AI badge
@@ -251,33 +640,6 @@ const LearnScreen = ({ route, navigation }) => {
     }
   };
 
-  // AI-generated insights and data
-  const aiInsights = {
-    topCategory: "Historical Sites",
-    insights: [
-      "You seem particularly interested in architectural landmarks with classical design elements",
-      "Most of your visits occur on weekends between 10am-2pm, suggesting you're a midday explorer",
-      `Your travel patterns show a preference for locations with cultural significance`,
-      "Based on your visits, we predict you might enjoy Renaissance architecture sites",
-    ],
-    locationTrends: [
-      { trend: "Urban Exploration", percentage: 65 },
-      { trend: "Historical Sites", percentage: 80 },
-      { trend: "Natural Settings", percentage: 35 },
-      { trend: "Cultural Venues", percentage: 60 },
-    ],
-    recommendedPlaces: [
-      "Vatican Museums, Vatican City",
-      "British Museum, London",
-      "Palace of Versailles, France",
-    ],
-    localPhrases: [
-      { language: "French", phrase: "Bonjour", translation: "Hello" },
-      { language: "Italian", phrase: "Grazie", translation: "Thank you" },
-      { language: "Spanish", phrase: "¿Dónde está?", translation: "Where is it?" },
-    ],
-  };
-
   // Mock AI-generated content (would be fetched from Gemini API in a real app)
   const getPlaceDetails = (place) => {
     // This would be replaced with actual Gemini API call
@@ -341,6 +703,21 @@ const LearnScreen = ({ route, navigation }) => {
         aiThoughts:
           "The Colosseum stands as a testament to Roman engineering prowess. Its sophisticated design included features like the hypogeum, velarium, and travertine facade, showcasing advanced architectural knowledge that influenced structures for millennia.",
       };
+    } else if (place.name.includes("Louvre")) {
+      return {
+        description:
+          "The Louvre Museum is the world's largest art museum and a historic monument in Paris, France. A central landmark of the city, it is located on the Right Bank of the Seine.",
+        facts: [
+          "The museum houses approximately 38,000 objects from prehistory to the 21st century",
+          "The Louvre Palace was originally built as a fortress in the late 12th century",
+          "It became a public museum during the French Revolution in 1793",
+        ],
+        yearBuilt: "12th century (original fortress), 1989 (glass pyramid)",
+        architect: "Various, including I.M. Pei (pyramid)",
+        visitors: "9.6 million annually",
+        aiThoughts:
+          "The Louvre represents the pinnacle of artistic achievement across multiple civilizations. Its transformation from royal palace to public institution embodies the democratization of culture. The juxtaposition of classical architecture with I.M. Pei's modern pyramid symbolizes the dialogue between tradition and innovation.",
+      };
     }
 
     return defaultDetails;
@@ -386,6 +763,60 @@ const LearnScreen = ({ route, navigation }) => {
     console.log("Back button pressed");
     setSelectedPlaceId(null);
     setSelectedPlace(null);
+    // Reset game state when navigating back
+    setActiveQuestion(null);
+    setSelectedAnswer(null);
+    setAnswerSubmitted(false);
+    setShowQuizResults(false);
+  };
+
+  // Handle Knowledge Quest selection
+  const handleStartQuiz = () => {
+    // Start with the first question
+    setActiveQuestion(0);
+    setSelectedAnswer(null);
+    setAnswerSubmitted(false);
+    setShowQuizResults(false);
+  };
+
+  const handleAnswerSelect = (answerIndex) => {
+    if (!answerSubmitted) {
+      setSelectedAnswer(answerIndex);
+    }
+  };
+
+  const handleSubmitAnswer = () => {
+    if (selectedAnswer !== null && !answerSubmitted) {
+      setAnswerSubmitted(true);
+
+      // Show results briefly, then move to next question or finish
+      setTimeout(() => {
+        if (activeQuestion < mockAiData.knowledgeQuest.currentQuestions.length - 1) {
+          setActiveQuestion(activeQuestion + 1);
+          setSelectedAnswer(null);
+          setAnswerSubmitted(false);
+        } else {
+          setShowQuizResults(true);
+        }
+      }, 2000);
+    }
+  };
+
+  // Toggle feature expansion
+  const toggleFeatureExpansion = (feature) => {
+    setExpandedFeatures((prev) => ({
+      ...prev,
+      [feature]: !prev[feature],
+    }));
+  };
+
+  // Handle challenge expansion
+  const toggleChallengeExpansion = (challengeId) => {
+    if (expandedChallenge === challengeId) {
+      setExpandedChallenge(null);
+    } else {
+      setExpandedChallenge(challengeId);
+    }
   };
 
   const renderEmptyState = () => {
@@ -557,10 +988,998 @@ const LearnScreen = ({ route, navigation }) => {
                   <Text style={styles.infoValue}>{details.visitors}</Text>
                 </View>
               </View>
+
+              {/* Knowledge Quiz related to this place */}
+              <View style={styles.placeQuizContainer}>
+                <View style={styles.placeQuizHeader}>
+                  <Ionicons name="school" size={22} color="#6366F1" />
+                  <Text style={styles.placeQuizTitle}>Test Your Knowledge</Text>
+                </View>
+
+                <Text style={styles.placeQuizDescription}>
+                  Take a quick quiz about {selectedPlace.name} to strengthen your understanding
+                </Text>
+
+                <TouchableOpacity style={styles.startQuizButton} onPress={handleStartQuiz}>
+                  <Text style={styles.startQuizButtonText}>Start Quiz</Text>
+                  <Ionicons name="play" size={16} color="#6366F1" />
+                </TouchableOpacity>
+              </View>
+
+              {/* Cultural Context for this place */}
+              {selectedPlace.location && (
+                <View style={styles.culturalContextContainer}>
+                  <View style={styles.culturalContextHeader}>
+                    <Ionicons name="people" size={22} color="#7E22CE" />
+                    <Text style={styles.culturalContextTitle}>Local Cultural Context</Text>
+                  </View>
+
+                  <Text style={styles.culturalContextDescription}>
+                    Understanding local customs and traditions in{" "}
+                    {selectedPlace.location.split(",")[0]}
+                  </Text>
+
+                  {mockAiData.culturalInsights
+                    .filter((insight) => selectedPlace.location.includes(insight.region))
+                    .map((insight, index) => (
+                      <View key={index} style={styles.culturalInsightContainer}>
+                        {insight.customs.slice(0, 2).map((custom, idx) => (
+                          <View key={idx} style={styles.customItem}>
+                            <Text style={styles.customTitle}>{custom.title}</Text>
+                            <Text style={styles.customDescription}>{custom.description}</Text>
+                          </View>
+                        ))}
+
+                        <View style={styles.etiquetteContainer}>
+                          <Text style={styles.etiquetteLabel}>Local Etiquette</Text>
+                          <Text style={styles.etiquetteText}>{insight.etiquette}</Text>
+                        </View>
+                      </View>
+                    ))}
+
+                  <TouchableOpacity style={styles.viewMoreButton}>
+                    <Text style={styles.viewMoreButtonText}>View Complete Cultural Guide</Text>
+                    <Ionicons name="chevron-forward" size={16} color="#7E22CE" />
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {/* Nearby Challenges */}
+              <View style={styles.nearbyChallengesContainer}>
+                <View style={styles.nearbyChallengesHeader}>
+                  <Ionicons name="flag" size={22} color="#15803D" />
+                  <Text style={styles.nearbyChallengesTitle}>Nearby Challenges</Text>
+                </View>
+
+                <Text style={styles.nearbyChallengesDescription}>
+                  Complete these exploration challenges near {selectedPlace.name}
+                </Text>
+
+                {mockAiData.discoveryChallenges.active
+                  .filter((challenge) =>
+                    challenge.locations.some(
+                      (loc) =>
+                        loc.name === selectedPlace.name ||
+                        selectedPlace.location.includes(challenge.locations[0].name.split(" ")[0])
+                    )
+                  )
+                  .map((challenge, index) => (
+                    <TouchableOpacity
+                      key={index}
+                      style={styles.nearbyChallenge}
+                      onPress={() => toggleChallengeExpansion(challenge.id)}
+                    >
+                      <View style={styles.challengeHeader}>
+                        <View style={styles.challengeTitleContainer}>
+                          <Text style={styles.challengeTitle}>{challenge.title}</Text>
+                          <View style={styles.challengeDifficultyContainer}>
+                            <Text style={styles.challengeDifficulty}>{challenge.difficulty}</Text>
+                          </View>
+                        </View>
+                        <Ionicons
+                          name={expandedChallenge === challenge.id ? "chevron-up" : "chevron-down"}
+                          size={20}
+                          color="#15803D"
+                        />
+                      </View>
+
+                      {expandedChallenge === challenge.id && (
+                        <View style={styles.challengeDetails}>
+                          <Text style={styles.challengeDescription}>{challenge.description}</Text>
+                          <View style={styles.challengeProgressBar}>
+                            <View
+                              style={[
+                                styles.challengeProgressFill,
+                                { width: `${challenge.progress}%` },
+                              ]}
+                            />
+                          </View>
+                          <Text style={styles.challengeProgressText}>
+                            {challenge.progress}% Complete
+                          </Text>
+
+                          <View style={styles.challengeLocations}>
+                            {challenge.locations.map((location, idx) => (
+                              <View key={idx} style={styles.challengeLocation}>
+                                <Ionicons
+                                  name={location.completed ? "checkmark-circle" : "ellipse-outline"}
+                                  size={18}
+                                  color={location.completed ? "#15803D" : "#9CA3AF"}
+                                />
+                                <Text
+                                  style={[
+                                    styles.challengeLocationText,
+                                    location.completed && styles.challengeLocationCompleted,
+                                  ]}
+                                >
+                                  {location.name}
+                                </Text>
+                              </View>
+                            ))}
+                          </View>
+
+                          <View style={styles.challengeReward}>
+                            <Ionicons name="ribbon" size={18} color="#15803D" />
+                            <Text style={styles.challengeRewardText}>
+                              Reward: {challenge.reward}
+                            </Text>
+                          </View>
+                        </View>
+                      )}
+                    </TouchableOpacity>
+                  ))}
+              </View>
             </View>
           </View>
         </Animated.View>
       </ScrollView>
+    );
+  };
+
+  const renderQuizMode = () => {
+    const currentQuestion = mockAiData.knowledgeQuest.currentQuestions[activeQuestion];
+    const isCorrect = selectedAnswer === currentQuestion.correctAnswer;
+
+    if (showQuizResults) {
+      // Show quiz results summary
+      return (
+        <View style={styles.quizResultsContainer}>
+          <View style={styles.quizResultsHeader}>
+            <LinearGradient
+              colors={["#8B5CF6", "#6366F1"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.quizResultsGradient}
+            >
+              <Ionicons name="trophy" size={40} color="#FFFFFF" />
+              <Text style={styles.quizResultsTitle}>Quiz Completed!</Text>
+              <Text style={styles.quizResultsScore}>
+                Score: {mockAiData.knowledgeQuest.statistics.accuracy}%
+              </Text>
+            </LinearGradient>
+          </View>
+
+          <View style={styles.quizResultsContent}>
+            <Text style={styles.quizResultsMessage}>
+              Great job! You've gained more knowledge about the places you've visited.
+            </Text>
+
+            <View style={styles.quizStatsContainer}>
+              <View style={styles.quizStatItem}>
+                <Text style={styles.quizStatValue}>
+                  {mockAiData.knowledgeQuest.statistics.questionsAnswered}
+                </Text>
+                <Text style={styles.quizStatLabel}>Questions Answered</Text>
+              </View>
+
+              <View style={styles.quizStatItem}>
+                <Text style={styles.quizStatValue}>
+                  {mockAiData.knowledgeQuest.statistics.currentStreak}
+                </Text>
+                <Text style={styles.quizStatLabel}>Current Streak</Text>
+              </View>
+
+              <View style={styles.quizStatItem}>
+                <Text style={styles.quizStatValue}>
+                  {mockAiData.knowledgeQuest.rewards.currentPoints}
+                </Text>
+                <Text style={styles.quizStatLabel}>Total Points</Text>
+              </View>
+            </View>
+
+            <View style={styles.quizRewardProgress}>
+              <Text style={styles.quizRewardTitle}>Next Reward</Text>
+              <Text style={styles.quizRewardName}>
+                {mockAiData.knowledgeQuest.rewards.nextReward}
+              </Text>
+
+              <View style={styles.quizRewardProgressBar}>
+                <View
+                  style={[
+                    styles.quizRewardProgressFill,
+                    {
+                      width: `${
+                        (mockAiData.knowledgeQuest.rewards.currentPoints /
+                          mockAiData.knowledgeQuest.rewards.nextMilestone) *
+                        100
+                      }%`,
+                    },
+                  ]}
+                />
+              </View>
+
+              <Text style={styles.quizRewardProgressText}>
+                {mockAiData.knowledgeQuest.rewards.currentPoints} /{" "}
+                {mockAiData.knowledgeQuest.rewards.nextMilestone} points
+              </Text>
+            </View>
+
+            <TouchableOpacity style={styles.quizCloseButton} onPress={handleBackPress}>
+              <Text style={styles.quizCloseButtonText}>Back to Learn</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      );
+    }
+
+    return (
+      <View style={styles.quizModeContainer}>
+        <View style={styles.quizProgressBar}>
+          {mockAiData.knowledgeQuest.currentQuestions.map((_, index) => (
+            <View
+              key={index}
+              style={[
+                styles.quizProgressStep,
+                activeQuestion === index
+                  ? styles.quizProgressActive
+                  : activeQuestion > index
+                  ? styles.quizProgressComplete
+                  : {},
+              ]}
+            />
+          ))}
+        </View>
+
+        <View style={styles.quizQuestionContainer}>
+          <ImageBackground
+            source={currentQuestion.image}
+            style={styles.quizQuestionImage}
+            imageStyle={styles.quizQuestionImageStyle}
+          >
+            <LinearGradient
+              colors={["rgba(0,0,0,0.1)", "rgba(0,0,0,0.7)"]}
+              style={styles.quizQuestionImageOverlay}
+            />
+            <Text style={styles.quizQuestionText}>{currentQuestion.question}</Text>
+          </ImageBackground>
+
+          <View style={styles.quizOptionsContainer}>
+            {currentQuestion.options.map((option, index) => (
+              <TouchableOpacity
+                key={index}
+                style={[
+                  styles.quizOption,
+                  selectedAnswer === index && styles.quizOptionSelected,
+                  answerSubmitted &&
+                    selectedAnswer === index &&
+                    (isCorrect ? styles.quizOptionCorrect : styles.quizOptionIncorrect),
+                ]}
+                onPress={() => handleAnswerSelect(index)}
+                disabled={answerSubmitted}
+              >
+                <Text
+                  style={[
+                    styles.quizOptionText,
+                    selectedAnswer === index && styles.quizOptionTextSelected,
+                    answerSubmitted &&
+                      selectedAnswer === index &&
+                      (isCorrect ? styles.quizOptionTextCorrect : styles.quizOptionTextIncorrect),
+                  ]}
+                >
+                  {option}
+                </Text>
+
+                {answerSubmitted && selectedAnswer === index && (
+                  <Ionicons
+                    name={isCorrect ? "checkmark-circle" : "close-circle"}
+                    size={24}
+                    color={isCorrect ? "#10B981" : "#EF4444"}
+                    style={styles.quizOptionIcon}
+                  />
+                )}
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          {answerSubmitted && (
+            <View
+              style={[
+                styles.quizFeedbackContainer,
+                isCorrect ? styles.quizFeedbackCorrect : styles.quizFeedbackIncorrect,
+              ]}
+            >
+              <Text style={styles.quizFeedbackTitle}>
+                {isCorrect ? "Correct!" : "Not quite right"}
+              </Text>
+              <Text style={styles.quizFeedbackText}>{currentQuestion.explanation}</Text>
+            </View>
+          )}
+
+          <TouchableOpacity
+            style={[
+              styles.quizSubmitButton,
+              selectedAnswer === null && styles.quizSubmitButtonDisabled,
+              answerSubmitted &&
+                (isCorrect ? styles.quizSubmitButtonCorrect : styles.quizSubmitButtonIncorrect),
+            ]}
+            onPress={handleSubmitAnswer}
+            disabled={selectedAnswer === null || answerSubmitted}
+          >
+            <Text style={styles.quizSubmitButtonText}>
+              {answerSubmitted
+                ? activeQuestion < mockAiData.knowledgeQuest.currentQuestions.length - 1
+                  ? "Next Question"
+                  : "See Results"
+                : "Submit Answer"}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        <TouchableOpacity style={styles.quizCloseButton} onPress={handleBackPress}>
+          <Ionicons name="close" size={24} color="#6B7280" />
+        </TouchableOpacity>
+      </View>
+    );
+  };
+
+  const renderFeatureCards = (cardAnimation) => {
+    return (
+      <Animated.View
+        style={[
+          styles.featuresGrid,
+          {
+            opacity: cardAnimation,
+            transform: [
+              {
+                translateY: cardAnimation.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [50, 0],
+                }),
+              },
+            ],
+          },
+        ]}
+      >
+        <TouchableOpacity style={styles.featureCard}>
+          <View style={[styles.featureIconContainer, { backgroundColor: "#E0F2FE" }]}>
+            <Ionicons name="language" size={24} color="#0284C7" />
+          </View>
+          <Text style={styles.featureTitle}>Language Assistant</Text>
+          <Text style={styles.featureDescription}>
+            AI-generated phrases from local languages of places you've visited
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.featureCard}>
+          <View style={[styles.featureIconContainer, { backgroundColor: "#FFEDD5" }]}>
+            <Ionicons name="school" size={24} color="#C2410C" />
+          </View>
+          <Text style={styles.featureTitle}>Knowledge Quest</Text>
+          <Text style={styles.featureDescription}>
+            Test what you've learned about visited landmarks with interactive quizzes
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.featureCard}>
+          <View style={[styles.featureIconContainer, { backgroundColor: "#DCFCE7" }]}>
+            <Ionicons name="flag" size={24} color="#15803D" />
+          </View>
+          <Text style={styles.featureTitle}>Discovery Challenges</Text>
+          <Text style={styles.featureDescription}>
+            Complete personalized exploration challenges tailored to your interests
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.featureCard}>
+          <View style={[styles.featureIconContainer, { backgroundColor: "#F3E8FF" }]}>
+            <Ionicons name="people" size={24} color="#7E22CE" />
+          </View>
+          <Text style={styles.featureTitle}>Cultural Context</Text>
+          <Text style={styles.featureDescription}>
+            AI insights on local customs and traditions in places you visit
+          </Text>
+        </TouchableOpacity>
+      </Animated.View>
+    );
+  };
+
+  const renderAdvancedTravelAnalysisCard = (cardAnimation) => {
+    return (
+      <Animated.View
+        style={[
+          styles.aiInsightsCard,
+          {
+            opacity: cardAnimation,
+            transform: [
+              {
+                translateY: cardAnimation.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [50, 0],
+                }),
+              },
+            ],
+          },
+        ]}
+      >
+        <View style={styles.aiRibbonContainer}>
+          <LinearGradient
+            colors={["#4F46E5", "#818CF8"]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.aiRibbon}
+          >
+            <Text style={styles.aiRibbonText}>AI POWERED</Text>
+          </LinearGradient>
+        </View>
+
+        <View style={styles.aiInsightsHeader}>
+          <View style={styles.aiIconContainer}>
+            <Ionicons name="brain" size={24} color="#4F46E5" />
+          </View>
+          <View style={styles.aiTitleContainer}>
+            <Text style={styles.aiInsightsTitle}>Advanced Travel Analysis</Text>
+            <View style={styles.geminiLabelContainer}>
+              <Ionicons name="logo-google" size={10} color="#0369A1" style={{ marginRight: 4 }} />
+              <Text style={styles.geminiLabel}>Gemini AI</Text>
+            </View>
+          </View>
+        </View>
+
+        <TouchableOpacity
+          style={styles.aiInsightsDescriptionContainer}
+          onPress={() => toggleFeatureExpansion("travelAnalysis")}
+        >
+          <Text style={styles.aiInsightsDescription}>
+            Our multimodal AI has analyzed your travel history, photos, and preferences to generate
+            these insights:
+          </Text>
+          <Ionicons
+            name={expandedFeatures.travelAnalysis ? "chevron-up" : "chevron-down"}
+            size={20}
+            color="#4F46E5"
+          />
+        </TouchableOpacity>
+
+        {mockAiData.travelInsights.patterns.map((insight, index) => (
+          <View key={index} style={styles.insightItem}>
+            <Ionicons name="sparkles" size={18} color="#4F46E5" style={styles.insightIcon} />
+            <Text style={styles.insightText}>{insight}</Text>
+          </View>
+        ))}
+
+        {expandedFeatures.travelAnalysis && (
+          <View style={styles.extendedInsightsContainer}>
+            <View style={styles.visitationStatsContainer}>
+              <Text style={styles.visitationStatsTitle}>Your Travel Patterns</Text>
+
+              <View style={styles.visitationStats}>
+                <View style={styles.visitationStatItem}>
+                  <Ionicons name="time" size={18} color="#4F46E5" />
+                  <Text style={styles.visitationStatValue}>
+                    {mockAiData.travelInsights.visitation.averageDuration}
+                  </Text>
+                  <Text style={styles.visitationStatLabel}>Avg. Visit Duration</Text>
+                </View>
+
+                <View style={styles.visitationStatItem}>
+                  <Ionicons name="location" size={18} color="#4F46E5" />
+                  <Text style={styles.visitationStatValue}>
+                    {mockAiData.travelInsights.visitation.averageDistance}
+                  </Text>
+                  <Text style={styles.visitationStatLabel}>Avg. Travel Distance</Text>
+                </View>
+
+                <View style={styles.visitationStatItem}>
+                  <Ionicons name="navigate" size={18} color="#4F46E5" />
+                  <Text style={styles.visitationStatValue}>
+                    {mockAiData.travelInsights.visitation.mostVisitedCity}
+                  </Text>
+                  <Text style={styles.visitationStatLabel}>Most Visited City</Text>
+                </View>
+              </View>
+
+              <View style={styles.frequencyInsightContainer}>
+                <View style={styles.frequencyInsight}>
+                  <Text style={styles.frequencyInsightTitle}>Preferred Day</Text>
+                  <View style={styles.frequencyInsightContent}>
+                    <Text style={styles.frequencyInsightValue}>
+                      {mockAiData.travelInsights.visitFrequency.weekdays.most}
+                    </Text>
+                    <Text style={styles.frequencyInsightPercentage}>
+                      {mockAiData.travelInsights.visitFrequency.weekdays.percentage}%
+                    </Text>
+                  </View>
+                  <Text style={styles.frequencyInsightNote}>
+                    {mockAiData.travelInsights.visitFrequency.weekdays.insight}
+                  </Text>
+                </View>
+
+                <View style={styles.frequencyInsight}>
+                  <Text style={styles.frequencyInsightTitle}>Preferred Time</Text>
+                  <View style={styles.frequencyInsightContent}>
+                    <Text style={styles.frequencyInsightValue}>
+                      {mockAiData.travelInsights.visitFrequency.timeOfDay.most}
+                    </Text>
+                    <Text style={styles.frequencyInsightPercentage}>
+                      {mockAiData.travelInsights.visitFrequency.timeOfDay.percentage}%
+                    </Text>
+                  </View>
+                  <Text style={styles.frequencyInsightNote}>
+                    {mockAiData.travelInsights.visitFrequency.timeOfDay.insight}
+                  </Text>
+                </View>
+              </View>
+            </View>
+          </View>
+        )}
+
+        <View style={styles.aiSectionDivider}>
+          <View style={styles.dividerLine} />
+          <Text style={styles.dividerText}>Travel Preferences</Text>
+          <View style={styles.dividerLine} />
+        </View>
+
+        <View style={styles.trendsContainer}>
+          {mockAiData.preferences.categories.map((trend, index) => (
+            <View key={index} style={styles.trendItem}>
+              <View style={styles.trendLabelRow}>
+                <View style={styles.trendLabelWithIcon}>
+                  <Ionicons name={trend.icon} size={16} color="#4F46E5" style={styles.trendIcon} />
+                  <Text style={styles.trendLabel}>{trend.name}</Text>
+                </View>
+                <Text style={styles.trendPercentage}>{trend.percentage}%</Text>
+              </View>
+              <View style={styles.trendBarBackground}>
+                <View style={[styles.trendBarFill, { width: `${trend.percentage}%` }]} />
+              </View>
+            </View>
+          ))}
+        </View>
+
+        <TouchableOpacity style={styles.aiExpandButton}>
+          <Text style={styles.aiExpandText}>View Complete Analysis</Text>
+          <Ionicons name="chevron-forward" size={16} color="#4F46E5" />
+        </TouchableOpacity>
+      </Animated.View>
+    );
+  };
+
+  const renderRecommendationsCard = (cardAnimation) => {
+    return (
+      <Animated.View
+        style={[
+          styles.aiRecommendationsCard,
+          {
+            opacity: cardAnimation,
+            transform: [
+              {
+                translateY: cardAnimation.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [50, 0],
+                }),
+              },
+            ],
+          },
+        ]}
+      >
+        <View style={styles.aiRecommendationsHeader}>
+          <Ionicons name="compass" size={22} color="#15803D" />
+          <Text style={styles.aiRecommendationsTitle}>AI-Recommended Destinations</Text>
+        </View>
+
+        <Text style={styles.aiRecommendationsSubtitle}>
+          Based on your travel preferences, you might enjoy:
+        </Text>
+
+        <View style={styles.recommendationsList}>
+          {mockAiData.recommendedPlaces.map((place, index) => (
+            <TouchableOpacity key={index} style={styles.enhancedRecommendationItem}>
+              <Image source={place.image} style={styles.recommendationImage} resizeMode="cover" />
+              <View style={styles.recommendationContent}>
+                <View style={styles.recommendationHeader}>
+                  <Text style={styles.recommendationName}>{place.name}</Text>
+                  <View style={styles.matchContainer}>
+                    <Text style={styles.matchText}>{place.matchPercentage}% match</Text>
+                  </View>
+                </View>
+                <Text style={styles.recommendationLocation}>{place.location}</Text>
+                <Text style={styles.recommendationReason}>{place.reason}</Text>
+                <View style={styles.recommendationFooter}>
+                  <View style={styles.distanceContainer}>
+                    <Ionicons name="navigate" size={14} color="#64748B" />
+                    <Text style={styles.distanceText}>{place.distance}</Text>
+                  </View>
+                  <TouchableOpacity style={styles.addToWishlistButton}>
+                    <Ionicons name="heart-outline" size={16} color="#15803D" />
+                    <Text style={styles.addToWishlistText}>Add to Wishlist</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </Animated.View>
+    );
+  };
+
+  const renderLanguageAssistantCard = (cardAnimation) => {
+    return (
+      <Animated.View
+        style={[
+          styles.aiLanguageCard,
+          {
+            opacity: cardAnimation,
+            transform: [
+              {
+                translateY: cardAnimation.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [50, 0],
+                }),
+              },
+            ],
+          },
+        ]}
+      >
+        <View style={styles.aiLanguageHeader}>
+          <Ionicons name="language" size={22} color="#0284C7" />
+          <Text style={styles.aiLanguageTitle}>AI Language Assistant</Text>
+        </View>
+
+        <Text style={styles.aiLanguageSubtitle}>Useful phrases from regions you've visited:</Text>
+
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.phrasesScrollView}
+          contentContainerStyle={styles.phrasesContentContainer}
+        >
+          {mockAiData.localPhrases.map((phrase, index) => (
+            <View key={index} style={styles.enhancedPhraseCard}>
+              <Text style={styles.phraseLanguage}>{phrase.language}</Text>
+              <Text style={styles.phraseText}>{phrase.phrase}</Text>
+              <Text style={styles.phraseTranslation}>{phrase.translation}</Text>
+              <Text style={styles.phraseContext}>{phrase.useContext}</Text>
+              <View style={styles.pronunciationContainer}>
+                <Text style={styles.pronunciationLabel}>Pronunciation:</Text>
+                <Text style={styles.pronunciationText}>{phrase.pronunciation}</Text>
+              </View>
+              <TouchableOpacity style={styles.playPhraseButton}>
+                <Ionicons name="volume-high" size={16} color="#0284C7" />
+              </TouchableOpacity>
+            </View>
+          ))}
+        </ScrollView>
+
+        <TouchableOpacity style={styles.viewAllPhrasesButton}>
+          <Text style={styles.viewAllPhrasesText}>View Complete Phrasebook</Text>
+          <Ionicons name="chevron-forward" size={16} color="#0284C7" />
+        </TouchableOpacity>
+      </Animated.View>
+    );
+  };
+
+  const renderCulturalContextCard = (cardAnimation) => {
+    return (
+      <Animated.View
+        style={[
+          styles.culturalContextCard,
+          {
+            opacity: cardAnimation,
+            transform: [
+              {
+                translateY: cardAnimation.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [50, 0],
+                }),
+              },
+            ],
+          },
+        ]}
+      >
+        <View style={styles.culturalContextCardHeader}>
+          <Ionicons name="people" size={22} color="#7E22CE" />
+          <Text style={styles.culturalContextCardTitle}>Cultural Context</Text>
+        </View>
+
+        <Text style={styles.culturalContextCardSubtitle}>
+          Understanding local customs and traditions in places you've visited:
+        </Text>
+
+        <TouchableOpacity
+          style={styles.culturalInsightsContainer}
+          onPress={() => toggleFeatureExpansion("culturalInsights")}
+        >
+          <View style={styles.culturalInsightHeaderRow}>
+            <Text style={styles.culturalInsightRegion}>Rome, Italy</Text>
+            <Ionicons
+              name={expandedFeatures.culturalInsights ? "chevron-up" : "chevron-down"}
+              size={20}
+              color="#7E22CE"
+            />
+          </View>
+
+          <View style={styles.culturalCustomsContainer}>
+            {mockAiData.culturalInsights[0].customs.slice(0, 2).map((custom, index) => (
+              <View key={index} style={styles.culturalCustomItem}>
+                <Text style={styles.culturalCustomTitle}>{custom.title}</Text>
+                <Text style={styles.culturalCustomDescription}>{custom.description}</Text>
+              </View>
+            ))}
+          </View>
+
+          {expandedFeatures.culturalInsights && (
+            <>
+              <View style={styles.expandedCulturalContent}>
+                <View style={styles.culturalSectionHeader}>
+                  <Ionicons name="restaurant" size={16} color="#7E22CE" />
+                  <Text style={styles.culturalSectionTitle}>Dining Etiquette</Text>
+                </View>
+                <Text style={styles.culturalSectionText}>
+                  {mockAiData.culturalInsights[0].diningTips}
+                </Text>
+
+                <View style={styles.culturalSectionHeader}>
+                  <Ionicons name="hand-left" size={16} color="#7E22CE" />
+                  <Text style={styles.culturalSectionTitle}>Local Etiquette</Text>
+                </View>
+                <Text style={styles.culturalSectionText}>
+                  {mockAiData.culturalInsights[0].etiquette}
+                </Text>
+
+                <View style={styles.culturalCustomsContainer}>
+                  {mockAiData.culturalInsights[0].customs.slice(2).map((custom, index) => (
+                    <View key={index} style={styles.culturalCustomItem}>
+                      <Text style={styles.culturalCustomTitle}>{custom.title}</Text>
+                      <Text style={styles.culturalCustomDescription}>{custom.description}</Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            </>
+          )}
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.culturalContextViewAllButton}>
+          <Text style={styles.culturalContextViewAllText}>Explore All Cultural Insights</Text>
+          <Ionicons name="chevron-forward" size={16} color="#7E22CE" />
+        </TouchableOpacity>
+      </Animated.View>
+    );
+  };
+
+  const renderKnowledgeQuestCard = (cardAnimation) => {
+    return (
+      <Animated.View
+        style={[
+          styles.knowledgeQuestCard,
+          {
+            opacity: cardAnimation,
+            transform: [
+              {
+                translateY: cardAnimation.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [50, 0],
+                }),
+              },
+            ],
+          },
+        ]}
+      >
+        <LinearGradient
+          colors={["#8B5CF6", "#6366F1"]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.knowledgeQuestGradient}
+        >
+          <View style={styles.knowledgeQuestContent}>
+            <View style={styles.knowledgeQuestHeader}>
+              <Text style={styles.knowledgeQuestTitle}>Knowledge Quest</Text>
+              <View style={styles.knowledgeQuestBadge}>
+                <Ionicons name="school" size={12} color="#FFFFFF" />
+                <Text style={styles.knowledgeQuestBadgeText}>Fun Learning</Text>
+              </View>
+            </View>
+
+            <Text style={styles.knowledgeQuestDescription}>
+              Test your knowledge about places you've visited and earn badges!
+            </Text>
+
+            <View style={styles.knowledgeQuestStatsRow}>
+              <View style={styles.knowledgeQuestStat}>
+                <Text style={styles.knowledgeQuestStatValue}>
+                  {mockAiData.knowledgeQuest.statistics.questionsAnswered}
+                </Text>
+                <Text style={styles.knowledgeQuestStatLabel}>Questions</Text>
+              </View>
+
+              <View style={styles.knowledgeQuestStat}>
+                <Text style={styles.knowledgeQuestStatValue}>
+                  {mockAiData.knowledgeQuest.statistics.accuracy}%
+                </Text>
+                <Text style={styles.knowledgeQuestStatLabel}>Accuracy</Text>
+              </View>
+
+              <View style={styles.knowledgeQuestStat}>
+                <Text style={styles.knowledgeQuestStatValue}>
+                  {mockAiData.knowledgeQuest.rewards.badges.length}
+                </Text>
+                <Text style={styles.knowledgeQuestStatLabel}>Badges</Text>
+              </View>
+            </View>
+
+            <TouchableOpacity style={styles.startKnowledgeQuestButton} onPress={handleStartQuiz}>
+              <Text style={styles.startKnowledgeQuestButtonText}>Start New Quiz</Text>
+              <Ionicons name="play" size={16} color="#FFFFFF" />
+            </TouchableOpacity>
+          </View>
+        </LinearGradient>
+      </Animated.View>
+    );
+  };
+
+  const renderDiscoveryChallengesCard = (cardAnimation) => {
+    return (
+      <Animated.View
+        style={[
+          styles.discoveryChallengesCard,
+          {
+            opacity: cardAnimation,
+            transform: [
+              {
+                translateY: cardAnimation.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [50, 0],
+                }),
+              },
+            ],
+          },
+        ]}
+      >
+        <View style={styles.discoveryChallengesHeader}>
+          <Ionicons name="flag" size={22} color="#15803D" />
+          <Text style={styles.discoveryChallengesTitle}>AI Discovery Challenges</Text>
+        </View>
+
+        <Text style={styles.discoveryChallengesSubtitle}>
+          Complete personalized exploration challenges to discover new places:
+        </Text>
+
+        <View style={styles.activeChallengesContainer}>
+          <View style={styles.challengesSectionHeader}>
+            <Text style={styles.challengesSectionTitle}>Active Challenges</Text>
+            <View style={styles.challengeCountBadge}>
+              <Text style={styles.challengeCountText}>
+                {mockAiData.discoveryChallenges.active.length}
+              </Text>
+            </View>
+          </View>
+
+          {mockAiData.discoveryChallenges.active.map((challenge, index) => (
+            <TouchableOpacity
+              key={index}
+              style={styles.activeChallenge}
+              onPress={() => toggleChallengeExpansion(challenge.id)}
+            >
+              <View style={styles.challengeHeaderRow}>
+                <View style={styles.challengeTitleSection}>
+                  <Text style={styles.challengeTitle}>{challenge.title}</Text>
+                  <View style={styles.challengeDetails}>
+                    <View style={styles.challengeDifficultyBadge}>
+                      <Text style={styles.challengeDifficultyText}>{challenge.difficulty}</Text>
+                    </View>
+                    <View style={styles.challengeDuration}>
+                      <Ionicons name="time-outline" size={12} color="#64748B" />
+                      <Text style={styles.challengeDurationText}>{challenge.duration}</Text>
+                    </View>
+                  </View>
+                </View>
+                <View style={styles.challengeProgress}>
+                  <Text style={styles.challengeProgressText}>{challenge.progress}%</Text>
+                  <Ionicons
+                    name={expandedChallenge === challenge.id ? "chevron-up" : "chevron-down"}
+                    size={18}
+                    color="#15803D"
+                  />
+                </View>
+              </View>
+
+              <View style={styles.challengeProgressBar}>
+                <View style={[styles.challengeProgressFill, { width: `${challenge.progress}%` }]} />
+              </View>
+
+              {expandedChallenge === challenge.id && (
+                <View style={styles.expandedChallengeContent}>
+                  <Text style={styles.challengeDescription}>{challenge.description}</Text>
+
+                  <View style={styles.challengeLocationsContainer}>
+                    <Text style={styles.challengeLocationsTitle}>Challenge Locations:</Text>
+                    {challenge.locations.map((location, idx) => (
+                      <View key={idx} style={styles.challengeLocationItem}>
+                        <Ionicons
+                          name={location.completed ? "checkmark-circle" : "ellipse-outline"}
+                          size={16}
+                          color={location.completed ? "#15803D" : "#64748B"}
+                          style={styles.challengeLocationIcon}
+                        />
+                        <Text
+                          style={[
+                            styles.challengeLocationText,
+                            location.completed && { color: "#15803D", fontWeight: "600" },
+                          ]}
+                        >
+                          {location.name}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+
+                  <View style={styles.challengeRewardContainer}>
+                    <Ionicons name="ribbon-outline" size={16} color="#15803D" />
+                    <Text style={styles.challengeRewardText}>Reward: {challenge.reward}</Text>
+                  </View>
+
+                  <TouchableOpacity style={styles.viewChallengeDetailsButton}>
+                    <Text style={styles.viewChallengeDetailsText}>View Challenge Details</Text>
+                    <Ionicons name="open-outline" size={16} color="#15803D" />
+                  </TouchableOpacity>
+                </View>
+              )}
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        <View style={styles.suggestedChallengesContainer}>
+          <Text style={styles.suggestedChallengesTitle}>Suggested For You</Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.suggestedChallengesScroll}
+            contentContainerStyle={styles.suggestedChallengesContent}
+          >
+            {mockAiData.discoveryChallenges.suggested.map((challenge, index) => (
+              <View key={index} style={styles.suggestedChallengeCard}>
+                <View style={styles.suggestedChallengeHeader}>
+                  <Text style={styles.suggestedChallengeTitle}>{challenge.title}</Text>
+                  <View style={styles.suggestedChallengeDifficulty}>
+                    <Text style={styles.suggestedChallengeDifficultyText}>
+                      {challenge.difficulty}
+                    </Text>
+                  </View>
+                </View>
+
+                <Text style={styles.suggestedChallengeDescription}>{challenge.description}</Text>
+
+                <View style={styles.suggestedChallengeFooter}>
+                  <View style={styles.suggestedChallengeDuration}>
+                    <Ionicons name="time-outline" size={14} color="#64748B" />
+                    <Text style={styles.suggestedChallengeDurationText}>{challenge.duration}</Text>
+                  </View>
+
+                  <TouchableOpacity style={styles.startChallengeButton}>
+                    <Text style={styles.startChallengeButtonText}>Start</Text>
+                    <Ionicons name="arrow-forward" size={14} color="#15803D" />
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ))}
+          </ScrollView>
+        </View>
+
+        <TouchableOpacity style={styles.viewAllChallengesButton}>
+          <Text style={styles.viewAllChallengesText}>Explore All Challenges</Text>
+          <Ionicons name="chevron-forward" size={16} color="#15803D" />
+        </TouchableOpacity>
+      </Animated.View>
     );
   };
 
@@ -610,6 +2029,11 @@ const LearnScreen = ({ route, navigation }) => {
     const placesToShow = visitedPlaces.length > 0 ? visitedPlaces : mockPlaces;
     console.log("Showing places:", placesToShow.length);
 
+    // Handle active question rendering
+    if (activeQuestion !== null) {
+      return renderQuizMode();
+    }
+
     return (
       <ScrollView style={styles.landingContainer} showsVerticalScrollIndicator={false}>
         <Animated.View
@@ -630,205 +2054,33 @@ const LearnScreen = ({ route, navigation }) => {
             )}
           </View>
 
-          <View style={styles.aiSummaryCard}>
-            <LinearGradient
-              colors={["#4F46E5", "#818CF8"]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.aiSummaryGradient}
-            >
-              <View style={styles.aiSummaryContent}>
-                <View style={styles.aiSummaryHeader}>
-                  <Text style={styles.aiSummaryTitle}>AI Travel Snapshot</Text>
-                  <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
-                    <View style={styles.aiChipContainer}>
-                      <Ionicons name="scan" size={12} color="#FFFFFF" />
-                      <Text style={styles.aiChipText}>Gemini</Text>
-                    </View>
-                  </Animated.View>
-                </View>
-                <Text style={styles.aiSummaryDescription}>
-                  Our AI has analyzed your {placesToShow.length} visited locations and found
-                  patterns in your travel preferences.
-                </Text>
-                <View style={styles.aiActionsRow}>
-                  <TouchableOpacity style={styles.aiActionButton}>
-                    <View style={styles.aiActionIconContainer}>
-                      <Ionicons name="analytics" size={16} color="#4F46E5" />
-                    </View>
-                    <Text style={styles.aiActionText}>Full Analysis</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={styles.aiActionButton}>
-                    <View style={styles.aiActionIconContainer}>
-                      <Ionicons name="refresh" size={16} color="#4F46E5" />
-                    </View>
-                    <Text style={styles.aiActionText}>Refresh</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </LinearGradient>
-          </View>
+          {/* Feature 1: AI Travel Snapshot */}
+          <AiTravelSnapshot
+            fadeAnim={cardAnimations.travelSnapshot}
+            pulseAnim={pulseAnim}
+            placesToShow={placesToShow}
+            onProfileUpdated={handleProfileUpdated}
+          />
+          {/* Feature Grid */}
+          {renderFeatureCards(cardAnimations.travelSnapshot)}
 
-          <View style={styles.featuresGrid}>
-            <TouchableOpacity style={styles.featureCard}>
-              <View style={[styles.featureIconContainer, { backgroundColor: "#E0F2FE" }]}>
-                <Ionicons name="language" size={24} color="#0284C7" />
-              </View>
-              <Text style={styles.featureTitle}>Language Assistant</Text>
-              <Text style={styles.featureDescription}>
-                AI-generated phrases from local languages of places you've visited
-              </Text>
-            </TouchableOpacity>
+          {/* Feature 5 & 6: Advanced Travel Analysis + Travel Preferences */}
+          {renderAdvancedTravelAnalysisCard(cardAnimations.analysis)}
 
-            <TouchableOpacity style={styles.featureCard}>
-              <View style={[styles.featureIconContainer, { backgroundColor: "#FFEDD5" }]}>
-                <Ionicons name="image" size={24} color="#C2410C" />
-              </View>
-              <Text style={styles.featureTitle}>Photo Analysis</Text>
-              <Text style={styles.featureDescription}>
-                AI insights about landmarks in your travel photos
-              </Text>
-            </TouchableOpacity>
+          {/* Feature 3: AI-Recommended Destinations */}
+          {renderRecommendationsCard(cardAnimations.recommendations)}
 
-            <TouchableOpacity style={styles.featureCard}>
-              <View style={[styles.featureIconContainer, { backgroundColor: "#DCFCE7" }]}>
-                <Ionicons name="compass" size={24} color="#15803D" />
-              </View>
-              <Text style={styles.featureTitle}>Trip Planner</Text>
-              <Text style={styles.featureDescription}>
-                AI-generated itineraries based on your travel preferences
-              </Text>
-            </TouchableOpacity>
+          {/* Feature 2: Language Assistant */}
+          {renderLanguageAssistantCard(cardAnimations.languageAssistant)}
 
-            <TouchableOpacity style={styles.featureCard}>
-              <View style={[styles.featureIconContainer, { backgroundColor: "#F3E8FF" }]}>
-                <Ionicons name="people" size={24} color="#7E22CE" />
-              </View>
-              <Text style={styles.featureTitle}>Cultural Context</Text>
-              <Text style={styles.featureDescription}>
-                AI insights on local customs and traditions
-              </Text>
-            </TouchableOpacity>
-          </View>
+          {/* Feature 4: Cultural Context */}
+          {renderCulturalContextCard(cardAnimations.cultural)}
 
-          <View style={styles.aiInsightsCard}>
-            <View style={styles.aiRibbonContainer}>
-              <LinearGradient
-                colors={["#4F46E5", "#818CF8"]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={styles.aiRibbon}
-              >
-                <Text style={styles.aiRibbonText}>AI POWERED</Text>
-              </LinearGradient>
-            </View>
+          {/* Feature 7: Knowledge Quest Game */}
+          {renderKnowledgeQuestCard(cardAnimations.quest)}
 
-            <View style={styles.aiInsightsHeader}>
-              <View style={styles.aiIconContainer}>
-                <Ionicons name="brain" size={24} color="#4F46E5" />
-              </View>
-              <View style={styles.aiTitleContainer}>
-                <Text style={styles.aiInsightsTitle}>Advanced Travel Analysis</Text>
-                <View style={styles.geminiLabelContainer}>
-                  <Ionicons
-                    name="logo-google"
-                    size={10}
-                    color="#0369A1"
-                    style={{ marginRight: 4 }}
-                  />
-                  <Text style={styles.geminiLabel}>Gemini AI</Text>
-                </View>
-              </View>
-            </View>
-
-            <Text style={styles.aiInsightsDescription}>
-              Our multimodal AI has analyzed your travel history, photos, and preferences to
-              generate these insights:
-            </Text>
-
-            {aiInsights.insights.map((insight, index) => (
-              <View key={index} style={styles.insightItem}>
-                <Ionicons name="sparkles" size={18} color="#4F46E5" style={styles.insightIcon} />
-                <Text style={styles.insightText}>{insight}</Text>
-              </View>
-            ))}
-
-            <View style={styles.aiSectionDivider}>
-              <View style={styles.dividerLine} />
-              <Text style={styles.dividerText}>Travel Preferences</Text>
-              <View style={styles.dividerLine} />
-            </View>
-
-            <View style={styles.trendsContainer}>
-              {aiInsights.locationTrends.map((trend, index) => (
-                <View key={index} style={styles.trendItem}>
-                  <View style={styles.trendLabelRow}>
-                    <Text style={styles.trendLabel}>{trend.trend}</Text>
-                    <Text style={styles.trendPercentage}>{trend.percentage}%</Text>
-                  </View>
-                  <View style={styles.trendBarBackground}>
-                    <View style={[styles.trendBarFill, { width: `${trend.percentage}%` }]} />
-                  </View>
-                </View>
-              ))}
-            </View>
-
-            <TouchableOpacity style={styles.aiExpandButton}>
-              <Text style={styles.aiExpandText}>View Complete Analysis</Text>
-              <Ionicons name="chevron-forward" size={16} color="#4F46E5" />
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.aiRecommendationsCard}>
-            <View style={styles.aiRecommendationsHeader}>
-              <Ionicons name="compass" size={22} color="#15803D" />
-              <Text style={styles.aiRecommendationsTitle}>AI-Recommended Destinations</Text>
-            </View>
-
-            <Text style={styles.aiRecommendationsSubtitle}>
-              Based on your travel preferences, you might enjoy:
-            </Text>
-
-            <View style={styles.recommendationsList}>
-              {aiInsights.recommendedPlaces.map((place, index) => (
-                <TouchableOpacity key={index} style={styles.recommendationItem}>
-                  <View style={styles.recommendationIconContainer}>
-                    <Ionicons name="location" size={18} color="#15803D" />
-                  </View>
-                  <Text style={styles.recommendationText}>{place}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-
-          <View style={styles.aiLanguageCard}>
-            <View style={styles.aiLanguageHeader}>
-              <Ionicons name="language" size={22} color="#0284C7" />
-              <Text style={styles.aiLanguageTitle}>AI Language Assistant</Text>
-            </View>
-
-            <Text style={styles.aiLanguageSubtitle}>
-              Useful phrases from regions you've visited:
-            </Text>
-
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              style={styles.phrasesScrollView}
-              contentContainerStyle={styles.phrasesContentContainer}
-            >
-              {aiInsights.localPhrases.map((phrase, index) => (
-                <View key={index} style={styles.phraseCard}>
-                  <Text style={styles.phraseLanguage}>{phrase.language}</Text>
-                  <Text style={styles.phraseText}>{phrase.phrase}</Text>
-                  <Text style={styles.phraseTranslation}>{phrase.translation}</Text>
-                  <TouchableOpacity style={styles.playPhraseButton}>
-                    <Ionicons name="volume-high" size={16} color="#0284C7" />
-                  </TouchableOpacity>
-                </View>
-              ))}
-            </ScrollView>
-          </View>
+          {/* Feature 8: AI Discovery Challenges */}
+          {renderDiscoveryChallengesCard(cardAnimations.challenges)}
 
           <View style={styles.visitedSection}>
             <Text style={styles.sectionHeading}>Recently Visited Places</Text>
@@ -858,7 +2110,7 @@ const LearnScreen = ({ route, navigation }) => {
         <Header
           title={selectedPlaceId ? "Learn" : "Discover & Learn"}
           subtitle={selectedPlaceId ? "AI-powered insights" : "Explore your visited places"}
-          showBackButton={!!selectedPlaceId}
+          showBackButton={!!selectedPlaceId || activeQuestion !== null}
           onBackPress={handleBackPress}
           showIcon={true}
           iconName={selectedPlaceId ? "book" : "sparkles"}
@@ -943,6 +2195,8 @@ const styles = StyleSheet.create({
     color: "#EF4444",
     fontStyle: "italic",
   },
+
+  // AI Travel Snapshot Card (Feature 1)
   aiSummaryCard: {
     borderRadius: 20,
     marginBottom: 20,
@@ -1017,6 +2271,80 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#4F46E5",
   },
+
+  // Travel Profile Elements
+  travelProfileContainer: {
+    backgroundColor: "rgba(255, 255, 255, 0.15)",
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 16,
+  },
+  travelProfileTypeContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  travelProfileType: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#FFFFFF",
+  },
+  travelProfileLevelContainer: {
+    backgroundColor: "rgba(255, 255, 255, 0.25)",
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 12,
+  },
+  travelProfileLevel: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#FFFFFF",
+  },
+  travelProfileBadges: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    marginTop: 8,
+    gap: 8,
+  },
+  travelProfileBadge: {
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  travelProfileBadgeText: {
+    fontSize: 11,
+    fontWeight: "500",
+    color: "#FFFFFF",
+  },
+  travelProfileCompletionContainer: {
+    marginTop: 12,
+  },
+  travelProfileCompletionText: {
+    fontSize: 12,
+    color: "#FFFFFF",
+    marginBottom: 6,
+  },
+  travelProfileCompletionBar: {
+    height: 6,
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    borderRadius: 3,
+    overflow: "hidden",
+    marginBottom: 4,
+  },
+  travelProfileCompletionFill: {
+    height: "100%",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 3,
+  },
+  travelProfileCompletionPercentage: {
+    fontSize: 11,
+    color: "#FFFFFF",
+    textAlign: "right",
+  },
+
+  // Feature Grid
   featuresGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -1054,6 +2382,8 @@ const styles = StyleSheet.create({
     color: "#6B7280",
     lineHeight: 16,
   },
+
+  // Advanced Travel Analysis Card (Feature 5 & 6)
   aiInsightsCard: {
     backgroundColor: "#FFFFFF",
     borderRadius: 20,
@@ -1122,11 +2452,18 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#0369A1",
   },
+  aiInsightsDescriptionContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 16,
+  },
   aiInsightsDescription: {
     fontSize: 14,
     color: "#4B5563",
     lineHeight: 20,
-    marginBottom: 16,
+    flex: 1,
+    marginRight: 8,
   },
   insightItem: {
     flexDirection: "row",
@@ -1146,6 +2483,83 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#374151",
     lineHeight: 20,
+  },
+  extendedInsightsContainer: {
+    backgroundColor: "#F9FAFB",
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
+  },
+  visitationStatsContainer: {
+    marginBottom: 12,
+  },
+  visitationStatsTitle: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#4F46E5",
+    marginBottom: 12,
+  },
+  visitationStats: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 16,
+  },
+  visitationStatItem: {
+    alignItems: "center",
+    flex: 1,
+  },
+  visitationStatValue: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#111827",
+    marginVertical: 4,
+  },
+  visitationStatLabel: {
+    fontSize: 11,
+    color: "#6B7280",
+    textAlign: "center",
+  },
+  frequencyInsightContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  frequencyInsight: {
+    flex: 1,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    padding: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 1,
+  },
+  frequencyInsightTitle: {
+    fontSize: 12,
+    color: "#6B7280",
+    marginBottom: 4,
+  },
+  frequencyInsightContent: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 4,
+  },
+  frequencyInsightValue: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#111827",
+  },
+  frequencyInsightPercentage: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#4F46E5",
+  },
+  frequencyInsightNote: {
+    fontSize: 11,
+    color: "#6B7280",
+    fontStyle: "italic",
   },
   aiSectionDivider: {
     flexDirection: "row",
@@ -1173,6 +2587,13 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     marginBottom: 6,
+  },
+  trendLabelWithIcon: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  trendIcon: {
+    marginRight: 6,
   },
   trendLabel: {
     fontSize: 13,
@@ -1211,6 +2632,8 @@ const styles = StyleSheet.create({
     color: "#4F46E5",
     marginRight: 4,
   },
+
+  // AI-Recommended Destinations Card (Feature 3)
   aiRecommendationsCard: {
     backgroundColor: "#ECFDF5",
     borderRadius: 16,
@@ -1239,27 +2662,89 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   recommendationsList: {
-    gap: 10,
+    gap: 12,
   },
-  recommendationItem: {
-    flexDirection: "row",
-    alignItems: "center",
+  enhancedRecommendationItem: {
     backgroundColor: "#FFFFFF",
-    padding: 12,
-    borderRadius: 10,
+    borderRadius: 12,
+    overflow: "hidden",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
-    shadowRadius: 2,
+    shadowRadius: 3,
     elevation: 1,
+    marginBottom: 12,
   },
-  recommendationIconContainer: {
-    marginRight: 10,
+  recommendationImage: {
+    width: "100%",
+    height: 120,
   },
-  recommendationText: {
+  recommendationContent: {
+    padding: 14,
+  },
+  recommendationHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 4,
+  },
+  recommendationName: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#111827",
+  },
+  matchContainer: {
+    backgroundColor: "#DCFCE7",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 12,
+  },
+  matchText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#15803D",
+  },
+  recommendationLocation: {
     fontSize: 14,
-    color: "#374151",
+    color: "#4B5563",
+    marginBottom: 8,
   },
+  recommendationReason: {
+    fontSize: 13,
+    color: "#6B7280",
+    marginBottom: 12,
+    fontStyle: "italic",
+  },
+  recommendationFooter: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  distanceContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  distanceText: {
+    fontSize: 12,
+    color: "#6B7280",
+    marginLeft: 4,
+  },
+  addToWishlistButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#ECFDF5",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  addToWishlistText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#15803D",
+    marginLeft: 4,
+  },
+
+  // Language Assistant Card (Feature 2)
   aiLanguageCard: {
     backgroundColor: "#EFF6FF",
     borderRadius: 16,
@@ -1288,18 +2773,18 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   phrasesScrollView: {
-    marginBottom: 6,
+    marginBottom: 12,
   },
   phrasesContentContainer: {
     paddingRight: 16,
     paddingBottom: 4,
-    gap: 12,
+    gap: 14,
   },
-  phraseCard: {
+  enhancedPhraseCard: {
     backgroundColor: "#FFFFFF",
     borderRadius: 12,
     padding: 14,
-    width: 160,
+    width: 200,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
@@ -1322,7 +2807,29 @@ const styles = StyleSheet.create({
   phraseTranslation: {
     fontSize: 13,
     color: "#6B7280",
-    marginBottom: 4,
+    marginBottom: 6,
+  },
+  phraseContext: {
+    fontSize: 11,
+    color: "#9CA3AF",
+    fontStyle: "italic",
+    marginBottom: 10,
+  },
+  pronunciationContainer: {
+    backgroundColor: "#F0F9FF",
+    padding: 8,
+    borderRadius: 8,
+    marginBottom: 28,
+  },
+  pronunciationLabel: {
+    fontSize: 10,
+    color: "#0284C7",
+    marginBottom: 2,
+  },
+  pronunciationText: {
+    fontSize: 12,
+    color: "#1F2937",
+    fontStyle: "italic",
   },
   playPhraseButton: {
     position: "absolute",
@@ -1331,10 +2838,964 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: "#EFF6FF",
+    backgroundColor: "#DBEAFE",
     justifyContent: "center",
     alignItems: "center",
   },
+  viewAllPhrasesButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#F0F9FF",
+    paddingVertical: 10,
+    borderRadius: 10,
+  },
+  viewAllPhrasesText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#0284C7",
+    marginRight: 4,
+  },
+
+  // Cultural Context Card (Feature 4)
+  culturalContextCard: {
+    backgroundColor: "#F5F3FF",
+    borderRadius: 16,
+    padding: 18,
+    marginBottom: 24,
+    shadowColor: "#7E22CE",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  culturalContextCardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  culturalContextCardTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#7E22CE",
+    marginLeft: 8,
+  },
+  culturalContextCardSubtitle: {
+    fontSize: 14,
+    color: "#4B5563",
+    marginBottom: 14,
+  },
+  culturalInsightsContainer: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  culturalInsightHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  culturalInsightRegion: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#7E22CE",
+  },
+  culturalCustomsContainer: {
+    marginBottom: 8,
+    gap: 10,
+  },
+  culturalCustomItem: {
+    backgroundColor: "#F5F3FF",
+    borderRadius: 10,
+    padding: 12,
+  },
+  culturalCustomTitle: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#7E22CE",
+    marginBottom: 4,
+  },
+  culturalCustomDescription: {
+    fontSize: 13,
+    color: "#4B5563",
+    lineHeight: 18,
+  },
+  expandedCulturalContent: {
+    marginTop: 12,
+  },
+  culturalSectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 6,
+    marginTop: 12,
+  },
+  culturalSectionTitle: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#7E22CE",
+    marginLeft: 6,
+  },
+  culturalSectionText: {
+    fontSize: 13,
+    color: "#4B5563",
+    lineHeight: 18,
+    marginBottom: 10,
+  },
+  culturalContextViewAllButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#F3F4F6",
+    paddingVertical: 10,
+    borderRadius: 10,
+  },
+  culturalContextViewAllText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#7E22CE",
+    marginRight: 4,
+  },
+
+  // Knowledge Quest Card (Feature 7)
+  knowledgeQuestCard: {
+    borderRadius: 16,
+    marginBottom: 24,
+    overflow: "hidden",
+    shadowColor: "#6366F1",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    elevation: 5,
+  },
+  knowledgeQuestGradient: {
+    borderRadius: 16,
+  },
+  knowledgeQuestContent: {
+    padding: 20,
+  },
+  knowledgeQuestHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  knowledgeQuestTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#FFFFFF",
+  },
+  knowledgeQuestBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  knowledgeQuestBadgeText: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#FFFFFF",
+    marginLeft: 4,
+  },
+  knowledgeQuestDescription: {
+    fontSize: 14,
+    color: "#FFFFFF",
+    opacity: 0.9,
+    marginBottom: 16,
+  },
+  knowledgeQuestStatsRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    backgroundColor: "rgba(255, 255, 255, 0.15)",
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 16,
+  },
+  knowledgeQuestStat: {
+    alignItems: "center",
+    flex: 1,
+  },
+  knowledgeQuestStatValue: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#FFFFFF",
+    marginBottom: 2,
+  },
+  knowledgeQuestStatLabel: {
+    fontSize: 11,
+    color: "rgba(255, 255, 255, 0.8)",
+  },
+  startKnowledgeQuestButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#FFFFFF",
+    paddingVertical: 12,
+    borderRadius: 12,
+  },
+  startKnowledgeQuestButtonText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#6366F1",
+    marginRight: 6,
+  },
+
+  // Quiz Mode Styles
+  quizModeContainer: {
+    flex: 1,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    padding: 16,
+    margin: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+    position: "relative",
+  },
+  quizProgressBar: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 20,
+    paddingHorizontal: 4,
+  },
+  quizProgressStep: {
+    height: 4,
+    backgroundColor: "#E5E7EB",
+    borderRadius: 2,
+    flex: 1,
+    marginHorizontal: 2,
+  },
+  quizProgressActive: {
+    backgroundColor: "#6366F1",
+  },
+  quizProgressComplete: {
+    backgroundColor: "#A5B4FC",
+  },
+  quizQuestionContainer: {
+    flex: 1,
+  },
+  quizQuestionImage: {
+    height: 180,
+    width: "100%",
+    borderRadius: 12,
+    overflow: "hidden",
+    marginBottom: 16,
+  },
+  quizQuestionImageStyle: {
+    borderRadius: 12,
+  },
+  quizQuestionImageOverlay: {
+    flex: 1,
+    justifyContent: "flex-end",
+    padding: 16,
+  },
+  quizQuestionText: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#FFFFFF",
+    textShadowColor: "rgba(0, 0, 0, 0.5)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+  },
+  quizOptionsContainer: {
+    marginBottom: 16,
+  },
+  quizOption: {
+    backgroundColor: "#F3F4F6",
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    marginBottom: 10,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  quizOptionSelected: {
+    backgroundColor: "#E0E7FF",
+    borderWidth: 1,
+    borderColor: "#6366F1",
+  },
+  quizOptionCorrect: {
+    backgroundColor: "#DCFCE7",
+    borderWidth: 1,
+    borderColor: "#10B981",
+  },
+  quizOptionIncorrect: {
+    backgroundColor: "#FEE2E2",
+    borderWidth: 1,
+    borderColor: "#EF4444",
+  },
+  quizOptionText: {
+    fontSize: 15,
+    color: "#374151",
+  },
+  quizOptionTextSelected: {
+    color: "#4338CA",
+    fontWeight: "600",
+  },
+  quizOptionTextCorrect: {
+    color: "#047857",
+    fontWeight: "600",
+  },
+  quizOptionTextIncorrect: {
+    color: "#B91C1C",
+    fontWeight: "600",
+  },
+  quizOptionIcon: {
+    marginLeft: 8,
+  },
+  quizFeedbackContainer: {
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 16,
+  },
+  quizFeedbackCorrect: {
+    backgroundColor: "#ECFDF5",
+  },
+  quizFeedbackIncorrect: {
+    backgroundColor: "#FEF2F2",
+  },
+  quizFeedbackTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    marginBottom: 6,
+    color: "#111827",
+  },
+  quizFeedbackText: {
+    fontSize: 14,
+    color: "#4B5563",
+    lineHeight: 20,
+  },
+  quizSubmitButton: {
+    paddingVertical: 14,
+    borderRadius: 10,
+    backgroundColor: "#6366F1",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  quizSubmitButtonDisabled: {
+    backgroundColor: "#C7D2FE",
+  },
+  quizSubmitButtonCorrect: {
+    backgroundColor: "#10B981",
+  },
+  quizSubmitButtonIncorrect: {
+    backgroundColor: "#F87171",
+  },
+  quizSubmitButtonText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#FFFFFF",
+  },
+  quizCloseButton: {
+    position: "absolute",
+    top: 10,
+    right: 10,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#F3F4F6",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+
+  // Quiz Results
+  quizResultsContainer: {
+    flex: 1,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    margin: 16,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  quizResultsHeader: {
+    overflow: "hidden",
+  },
+  quizResultsGradient: {
+    paddingVertical: 40,
+    alignItems: "center",
+  },
+  quizResultsTitle: {
+    fontSize: 24,
+    fontWeight: "700",
+    color: "#FFFFFF",
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  quizResultsScore: {
+    fontSize: 20,
+    fontWeight: "600",
+    color: "#FFFFFF",
+  },
+  quizResultsContent: {
+    padding: 24,
+  },
+  quizResultsMessage: {
+    fontSize: 16,
+    color: "#4B5563",
+    textAlign: "center",
+    marginBottom: 24,
+  },
+  quizStatsContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 24,
+  },
+  quizStatItem: {
+    alignItems: "center",
+    flex: 1,
+  },
+  quizStatValue: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#111827",
+    marginBottom: 4,
+  },
+  quizStatLabel: {
+    fontSize: 12,
+    color: "#6B7280",
+  },
+  quizRewardProgress: {
+    backgroundColor: "#F3F4F6",
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 24,
+  },
+  quizRewardTitle: {
+    fontSize: 14,
+    color: "#6B7280",
+    marginBottom: 4,
+  },
+  quizRewardName: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#111827",
+    marginBottom: 12,
+  },
+  quizRewardProgressBar: {
+    height: 8,
+    backgroundColor: "#E5E7EB",
+    borderRadius: 4,
+    overflow: "hidden",
+    marginBottom: 8,
+  },
+  quizRewardProgressFill: {
+    height: "100%",
+    backgroundColor: "#6366F1",
+    borderRadius: 4,
+  },
+  quizRewardProgressText: {
+    fontSize: 12,
+    color: "#6B7280",
+    textAlign: "right",
+  },
+  quizCloseButton: {
+    padding: 14,
+    borderRadius: 10,
+    backgroundColor: "#F3F4F6",
+    alignItems: "center",
+  },
+  quizCloseButtonText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#4B5563",
+  },
+
+  // Discovery Challenges Card (Feature 8)
+  discoveryChallengesCard: {
+    backgroundColor: "#ECFDF5",
+    borderRadius: 16,
+    padding: 18,
+    marginBottom: 24,
+    shadowColor: "#047857",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  discoveryChallengesHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  discoveryChallengesTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#15803D",
+    marginLeft: 8,
+  },
+  discoveryChallengesSubtitle: {
+    fontSize: 14,
+    color: "#4B5563",
+    marginBottom: 16,
+  },
+  activeChallengesContainer: {
+    marginBottom: 20,
+  },
+  challengesSectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  challengesSectionTitle: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#374151",
+  },
+  challengeCountBadge: {
+    backgroundColor: "#15803D",
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    justifyContent: "center",
+    alignItems: "center",
+    marginLeft: 8,
+  },
+  challengeCountText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#FFFFFF",
+  },
+  activeChallenge: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  challengeHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 10,
+  },
+  challengeTitleSection: {
+    flex: 1,
+    marginRight: 8,
+  },
+  challengeTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#15803D",
+    marginBottom: 4,
+  },
+  challengeDetails: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  challengeDifficultyBadge: {
+    backgroundColor: "#ECFDF5",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+    marginRight: 8,
+  },
+  challengeDifficultyText: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#15803D",
+  },
+  challengeDuration: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  challengeDurationText: {
+    fontSize: 11,
+    color: "#6B7280",
+    marginLeft: 4,
+  },
+  challengeProgress: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  challengeProgressText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#15803D",
+    marginRight: 6,
+  },
+  challengeProgressBar: {
+    height: 6,
+    backgroundColor: "#E5E7EB",
+    borderRadius: 3,
+    overflow: "hidden",
+    marginBottom: 12,
+  },
+  challengeProgressFill: {
+    height: "100%",
+    backgroundColor: "#15803D",
+    borderRadius: 3,
+  },
+  expandedChallengeContent: {
+    marginTop: 4,
+  },
+  challengeDescription: {
+    fontSize: 13,
+    color: "#4B5563",
+    lineHeight: 18,
+    marginBottom: 12,
+  },
+  challengeLocationsContainer: {
+    marginBottom: 12,
+  },
+  challengeLocationsTitle: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#374151",
+    marginBottom: 8,
+  },
+  challengeLocationItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  challengeLocationIcon: {
+    marginRight: 8,
+  },
+  challengeLocationText: {
+    fontSize: 13,
+    color: "#6B7280",
+  },
+  challengeLocationCompleted: {
+    color: "#15803D",
+    fontWeight: "600",
+  },
+  challengeRewardContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#ECFDF5",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    marginBottom: 12,
+  },
+  challengeRewardText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#15803D",
+    marginLeft: 6,
+  },
+  viewChallengeDetailsButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#F9FAFB",
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  viewChallengeDetailsText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#15803D",
+    marginRight: 4,
+  },
+  suggestedChallengesContainer: {
+    marginBottom: 16,
+  },
+  suggestedChallengesTitle: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#374151",
+    marginBottom: 12,
+  },
+  suggestedChallengesScroll: {
+    marginBottom: 8,
+  },
+  suggestedChallengesContent: {
+    paddingRight: 16,
+    paddingBottom: 4,
+    gap: 12,
+  },
+  suggestedChallengeCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    padding: 14,
+    width: 240,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  suggestedChallengeHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: 8,
+  },
+  suggestedChallengeTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#15803D",
+    flex: 1,
+    marginRight: 8,
+  },
+  suggestedChallengeDifficulty: {
+    backgroundColor: "#ECFDF5",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  suggestedChallengeDifficultyText: {
+    fontSize: 10,
+    fontWeight: "600",
+    color: "#15803D",
+  },
+  suggestedChallengeDescription: {
+    fontSize: 12,
+    color: "#4B5563",
+    lineHeight: 16,
+    marginBottom: 10,
+  },
+  suggestedChallengeFooter: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  suggestedChallengeDuration: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  suggestedChallengeDurationText: {
+    fontSize: 11,
+    color: "#6B7280",
+    marginLeft: 4,
+  },
+  startChallengeButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#ECFDF5",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  startChallengeButtonText: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#15803D",
+    marginRight: 4,
+  },
+  viewAllChallengesButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#F3F4F6",
+    paddingVertical: 10,
+    borderRadius: 10,
+  },
+  viewAllChallengesText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#15803D",
+    marginRight: 4,
+  },
+
+  // Place Details Screen
+  placeQuizContainer: {
+    backgroundColor: "#EEF2FF",
+    borderRadius: 12,
+    padding: 16,
+    marginVertical: 20,
+  },
+  placeQuizHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 10,
+  },
+  placeQuizTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#4F46E5",
+    marginLeft: 8,
+  },
+  placeQuizDescription: {
+    fontSize: 14,
+    color: "#4B5563",
+    marginBottom: 12,
+  },
+  startQuizButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#FFFFFF",
+    paddingVertical: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#E0E7FF",
+  },
+  startQuizButtonText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#4F46E5",
+    marginRight: 6,
+  },
+  culturalContextContainer: {
+    backgroundColor: "#F5F3FF",
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 20,
+  },
+  culturalContextHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 10,
+  },
+  culturalContextTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#7E22CE",
+    marginLeft: 8,
+  },
+  culturalContextDescription: {
+    fontSize: 14,
+    color: "#4B5563",
+    marginBottom: 12,
+  },
+  culturalInsightContainer: {
+    marginBottom: 12,
+  },
+  customItem: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 8,
+  },
+  customTitle: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#7E22CE",
+    marginBottom: 4,
+  },
+  customDescription: {
+    fontSize: 13,
+    color: "#4B5563",
+  },
+  etiquetteContainer: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 10,
+    padding: 12,
+  },
+  etiquetteLabel: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#7E22CE",
+    marginBottom: 4,
+  },
+  etiquetteText: {
+    fontSize: 13,
+    color: "#4B5563",
+    fontStyle: "italic",
+  },
+  viewMoreButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#FFFFFF",
+    paddingVertical: 10,
+    borderRadius: 10,
+    marginTop: 8,
+  },
+  viewMoreButtonText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#7E22CE",
+    marginRight: 4,
+  },
+  nearbyChallengesContainer: {
+    backgroundColor: "#ECFDF5",
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 20,
+  },
+  nearbyChallengesHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 10,
+  },
+  nearbyChallengesTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#15803D",
+    marginLeft: 8,
+  },
+  nearbyChallengesDescription: {
+    fontSize: 14,
+    color: "#4B5563",
+    marginBottom: 12,
+  },
+  nearbyChallenge: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 8,
+  },
+  challengeHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  challengeTitleContainer: {
+    flex: 1,
+  },
+  challengeDifficultyContainer: {
+    backgroundColor: "#ECFDF5",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+    marginTop: 4,
+    alignSelf: "flex-start",
+  },
+  challengeDifficulty: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#15803D",
+  },
+  challengeDetails: {
+    marginTop: 12,
+  },
+  challengeLocations: {
+    marginTop: 10,
+  },
+  challengeLocation: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 6,
+  },
+  challengeLocationText: {
+    fontSize: 13,
+    color: "#4B5563",
+    marginLeft: 6,
+  },
+  challengeReward: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 12,
+  },
+  challengeRewardText: {
+    fontSize: 13,
+    fontWeight: "500",
+    color: "#15803D",
+    marginLeft: 6,
+  },
+
+  // Original Styles from base component
   visitedSection: {
     marginBottom: 20,
   },
@@ -1352,8 +3813,6 @@ const styles = StyleSheet.create({
   carouselContainer: {
     marginBottom: 20,
   },
-
-  // Detail view styles
   detailsContainer: {
     flex: 1,
   },

@@ -489,7 +489,7 @@ const PlaceDetailsScreen: React.FC = () => {
 
           {/* DIFFERENT CONTENT PRESENTATION BASED ON WHETHER THE PLACE IS VISITED */}
           {placeDetails.isVisited ? (
-            // VISITED PLACES - NEW ORDER OF CONTENT
+            // VISITED PLACES
             <>
               {/* 1. Discovery Details (if place was visited) */}
               {visitDate && (

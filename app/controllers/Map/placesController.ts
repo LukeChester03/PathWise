@@ -1652,7 +1652,6 @@ const processPendingPlacesBatch = async (): Promise<void> => {
 
 /**
  * MAIN FUNCTION: Fetch places with details in one go and cache them
- * IMPROVED: Optimized API calls, better caching, and standardized expiration
  */
 export const fetchNearbyPlaces = async (
   latitude: number,

@@ -17,4 +17,5 @@ export type RootStackParamList = {
     placeId: string;
     place?: Place | VisitedPlaceDetails;
   };
+  TravelProfile: undefined;
 };

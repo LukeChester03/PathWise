@@ -11,6 +11,7 @@ import LandingScreen from "./screens/LandingScreen";
 import ViewAllScreen from "./screens/ViewAllScreen";
 import MyJourneyScreen from "./screens/MyJourneyScreen";
 import PlaceDetailsScreen from "./screens/PlaceDetailsScreen";
+import TravelProfileScreen from "./screens/TravelProfileScreen";
 import { isAuthenticated } from "./services/authService";
 import { Colors } from "./constants/colours";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -87,6 +88,11 @@ export default function Layout() {
       <Stack.Screen name="ViewAll" component={ViewAllScreen} />
       <Stack.Screen name="MyJourney" component={MyJourneyScreen} />
       <Stack.Screen name="PlaceDetails" component={PlaceDetailsScreen} />
+      <Stack.Screen
+        name="TravelProfile"
+        component={TravelProfileScreen}
+        options={{ headerShown: false }}
+      />
     </Stack.Navigator>
   );
 }
