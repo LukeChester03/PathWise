@@ -24,6 +24,7 @@ import PlacesCarousel from "../components/Places/PlacesCarousel";
 import AiTravelSnapshot from "../components/LearnScreen/AiTravelSnapshot";
 import { TravelProfile } from "../types/LearnScreen/TravelProfileTypes";
 import LanguageAssistant from "../components/LearnScreen/LanguageAssistant";
+import LearnIntroOverlay from "../components/LearnScreen/LearnIntroOverlayComponent";
 
 const { width, height } = Dimensions.get("window");
 
@@ -410,6 +411,7 @@ const LearnScreen = ({ route, navigation }) => {
   const [noPlacesFound, setNoPlacesFound] = useState(false);
   const [error, setError] = useState(null);
   const [useMockData, setUseMockData] = useState(false);
+  const [showLearnIntro, setShowLearnIntro] = useState(false);
 
   // Knowledge Quest game state
   const [activeQuestion, setActiveQuestion] = useState(null);
@@ -818,6 +820,11 @@ const LearnScreen = ({ route, navigation }) => {
     } else {
       setExpandedChallenge(challengeId);
     }
+  };
+
+  const handleModal = () => {
+    console.log("Opening Learn intro modal");
+    setShowLearnIntro(true);
   };
 
   const renderEmptyState = () => {
@@ -1351,13 +1358,20 @@ const LearnScreen = ({ route, navigation }) => {
           },
         ]}
       >
-        <TouchableOpacity style={styles.featureCard}>
+        <TouchableOpacity
+          style={styles.featureCard}
+          onPress={() => {
+            navigation.navigate("Phrasebook", {
+              visitedPlaces,
+            });
+          }}
+        >
           <View style={[styles.featureIconContainer, { backgroundColor: "#E0F2FE" }]}>
             <Ionicons name="language" size={24} color="#0284C7" />
           </View>
           <Text style={styles.featureTitle}>Language Assistant</Text>
           <Text style={styles.featureDescription}>
-            AI-generated phrases from local languages of places you've visited
+            Phrases from local languages of places you've visited
           </Text>
         </TouchableOpacity>
 
@@ -2060,7 +2074,7 @@ const LearnScreen = ({ route, navigation }) => {
           iconName={selectedPlaceId ? "book" : "sparkles"}
           iconColor={Colors.primary}
           showHelp={true}
-          onHelpPress={() => alert("AI-powered insights about places you've visited")}
+          onHelpPress={() => handleModal()}
         />
 
         {loading ? (
@@ -2094,7 +2108,6 @@ const LearnScreen = ({ route, navigation }) => {
                   />
                 ))}
               </View>
-
               <Text style={styles.geminiAttribution}>Powered by Gemini AI</Text>
             </View>
           </View>
@@ -2103,6 +2116,17 @@ const LearnScreen = ({ route, navigation }) => {
         ) : (
           renderLandingScreen()
         )}
+        <LearnIntroOverlay
+          visible={showLearnIntro}
+          onClose={() => {
+            setShowLearnIntro(false);
+            // Allow modal to fully close before it can be reopened
+            // This ensures the component will re-mount and reset its internal state
+            setTimeout(() => {
+              console.log("Modal state reset complete");
+            }, 100);
+          }}
+        />
       </View>
     </ScreenWithNavBar>
   );
