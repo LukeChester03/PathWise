@@ -39,6 +39,8 @@ export interface TravelMilestone {
   description?: string;
 }
 
+// In types/LearnScreen/TravelProfileTypes.ts
+
 export interface TravelProfile {
   type: string;
   level: string;
@@ -82,7 +84,7 @@ export interface TravelProfile {
   // New fields
   travelerTraits?: TravelerTrait[];
   travelMilestones?: TravelMilestone[];
-  firstVisitDate?: string; // ISO date string
+  firstVisitDate?: string; // Make this a required field to match the rest of the app
   bestDayToExplore?: string;
   explorationScore?: number;
   isGenerating: boolean;

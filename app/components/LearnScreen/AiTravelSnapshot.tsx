@@ -1,4 +1,3 @@
-// components/Learn/AiTravelSnapshot.tsx
 import React, { useEffect, useState } from "react";
 import {
   View,
@@ -14,6 +13,7 @@ import { useNavigation } from "@react-navigation/native";
 import { TravelProfile } from "../../types/LearnScreen/TravelProfileTypes";
 import { VisitedPlaceDetails } from "../../types/MapTypes";
 import { getTravelProfile } from "../../services/LearnScreen/travelProfileService";
+import { getVisitedPlaces } from "../../controllers/Map/visitedPlacesController";
 
 interface AiTravelSnapshotProps {
   fadeAnim: Animated.Value;
@@ -32,23 +32,36 @@ const AiTravelSnapshot: React.FC<AiTravelSnapshotProps> = ({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [profile, setProfile] = useState<TravelProfile | null>(null);
+  const [insufficientPlaces, setInsufficientPlaces] = useState(false);
 
   useEffect(() => {
-    fetchTravelProfile();
-  }, [placesToShow]);
+    checkVisitedPlacesAndFetchProfile();
+  }, []);
 
-  const fetchTravelProfile = async () => {
+  // This function first checks directly with Firebase for visited places count
+  const checkVisitedPlacesAndFetchProfile = async () => {
     try {
       setLoading(true);
       setError(null);
 
-      // If fewer than 2 places visited, prevent profile generation
-      if (placesToShow.length < 2) {
+      // Directly query Firebase/AsyncStorage for all visited places
+      const visitedPlaces = await getVisitedPlaces();
+
+      // Check if we have at least 2 valid visited places (excluding initialization documents)
+      const validPlaces = visitedPlaces.filter((place) => !place._isInitDocument);
+
+      if (validPlaces.length < 2) {
+        // Not enough places to generate a profile
+        setInsufficientPlaces(true);
         setProfile(null);
         setLoading(false);
         return;
       }
 
+      // We have enough places, clear the insufficient flag
+      setInsufficientPlaces(false);
+
+      // Now fetch the travel profile
       const { profile } = await getTravelProfile();
 
       // Additional check for "No Data"
@@ -64,7 +77,7 @@ const AiTravelSnapshot: React.FC<AiTravelSnapshotProps> = ({
         onProfileUpdated(profile);
       }
     } catch (err) {
-      console.error("Error fetching travel profile:", err);
+      console.error("Error in checkVisitedPlacesAndFetchProfile:", err);
       setError("Failed to generate travel profile");
     } finally {
       setLoading(false);
@@ -78,11 +91,11 @@ const AiTravelSnapshot: React.FC<AiTravelSnapshotProps> = ({
   };
 
   const handleRefresh = () => {
-    fetchTravelProfile();
+    checkVisitedPlacesAndFetchProfile();
   };
 
   // Render view for insufficient places
-  if (placesToShow.length < 2) {
+  if (insufficientPlaces) {
     return (
       <Animated.View
         style={[

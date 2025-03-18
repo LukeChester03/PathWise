@@ -25,23 +25,55 @@ const TravelTimelineComponent: React.FC<TravelTimelineComponentProps> = ({ profi
     fetchBadges();
   }, []);
 
-  if (!profile) return null;
-  if (!profile.firstVisitDate) return null;
+  if (!profile) {
+    console.log("TravelTimelineComponent: No profile available");
+    return null;
+  }
+
+  // Log the firstVisitDate to help diagnose issues
+  console.log(`TravelTimelineComponent: firstVisitDate from profile: ${profile.firstVisitDate}`);
+
+  if (!profile.firstVisitDate) {
+    console.log("TravelTimelineComponent: No firstVisitDate in profile");
+    return null;
+  }
 
   const firstVisitDate = new Date(profile.firstVisitDate);
+  // Validate the date is valid
+  if (isNaN(firstVisitDate.getTime())) {
+    console.log(`TravelTimelineComponent: Invalid firstVisitDate: ${profile.firstVisitDate}`);
+    return null;
+  }
+
   const now = new Date();
   const daysSinceFirstVisit = Math.floor(
     (now.getTime() - firstVisitDate.getTime()) / (1000 * 60 * 60 * 24)
   );
 
-  if (daysSinceFirstVisit < 1) return null;
+  // Log for diagnostic purposes
+  console.log(`TravelTimelineComponent: Days since first visit: ${daysSinceFirstVisit}`);
+
+  // Only hide component if days since first visit is negative
+  if (daysSinceFirstVisit < 0) {
+    console.log("TravelTimelineComponent: First visit date is in the future");
+    return null;
+  }
 
   const completedBadges = badges.filter((b) => b.completed);
   const completedBadgesCount = completedBadges.length;
 
   const formatDate = (date: Date) => {
-    const options: Intl.DateTimeFormatOptions = { month: "short", day: "numeric", year: "numeric" };
-    return date.toLocaleDateString(undefined, options);
+    try {
+      const options: Intl.DateTimeFormatOptions = {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      };
+      return date.toLocaleDateString(undefined, options);
+    } catch (error) {
+      console.error("Error formatting date:", error);
+      return "Unknown date";
+    }
   };
 
   return (

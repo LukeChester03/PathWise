@@ -2047,11 +2047,6 @@ const LearnScreen = ({ route, navigation }) => {
             <Text style={styles.subtitleText}>
               Explore your travel journey and discover new insights
             </Text>
-            {useMockData && (
-              <Text style={styles.mockDataNotice}>
-                Using demo data - visit places in the Explore tab to see your own data
-              </Text>
-            )}
           </View>
 
           {/* Feature 1: AI Travel Snapshot */}

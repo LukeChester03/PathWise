@@ -166,6 +166,7 @@ interface ProfileDocument {
   travelerTraits?: TravelerTrait[]; // Include traveler traits in the document
   travelMilestones?: any[]; // Include travel milestones
   explorationScore?: number; // Include exploration score
+  firstVisitDate?: string; // Include first visit date (must be optional to allow backward compatibility)
 }
 
 // Function to generate default traveler traits if none are found
@@ -362,13 +363,21 @@ const saveProfileToFirebase = async (profile: TravelProfile, placeCount: number)
       travelerTraits: profile.travelerTraits, // Save traveler traits to Firebase
       travelMilestones: profile.travelMilestones, // Save travel milestones
       explorationScore: profile.explorationScore, // Save exploration score
+      firstVisitDate: profile.firstVisitDate, // Explicitly save firstVisitDate to Firebase
     };
+
+    // Log to ensure we're saving the firstVisitDate
+    if (profile.firstVisitDate) {
+      console.log(`Saving firstVisitDate to Firebase: ${profile.firstVisitDate}`);
+    } else {
+      console.warn("No firstVisitDate found in profile to save to Firebase");
+    }
 
     batch.set(profileDocRef, profileDocument);
 
     // Commit all changes
     await batch.commit();
-    console.log("Travel profile saved to Firebase");
+    console.log("Travel profile saved to Firebase successfully");
   } catch (error) {
     console.error("Error saving profile to Firebase:", error);
   }
@@ -450,6 +459,9 @@ const getProfileFromFirebase = async (): Promise<{
 /**
  * Generate a travel profile based on user's visited places
  */
+/**
+ * Generate a travel profile based on user's visited places
+ */
 export const generateTravelProfile = async (
   visitedPlaces: VisitedPlaceDetails[]
 ): Promise<TravelProfile> => {
@@ -463,6 +475,15 @@ export const generateTravelProfile = async (
       };
     }
 
+    // Sort visited places to find the earliest visit date
+    const sortedVisitedPlaces = [...visitedPlaces].sort((a, b) => {
+      return new Date(a.visitedAt).getTime() - new Date(b.visitedAt).getTime();
+    });
+
+    // Calculate first visit date (will be used if AI doesn't provide one)
+    const calculatedFirstVisitDate = sortedVisitedPlaces[0].visitedAt;
+    console.log(`Calculated first visit date: ${calculatedFirstVisitDate}`);
+
     // Create a simplified version of places for the AI prompt
     const placesData = visitedPlaces.map((place) => ({
       name: place.name,
@@ -471,6 +492,7 @@ export const generateTravelProfile = async (
       category: place.types?.[0] || "",
       tags: place.types || [],
       visitDate: new Date(place.visitedAt).toDateString(),
+      visitedAt: place.visitedAt, // Include the raw visitedAt date for accurate chronology
     }));
 
     const prompt = `
@@ -481,7 +503,10 @@ export const generateTravelProfile = async (
       
       Consider patterns in the types of places visited, locations, frequency, and any other insights. Traveler Traits must be realistic based off the information you have received.
       Based on this data, determine the type of traveler this person is, their preferences, and suggest personalized insights. Provide the information as if you are talking directly to the user.
-      You must not return unknown in any of your responses. You must not skip anything required from this prompt. If there is no data for you to work with then just return "No Data"
+      You must not return unknown in any of your responses. You must not skip anything required from this prompt. If there is no data for you to work with then just return "No Data".
+      
+      It is CRITICAL that you include the firstVisitDate field in the JSON response, formatted as an ISO date string of their earliest visit.
+      
       Return a JSON object with the following structure:
       {
         "type": "The primary traveler type (e.g., 'Cultural Explorer', 'Urban Adventurer', 'History Buff')",
@@ -564,6 +589,11 @@ export const generateTravelProfile = async (
     const response = responseData as GeminiTravelProfileResponse;
     console.log(response, "AI RESPONSE");
 
+    // Check if firstVisitDate is included in the response
+    if (!response.firstVisitDate) {
+      console.log("Warning: AI response did not include firstVisitDate, using calculated value");
+    }
+
     // Process existing data as before...
     // Map category names to icons
     const categoryIcons: Record<string, string> = {
@@ -613,7 +643,7 @@ export const generateTravelProfile = async (
     // Process traveler traits with colors
     let processedTraits: TravelerTrait[] = [];
     if (response.travelerTraits && response.travelerTraits.length > 0) {
-      console.log("Processing traveler traits from API response");
+      console.log("Processing traveler traits from AI response");
       processedTraits = response.travelerTraits.map((trait, index) => ({
         ...trait,
         color: traitColors[index % traitColors.length], // Assign colors in rotation
@@ -662,7 +692,8 @@ export const generateTravelProfile = async (
       // Add new fields
       travelerTraits: processedTraits, // Always include traveler traits
       travelMilestones: travelMilestones.length > 0 ? travelMilestones : undefined,
-      firstVisitDate: response.firstVisitDate,
+      // Use the AI-provided firstVisitDate if available, otherwise use the calculated one
+      firstVisitDate: response.firstVisitDate || calculatedFirstVisitDate,
       bestDayToExplore: response.bestDayToExplore,
       explorationScore: response.explorationScore,
       isGenerating: false,
@@ -674,10 +705,16 @@ export const generateTravelProfile = async (
     return profile;
   } catch (error) {
     console.error("Error generating travel profile:", error);
-    // Ensure the default profile has traveler traits
+    // Ensure the default profile has traveler traits and firstVisitDate
     const defaultProfile = {
       ...DEFAULT_TRAVEL_PROFILE,
       travelerTraits: generateDefaultTraits(),
+      // If we have places data despite the error, use that for firstVisitDate
+      ...(visitedPlaces.length > 0 && {
+        firstVisitDate: visitedPlaces.sort((a, b) => {
+          return new Date(a.visitedAt).getTime() - new Date(b.visitedAt).getTime();
+        })[0].visitedAt,
+      }),
     };
     return defaultProfile;
   }
@@ -990,6 +1027,10 @@ const checkBadgeProgressUpdate = async (): Promise<void> => {
  * Main function to get travel profile with visited places
  * Ensures the badges subcollection exists and checks Firebase first
  */
+/**
+ * Main function to get travel profile with visited places
+ * Ensures the badges subcollection exists and checks Firebase first
+ */
 export const getTravelProfile = async (): Promise<{
   profile: TravelProfile;
   visitedPlaces: VisitedPlaceDetails[];
@@ -997,6 +1038,36 @@ export const getTravelProfile = async (): Promise<{
   try {
     // First fetch user's visited places
     const visitedPlaces = await fetchUserVisitedPlaces();
+
+    // Filter out any initialization documents that might have slipped through
+    const validPlaces = visitedPlaces.filter((place) => !place._isInitDocument);
+
+    // Check if there are at least 2 valid places
+    if (validPlaces.length < 2) {
+      console.log(
+        `Not enough places to generate a profile (need at least 2, found ${validPlaces.length})`
+      );
+
+      // Calculate first visit date if we have at least one place
+      let firstVisitDate: string | undefined;
+      if (validPlaces.length > 0) {
+        const sortedPlaces = [...validPlaces].sort((a, b) => {
+          return new Date(a.visitedAt).getTime() - new Date(b.visitedAt).getTime();
+        });
+        firstVisitDate = sortedPlaces[0].visitedAt;
+      }
+
+      return {
+        profile: {
+          ...DEFAULT_TRAVEL_PROFILE,
+          type: "New Traveler",
+          description: "Visit at least 2 places to generate your personalized travel profile.",
+          firstVisitDate, // Include first visit date even for incomplete profiles
+          isGenerating: false,
+        },
+        visitedPlaces: validPlaces,
+      };
+    }
 
     // Check Firebase for an existing profile
     const { profile: existingProfile, needsRefresh } = await getProfileFromFirebase();
@@ -1019,21 +1090,42 @@ export const getTravelProfile = async (): Promise<{
         }
       }
 
-      return { profile: existingProfile, visitedPlaces };
+      // Ensure firstVisitDate exists
+      if (!existingProfile.firstVisitDate && visitedPlaces.length > 0) {
+        console.log("Missing firstVisitDate in valid profile, calculating and adding");
+        // Find earliest visit date
+        const sortedPlaces = [...validPlaces].sort((a, b) => {
+          return new Date(a.visitedAt).getTime() - new Date(b.visitedAt).getTime();
+        });
+
+        existingProfile.firstVisitDate = sortedPlaces[0].visitedAt;
+
+        // Save the updated firstVisitDate back to Firebase
+        const currentUser = auth.currentUser;
+        if (currentUser) {
+          const profileDocRef = doc(db, "users", currentUser.uid, "travelProfiles", "current");
+          await updateDoc(profileDocRef, {
+            firstVisitDate: existingProfile.firstVisitDate,
+          });
+          console.log("Saved firstVisitDate to profile:", existingProfile.firstVisitDate);
+        }
+      }
+
+      return { profile: existingProfile, visitedPlaces: validPlaces };
     }
 
     // Check if places count has changed significantly
     const shouldForceRefresh =
-      existingProfile && ((existingProfile as any).placeCount || 0) !== visitedPlaces.length;
+      existingProfile && ((existingProfile as any).placeCount || 0) !== validPlaces.length;
 
     if (shouldForceRefresh) {
       console.log("Place count changed, forcing profile regeneration");
     }
 
-    // Otherwise, generate a new profile
-    if (needsRefresh || shouldForceRefresh) {
+    // Generate a new profile
+    if (needsRefresh || shouldForceRefresh || !existingProfile) {
       console.log("Generating new travel profile");
-      const profile = await generateTravelProfile(visitedPlaces);
+      const profile = await generateTravelProfile(validPlaces);
 
       // Final check: ensure traveler traits exist
       if (!profile.travelerTraits || profile.travelerTraits.length === 0) {
@@ -1041,7 +1133,27 @@ export const getTravelProfile = async (): Promise<{
         profile.travelerTraits = generateDefaultTraits();
       }
 
-      return { profile, visitedPlaces };
+      // Final check: ensure firstVisitDate exists
+      if (!profile.firstVisitDate && validPlaces.length > 0) {
+        console.log("Final check: Adding missing firstVisitDate to new profile");
+        const sortedPlaces = [...validPlaces].sort((a, b) => {
+          return new Date(a.visitedAt).getTime() - new Date(b.visitedAt).getTime();
+        });
+
+        profile.firstVisitDate = sortedPlaces[0].visitedAt;
+
+        // This will be saved when the entire profile is saved next time
+        const currentUser = auth.currentUser;
+        if (currentUser) {
+          const profileDocRef = doc(db, "users", currentUser.uid, "travelProfiles", "current");
+          await updateDoc(profileDocRef, {
+            firstVisitDate: profile.firstVisitDate,
+          });
+          console.log("Saved firstVisitDate to new profile:", profile.firstVisitDate);
+        }
+      }
+
+      return { profile, visitedPlaces: validPlaces };
     }
 
     // Ensure traits exist in the existing profile
@@ -1052,17 +1164,60 @@ export const getTravelProfile = async (): Promise<{
       existingProfile.travelerTraits = generateDefaultTraits();
     }
 
-    return { profile: existingProfile!, visitedPlaces };
+    // Ensure firstVisitDate exists in the existing profile
+    if (existingProfile && !existingProfile.firstVisitDate && validPlaces.length > 0) {
+      console.log("Adding missing firstVisitDate to existing profile");
+      // Find earliest visit date
+      const sortedPlaces = [...validPlaces].sort((a, b) => {
+        return new Date(a.visitedAt).getTime() - new Date(b.visitedAt).getTime();
+      });
+
+      existingProfile.firstVisitDate = sortedPlaces[0].visitedAt;
+
+      // Save the updated firstVisitDate back to Firebase
+      const currentUser = auth.currentUser;
+      if (currentUser) {
+        const profileDocRef = doc(db, "users", currentUser.uid, "travelProfiles", "current");
+        await updateDoc(profileDocRef, {
+          firstVisitDate: existingProfile.firstVisitDate,
+        });
+        console.log("Saved firstVisitDate to existing profile:", existingProfile.firstVisitDate);
+      }
+    }
+
+    return { profile: existingProfile!, visitedPlaces: validPlaces };
   } catch (error) {
     console.error("Error getting travel profile:", error);
-    // Make sure default profile has traveler traits
+
+    // Calculate firstVisitDate from visitedPlaces if available
+    let firstVisitDate = undefined;
+    try {
+      if (error instanceof Error && visitedPlaces && visitedPlaces.length > 0) {
+        const sortedPlaces = [...visitedPlaces]
+          .filter((p) => !p._isInitDocument)
+          .sort((a, b) => {
+            return new Date(a.visitedAt).getTime() - new Date(b.visitedAt).getTime();
+          });
+
+        if (sortedPlaces.length > 0) {
+          firstVisitDate = sortedPlaces[0].visitedAt;
+          console.log("Calculated firstVisitDate in error handler:", firstVisitDate);
+        }
+      }
+    } catch (innerError) {
+      console.error("Error calculating firstVisitDate in error handler:", innerError);
+    }
+
+    // Make sure default profile has traveler traits and firstVisitDate if available
     const defaultProfile = {
       ...DEFAULT_TRAVEL_PROFILE,
       travelerTraits: generateDefaultTraits(),
+      ...(firstVisitDate && { firstVisitDate }),
     };
+
     return {
       profile: defaultProfile,
-      visitedPlaces: [],
+      visitedPlaces: visitedPlaces?.filter((p) => !p._isInitDocument) || [],
     };
   }
 };
