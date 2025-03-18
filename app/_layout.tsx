@@ -16,6 +16,7 @@ import PhraseBookScreen from "./screens/PhraseBookScreen";
 import { isAuthenticated } from "./services/authService";
 import { Colors } from "./constants/colours";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import CulturalContextScreen from "./screens/CulturalContextScreen";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -95,6 +96,7 @@ export default function Layout() {
         options={{ headerShown: false }}
       />
       <Stack.Screen name="Phrasebook" component={PhraseBookScreen} />
+      <Stack.Screen name="CulturalContext" component={CulturalContextScreen} />
     </Stack.Navigator>
   );
 }

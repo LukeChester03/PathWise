@@ -25,6 +25,7 @@ import AiTravelSnapshot from "../components/LearnScreen/AiTravelSnapshot";
 import { TravelProfile } from "../types/LearnScreen/TravelProfileTypes";
 import LanguageAssistant from "../components/LearnScreen/LanguageAssistant";
 import LearnIntroOverlay from "../components/LearnScreen/LearnIntroOverlayComponent";
+import CulturalContextCard from "../components/LearnScreen/CulturalContextCard";
 
 const { width, height } = Dimensions.get("window");
 
@@ -423,7 +424,7 @@ const LearnScreen = ({ route, navigation }) => {
   const [expandedChallenge, setExpandedChallenge] = useState(null);
 
   //Travel profile
-  const [travelProfile, setTravelProfile] = useState<TravelProfile | null>(null);
+  const [travelProfile, setTravelProfile] = useState(null);
 
   // Feature expansion states
   const [expandedFeatures, setExpandedFeatures] = useState({
@@ -432,7 +433,7 @@ const LearnScreen = ({ route, navigation }) => {
     travelAnalysis: false,
   });
 
-  const handleProfileUpdated = (profile: TravelProfile) => {
+  const handleProfileUpdated = (profile) => {
     setTravelProfile(profile);
     console.log("Travel profile updated:", profile.type);
 
@@ -1045,7 +1046,15 @@ const LearnScreen = ({ route, navigation }) => {
                       </View>
                     ))}
 
-                  <TouchableOpacity style={styles.viewMoreButton}>
+                  <TouchableOpacity
+                    style={styles.viewMoreButton}
+                    onPress={() => {
+                      navigation.navigate("CulturalContext", {
+                        visitedPlaces: visitedPlaces,
+                        region: selectedPlace.location.split(",")[0],
+                      });
+                    }}
+                  >
                     <Text style={styles.viewMoreButtonText}>View Complete Cultural Guide</Text>
                     <Ionicons name="chevron-forward" size={16} color="#7E22CE" />
                   </TouchableOpacity>
@@ -1395,7 +1404,14 @@ const LearnScreen = ({ route, navigation }) => {
           </Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.featureCard}>
+        <TouchableOpacity
+          style={styles.featureCard}
+          onPress={() => {
+            navigation.navigate("CulturalContext", {
+              visitedPlaces,
+            });
+          }}
+        >
           <View style={[styles.featureIconContainer, { backgroundColor: "#F3E8FF" }]}>
             <Ionicons name="people" size={24} color="#7E22CE" />
           </View>
@@ -1627,97 +1643,8 @@ const LearnScreen = ({ route, navigation }) => {
     );
   };
 
-  const renderLanguageAssistantCard = (cardAnimation: any) => {
+  const renderLanguageAssistantCard = (cardAnimation) => {
     return <LanguageAssistant visitedPlaces={visitedPlaces} cardAnimation={cardAnimation} />;
-  };
-
-  const renderCulturalContextCard = (cardAnimation) => {
-    return (
-      <Animated.View
-        style={[
-          styles.culturalContextCard,
-          {
-            opacity: cardAnimation,
-            transform: [
-              {
-                translateY: cardAnimation.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [50, 0],
-                }),
-              },
-            ],
-          },
-        ]}
-      >
-        <View style={styles.culturalContextCardHeader}>
-          <Ionicons name="people" size={22} color="#7E22CE" />
-          <Text style={styles.culturalContextCardTitle}>Cultural Context</Text>
-        </View>
-
-        <Text style={styles.culturalContextCardSubtitle}>
-          Understanding local customs and traditions in places you've visited:
-        </Text>
-
-        <TouchableOpacity
-          style={styles.culturalInsightsContainer}
-          onPress={() => toggleFeatureExpansion("culturalInsights")}
-        >
-          <View style={styles.culturalInsightHeaderRow}>
-            <Text style={styles.culturalInsightRegion}>Rome, Italy</Text>
-            <Ionicons
-              name={expandedFeatures.culturalInsights ? "chevron-up" : "chevron-down"}
-              size={20}
-              color="#7E22CE"
-            />
-          </View>
-
-          <View style={styles.culturalCustomsContainer}>
-            {mockAiData.culturalInsights[0].customs.slice(0, 2).map((custom, index) => (
-              <View key={index} style={styles.culturalCustomItem}>
-                <Text style={styles.culturalCustomTitle}>{custom.title}</Text>
-                <Text style={styles.culturalCustomDescription}>{custom.description}</Text>
-              </View>
-            ))}
-          </View>
-
-          {expandedFeatures.culturalInsights && (
-            <>
-              <View style={styles.expandedCulturalContent}>
-                <View style={styles.culturalSectionHeader}>
-                  <Ionicons name="restaurant" size={16} color="#7E22CE" />
-                  <Text style={styles.culturalSectionTitle}>Dining Etiquette</Text>
-                </View>
-                <Text style={styles.culturalSectionText}>
-                  {mockAiData.culturalInsights[0].diningTips}
-                </Text>
-
-                <View style={styles.culturalSectionHeader}>
-                  <Ionicons name="hand-left" size={16} color="#7E22CE" />
-                  <Text style={styles.culturalSectionTitle}>Local Etiquette</Text>
-                </View>
-                <Text style={styles.culturalSectionText}>
-                  {mockAiData.culturalInsights[0].etiquette}
-                </Text>
-
-                <View style={styles.culturalCustomsContainer}>
-                  {mockAiData.culturalInsights[0].customs.slice(2).map((custom, index) => (
-                    <View key={index} style={styles.culturalCustomItem}>
-                      <Text style={styles.culturalCustomTitle}>{custom.title}</Text>
-                      <Text style={styles.culturalCustomDescription}>{custom.description}</Text>
-                    </View>
-                  ))}
-                </View>
-              </View>
-            </>
-          )}
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.culturalContextViewAllButton}>
-          <Text style={styles.culturalContextViewAllText}>Explore All Cultural Insights</Text>
-          <Ionicons name="chevron-forward" size={16} color="#7E22CE" />
-        </TouchableOpacity>
-      </Animated.View>
-    );
   };
 
   const renderKnowledgeQuestCard = (cardAnimation) => {
@@ -2031,8 +1958,15 @@ const LearnScreen = ({ route, navigation }) => {
           {/* Feature 2: Language Assistant */}
           {renderLanguageAssistantCard(cardAnimations.languageAssistant)}
 
-          {/* Feature 4: Cultural Context */}
-          {renderCulturalContextCard(cardAnimations.cultural)}
+          {/* Feature 4: Cultural Context - Using the new component */}
+          <CulturalContextCard
+            cardAnimation={cardAnimations.cultural}
+            culturalInsights={mockAiData.culturalInsights}
+            visitedPlaces={visitedPlaces}
+            navigation={navigation}
+            expandedFeatures={expandedFeatures}
+            toggleFeatureExpansion={toggleFeatureExpansion}
+          />
 
           {/* Feature 7: Knowledge Quest Game */}
           {renderKnowledgeQuestCard(cardAnimations.quest)}
@@ -2825,112 +2759,6 @@ const styles = StyleSheet.create({
     marginRight: 4,
   },
 
-  // Cultural Context Card (Feature 4)
-  culturalContextCard: {
-    backgroundColor: "#F5F3FF",
-    borderRadius: 16,
-    padding: 18,
-    marginBottom: 24,
-    shadowColor: "#7E22CE",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  culturalContextCardHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 12,
-  },
-  culturalContextCardTitle: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#7E22CE",
-    marginLeft: 8,
-  },
-  culturalContextCardSubtitle: {
-    fontSize: 14,
-    color: "#4B5563",
-    marginBottom: 14,
-  },
-  culturalInsightsContainer: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 12,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
-  },
-  culturalInsightHeaderRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 12,
-  },
-  culturalInsightRegion: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: "#7E22CE",
-  },
-  culturalCustomsContainer: {
-    marginBottom: 8,
-    gap: 10,
-  },
-  culturalCustomItem: {
-    backgroundColor: "#F5F3FF",
-    borderRadius: 10,
-    padding: 12,
-  },
-  culturalCustomTitle: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#7E22CE",
-    marginBottom: 4,
-  },
-  culturalCustomDescription: {
-    fontSize: 13,
-    color: "#4B5563",
-    lineHeight: 18,
-  },
-  expandedCulturalContent: {
-    marginTop: 12,
-  },
-  culturalSectionHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 6,
-    marginTop: 12,
-  },
-  culturalSectionTitle: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#7E22CE",
-    marginLeft: 6,
-  },
-  culturalSectionText: {
-    fontSize: 13,
-    color: "#4B5563",
-    lineHeight: 18,
-    marginBottom: 10,
-  },
-  culturalContextViewAllButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#F3F4F6",
-    paddingVertical: 10,
-    borderRadius: 10,
-  },
-  culturalContextViewAllText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#7E22CE",
-    marginRight: 4,
-  },
-
   // Knowledge Quest Card (Feature 7)
   knowledgeQuestCard: {
     borderRadius: 16,
@@ -3270,12 +3098,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#6B7280",
     textAlign: "right",
-  },
-  quizCloseButton: {
-    padding: 14,
-    borderRadius: 10,
-    backgroundColor: "#F3F4F6",
-    alignItems: "center",
   },
   quizCloseButtonText: {
     fontSize: 16,
@@ -3734,9 +3556,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "600",
     color: "#15803D",
-  },
-  challengeDetails: {
-    marginTop: 12,
   },
   challengeLocations: {
     marginTop: 10,

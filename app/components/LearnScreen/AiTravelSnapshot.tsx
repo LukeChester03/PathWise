@@ -122,7 +122,7 @@ const AiTravelSnapshot: React.FC<AiTravelSnapshotProps> = ({
           <View style={styles.aiSummaryContent}>
             <View style={styles.errorContainer}>
               <Ionicons name="map-outline" size={40} color="#FFFFFF" />
-              <Text style={styles.errorText}>Unlock Your AI Travel Snapshot</Text>
+              <Text style={styles.errorText}>Unlock Your Travel Snapshot</Text>
               <Text style={styles.errorSubtext}>
                 Visit at least 2 unique locations to generate your personalized travel profile.
               </Text>
@@ -234,11 +234,10 @@ const AiTravelSnapshot: React.FC<AiTravelSnapshotProps> = ({
       >
         <View style={styles.aiSummaryContent}>
           <View style={styles.aiSummaryHeader}>
-            <Text style={styles.aiSummaryTitle}>AI Travel Snapshot</Text>
+            <Text style={styles.aiSummaryTitle}>Travel Snapshot</Text>
             <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
               <View style={styles.aiChipContainer}>
                 <Ionicons name="scan" size={12} color="#FFFFFF" />
-                <Text style={styles.aiChipText}>Gemini</Text>
               </View>
             </Animated.View>
           </View>
