@@ -1,4 +1,3 @@
-// components/LearnScreen/VisitStatsCardsComponent.tsx
 import React from "react";
 import { View, Text, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
@@ -18,6 +17,7 @@ const VisitStatsCardsComponent: React.FC<VisitStatsCardsComponentProps> = ({
 }) => {
   return (
     <View style={styles.statsCardContainer}>
+      {/* Average Duration Card */}
       <LinearGradient
         colors={[Colors.primary, AccentColors.accent1]}
         start={{ x: 0, y: 0 }}
@@ -26,51 +26,47 @@ const VisitStatsCardsComponent: React.FC<VisitStatsCardsComponentProps> = ({
       >
         <View style={styles.cardContent}>
           <View style={styles.statsCardIconContainer}>
-            <Ionicons name="time" size={24} color={NeutralColors.white} />
+            <Ionicons name="time-outline" size={24} color="white" />
           </View>
           <View style={styles.statsTextContainer}>
             <Text style={styles.statsCardLabel}>Average Duration</Text>
-            <Text style={styles.statsCardValue} numberOfLines={2}>
-              {averageDuration}
-            </Text>
+            <Text style={styles.statsCardValue}>{averageDuration}</Text>
           </View>
         </View>
       </LinearGradient>
 
+      {/* Average Distance Card */}
       <LinearGradient
-        colors={[Colors.secondary, AccentColors.accent2]}
+        colors={[AccentColors.accent2, AccentColors.accent3]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={styles.statsCard}
       >
         <View style={styles.cardContent}>
           <View style={styles.statsCardIconContainer}>
-            <Ionicons name="map" size={24} color={NeutralColors.white} />
+            <Ionicons name="navigate-outline" size={24} color="white" />
           </View>
           <View style={styles.statsTextContainer}>
             <Text style={styles.statsCardLabel}>Average Distance</Text>
-            <Text style={styles.statsCardValue} numberOfLines={2}>
-              {averageDistance}
-            </Text>
+            <Text style={styles.statsCardValue}>{averageDistance}</Text>
           </View>
         </View>
       </LinearGradient>
 
+      {/* Most Visited City Card */}
       <LinearGradient
-        colors={[AccentColors.accent3, Colors.secondary]}
+        colors={[Colors.secondary, AccentColors.accent4 || "#9C27B0"]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={styles.statsCard}
       >
         <View style={styles.cardContent}>
           <View style={styles.statsCardIconContainer}>
-            <Ionicons name="location" size={24} color={NeutralColors.white} />
+            <Ionicons name="location-outline" size={24} color="white" />
           </View>
           <View style={styles.statsTextContainer}>
             <Text style={styles.statsCardLabel}>Top City</Text>
-            <Text style={styles.statsCardValue} numberOfLines={2}>
-              {mostVisitedCity}
-            </Text>
+            <Text style={styles.statsCardValue}>{mostVisitedCity}</Text>
           </View>
         </View>
       </LinearGradient>

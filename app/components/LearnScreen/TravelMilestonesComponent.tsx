@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from "react";
-import { View, Text, StyleSheet } from "react-native";
+import { View, Text, StyleSheet, ScrollView } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import {
   TravelProfile,
   TravelMilestone,
   TravelBadge,
 } from "../../types/LearnScreen/TravelProfileTypes";
-import { Colors, NeutralColors } from "../../constants/colours";
+import { Colors, NeutralColors, AccentColors } from "../../constants/colours";
 import { getAllUserBadges } from "../../services/LearnScreen/badgeService";
 import { fetchUserVisitedPlaces } from "../../services/LearnScreen/travelProfileService";
 
@@ -95,6 +96,14 @@ const TravelMilestonesComponent: React.FC<TravelMilestonesComponentProps> = ({ p
     return milestones;
   };
 
+  // Color pairs for gradient backgrounds
+  const gradientColors = [
+    [Colors.primary, AccentColors.accent1],
+    [AccentColors.accent2, AccentColors.accent3 || "#4CAF50"],
+    [Colors.secondary, AccentColors.accent4 || "#9C27B0"],
+    [AccentColors.accent1, Colors.primary],
+  ];
+
   // Generate milestones or use existing ones
   const milestones = profile?.travelMilestones || generateMilestones();
 
@@ -104,22 +113,42 @@ const TravelMilestonesComponent: React.FC<TravelMilestonesComponentProps> = ({ p
 
   return (
     <View style={styles.milestonesContainer}>
-      <Text style={styles.subsectionTitle}>Travel Milestones</Text>
-
-      <View style={styles.milestonesGrid}>
-        {milestones.map((milestone, index) => (
-          <View key={index} style={styles.milestoneCard}>
-            <View style={styles.milestoneIconContainer}>
-              <Ionicons name={milestone.icon as any} size={22} color={Colors.primary} />
-            </View>
-            <Text style={styles.milestoneValue}>{milestone.value}</Text>
-            <Text style={styles.milestoneTitle}>{milestone.title}</Text>
-            {milestone.description && (
-              <Text style={styles.milestoneDescription}>{milestone.description}</Text>
-            )}
-          </View>
-        ))}
+      <View style={styles.titleContainer}>
+        <Ionicons name="trophy-outline" size={22} color={Colors.primary} style={styles.titleIcon} />
+        <Text style={styles.subsectionTitle}>Travel Milestones</Text>
       </View>
+
+      <ScrollView
+        style={styles.scrollContainer}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+      >
+        {milestones.map((milestone, index) => (
+          <LinearGradient
+            key={index}
+            colors={gradientColors[index % gradientColors.length]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.milestoneCard}
+          >
+            <View style={styles.cardContent}>
+              <View style={styles.iconValueContainer}>
+                <View style={styles.milestoneIconContainer}>
+                  <Ionicons name={milestone.icon as any} size={24} color="white" />
+                </View>
+                <Text style={styles.milestoneValue}>{milestone.value}</Text>
+              </View>
+
+              <View style={styles.textContainer}>
+                <Text style={styles.milestoneTitle}>{milestone.title}</Text>
+                {milestone.description && (
+                  <Text style={styles.milestoneDescription}>{milestone.description}</Text>
+                )}
+              </View>
+            </View>
+          </LinearGradient>
+        ))}
+      </ScrollView>
     </View>
   );
 };
@@ -129,50 +158,70 @@ const styles = StyleSheet.create({
     marginTop: 8,
     marginBottom: 16,
   },
-  subsectionTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: NeutralColors.gray800,
-    marginBottom: 12,
-  },
-  milestonesGrid: {
+  titleContainer: {
     flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "space-between",
-    marginTop: 8,
-  },
-  milestoneCard: {
-    width: "48%",
-    backgroundColor: NeutralColors.gray100,
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 12,
     alignItems: "center",
+    marginBottom: 16,
   },
-  milestoneIconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: Colors.primary + "20", // 20% opacity
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 8,
+  titleIcon: {
+    marginRight: 8,
   },
-  milestoneValue: {
+  subsectionTitle: {
     fontSize: 18,
     fontWeight: "700",
-    color: Colors.text,
-    marginBottom: 4,
+    color: NeutralColors.gray800,
+  },
+  scrollContainer: {
+    maxHeight: 380,
+  },
+  scrollContent: {
+    paddingBottom: 8,
+  },
+  milestoneCard: {
+    borderRadius: 16,
+    marginBottom: 12,
+    elevation: 4,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  cardContent: {
+    padding: 16,
+  },
+  iconValueContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  milestoneIconContainer: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: "rgba(255, 255, 255, 0.25)",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 12,
+  },
+  textContainer: {
+    marginLeft: 62, // Aligns with the icon
+  },
+  milestoneValue: {
+    fontSize: 24,
+    fontWeight: "800",
+    color: "white",
   },
   milestoneTitle: {
-    fontSize: 14,
-    color: NeutralColors.gray700,
-    marginBottom: 4,
+    fontSize: 16,
+    fontWeight: "700",
+    color: "white",
+    marginBottom: 6,
   },
   milestoneDescription: {
-    fontSize: 12,
-    color: NeutralColors.gray600,
-    textAlign: "center",
+    fontSize: 14,
+    fontWeight: "400",
+    color: "rgba(255, 255, 255, 0.85)",
+    lineHeight: 20,
   },
 });
 

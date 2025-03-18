@@ -281,8 +281,6 @@ const TravelProfileScreen: React.FC<TravelProfileScreenProps> = ({ route, naviga
 
         {/* Enhanced Visit Statistics section */}
         <Animated.View style={[styles.section, { opacity: fadeAnim }]}>
-          <SectionHeader title="Visit Statistics" icon="stats-chart" color={Colors.primary} />
-
           {/* Travel Milestones */}
           <TravelMilestonesComponent profile={profile} />
         </Animated.View>
