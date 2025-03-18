@@ -1,19 +1,32 @@
-import React, { useRef, useEffect } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
-  View,
-  Text,
-  StyleSheet,
-  Modal,
-  TouchableOpacity,
-  ScrollView,
   Animated,
   Dimensions,
+  Easing,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+  StatusBar,
+  ScrollView,
+  SafeAreaView,
+  Platform,
+  PanResponder,
   Image,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { Colors, NeutralColors } from "../../constants/colours";
+import * as Haptics from "expo-haptics";
 
 const { width, height } = Dimensions.get("window");
+// Calculate responsive dimensions based on screen size
+const isSmallDevice = width < 375;
+const contentMaxWidth = Math.min(width * 0.9, 420);
+const iconSize = Math.min(width * 0.15, 60);
+const titleSize = isSmallDevice ? 24 : 28;
+const basePadding = width * 0.035;
+const contentPadding = Math.min(basePadding, 20);
 
 // Define prop interface for the component
 interface MapGettingStartedModalProps {
@@ -25,346 +38,725 @@ interface MapGettingStartedModalProps {
 type IoniconsName = React.ComponentProps<typeof Ionicons>["name"];
 
 const MapGettingStartedModal: React.FC<MapGettingStartedModalProps> = ({ visible, onClose }) => {
-  const slideAnim = useRef(new Animated.Value(height)).current;
-  const fadeAnim = useRef(new Animated.Value(0)).current;
+  // State to track which intro screen to show
+  const [currentStep, setCurrentStep] = useState(0);
+  const MAX_STEPS = 4; // Total number of steps
+  const prevStepRef = useRef(currentStep);
 
+  // Animation values
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const contentSlideAnim = useRef(new Animated.Value(0)).current;
+  const contentScaleAnim = useRef(new Animated.Value(1)).current;
+  const iconAnimValues = Array(4)
+    .fill(0)
+    .map(() => useRef(new Animated.Value(0)).current);
+
+  // Progress bar animation
+  const progressAnim = useRef(new Animated.Value(0)).current;
+
+  // Set up pan responder for swipe gestures
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (evt, gestureState) => {
+        return Math.abs(gestureState.dx) > 20; // Only respond to horizontal gestures
+      },
+      onPanResponderRelease: (evt, gestureState) => {
+        // Swipe left (next)
+        if (gestureState.dx < -50 && currentStep < MAX_STEPS - 1) {
+          if (Platform.OS === "ios") {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          }
+          setCurrentStep(currentStep + 1);
+        }
+        // Swipe right (previous)
+        else if (gestureState.dx > 50 && currentStep > 0) {
+          if (Platform.OS === "ios") {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          }
+          setCurrentStep(currentStep - 1);
+        }
+      },
+    })
+  ).current;
+
+  // Animate when visibility changes
   useEffect(() => {
     if (visible) {
-      Animated.parallel([
-        Animated.timing(slideAnim, {
-          toValue: 0,
-          duration: 300,
-          useNativeDriver: true,
-        }),
-        Animated.timing(fadeAnim, {
-          toValue: 1,
-          duration: 300,
-          useNativeDriver: true,
-        }),
-      ]).start();
-    } else {
-      Animated.parallel([
-        Animated.timing(slideAnim, {
-          toValue: height,
-          duration: 300,
-          useNativeDriver: true,
-        }),
-        Animated.timing(fadeAnim, {
-          toValue: 0,
-          duration: 300,
-          useNativeDriver: true,
-        }),
-      ]).start();
-    }
-  }, [visible, slideAnim, fadeAnim]);
+      StatusBar.setBarStyle("light-content");
+      // Only fade in the overlay container
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 500,
+        useNativeDriver: true,
+        easing: Easing.out(Easing.cubic),
+      }).start(() => {
+        // Animate the icons in sequence for initial step
+        animateIcons();
+      });
 
-  const renderStep = (
-    icon: IoniconsName,
-    title: string,
-    description: string,
-    color: string = Colors.primary
-  ): JSX.Element => {
-    return (
-      <View style={styles.stepContainer}>
-        <View style={[styles.stepIconContainer, { backgroundColor: `${color}15` }]}>
-          <Ionicons name={icon} size={24} color={color} />
-        </View>
-        <View style={styles.stepContent}>
-          <Text style={styles.stepTitle}>{title}</Text>
-          <Text style={styles.stepDescription}>{description}</Text>
-        </View>
-      </View>
-    );
+      // Start progress animation
+      animateProgress(0);
+    } else {
+      StatusBar.setBarStyle("default");
+      // Fade out the entire overlay
+      Animated.timing(fadeAnim, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [visible]);
+
+  // Effect to handle step changes
+  useEffect(() => {
+    if (visible && prevStepRef.current !== currentStep) {
+      // Determine slide direction based on step change
+      const slideDirection = currentStep > prevStepRef.current ? 1 : -1;
+
+      // First, slide current content out
+      Animated.timing(contentSlideAnim, {
+        toValue: -slideDirection * width,
+        duration: 300,
+        useNativeDriver: true,
+        easing: Easing.out(Easing.cubic),
+      }).start(() => {
+        // Reset animations for new slide
+        iconAnimValues.forEach((val) => val.setValue(0));
+        contentSlideAnim.setValue(slideDirection * width);
+
+        // Then slide new content in
+        Animated.parallel([
+          Animated.timing(contentSlideAnim, {
+            toValue: 0,
+            duration: 400,
+            useNativeDriver: true,
+            easing: Easing.out(Easing.back(1.2)),
+          }),
+          Animated.timing(contentScaleAnim, {
+            toValue: 1,
+            duration: 400,
+            useNativeDriver: true,
+            easing: Easing.out(Easing.back(1.2)),
+          }),
+        ]).start(() => {
+          // Animate icons for this step
+          animateIcons();
+        });
+      });
+
+      prevStepRef.current = currentStep;
+
+      // Update progress bar
+      animateProgress(currentStep);
+    }
+  }, [currentStep, visible]);
+
+  // Animate progress bar
+  const animateProgress = (step: number) => {
+    Animated.timing(progressAnim, {
+      toValue: (step + 1) / MAX_STEPS,
+      duration: 500,
+      useNativeDriver: false,
+      easing: Easing.inOut(Easing.cubic),
+    }).start();
   };
 
-  const renderTipItem = (
-    title: string,
-    icon: IoniconsName,
-    color: string = Colors.primary
-  ): JSX.Element => {
-    return (
-      <View style={styles.tipItem}>
-        <View style={[styles.tipIconContainer, { backgroundColor: `${color}15` }]}>
-          <Ionicons name={icon} size={20} color={color} />
-        </View>
-        <Text style={styles.tipText}>{title}</Text>
-      </View>
-    );
+  // Function to animate icons in sequence
+  const animateIcons = () => {
+    iconAnimValues.forEach((anim, index) => {
+      Animated.timing(anim, {
+        toValue: 1,
+        duration: 350,
+        delay: 150 + index * 80, // Faster animation sequence
+        useNativeDriver: true,
+        easing: Easing.out(Easing.back(1.5)),
+      }).start();
+    });
+  };
+
+  // Close overlay handler
+  const handleClose = () => {
+    if (Platform.OS === "ios") {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+
+    // Just fade out the overlay
+    Animated.timing(fadeAnim, {
+      toValue: 0,
+      duration: 300,
+      useNativeDriver: true,
+    }).start(() => {
+      // Reset to first step before closing
+      setCurrentStep(0);
+      onClose();
+    });
+  };
+
+  // Navigate to next step
+  const handleNextStep = () => {
+    if (Platform.OS === "ios") {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+
+    if (currentStep < MAX_STEPS - 1) {
+      setCurrentStep(currentStep + 1);
+    } else {
+      handleClose();
+    }
+  };
+
+  // Render step content based on current step
+  const renderStepContent = () => {
+    switch (currentStep) {
+      case 0:
+        return (
+          <>
+            <View style={styles.welcomeContainer}>
+              <MaterialCommunityIcons name="map" size={iconSize} color={Colors.primary} />
+              <Text style={styles.welcomeTitle}>Discover New Places</Text>
+              <Text style={styles.welcomeSubtitle}>Interactive Map Guide</Text>
+            </View>
+
+            <Text style={styles.introDescription}>
+              Explore nearby attractions, plan routes, and discover new places with our interactive
+              map features. Swipe through to learn about all the navigation options.
+            </Text>
+
+            <View style={styles.featureIcons}>
+              {[
+                { icon: "locate-outline", text: "Find Places" },
+                { icon: "navigate-outline", text: "Plan Routes" },
+                { icon: "bookmark-outline", text: "Save Favorites" },
+                { icon: "hand-left-outline", text: "Navigate Map" },
+              ].map((item, index) => (
+                <Animated.View
+                  key={index}
+                  style={[
+                    styles.featureIconContainer,
+                    {
+                      opacity: iconAnimValues[index],
+                      transform: [
+                        {
+                          scale: iconAnimValues[index].interpolate({
+                            inputRange: [0, 1],
+                            outputRange: [0.5, 1],
+                          }),
+                        },
+                      ],
+                    },
+                  ]}
+                >
+                  <View style={styles.iconCircle}>
+                    <Ionicons name={item.icon as IoniconsName} size={24} color="#FFFFFF" />
+                  </View>
+                  <Text style={styles.iconText}>{item.text}</Text>
+                </Animated.View>
+              ))}
+            </View>
+          </>
+        );
+
+      case 1:
+        return (
+          <>
+            <View style={styles.stepHeader}>
+              <Ionicons
+                name="locate-outline"
+                size={Math.min(iconSize * 0.8, 42)}
+                color={Colors.primary}
+              />
+              <Text style={styles.stepTitle}>Find Nearby Places</Text>
+            </View>
+
+            <Text style={styles.stepDescription}>
+              The map shows the 20 closest attractions to your current location. Tap on any marker
+              to learn more about that place.
+            </Text>
+
+            <View style={styles.featureItemsContainer}>
+              {[
+                { icon: "map-marker", text: "View the 20 closest attractions to you" },
+                { icon: "information-outline", text: "Tap any marker to see detailed information" },
+                { icon: "image-outline", text: "View photos and read about each place" },
+              ].map((item, index) => (
+                <Animated.View
+                  key={index}
+                  style={[
+                    styles.featureItem,
+                    {
+                      opacity: iconAnimValues[index],
+                      transform: [
+                        {
+                          translateX: iconAnimValues[index].interpolate({
+                            inputRange: [0, 1],
+                            outputRange: [20, 0],
+                          }),
+                        },
+                      ],
+                    },
+                  ]}
+                >
+                  <View style={styles.featureItemContent}>
+                    <MaterialCommunityIcons
+                      name={item.icon as any}
+                      size={22}
+                      color={Colors.primary}
+                    />
+                    <Text style={styles.featureText}>{item.text}</Text>
+                  </View>
+                </Animated.View>
+              ))}
+            </View>
+          </>
+        );
+
+      case 2:
+        return (
+          <>
+            <View style={styles.stepHeader}>
+              <Ionicons
+                name="navigate-outline"
+                size={Math.min(iconSize * 0.8, 42)}
+                color="#4CAF50"
+              />
+              <Text style={styles.stepTitle}>Plan Your Route</Text>
+            </View>
+
+            <Text style={styles.stepDescription}>
+              Tap "Start Journey" on any place card to begin your adventure. It will automatically
+              determine whether you are driving or walking.
+            </Text>
+
+            <View style={styles.featureItemsContainer}>
+              {[
+                { icon: "directions", text: "Get directions to any place with one tap" },
+                {
+                  icon: "car",
+                  text: "The app detects if you're driving or walking",
+                },
+                {
+                  icon: "map-marker-path",
+                  text: "Follow the route with real-time updates",
+                },
+              ].map((item, index) => (
+                <Animated.View
+                  key={index}
+                  style={[
+                    styles.featureItem,
+                    {
+                      opacity: iconAnimValues[index],
+                      transform: [
+                        {
+                          translateX: iconAnimValues[index].interpolate({
+                            inputRange: [0, 1],
+                            outputRange: [20, 0],
+                          }),
+                        },
+                      ],
+                    },
+                  ]}
+                >
+                  <View style={styles.featureItemContent}>
+                    <MaterialCommunityIcons name={item.icon as any} size={22} color="#4CAF50" />
+                    <Text style={styles.featureText}>{item.text}</Text>
+                  </View>
+                </Animated.View>
+              ))}
+            </View>
+          </>
+        );
+
+      case 3:
+        return (
+          <>
+            <View style={styles.stepHeader}>
+              <Ionicons
+                name="hand-left-outline"
+                size={Math.min(iconSize * 0.8, 42)}
+                color="#FF5722"
+              />
+              <Text style={styles.stepTitle}>Map Navigation Tips</Text>
+            </View>
+
+            <Text style={styles.stepDescription}>
+              Use these gestures to navigate the map efficiently and find your way around.
+            </Text>
+
+            <View style={styles.finalFeatures}>
+              {[
+                {
+                  icon: "gesture-pinch",
+                  title: "Zoom",
+                  text: "Pinch to zoom in and out",
+                  color: "#FF5722",
+                },
+                {
+                  icon: "gesture-tap",
+                  title: "Zoom In",
+                  text: "Double tap to zoom in",
+                  color: "#FF5722",
+                },
+                {
+                  icon: "gesture-two-tap",
+                  title: "Zoom Out",
+                  text: "Two-finger tap to zoom out",
+                  color: "#FF5722",
+                },
+                {
+                  icon: "gesture-swipe",
+                  title: "Pan",
+                  text: "Swipe to pan around the map",
+                  color: "#FF5722",
+                },
+              ].map((item, index) => (
+                <Animated.View
+                  key={index}
+                  style={[
+                    styles.finalFeatureItem,
+                    {
+                      opacity: iconAnimValues[index],
+                      transform: [{ scale: iconAnimValues[index] }],
+                    },
+                  ]}
+                >
+                  <View style={[styles.finalIconCircle, { backgroundColor: item.color }]}>
+                    <MaterialCommunityIcons name={item.icon as any} size={26} color="#FFFFFF" />
+                  </View>
+                  <Text style={styles.finalFeatureTitle}>{item.title}</Text>
+                  <Text style={styles.finalFeatureText}>{item.text}</Text>
+                </Animated.View>
+              ))}
+            </View>
+          </>
+        );
+
+      default:
+        return null;
+    }
   };
 
   return (
-    <Modal animationType="none" transparent={true} visible={visible} onRequestClose={onClose}>
-      <Animated.View
-        style={[
-          styles.modalOverlay,
-          {
-            opacity: fadeAnim,
-          },
-        ]}
+    <Animated.View
+      style={[
+        styles.container,
+        {
+          opacity: fadeAnim,
+          display: visible ? "flex" : "none",
+        },
+      ]}
+    >
+      <LinearGradient
+        colors={["rgba(20,20,35,0.96)", "rgba(30,30,60,0.94)"]}
+        style={styles.gradient}
       >
-        <TouchableOpacity style={styles.overlayTouchable} activeOpacity={1} onPress={onClose} />
-
-        <Animated.View
-          style={[
-            styles.modalContainer,
-            {
-              transform: [{ translateY: slideAnim }],
-            },
-          ]}
-        >
-          <View style={styles.modalHeader}>
-            <View style={styles.headerIconContainer}>
-              <Ionicons name="map-outline" size={28} color={Colors.primary} />
-            </View>
-            <Text style={styles.modalTitle}>Discovering New Places</Text>
-            <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-              <Ionicons name="close" size={24} color={NeutralColors.gray500} />
+        <SafeAreaView style={styles.safeArea}>
+          <View style={styles.contentCard} {...panResponder.panHandlers}>
+            {/* Close button */}
+            <TouchableOpacity style={styles.closeButton} onPress={handleClose} activeOpacity={0.7}>
+              <Ionicons name="close" size={24} color="rgba(0,0,0,0.4)" />
             </TouchableOpacity>
-          </View>
 
-          <View style={styles.modalContent}>
-            <ScrollView
-              showsVerticalScrollIndicator={false}
-              contentContainerStyle={styles.scrollContent}
+            <Animated.View
+              style={{
+                width: "100%",
+                transform: [{ translateX: contentSlideAnim }, { scale: contentScaleAnim }],
+              }}
             >
-              <View style={styles.introSection}>
-                <Image
-                  source={require("../../assets/world-map.jpg")}
-                  style={styles.introImage}
-                  resizeMode="contain"
-                />
-                <Text style={styles.introText}>
-                  Explore nearby attractions, plan routes, and discover new places with our
-                  interactive map features.
-                </Text>
-              </View>
+              <ScrollView
+                contentContainerStyle={styles.scrollContent}
+                showsVerticalScrollIndicator={false}
+              >
+                {renderStepContent()}
+              </ScrollView>
+            </Animated.View>
 
-              <View style={styles.stepsContainer}>
-                {renderStep(
-                  "locate-outline",
-                  "Find Nearby Places",
-                  "The map shows the 20 closest attractions to your current location. Tap on any marker to learn more about that place."
-                )}
-
-                {renderStep(
-                  "navigate-outline",
-                  "Plan Your Route",
-                  'Tap "Start Journey" on any place card begin your adventure. It will automatically determine whether you are driving or walking',
-                  "#4CAF50"
-                )}
-
-                {renderStep(
-                  "bookmark-outline",
-                  "Save for Later",
-                  "Found something interesting? Tap the bookmark icon to save it to your favorites for easy access later.",
-                  "#2196F3"
-                )}
-              </View>
-
-              <View style={styles.mapTipsSection}>
-                <Text style={styles.sectionTitle}>Map Navigation Tips</Text>
-                <View style={styles.tipsList}>
-                  {renderTipItem("Pinch to zoom in and out", "hand-left-outline")}
-                  {renderTipItem("Double tap to zoom in", "scan-outline")}
-                  {renderTipItem("Two-finger tap to zoom out", "expand-outline")}
-                  {renderTipItem("Swipe to pan the map", "arrow-up-outline", "#FF5722")}
+            <View style={styles.navigationContainer}>
+              <View style={styles.progressContainer}>
+                <View style={styles.progressBackground}>
+                  <Animated.View
+                    style={[
+                      styles.progressFill,
+                      {
+                        width: progressAnim.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: ["0%", "100%"],
+                        }),
+                      },
+                    ]}
+                  />
                 </View>
               </View>
 
-              <View style={styles.exploreMoreSection}>
-                <View style={styles.exploreMoreHeader}>
-                  <Ionicons name="sparkles-outline" size={22} color={Colors.primary} />
-                  <Text style={styles.exploreMoreTitle}>Discover Beyond the Map</Text>
-                </View>
-                <Text style={styles.exploreMoreText}>
-                  Tap on any place to see photos, read reviews, check opening hours, and learn about
-                  its history and significance. The more you explore, the more personalized
-                  recommendations you'll receive!
-                </Text>
-              </View>
-            </ScrollView>
+              <TouchableOpacity
+                style={styles.nextButton}
+                activeOpacity={0.8}
+                onPress={handleNextStep}
+              >
+                <LinearGradient
+                  colors={[Colors.primary, Colors.secondary || Colors.primary]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.buttonGradient}
+                >
+                  <Text style={styles.nextButtonText}>
+                    {currentStep === MAX_STEPS - 1 ? "Start Exploring" : "Continue"}
+                  </Text>
+                  <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
+                </LinearGradient>
+              </TouchableOpacity>
+            </View>
           </View>
-
-          <View style={styles.modalFooter}>
-            <TouchableOpacity style={styles.startButton} onPress={onClose} activeOpacity={0.8}>
-              <Text style={styles.startButtonText}>Start Exploring</Text>
-              <Ionicons name="arrow-forward" size={18} color="#fff" />
-            </TouchableOpacity>
-          </View>
-        </Animated.View>
-      </Animated.View>
-    </Modal>
+        </SafeAreaView>
+      </LinearGradient>
+    </Animated.View>
   );
 };
 
 const styles = StyleSheet.create({
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-    justifyContent: "flex-end",
-  },
-  overlayTouchable: {
+  container: {
     position: "absolute",
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
-  },
-  modalContainer: {
-    backgroundColor: "#fff",
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    minHeight: height * 0.7,
-    maxHeight: height * 0.9,
-  },
-  modalHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "rgba(0,0,0,0.05)",
-  },
-  headerIconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: `${Colors.primary}15`,
+    zIndex: 1000,
     justifyContent: "center",
     alignItems: "center",
-    marginRight: 12,
   },
-  modalTitle: {
+  gradient: {
     flex: 1,
-    fontSize: 20,
-    fontWeight: "700",
-    color: NeutralColors.black,
+    width: "100%",
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: Math.max(width * 0.04, 16),
+  },
+  safeArea: {
+    flex: 1,
+    width: "100%",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  contentCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    width: "100%",
+    maxWidth: contentMaxWidth,
+    padding: contentPadding,
+    alignItems: "center",
+    overflow: "hidden",
+    elevation: 6,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
   },
   closeButton: {
-    padding: 8,
-  },
-  modalContent: {
-    flex: 1,
+    position: "absolute",
+    top: 12,
+    right: 12,
+    zIndex: 10,
+    padding: 4,
   },
   scrollContent: {
-    paddingBottom: 24,
+    paddingTop: 8,
+    paddingBottom: 0,
+    width: "100%",
+    paddingHorizontal: 2,
+    justifyContent: "flex-start",
   },
-  introSection: {
+
+  // Welcome step styles
+  welcomeContainer: {
     alignItems: "center",
-    paddingHorizontal: 20,
-    paddingVertical: 24,
+    marginBottom: 12,
+    paddingTop: 6,
   },
-  introImage: {
-    width: width * 0.6,
-    height: width * 0.4,
-    marginBottom: 16,
-  },
-  introText: {
-    fontSize: 16,
-    lineHeight: 24,
+  welcomeTitle: {
+    fontSize: titleSize,
+    fontWeight: "800",
+    color: "#333",
+    marginTop: 10,
     textAlign: "center",
-    color: NeutralColors.gray700,
   },
-  stepsContainer: {
-    paddingHorizontal: 20,
+  welcomeSubtitle: {
+    fontSize: isSmallDevice ? 15 : 17,
+    fontWeight: "600",
+    color: Colors.primary,
+    marginTop: 3,
+    textAlign: "center",
   },
-  stepContainer: {
+  introDescription: {
+    fontSize: isSmallDevice ? 14 : 15,
+    color: "#555",
+    textAlign: "center",
+    marginBottom: 14,
+    lineHeight: isSmallDevice ? 20 : 22,
+    paddingHorizontal: contentPadding * 0.4,
+  },
+  featureIcons: {
     flexDirection: "row",
-    marginBottom: 24,
+    justifyContent: "space-around",
+    width: "100%",
+    marginTop: 10,
+    marginBottom: 0,
+    flexWrap: "wrap",
   },
-  stepIconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+  featureIconContainer: {
+    alignItems: "center",
+    marginHorizontal: 6,
+    marginBottom: 6,
+  },
+  iconCircle: {
+    width: isSmallDevice ? 45 : 48,
+    height: isSmallDevice ? 45 : 48,
+    borderRadius: isSmallDevice ? 22.5 : 24,
+    backgroundColor: Colors.primary,
     justifyContent: "center",
     alignItems: "center",
-    marginRight: 16,
-  },
-  stepContent: {
-    flex: 1,
-  },
-  stepTitle: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: NeutralColors.black,
     marginBottom: 4,
   },
-  stepDescription: {
-    fontSize: 14,
-    lineHeight: 20,
-    color: NeutralColors.gray600,
+  iconText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#666",
   },
-  mapTipsSection: {
-    marginTop: 8,
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    backgroundColor: "rgba(0,0,0,0.02)",
+
+  // Step content styles
+  stepHeader: {
+    alignItems: "center",
+    marginBottom: 12,
+    marginTop: 5,
   },
-  sectionTitle: {
-    fontSize: 18,
+  stepTitle: {
+    fontSize: isSmallDevice ? 20 : 22,
     fontWeight: "700",
-    color: NeutralColors.black,
-    marginBottom: 16,
+    color: "#333",
+    marginTop: 6,
+    textAlign: "center",
   },
-  tipsList: {
+  stepDescription: {
+    fontSize: 15,
+    color: "#555",
+    textAlign: "center",
+    marginBottom: 16,
+    lineHeight: 21,
+    paddingHorizontal: contentPadding * 0.4,
+  },
+  featureItemsContainer: {
+    width: "100%",
+    marginBottom: 0,
+    paddingHorizontal: 2,
+  },
+  featureItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 4,
+    backgroundColor: "rgba(245, 245, 250, 0.8)",
+    padding: 10,
+    borderRadius: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 2,
+    elevation: 1,
+    width: "100%",
+    alignSelf: "center",
+  },
+  featureItemContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    width: "100%",
+  },
+  featureText: {
+    fontSize: 14,
+    color: "#444",
+    marginLeft: 10,
+    flex: 1,
+    flexWrap: "wrap",
+  },
+
+  // Final step styles
+  finalFeatures: {
     flexDirection: "row",
     flexWrap: "wrap",
     justifyContent: "space-between",
+    width: "100%",
+    marginBottom: 0,
   },
-  tipItem: {
-    flexDirection: "row",
-    alignItems: "center",
+  finalFeatureItem: {
     width: "48%",
-    marginBottom: 16,
+    alignItems: "center",
+    backgroundColor: "rgba(245, 245, 250, 0.8)",
+    padding: 8,
+    borderRadius: 14,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 2,
+    elevation: 1,
+    marginBottom: 4,
   },
-  tipIconContainer: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+  finalIconCircle: {
+    width: isSmallDevice ? 42 : 46,
+    height: isSmallDevice ? 42 : 46,
+    borderRadius: isSmallDevice ? 21 : 23,
     justifyContent: "center",
     alignItems: "center",
-    marginRight: 8,
+    marginBottom: 6,
   },
-  tipText: {
-    flex: 1,
+  finalFeatureTitle: {
     fontSize: 13,
-    color: NeutralColors.gray700,
-  },
-  exploreMoreSection: {
-    marginTop: 24,
-    paddingHorizontal: 20,
-  },
-  exploreMoreHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 12,
-  },
-  exploreMoreTitle: {
-    fontSize: 18,
     fontWeight: "700",
-    color: NeutralColors.black,
-    marginLeft: 8,
+    color: "#444",
+    marginBottom: 2,
   },
-  exploreMoreText: {
-    fontSize: 14,
-    lineHeight: 22,
-    color: NeutralColors.gray600,
+  finalFeatureText: {
+    fontSize: isSmallDevice ? 11 : 12,
+    color: "#666",
+    textAlign: "center",
   },
-  modalFooter: {
-    padding: 20,
+
+  // Navigation controls
+  navigationContainer: {
+    width: "100%",
+    marginTop: 2,
+    paddingTop: 6,
     borderTopWidth: 1,
     borderTopColor: "rgba(0,0,0,0.05)",
   },
-  startButton: {
-    backgroundColor: Colors.primary,
-    paddingVertical: 16,
-    borderRadius: 12,
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
+  progressContainer: {
+    width: "100%",
+    marginBottom: 10,
   },
-  startButtonText: {
-    color: "#fff",
+  progressBackground: {
+    height: 3,
+    backgroundColor: "rgba(0,0,0,0.06)",
+    borderRadius: 1.5,
+    overflow: "hidden",
+  },
+  progressFill: {
+    height: "100%",
+    backgroundColor: Colors.primary,
+  },
+  nextButton: {
+    width: "100%",
+    borderRadius: 15,
+    overflow: "hidden",
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 5,
+  },
+  buttonGradient: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 12,
+  },
+  nextButtonText: {
+    color: "#FFFFFF",
     fontSize: 16,
     fontWeight: "600",
     marginRight: 8,
