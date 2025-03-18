@@ -505,11 +505,11 @@ export const generateTravelProfile = async (
       Based on this data, determine the type of traveler this person is, their preferences, and suggest personalized insights. Provide the information as if you are talking directly to the user.
       You must not return unknown in any of your responses. You must not skip anything required from this prompt. If there is no data for you to work with then just return "No Data".
       
-      It is CRITICAL that you include the firstVisitDate field in the JSON response, formatted as an ISO date string of their earliest visit.
+      It is CRITICAL that you include the firstVisitDate field formatted as an ISO date string of their earliest visit. You must include ALL other fields in the JSON response too.
       
       Return a JSON object with the following structure:
       {
-        "type": "The primary traveler type (e.g., 'Cultural Explorer', 'Urban Adventurer', 'History Buff')",
+        "type": "The primary traveler type (e.g., 'Cultural Explorer', 'Urban Adventurer', 'History Buff'. Be creative maximum two words)",
         "level": "Experience level (e.g., 'Beginner', 'Enthusiast', 'Expert')",
         "description": "A 1-2 sentence personalized description of this traveler's style and preferences",
         "travelerTraits": [
@@ -1027,31 +1027,26 @@ const checkBadgeProgressUpdate = async (): Promise<void> => {
  * Main function to get travel profile with visited places
  * Ensures the badges subcollection exists and checks Firebase first
  */
-/**
- * Main function to get travel profile with visited places
- * Ensures the badges subcollection exists and checks Firebase first
- */
 export const getTravelProfile = async (): Promise<{
   profile: TravelProfile;
   visitedPlaces: VisitedPlaceDetails[];
 }> => {
+  let visitedPlaces: VisitedPlaceDetails[] = [];
+
   try {
     // First fetch user's visited places
-    const visitedPlaces = await fetchUserVisitedPlaces();
-
-    // Filter out any initialization documents that might have slipped through
-    const validPlaces = visitedPlaces.filter((place) => !place._isInitDocument);
+    visitedPlaces = await fetchUserVisitedPlaces();
 
     // Check if there are at least 2 valid places
-    if (validPlaces.length < 2) {
+    if (visitedPlaces.length < 2) {
       console.log(
-        `Not enough places to generate a profile (need at least 2, found ${validPlaces.length})`
+        `Not enough places to generate a profile (need at least 2, found ${visitedPlaces.length})`
       );
 
       // Calculate first visit date if we have at least one place
       let firstVisitDate: string | undefined;
-      if (validPlaces.length > 0) {
-        const sortedPlaces = [...validPlaces].sort((a, b) => {
+      if (visitedPlaces.length > 0) {
+        const sortedPlaces = [...visitedPlaces].sort((a, b) => {
           return new Date(a.visitedAt).getTime() - new Date(b.visitedAt).getTime();
         });
         firstVisitDate = sortedPlaces[0].visitedAt;
@@ -1065,7 +1060,7 @@ export const getTravelProfile = async (): Promise<{
           firstVisitDate, // Include first visit date even for incomplete profiles
           isGenerating: false,
         },
-        visitedPlaces: validPlaces,
+        visitedPlaces: visitedPlaces,
       };
     }
 
@@ -1094,7 +1089,7 @@ export const getTravelProfile = async (): Promise<{
       if (!existingProfile.firstVisitDate && visitedPlaces.length > 0) {
         console.log("Missing firstVisitDate in valid profile, calculating and adding");
         // Find earliest visit date
-        const sortedPlaces = [...validPlaces].sort((a, b) => {
+        const sortedPlaces = [...visitedPlaces].sort((a, b) => {
           return new Date(a.visitedAt).getTime() - new Date(b.visitedAt).getTime();
         });
 
@@ -1111,12 +1106,12 @@ export const getTravelProfile = async (): Promise<{
         }
       }
 
-      return { profile: existingProfile, visitedPlaces: validPlaces };
+      return { profile: existingProfile, visitedPlaces: visitedPlaces };
     }
 
     // Check if places count has changed significantly
     const shouldForceRefresh =
-      existingProfile && ((existingProfile as any).placeCount || 0) !== validPlaces.length;
+      existingProfile && ((existingProfile as any).placeCount || 0) !== visitedPlaces.length;
 
     if (shouldForceRefresh) {
       console.log("Place count changed, forcing profile regeneration");
@@ -1125,7 +1120,7 @@ export const getTravelProfile = async (): Promise<{
     // Generate a new profile
     if (needsRefresh || shouldForceRefresh || !existingProfile) {
       console.log("Generating new travel profile");
-      const profile = await generateTravelProfile(validPlaces);
+      const profile = await generateTravelProfile(visitedPlaces);
 
       // Final check: ensure traveler traits exist
       if (!profile.travelerTraits || profile.travelerTraits.length === 0) {
@@ -1134,9 +1129,9 @@ export const getTravelProfile = async (): Promise<{
       }
 
       // Final check: ensure firstVisitDate exists
-      if (!profile.firstVisitDate && validPlaces.length > 0) {
+      if (!profile.firstVisitDate && visitedPlaces.length > 0) {
         console.log("Final check: Adding missing firstVisitDate to new profile");
-        const sortedPlaces = [...validPlaces].sort((a, b) => {
+        const sortedPlaces = [...visitedPlaces].sort((a, b) => {
           return new Date(a.visitedAt).getTime() - new Date(b.visitedAt).getTime();
         });
 
@@ -1153,7 +1148,7 @@ export const getTravelProfile = async (): Promise<{
         }
       }
 
-      return { profile, visitedPlaces: validPlaces };
+      return { profile, visitedPlaces: visitedPlaces };
     }
 
     // Ensure traits exist in the existing profile
@@ -1165,10 +1160,10 @@ export const getTravelProfile = async (): Promise<{
     }
 
     // Ensure firstVisitDate exists in the existing profile
-    if (existingProfile && !existingProfile.firstVisitDate && validPlaces.length > 0) {
+    if (existingProfile && !existingProfile.firstVisitDate && visitedPlaces.length > 0) {
       console.log("Adding missing firstVisitDate to existing profile");
       // Find earliest visit date
-      const sortedPlaces = [...validPlaces].sort((a, b) => {
+      const sortedPlaces = [...visitedPlaces].sort((a, b) => {
         return new Date(a.visitedAt).getTime() - new Date(b.visitedAt).getTime();
       });
 
@@ -1185,19 +1180,17 @@ export const getTravelProfile = async (): Promise<{
       }
     }
 
-    return { profile: existingProfile!, visitedPlaces: validPlaces };
+    return { profile: existingProfile!, visitedPlaces: visitedPlaces };
   } catch (error) {
     console.error("Error getting travel profile:", error);
 
     // Calculate firstVisitDate from visitedPlaces if available
     let firstVisitDate = undefined;
     try {
-      if (error instanceof Error && visitedPlaces && visitedPlaces.length > 0) {
-        const sortedPlaces = [...visitedPlaces]
-          .filter((p) => !p._isInitDocument)
-          .sort((a, b) => {
-            return new Date(a.visitedAt).getTime() - new Date(b.visitedAt).getTime();
-          });
+      if (error instanceof Error && visitedPlaces.length > 0) {
+        const sortedPlaces = [...visitedPlaces].sort((a, b) => {
+          return new Date(a.visitedAt).getTime() - new Date(b.visitedAt).getTime();
+        });
 
         if (sortedPlaces.length > 0) {
           firstVisitDate = sortedPlaces[0].visitedAt;
@@ -1217,7 +1210,7 @@ export const getTravelProfile = async (): Promise<{
 
     return {
       profile: defaultProfile,
-      visitedPlaces: visitedPlaces?.filter((p) => !p._isInitDocument) || [],
+      visitedPlaces: visitedPlaces,
     };
   }
 };
