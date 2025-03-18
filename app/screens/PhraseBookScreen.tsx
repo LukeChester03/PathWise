@@ -36,6 +36,7 @@ import {
 import { Phrase, LanguageGroup } from "../types/LearnScreen/LanguageTypes";
 import useTextToSpeech from "../hooks/AI/useTextToSpeech";
 import { Colors } from "../constants/colours";
+import PhrasePreviewModal from "../components/LearnScreen/PhrasePreviewModal";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const CARD_MARGIN = 16;
@@ -390,6 +391,11 @@ const PhrasebookScreen: React.FC<PhrasebookScreenProps> = ({ route, navigation }
   const [selectedCountry, setSelectedCountry] = useState<string | null>(null);
   const [loadingCountryPhrases, setLoadingCountryPhrases] = useState(false);
 
+  // New state variables for the PhrasePreviewModal
+  const [showPreviewModal, setShowPreviewModal] = useState(false);
+  const [previewPhrases, setPreviewPhrases] = useState<Phrase[]>([]);
+  const [loadingAddPhrases, setLoadingAddPhrases] = useState(false);
+
   // Request limits state
   const [requestLimits, setRequestLimits] = useState<{
     requestsRemaining: number;
@@ -698,6 +704,7 @@ const PhrasebookScreen: React.FC<PhrasebookScreenProps> = ({ route, navigation }
     setShowExploreModal(true);
   }, [requestLimits]);
 
+  // UPDATED: Modified to use the PhrasePreviewModal
   const handleSelectCountryToExplore = useCallback((country: string) => {
     setSelectedCountry(country);
     setLoadingCountryPhrases(true);
@@ -726,60 +733,14 @@ const PhrasebookScreen: React.FC<PhrasebookScreenProps> = ({ route, navigation }
         if (!newPhrases) return;
 
         if (newPhrases.length > 0) {
-          Alert.alert(
-            `Explore ${country}`,
-            `We've generated ${newPhrases.length} phrases for ${country}. Would you like to add them to your phrasebook?`,
-            [
-              {
-                text: "Cancel",
-                style: "cancel",
-                onPress: () => {
-                  setLoadingCountryPhrases(false);
-                  fetchRequestLimits(); // Update limits UI after cancellation
-                },
-              },
-              {
-                text: "Add All",
-                onPress: async () => {
-                  try {
-                    for (const phrase of newPhrases) {
-                      await addPhraseToPhrasebook(phrase);
-                    }
-
-                    // Update local state
-                    setPhrases((prevPhrases) => [
-                      ...prevPhrases,
-                      ...newPhrases.map((p) => ({ ...p, isFavorite: true })),
-                    ]);
-
-                    // Also update saved phrases
-                    setSavedPhrases((prev) => [
-                      ...prev,
-                      ...newPhrases.map((p) => ({ ...p, isFavorite: true })),
-                    ]);
-
-                    Alert.alert(
-                      "Success",
-                      `Added ${newPhrases.length} phrases from ${country} to your phrasebook!`
-                    );
-
-                    // Refresh the request limits after successfully adding phrases
-                    fetchRequestLimits();
-                  } catch (err) {
-                    console.error("Error adding phrases:", err);
-                    Alert.alert("Error", "Failed to add phrases to your phrasebook");
-                  } finally {
-                    setLoadingCountryPhrases(false);
-                    setShowExploreModal(false);
-                  }
-                },
-              },
-            ]
-          );
+          // Hide the explore modal and show the preview modal
+          setShowExploreModal(false);
+          setPreviewPhrases(newPhrases);
+          setShowPreviewModal(true);
         } else {
           Alert.alert("Error", `Failed to generate phrases for ${country}`);
-          setLoadingCountryPhrases(false);
         }
+        setLoadingCountryPhrases(false);
       })
       .catch((err) => {
         console.error("Error generating country phrases:", err);
@@ -787,6 +748,58 @@ const PhrasebookScreen: React.FC<PhrasebookScreenProps> = ({ route, navigation }
         setLoadingCountryPhrases(false);
       });
   }, []);
+
+  // NEW: Handle closing the preview modal
+  const handleClosePreview = useCallback(() => {
+    setShowPreviewModal(false);
+    setPreviewPhrases([]);
+
+    // Refresh the request limits after cancellation
+    fetchRequestLimits();
+  }, []);
+
+  // NEW: Handle adding all phrases from the preview
+  const handleAddAllPhrases = useCallback(async () => {
+    if (previewPhrases.length === 0) return;
+
+    setLoadingAddPhrases(true);
+
+    try {
+      for (const phrase of previewPhrases) {
+        await addPhraseToPhrasebook(phrase);
+      }
+
+      // Update local state
+      setPhrases((prevPhrases) => [
+        ...prevPhrases,
+        ...previewPhrases.map((p) => ({ ...p, isFavorite: true })),
+      ]);
+
+      // Also update saved phrases
+      setSavedPhrases((prev) => [
+        ...prev,
+        ...previewPhrases.map((p) => ({ ...p, isFavorite: true })),
+      ]);
+
+      // Refresh the request limits after successfully adding phrases
+      await fetchRequestLimits();
+
+      // Close the preview modal
+      setShowPreviewModal(false);
+
+      // Show success message
+      Alert.alert(
+        "Success",
+        `Added ${previewPhrases.length} phrases from ${selectedCountry} to your phrasebook!`
+      );
+    } catch (err) {
+      console.error("Error adding phrases:", err);
+      Alert.alert("Error", "Failed to add phrases to your phrasebook");
+    } finally {
+      setLoadingAddPhrases(false);
+      setPreviewPhrases([]);
+    }
+  }, [previewPhrases, selectedCountry]);
 
   // Toggle between All and Saved views
   const handleToggleViewMode = useCallback(
@@ -967,7 +980,7 @@ const PhrasebookScreen: React.FC<PhrasebookScreenProps> = ({ route, navigation }
     <ScreenWithNavBar>
       <Header
         title="Phrasebook"
-        subtitle="AI-generated travel phrases"
+        subtitle="Travel phrases"
         showBackButton={true}
         onBackPress={() => navigation.goBack()}
         showIcon={true}
@@ -1107,6 +1120,16 @@ const PhrasebookScreen: React.FC<PhrasebookScreenProps> = ({ route, navigation }
             </View>
           </View>
         </Modal>
+
+        {/* NEW: Phrase Preview Modal */}
+        <PhrasePreviewModal
+          visible={showPreviewModal}
+          phrases={previewPhrases}
+          countryName={selectedCountry}
+          isLoading={loadingAddPhrases}
+          onClose={handleClosePreview}
+          onAddAll={handleAddAllPhrases}
+        />
       </SafeAreaView>
     </ScreenWithNavBar>
   );

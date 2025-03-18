@@ -19,6 +19,7 @@ import {
   createMockPhrases,
   toggleFavoritePhrase,
 } from "../../services/LearnScreen/aiLanguageService";
+import useTextToSpeech from "../../hooks/AI/useTextToSpeech";
 
 interface LanguageAssistantProps {
   visitedPlaces: any[];
@@ -30,6 +31,8 @@ const LanguageAssistant: React.FC<LanguageAssistantProps> = ({ visitedPlaces, ca
   const [phrases, setPhrases] = useState<Phrase[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [expandedCard, setExpandedCard] = useState<string | null>(null);
+  const { speakPhrase } = useTextToSpeech();
 
   useEffect(() => {
     if (visitedPlaces?.length > 0) {
@@ -62,17 +65,50 @@ const LanguageAssistant: React.FC<LanguageAssistantProps> = ({ visitedPlaces, ca
     }
   };
 
-  const handlePlayPhrase = (phrase: string) => {
-    // In a real app, this would play audio of the phrase
-    console.log("Playing phrase:", phrase);
-    // Mock implementation - would connect to text-to-speech service
-    alert(`Playing: "${phrase}"`);
+  const handleToggleFavorite = async (phrase: Phrase) => {
+    try {
+      // Optimistic update
+      setPhrases(
+        phrases.map((p) => (p.id === phrase.id ? { ...p, isFavorite: !p.isFavorite } : p))
+      );
+
+      // Perform the actual update
+      await toggleFavoritePhrase(phrase.id!, phrase.isFavorite || false, phrase);
+    } catch (err) {
+      console.error("Error toggling favorite:", err);
+      // Revert on error
+      setPhrases(
+        phrases.map((p) => (p.id === phrase.id ? { ...p, isFavorite: phrase.isFavorite } : p))
+      );
+    }
+  };
+
+  const handlePlayPhrase = (phrase: string, language: string) => {
+    speakPhrase(phrase, language);
+  };
+
+  const toggleExpand = (phraseId: string) => {
+    setExpandedCard(expandedCard === phraseId ? null : phraseId);
   };
 
   const navigateToPhrasebook = () => {
     navigation.navigate("Phrasebook", {
       visitedPlaces,
     });
+  };
+
+  // Get category icon based on context
+  const getCategoryIcon = (context: string) => {
+    const contextLower = context.toLowerCase();
+    if (contextLower.includes("greeting")) return "hand-left-outline";
+    if (contextLower.includes("food") || contextLower.includes("restaurant"))
+      return "restaurant-outline";
+    if (contextLower.includes("direction") || contextLower.includes("location"))
+      return "navigate-outline";
+    if (contextLower.includes("shopping")) return "cart-outline";
+    if (contextLower.includes("emergency")) return "medkit-outline";
+    if (contextLower.includes("transportation")) return "car-outline";
+    return "chatbubble-outline";
   };
 
   return (
@@ -116,37 +152,67 @@ const LanguageAssistant: React.FC<LanguageAssistantProps> = ({ visitedPlaces, ca
           horizontal
           showsHorizontalScrollIndicator={false}
           style={styles.phrasesScrollView}
-          // components/Learn/LanguageAssistant.tsx (continued)
           contentContainerStyle={styles.phrasesContentContainer}
         >
-          {phrases.map((phrase, index) => (
-            <View key={index} style={styles.enhancedPhraseCard}>
-              <Text style={styles.phraseLanguage}>{phrase.language}</Text>
+          {phrases.map((phrase) => (
+            <View key={phrase.id} style={styles.phraseCard}>
+              {/* Header with language and save button */}
+              <View style={styles.cardHeader}>
+                <View style={styles.languageContainer}>
+                  <Text style={styles.phraseLanguage}>{phrase.language}</Text>
+
+                  <View style={styles.contextBadge}>
+                    <Ionicons name={getCategoryIcon(phrase.useContext)} size={10} color="#6B7280" />
+                    <Text style={styles.contextText}>{phrase.useContext}</Text>
+                  </View>
+                </View>
+
+                <TouchableOpacity
+                  style={styles.saveButton}
+                  onPress={() => handleToggleFavorite(phrase)}
+                >
+                  <Ionicons
+                    name={phrase.isFavorite ? "heart" : "heart-outline"}
+                    size={18}
+                    color={phrase.isFavorite ? "#EF4444" : "#9CA3AF"}
+                  />
+                </TouchableOpacity>
+              </View>
+
+              {/* Phrase and translation */}
               <Text style={styles.phraseText}>{phrase.phrase}</Text>
               <Text style={styles.phraseTranslation}>{phrase.translation}</Text>
-              <Text style={styles.phraseContext}>{phrase.useContext}</Text>
-              <View style={styles.pronunciationContainer}>
-                <Text style={styles.pronunciationLabel}>Pronunciation:</Text>
-                <Text style={styles.pronunciationText}>{phrase.pronunciation}</Text>
-              </View>
-              <TouchableOpacity
-                style={styles.playPhraseButton}
-                onPress={() => handlePlayPhrase(phrase.phrase)}
-              >
-                <Ionicons name="volume-high" size={16} color="#0284C7" />
-              </TouchableOpacity>
 
-              {/* Add heart icon for saving directly from the preview */}
-              <TouchableOpacity
-                style={styles.saveButton}
-                onPress={() => toggleFavoritePhrase(phrase.id!, phrase.isFavorite || false, phrase)}
-              >
-                <Ionicons
-                  name={phrase.isFavorite ? "heart" : "heart-outline"}
-                  size={16}
-                  color={phrase.isFavorite ? "#EF4444" : "#9CA3AF"}
-                />
-              </TouchableOpacity>
+              {/* Action row */}
+              <View style={styles.actionRow}>
+                <TouchableOpacity
+                  style={styles.pronunciationButton}
+                  onPress={() => toggleExpand(phrase.id!)}
+                >
+                  <Text style={styles.pronunciationButtonText}>
+                    {expandedCard === phrase.id ? "Hide" : "Pronunciation"}
+                  </Text>
+                  <Ionicons
+                    name={expandedCard === phrase.id ? "chevron-up" : "chevron-down"}
+                    size={14}
+                    color="#0284C7"
+                  />
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.playButton}
+                  onPress={() => handlePlayPhrase(phrase.phrase, phrase.language)}
+                >
+                  <Ionicons name="volume-high" size={16} color="#FFFFFF" />
+                </TouchableOpacity>
+              </View>
+
+              {/* Expandable pronunciation section */}
+              {expandedCard === phrase.id && (
+                <View style={styles.pronunciationContainer}>
+                  <Text style={styles.pronunciationText}>{phrase.pronunciation}</Text>
+                </View>
+              )}
             </View>
           ))}
         </ScrollView>
@@ -161,22 +227,6 @@ const LanguageAssistant: React.FC<LanguageAssistantProps> = ({ visitedPlaces, ca
 };
 
 const styles = StyleSheet.create({
-  saveButton: {
-    position: "absolute",
-    top: 10,
-    right: 10,
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: "#FFFFFF",
-    justifyContent: "center",
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 1,
-    elevation: 1,
-  },
   aiLanguageCard: {
     backgroundColor: "#EFF6FF",
     borderRadius: 16,
@@ -242,67 +292,103 @@ const styles = StyleSheet.create({
     paddingBottom: 4,
     gap: 14,
   },
-  enhancedPhraseCard: {
+  // Redesigned card styles
+  phraseCard: {
     backgroundColor: "#FFFFFF",
     borderRadius: 12,
-    padding: 14,
-    width: 200,
+    padding: 12,
+    width: 220,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
     shadowRadius: 2,
     elevation: 1,
-    position: "relative",
+  },
+  cardHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: 8,
+  },
+  languageContainer: {
+    flex: 1,
   },
   phraseLanguage: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: "600",
     color: "#0284C7",
-    marginBottom: 6,
+    marginBottom: 4,
+  },
+  contextBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F3F4F6",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 10,
+    alignSelf: "flex-start",
+  },
+  contextText: {
+    fontSize: 10,
+    color: "#6B7280",
+    marginLeft: 3,
+  },
+  saveButton: {
+    width: 32,
+    height: 32,
+    justifyContent: "center",
+    alignItems: "center",
   },
   phraseText: {
     fontSize: 16,
     fontWeight: "700",
     color: "#1F2937",
     marginBottom: 4,
+    lineHeight: 22,
   },
   phraseTranslation: {
     fontSize: 13,
-    color: "#6B7280",
-    marginBottom: 6,
-  },
-  phraseContext: {
-    fontSize: 11,
-    color: "#9CA3AF",
-    fontStyle: "italic",
+    color: "#4B5563",
     marginBottom: 10,
+    lineHeight: 18,
+  },
+  actionRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 4,
+  },
+  pronunciationButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 4,
+    paddingHorizontal: 6,
+  },
+  pronunciationButtonText: {
+    fontSize: 12,
+    color: "#0284C7",
+    fontWeight: "500",
+    marginRight: 4,
+  },
+  playButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#0284C7",
+    justifyContent: "center",
+    alignItems: "center",
   },
   pronunciationContainer: {
     backgroundColor: "#F0F9FF",
-    padding: 8,
+    padding: 10,
     borderRadius: 8,
-    marginBottom: 28,
-  },
-  pronunciationLabel: {
-    fontSize: 10,
-    color: "#0284C7",
-    marginBottom: 2,
+    marginTop: 8,
   },
   pronunciationText: {
     fontSize: 12,
     color: "#1F2937",
     fontStyle: "italic",
-  },
-  playPhraseButton: {
-    position: "absolute",
-    bottom: 10,
-    right: 10,
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: "#DBEAFE",
-    justifyContent: "center",
-    alignItems: "center",
+    lineHeight: 18,
   },
   viewAllPhrasesButton: {
     flexDirection: "row",

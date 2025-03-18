@@ -18,7 +18,7 @@ import { VisitedPlaceDetails } from "../../types/MapTypes";
 
 // Constants
 const PHRASEBOOK_REFRESH_INTERVAL = 24 * 60 * 60 * 1000; // 24 hours
-const MAX_DAILY_REQUESTS = 3; // Maximum requests per day
+const MAX_DAILY_REQUESTS = 5; // Maximum requests per day
 const MAX_PHRASES_PER_REQUEST = 10; // Maximum phrases returned per request
 
 // Add to PhrasebookSettings interface in LanguageTypes.ts
@@ -27,9 +27,6 @@ interface RequestLimitInfo {
   lastRequestDate: string; // Date of last request (ISO string)
   nextAvailableTime?: string; // When user can make another request if at limit
 }
-
-// Add this to the existing PhrasebookSettings interface:
-// requestLimits: RequestLimitInfo;
 
 /**
  * Check if user has reached their daily request limit
