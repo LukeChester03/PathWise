@@ -18,4 +18,8 @@ export type RootStackParamList = {
     place?: Place | VisitedPlaceDetails;
   };
   TravelProfile: undefined;
+  Phrasebook: {
+    visitedPlaces: VisitedPlaceDetails[];
+    phrases?: any[];
+  };
 };

@@ -23,6 +23,7 @@ import Header from "../components/Global/Header";
 import PlacesCarousel from "../components/Places/PlacesCarousel";
 import AiTravelSnapshot from "../components/LearnScreen/AiTravelSnapshot";
 import { TravelProfile } from "../types/LearnScreen/TravelProfileTypes";
+import LanguageAssistant from "../components/LearnScreen/LanguageAssistant";
 
 const { width, height } = Dimensions.get("window");
 
@@ -1612,60 +1613,8 @@ const LearnScreen = ({ route, navigation }) => {
     );
   };
 
-  const renderLanguageAssistantCard = (cardAnimation) => {
-    return (
-      <Animated.View
-        style={[
-          styles.aiLanguageCard,
-          {
-            opacity: cardAnimation,
-            transform: [
-              {
-                translateY: cardAnimation.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [50, 0],
-                }),
-              },
-            ],
-          },
-        ]}
-      >
-        <View style={styles.aiLanguageHeader}>
-          <Ionicons name="language" size={22} color="#0284C7" />
-          <Text style={styles.aiLanguageTitle}>AI Language Assistant</Text>
-        </View>
-
-        <Text style={styles.aiLanguageSubtitle}>Useful phrases from regions you've visited:</Text>
-
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.phrasesScrollView}
-          contentContainerStyle={styles.phrasesContentContainer}
-        >
-          {mockAiData.localPhrases.map((phrase, index) => (
-            <View key={index} style={styles.enhancedPhraseCard}>
-              <Text style={styles.phraseLanguage}>{phrase.language}</Text>
-              <Text style={styles.phraseText}>{phrase.phrase}</Text>
-              <Text style={styles.phraseTranslation}>{phrase.translation}</Text>
-              <Text style={styles.phraseContext}>{phrase.useContext}</Text>
-              <View style={styles.pronunciationContainer}>
-                <Text style={styles.pronunciationLabel}>Pronunciation:</Text>
-                <Text style={styles.pronunciationText}>{phrase.pronunciation}</Text>
-              </View>
-              <TouchableOpacity style={styles.playPhraseButton}>
-                <Ionicons name="volume-high" size={16} color="#0284C7" />
-              </TouchableOpacity>
-            </View>
-          ))}
-        </ScrollView>
-
-        <TouchableOpacity style={styles.viewAllPhrasesButton}>
-          <Text style={styles.viewAllPhrasesText}>View Complete Phrasebook</Text>
-          <Ionicons name="chevron-forward" size={16} color="#0284C7" />
-        </TouchableOpacity>
-      </Animated.View>
-    );
+  const renderLanguageAssistantCard = (cardAnimation: any) => {
+    return <LanguageAssistant visitedPlaces={visitedPlaces} cardAnimation={cardAnimation} />;
   };
 
   const renderCulturalContextCard = (cardAnimation) => {

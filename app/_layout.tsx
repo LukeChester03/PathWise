@@ -12,6 +12,7 @@ import ViewAllScreen from "./screens/ViewAllScreen";
 import MyJourneyScreen from "./screens/MyJourneyScreen";
 import PlaceDetailsScreen from "./screens/PlaceDetailsScreen";
 import TravelProfileScreen from "./screens/TravelProfileScreen";
+import PhraseBookScreen from "./screens/PhraseBookScreen";
 import { isAuthenticated } from "./services/authService";
 import { Colors } from "./constants/colours";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -93,6 +94,7 @@ export default function Layout() {
         component={TravelProfileScreen}
         options={{ headerShown: false }}
       />
+      <Stack.Screen name="Phrasebook" component={PhraseBookScreen} />
     </Stack.Navigator>
   );
 }
