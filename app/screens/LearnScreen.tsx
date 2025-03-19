@@ -1429,11 +1429,11 @@ const LearnScreen = ({ route, navigation }) => {
       >
         <View style={styles.discoveryChallengesHeader}>
           <Ionicons name="flag" size={22} color="#15803D" />
-          <Text style={styles.discoveryChallengesTitle}>AI Discovery Challenges</Text>
+          <Text style={styles.discoveryChallengesTitle}>Advanced Travel Analysis</Text>
         </View>
 
         <Text style={styles.discoveryChallengesSubtitle}>
-          Complete personalized exploration challenges to discover new places:
+          Analyses your travel patterns and provides extensive insights
         </Text>
 
         <View style={styles.activeChallengesContainer}>

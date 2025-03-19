@@ -1,4 +1,3 @@
-// screens/PhrasebookScreen.tsx
 import React, { useState, useEffect, useCallback, memo, useRef } from "react";
 import {
   View,
@@ -38,6 +37,10 @@ import { Phrase, LanguageGroup } from "../types/LearnScreen/LanguageTypes";
 import useTextToSpeech from "../hooks/AI/useTextToSpeech";
 import { Colors } from "../constants/colours";
 import PhrasePreviewModal from "../components/LearnScreen/LanguageSection/PhrasePreviewModal";
+
+// Define the blue color constants from the LanguageAssistant
+const BLUE_PRIMARY = "#0369A1";
+const BLUE_SECONDARY = "#0284C7";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const CARD_MARGIN = 16;
@@ -206,7 +209,7 @@ const MemoizedPhraseCard = memo(
             <Ionicons
               name={isExpanded ? "chevron-up" : "chevron-down"}
               size={16}
-              color={Colors.primary}
+              color={BLUE_PRIMARY}
             />
           </TouchableOpacity>
 
@@ -828,7 +831,7 @@ const PhrasebookScreen: React.FC<PhrasebookScreenProps> = ({ route, navigation }
     if (loading) {
       return (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={Colors.primary} />
+          <ActivityIndicator size="large" color={BLUE_PRIMARY} />
           <Text style={styles.loadingText}>Generating your phrasebook...</Text>
         </View>
       );
@@ -1093,7 +1096,7 @@ const PhrasebookScreen: React.FC<PhrasebookScreenProps> = ({ route, navigation }
 
               {loadingCountryPhrases ? (
                 <View style={styles.modalLoadingContainer}>
-                  <ActivityIndicator size="large" color={Colors.primary} />
+                  <ActivityIndicator size="large" color={BLUE_PRIMARY} />
                   <Text style={styles.modalLoadingText}>
                     Generating phrases for {selectedCountry}...
                   </Text>
@@ -1204,7 +1207,7 @@ const styles = StyleSheet.create({
     color: "#6B7280",
   },
   segmentTextActive: {
-    color: Colors.primary,
+    color: BLUE_PRIMARY,
     fontWeight: "600",
   },
   rightControls: {
@@ -1214,7 +1217,7 @@ const styles = StyleSheet.create({
   requestLimitBadge: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: Colors.primary,
+    backgroundColor: BLUE_PRIMARY,
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 16,
@@ -1233,7 +1236,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: Colors.primary,
+    backgroundColor: BLUE_PRIMARY,
     justifyContent: "center",
     alignItems: "center",
     shadowColor: "#000",
@@ -1292,7 +1295,7 @@ const styles = StyleSheet.create({
     elevation: 1,
   },
   languagePillSelected: {
-    backgroundColor: Colors.primary,
+    backgroundColor: BLUE_PRIMARY,
   },
   languagePillText: {
     fontSize: 14,
@@ -1330,7 +1333,7 @@ const styles = StyleSheet.create({
   phraseLanguage: {
     fontSize: 14,
     fontWeight: "600",
-    color: Colors.primary,
+    color: BLUE_PRIMARY,
     marginBottom: 4,
   },
   contextContainer: {
@@ -1382,11 +1385,11 @@ const styles = StyleSheet.create({
   expandButtonText: {
     fontSize: 14,
     fontWeight: "500",
-    color: Colors.primary,
+    color: BLUE_PRIMARY,
     marginRight: 4,
   },
   playButton: {
-    backgroundColor: Colors.primary,
+    backgroundColor: BLUE_PRIMARY,
     width: 40,
     height: 40,
     borderRadius: 20,
@@ -1408,7 +1411,7 @@ const styles = StyleSheet.create({
   pronunciationLabel: {
     fontSize: 14,
     fontWeight: "600",
-    color: Colors.primary,
+    color: BLUE_PRIMARY,
     marginBottom: 6,
   },
   pronunciationText: {
@@ -1444,7 +1447,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   retryButton: {
-    backgroundColor: Colors.primary,
+    backgroundColor: BLUE_PRIMARY,
     paddingHorizontal: 20,
     paddingVertical: 12,
     borderRadius: 10,
@@ -1486,7 +1489,7 @@ const styles = StyleSheet.create({
   emptyButton: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: Colors.primary,
+    backgroundColor: BLUE_PRIMARY,
     paddingHorizontal: 20,
     paddingVertical: 12,
     borderRadius: 10,

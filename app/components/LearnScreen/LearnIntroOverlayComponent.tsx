@@ -36,7 +36,7 @@ interface LearnIntroOverlayProps {
 const LearnIntroOverlay: React.FC<LearnIntroOverlayProps> = ({ visible, onClose }) => {
   // State to track which intro screen to show
   const [currentStep, setCurrentStep] = useState(0);
-  const MAX_STEPS = 8; // One for each feature
+  const MAX_STEPS = 7; // One for each feature
   const prevStepRef = useRef(currentStep);
 
   // Animation values
@@ -537,67 +537,6 @@ const LearnIntroOverlay: React.FC<LearnIntroOverlayProps> = ({ visible, onClose 
                     <MaterialCommunityIcons name={item.icon} size={22} color="#6366F1" />
                     <Text style={styles.featureText}>{item.text}</Text>
                   </View>
-                </Animated.View>
-              ))}
-            </View>
-          </>
-        );
-
-      case 7:
-        return (
-          <>
-            <View style={styles.stepHeader}>
-              <Ionicons name="flag" size={Math.min(iconSize * 0.8, 42)} color="#15803D" />
-              <Text style={styles.stepTitle}>AI Discovery Challenges</Text>
-            </View>
-
-            <Text style={styles.stepDescription}>
-              Complete personalized exploration challenges that guide you to discover new aspects of
-              places you visit.
-            </Text>
-
-            <View style={styles.finalFeatures}>
-              {[
-                {
-                  icon: "flag-outline",
-                  title: "Challenges",
-                  text: "Themed missions to complete",
-                  color: "#15803D",
-                },
-                {
-                  icon: "map-marker-radius",
-                  title: "Locations",
-                  text: "Discover hidden gems",
-                  color: "#15803D",
-                },
-                {
-                  icon: "medal-outline",
-                  title: "Rewards",
-                  text: "Earn badges & points",
-                  color: "#15803D",
-                },
-                {
-                  icon: "routes",
-                  title: "Journeys",
-                  text: "Follow thematic paths",
-                  color: "#15803D",
-                },
-              ].map((item, index) => (
-                <Animated.View
-                  key={index}
-                  style={[
-                    styles.finalFeatureItem,
-                    {
-                      opacity: iconAnimValues[index],
-                      transform: [{ scale: iconAnimValues[index] }],
-                    },
-                  ]}
-                >
-                  <View style={[styles.finalIconCircle, { backgroundColor: item.color }]}>
-                    <MaterialCommunityIcons name={item.icon} size={26} color="#FFFFFF" />
-                  </View>
-                  <Text style={styles.finalFeatureTitle}>{item.title}</Text>
-                  <Text style={styles.finalFeatureText}>{item.text}</Text>
                 </Animated.View>
               ))}
             </View>
