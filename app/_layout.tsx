@@ -17,6 +17,7 @@ import { isAuthenticated } from "./services/authService";
 import { Colors } from "./constants/colours";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import CulturalContextScreen from "./screens/CulturalContextScreen";
+import AdvancedTravelAnalysisScreen from "./screens/AdvancedTravelAnalysisScreen";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -97,6 +98,7 @@ export default function Layout() {
       />
       <Stack.Screen name="Phrasebook" component={PhraseBookScreen} />
       <Stack.Screen name="CulturalContext" component={CulturalContextScreen} />
+      <Stack.Screen name="AdvancedTravelAnalysis" component={AdvancedTravelAnalysisScreen} />
     </Stack.Navigator>
   );
 }

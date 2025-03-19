@@ -26,4 +26,5 @@ export type RootStackParamList = {
     visitedPlaces: VisitedPlaceDetails[];
     region?: string;
   };
+  AdvancedTravelAnalysis: undefined;
 };

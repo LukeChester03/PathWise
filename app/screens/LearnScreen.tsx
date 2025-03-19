@@ -26,6 +26,7 @@ import { TravelProfile } from "../types/LearnScreen/TravelProfileTypes";
 import LanguageAssistant from "../components/LearnScreen/LanguageSection/LanguageAssistant";
 import LearnIntroOverlay from "../components/LearnScreen/LearnIntroOverlayComponent";
 import CulturalContextCard from "../components/LearnScreen/CulturalContextCard";
+import AdvancedTravelAnalysisCard from "../components/LearnScreen/TravelAnalysisSection/AdvancedTravelAnalysisCard";
 
 const { width, height } = Dimensions.get("window");
 
@@ -213,37 +214,6 @@ const mockAiData = {
       diningTips: "Bread is placed directly on the table, not on a bread plate",
     },
   ],
-
-  // Feature 5: Advanced Travel Analysis
-  travelInsights: {
-    visitFrequency: {
-      weekdays: {
-        most: "Saturday",
-        percentage: 45,
-        insight: "You're a weekend explorer, making the most of your free time",
-      },
-      timeOfDay: {
-        most: "Afternoon",
-        percentage: 68,
-        insight: "You prefer visiting attractions during less crowded afternoon hours",
-      },
-      season: {
-        most: "Spring",
-        percentage: 50,
-        insight: "Your exploration peaks during comfortable spring weather",
-      },
-    },
-    visitation: {
-      averageDuration: "2.5 hours",
-      averageDistance: "12 km",
-      mostVisitedCity: "Paris",
-    },
-    patterns: [
-      "You typically visit multiple related sites on the same day",
-      "You show a preference for outdoor landmarks in the morning and indoor museums in the afternoon",
-      "Your visits often follow historical chronology, from ancient to modern",
-    ],
-  },
 
   // Feature 6: Travel Preferences
   preferences: {
@@ -1424,167 +1394,6 @@ const LearnScreen = ({ route, navigation }) => {
     );
   };
 
-  const renderAdvancedTravelAnalysisCard = (cardAnimation) => {
-    return (
-      <Animated.View
-        style={[
-          styles.aiInsightsCard,
-          {
-            opacity: cardAnimation,
-            transform: [
-              {
-                translateY: cardAnimation.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [50, 0],
-                }),
-              },
-            ],
-          },
-        ]}
-      >
-        <View style={styles.aiRibbonContainer}>
-          <LinearGradient
-            colors={["#4F46E5", "#818CF8"]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={styles.aiRibbon}
-          >
-            <Text style={styles.aiRibbonText}>AI POWERED</Text>
-          </LinearGradient>
-        </View>
-
-        <View style={styles.aiInsightsHeader}>
-          <View style={styles.aiIconContainer}>
-            <Ionicons name="brain" size={24} color="#4F46E5" />
-          </View>
-          <View style={styles.aiTitleContainer}>
-            <Text style={styles.aiInsightsTitle}>Advanced Travel Analysis</Text>
-            <View style={styles.geminiLabelContainer}>
-              <Ionicons name="logo-google" size={10} color="#0369A1" style={{ marginRight: 4 }} />
-              <Text style={styles.geminiLabel}>Gemini AI</Text>
-            </View>
-          </View>
-        </View>
-
-        <TouchableOpacity
-          style={styles.aiInsightsDescriptionContainer}
-          onPress={() => toggleFeatureExpansion("travelAnalysis")}
-        >
-          <Text style={styles.aiInsightsDescription}>
-            Our multimodal AI has analyzed your travel history, photos, and preferences to generate
-            these insights:
-          </Text>
-          <Ionicons
-            name={expandedFeatures.travelAnalysis ? "chevron-up" : "chevron-down"}
-            size={20}
-            color="#4F46E5"
-          />
-        </TouchableOpacity>
-
-        {mockAiData.travelInsights.patterns.map((insight, index) => (
-          <View key={index} style={styles.insightItem}>
-            <Ionicons name="sparkles" size={18} color="#4F46E5" style={styles.insightIcon} />
-            <Text style={styles.insightText}>{insight}</Text>
-          </View>
-        ))}
-
-        {expandedFeatures.travelAnalysis && (
-          <View style={styles.extendedInsightsContainer}>
-            <View style={styles.visitationStatsContainer}>
-              <Text style={styles.visitationStatsTitle}>Your Travel Patterns</Text>
-
-              <View style={styles.visitationStats}>
-                <View style={styles.visitationStatItem}>
-                  <Ionicons name="time" size={18} color="#4F46E5" />
-                  <Text style={styles.visitationStatValue}>
-                    {mockAiData.travelInsights.visitation.averageDuration}
-                  </Text>
-                  <Text style={styles.visitationStatLabel}>Avg. Visit Duration</Text>
-                </View>
-
-                <View style={styles.visitationStatItem}>
-                  <Ionicons name="location" size={18} color="#4F46E5" />
-                  <Text style={styles.visitationStatValue}>
-                    {mockAiData.travelInsights.visitation.averageDistance}
-                  </Text>
-                  <Text style={styles.visitationStatLabel}>Avg. Travel Distance</Text>
-                </View>
-
-                <View style={styles.visitationStatItem}>
-                  <Ionicons name="navigate" size={18} color="#4F46E5" />
-                  <Text style={styles.visitationStatValue}>
-                    {mockAiData.travelInsights.visitation.mostVisitedCity}
-                  </Text>
-                  <Text style={styles.visitationStatLabel}>Most Visited City</Text>
-                </View>
-              </View>
-
-              <View style={styles.frequencyInsightContainer}>
-                <View style={styles.frequencyInsight}>
-                  <Text style={styles.frequencyInsightTitle}>Preferred Day</Text>
-                  <View style={styles.frequencyInsightContent}>
-                    <Text style={styles.frequencyInsightValue}>
-                      {mockAiData.travelInsights.visitFrequency.weekdays.most}
-                    </Text>
-                    <Text style={styles.frequencyInsightPercentage}>
-                      {mockAiData.travelInsights.visitFrequency.weekdays.percentage}%
-                    </Text>
-                  </View>
-                  <Text style={styles.frequencyInsightNote}>
-                    {mockAiData.travelInsights.visitFrequency.weekdays.insight}
-                  </Text>
-                </View>
-
-                <View style={styles.frequencyInsight}>
-                  <Text style={styles.frequencyInsightTitle}>Preferred Time</Text>
-                  <View style={styles.frequencyInsightContent}>
-                    <Text style={styles.frequencyInsightValue}>
-                      {mockAiData.travelInsights.visitFrequency.timeOfDay.most}
-                    </Text>
-                    <Text style={styles.frequencyInsightPercentage}>
-                      {mockAiData.travelInsights.visitFrequency.timeOfDay.percentage}%
-                    </Text>
-                  </View>
-                  <Text style={styles.frequencyInsightNote}>
-                    {mockAiData.travelInsights.visitFrequency.timeOfDay.insight}
-                  </Text>
-                </View>
-              </View>
-            </View>
-          </View>
-        )}
-
-        <View style={styles.aiSectionDivider}>
-          <View style={styles.dividerLine} />
-          <Text style={styles.dividerText}>Travel Preferences</Text>
-          <View style={styles.dividerLine} />
-        </View>
-
-        <View style={styles.trendsContainer}>
-          {mockAiData.preferences.categories.map((trend, index) => (
-            <View key={index} style={styles.trendItem}>
-              <View style={styles.trendLabelRow}>
-                <View style={styles.trendLabelWithIcon}>
-                  <Ionicons name={trend.icon} size={16} color="#4F46E5" style={styles.trendIcon} />
-                  <Text style={styles.trendLabel}>{trend.name}</Text>
-                </View>
-                <Text style={styles.trendPercentage}>{trend.percentage}%</Text>
-              </View>
-              <View style={styles.trendBarBackground}>
-                <View style={[styles.trendBarFill, { width: `${trend.percentage}%` }]} />
-              </View>
-            </View>
-          ))}
-        </View>
-
-        <TouchableOpacity style={styles.aiExpandButton}>
-          <Text style={styles.aiExpandText}>View Complete Analysis</Text>
-          <Ionicons name="chevron-forward" size={16} color="#4F46E5" />
-        </TouchableOpacity>
-      </Animated.View>
-    );
-  };
-
   const renderRecommendationsCard = (cardAnimation) => {
     return (
       <Animated.View
@@ -1950,7 +1759,14 @@ const LearnScreen = ({ route, navigation }) => {
           {renderFeatureCards(cardAnimations.travelSnapshot)}
 
           {/* Feature 5 & 6: Advanced Travel Analysis + Travel Preferences */}
-          {renderAdvancedTravelAnalysisCard(cardAnimations.analysis)}
+          <AdvancedTravelAnalysisCard
+            cardAnimation={cardAnimations.analysis}
+            visitedPlaces={visitedPlaces}
+            expandedFeatures={{
+              advancedAnalysis: expandedFeatures.travelAnalysis,
+            }}
+            toggleFeatureExpansion={() => toggleFeatureExpansion("travelAnalysis")}
+          />
 
           {/* Feature 3: AI-Recommended Destinations */}
           {renderRecommendationsCard(cardAnimations.recommendations)}
