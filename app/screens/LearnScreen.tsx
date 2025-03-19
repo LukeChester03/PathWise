@@ -23,7 +23,7 @@ import Header from "../components/Global/Header";
 import PlacesCarousel from "../components/Places/PlacesCarousel";
 import AiTravelSnapshot from "../components/LearnScreen/AiTravelSnapshot";
 import { TravelProfile } from "../types/LearnScreen/TravelProfileTypes";
-import LanguageAssistant from "../components/LearnScreen/LanguageAssistant";
+import LanguageAssistant from "../components/LearnScreen/LanguageSection/LanguageAssistant";
 import LearnIntroOverlay from "../components/LearnScreen/LearnIntroOverlayComponent";
 import CulturalContextCard from "../components/LearnScreen/CulturalContextCard";
 

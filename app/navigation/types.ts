@@ -22,4 +22,8 @@ export type RootStackParamList = {
     visitedPlaces: VisitedPlaceDetails[];
     phrases?: any[];
   };
+  CulturalContext: {
+    visitedPlaces: VisitedPlaceDetails[];
+    region?: string;
+  };
 };

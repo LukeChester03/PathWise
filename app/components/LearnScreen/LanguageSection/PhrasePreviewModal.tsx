@@ -10,38 +10,9 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { Phrase } from "../../types/LearnScreen/LanguageTypes";
-import { Colors } from "../../constants/colours";
-
-// Phrase Preview Card Component for the Explore Modal
-const PhrasePreviewCard = ({ phrase }: { phrase: Phrase }) => {
-  // Get category icon based on context
-  const getCategoryIcon = (context: string) => {
-    const contextLower = context.toLowerCase();
-    if (contextLower.includes("greeting")) return "hand-left-outline";
-    if (contextLower.includes("food") || contextLower.includes("restaurant"))
-      return "restaurant-outline";
-    if (contextLower.includes("direction") || contextLower.includes("location"))
-      return "navigate-outline";
-    if (contextLower.includes("shopping")) return "cart-outline";
-    if (contextLower.includes("emergency")) return "medkit-outline";
-    if (contextLower.includes("transportation")) return "car-outline";
-    return "chatbubble-outline";
-  };
-
-  return (
-    <View style={styles.previewCard}>
-      <View style={styles.previewCardHeader}>
-        <View style={styles.previewCategoryContainer}>
-          <Ionicons name={getCategoryIcon(phrase.useContext)} size={14} color={Colors.primary} />
-          <Text style={styles.previewCategoryText}>{phrase.useContext}</Text>
-        </View>
-      </View>
-      <Text style={styles.previewPhrase}>{phrase.phrase}</Text>
-      <Text style={styles.previewTranslation}>{phrase.translation}</Text>
-    </View>
-  );
-};
+import { Phrase } from "../../../types/LearnScreen/LanguageTypes";
+import { Colors } from "../../../constants/colours";
+import PhrasePreviewCard from "./PhrasePreviewCard";
 
 interface PhrasePreviewModalProps {
   visible: boolean;
@@ -62,7 +33,7 @@ const PhrasePreviewModal: React.FC<PhrasePreviewModalProps> = ({
 }) => {
   // Function to get a flag emoji from country name
   const getCountryFlag = (countryName: string) => {
-    const flags = {
+    const flags: { [key: string]: string } = {
       France: "🇫🇷",
       Italy: "🇮🇹",
       Spain: "🇪🇸",
@@ -211,45 +182,6 @@ const styles = StyleSheet.create({
   },
   previewListContainer: {
     paddingBottom: 16,
-  },
-  previewCard: {
-    backgroundColor: "#F9FAFB",
-    borderRadius: 12,
-    padding: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
-  },
-  previewCardHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 8,
-  },
-  previewCategoryContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#F0F9FF",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  previewCategoryText: {
-    fontSize: 12,
-    color: Colors.primary,
-    marginLeft: 4,
-  },
-  previewPhrase: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#111827",
-    marginBottom: 4,
-  },
-  previewTranslation: {
-    fontSize: 14,
-    color: "#4B5563",
   },
   previewSeparator: {
     height: 12,

@@ -36,7 +36,7 @@ import {
 import { Phrase, LanguageGroup } from "../types/LearnScreen/LanguageTypes";
 import useTextToSpeech from "../hooks/AI/useTextToSpeech";
 import { Colors } from "../constants/colours";
-import PhrasePreviewModal from "../components/LearnScreen/PhrasePreviewModal";
+import PhrasePreviewModal from "../components/LearnScreen/LanguageSection/PhrasePreviewModal";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const CARD_MARGIN = 16;

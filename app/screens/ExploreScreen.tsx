@@ -740,73 +740,6 @@ const ExploreScreen: React.FC<ExploreScreenProps> = ({ navigation }) => {
     );
   };
 
-  const renderFeaturedSection = (): JSX.Element => {
-    return (
-      <>
-        <View style={styles.sectionHeader}>
-          <View style={styles.sectionTitleContainer}>
-            <Ionicons name="star" size={22} color={Colors.primary} style={styles.sectionIcon} />
-            <Text style={styles.sectionTitle}>Popular Destinations</Text>
-          </View>
-        </View>
-
-        <View style={styles.featuredGrid}>
-          <TouchableOpacity style={styles.featuredItem} onPress={navigateToDiscover}>
-            <Image
-              source={{ uri: "https://source.unsplash.com/random/?city" }}
-              style={styles.featuredImage}
-            />
-            <LinearGradient
-              colors={["transparent", "rgba(0,0,0,0.8)"]}
-              style={styles.featuredGradient}
-            >
-              <Text style={styles.featuredTitle}>Cities</Text>
-            </LinearGradient>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.featuredItem} onPress={navigateToDiscover}>
-            <Image
-              source={{ uri: "https://source.unsplash.com/random/?nature" }}
-              style={styles.featuredImage}
-            />
-            <LinearGradient
-              colors={["transparent", "rgba(0,0,0,0.8)"]}
-              style={styles.featuredGradient}
-            >
-              <Text style={styles.featuredTitle}>Nature</Text>
-            </LinearGradient>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.featuredItem} onPress={navigateToDiscover}>
-            <Image
-              source={{ uri: "https://source.unsplash.com/random/?beach" }}
-              style={styles.featuredImage}
-            />
-            <LinearGradient
-              colors={["transparent", "rgba(0,0,0,0.8)"]}
-              style={styles.featuredGradient}
-            >
-              <Text style={styles.featuredTitle}>Beaches</Text>
-            </LinearGradient>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.featuredItem} onPress={navigateToDiscover}>
-            <Image
-              source={{ uri: "https://source.unsplash.com/random/?mountain" }}
-              style={styles.featuredImage}
-            />
-            <LinearGradient
-              colors={["transparent", "rgba(0,0,0,0.8)"]}
-              style={styles.featuredGradient}
-            >
-              <Text style={styles.featuredTitle}>Mountains</Text>
-            </LinearGradient>
-          </TouchableOpacity>
-        </View>
-      </>
-    );
-  };
-
   const renderContent = (): JSX.Element => {
     // Show only the loading state when both are loading
     if (loading && loadingMyPlaces) {
@@ -868,9 +801,6 @@ const ExploreScreen: React.FC<ExploreScreenProps> = ({ navigation }) => {
         <View style={styles.sectionContainer}>{renderMyPlacesSection()}</View>
         {/* Nearby Places Section */}
         <View style={styles.sectionContainer}>{renderNearbyPlacesSection()}</View>
-
-        {/* Featured Destinations Section */}
-        <View style={styles.sectionContainer}>{renderFeaturedSection()}</View>
       </ScrollView>
     );
   };

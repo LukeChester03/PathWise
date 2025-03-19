@@ -233,7 +233,7 @@ const CulturalContextCard = ({
 
 const styles = StyleSheet.create({
   container: {
-    marginHorizontal: 16,
+    marginHorizontal: -8,
     marginBottom: 24,
   },
   cardContainer: {

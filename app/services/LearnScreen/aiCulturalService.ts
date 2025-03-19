@@ -24,7 +24,7 @@ import { VisitedPlaceDetails } from "../../types/MapTypes";
 
 // Constants
 const CULTURAL_CONTEXT_REFRESH_INTERVAL = 24 * 60 * 60 * 1000; // 24 hours
-const MAX_DAILY_REQUESTS = 5; // Maximum requests per day
+const MAX_DAILY_REQUESTS = 10; // Maximum requests per day
 const ASYNC_STORAGE_PREFIX = "@cultural_insights:";
 const ASYNC_STORAGE_SETTINGS_KEY = "@cultural_settings";
 
