@@ -1,6 +1,13 @@
 // components/LearnScreen/KnowledgeQuest/KnowledgeQuestCard.tsx
 import React, { useState, useEffect } from "react";
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from "react-native";
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  ActivityIndicator,
+  Dimensions,
+} from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { Animated } from "react-native";
@@ -9,6 +16,8 @@ import {
   getKnowledgeQuestStats,
 } from "../../../services/LearnScreen/knowledgeQuestService";
 import { Quiz, KnowledgeQuestStats } from "../../../types/LearnScreen/KnowledgeQuestTypes";
+
+const { width } = Dimensions.get("window");
 
 interface KnowledgeQuestCardProps {
   cardAnimation: Animated.Value;
@@ -22,34 +31,40 @@ const KnowledgeQuestCard = ({
   onStartQuiz,
 }: KnowledgeQuestCardProps) => {
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [stats, setStats] = useState<KnowledgeQuestStats | null>(null);
   const [featuredQuiz, setFeaturedQuiz] = useState<Quiz | null>(null);
+  const [quizzes, setQuizzes] = useState<Quiz[]>([]);
 
   useEffect(() => {
-    const loadData = async () => {
-      try {
-        setLoading(true);
-
-        // Load stats
-        const userStats = await getKnowledgeQuestStats();
-        setStats(userStats);
-
-        // Get a featured quiz
-        const quizzes = await getAvailableQuizzes(5);
-        if (quizzes.length > 0) {
-          // Find a quiz that hasn't been completed yet, or use the first one
-          const uncompletedQuiz = quizzes.find((quiz) => !quiz.lastCompletedAt);
-          setFeaturedQuiz(uncompletedQuiz || quizzes[0]);
-        }
-      } catch (error) {
-        console.error("Error loading Knowledge Quest data:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
     loadData();
   }, []);
+
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      // Load stats
+      const userStats = await getKnowledgeQuestStats();
+      setStats(userStats);
+
+      // Get available quizzes
+      const availableQuizzes = await getAvailableQuizzes(5);
+      setQuizzes(availableQuizzes);
+
+      if (availableQuizzes.length > 0) {
+        // Find a quiz that hasn't been completed yet, or use the first one
+        const uncompletedQuiz = availableQuizzes.find((quiz) => !quiz.lastCompletedAt);
+        setFeaturedQuiz(uncompletedQuiz || availableQuizzes[0]);
+      }
+    } catch (error) {
+      console.error("Error loading Knowledge Quest data:", error);
+      setError("Failed to load quizzes");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleStartQuiz = () => {
     if (featuredQuiz) {
@@ -61,43 +76,105 @@ const KnowledgeQuestCard = ({
     navigation.navigate("KnowledgeQuestScreen");
   };
 
-  if (loading) {
+  // Render loading state
+  const renderLoading = () => (
+    <View style={styles.contentContainer}>
+      <ActivityIndicator size="small" color="#FFFFFF" />
+      <Text style={styles.loadingText}>Loading quizzes...</Text>
+    </View>
+  );
+
+  // Render error state
+  const renderError = () => (
+    <View style={styles.contentContainer}>
+      <Ionicons name="alert-circle-outline" size={32} color="#FFFFFF" />
+      <Text style={styles.errorTitle}>Oops!</Text>
+      <Text style={styles.errorText}>We couldn't load your quizzes</Text>
+      <TouchableOpacity style={styles.retryButton} onPress={loadData}>
+        <Text style={styles.retryButtonText}>Try Again</Text>
+      </TouchableOpacity>
+    </View>
+  );
+
+  // Render empty state
+  const renderEmpty = () => (
+    <View style={styles.contentContainer}>
+      <Ionicons name="school-outline" size={36} color="#FFFFFF" />
+      <Text style={styles.emptyTitle}>Start Learning</Text>
+      <Text style={styles.emptyText}>
+        Take quizzes to test your travel knowledge and earn badges
+      </Text>
+    </View>
+  );
+
+  // Render content state
+  const renderContent = () => {
+    if (!featuredQuiz) return renderEmpty();
+
     return (
-      <Animated.View
-        style={[
-          styles.knowledgeQuestCard,
-          {
-            opacity: cardAnimation,
-            transform: [
-              {
-                translateY: cardAnimation.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [50, 0],
-                }),
-              },
-            ],
-          },
-        ]}
-      >
-        <LinearGradient
-          colors={["#8B5CF6", "#6366F1"]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.knowledgeQuestGradient}
-        >
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="small" color="#FFFFFF" />
-            <Text style={styles.loadingText}>Loading quizzes...</Text>
+      <View style={styles.contentContainer}>
+        <View style={styles.header}>
+          <View style={styles.titleContainer}>
+            <Text style={styles.cardTitle}>Knowledge Quest</Text>
+            <View style={styles.badgeContainer}>
+              <Ionicons name="school" size={12} color="#FFFFFF" />
+              <Text style={styles.badgeText}>Fun Learning</Text>
+            </View>
           </View>
-        </LinearGradient>
-      </Animated.View>
+
+          {stats && (
+            <View style={styles.statsRow}>
+              <View style={styles.statItem}>
+                <Text style={styles.statValue}>{stats.totalQuizzesTaken}</Text>
+                <Text style={styles.statLabel}>Quizzes</Text>
+              </View>
+              <View style={styles.statDivider} />
+              <View style={styles.statItem}>
+                <Text style={styles.statValue}>{stats.accuracy}%</Text>
+                <Text style={styles.statLabel}>Accuracy</Text>
+              </View>
+              <View style={styles.statDivider} />
+              <View style={styles.statItem}>
+                <Text style={styles.statValue}>{stats.level}</Text>
+                <Text style={styles.statLabel}>Level</Text>
+              </View>
+            </View>
+          )}
+        </View>
+
+        <View style={styles.featuredContainer}>
+          <Text style={styles.featuredLabel}>Featured Quiz</Text>
+          <Text style={styles.featuredTitle}>{featuredQuiz.title}</Text>
+
+          <View style={styles.quizDetails}>
+            <View style={styles.quizDetail}>
+              <Ionicons name="help-circle" size={14} color="rgba(255,255,255,0.8)" />
+              <Text style={styles.quizDetailText}>{featuredQuiz.questions.length} questions</Text>
+            </View>
+            <View style={styles.quizDetail}>
+              <Ionicons name="speedometer" size={14} color="rgba(255,255,255,0.8)" />
+              <Text style={styles.quizDetailText}>
+                {featuredQuiz.difficulty.charAt(0).toUpperCase() + featuredQuiz.difficulty.slice(1)}
+              </Text>
+            </View>
+            <View style={styles.quizDetail}>
+              <Ionicons name="time" size={14} color="rgba(255,255,255,0.8)" />
+              <Text style={styles.quizDetailText}>~{featuredQuiz.questions.length * 1.5} min</Text>
+            </View>
+          </View>
+
+          <Text style={styles.quizDescription} numberOfLines={2}>
+            {featuredQuiz.description}
+          </Text>
+        </View>
+      </View>
     );
-  }
+  };
 
   return (
     <Animated.View
       style={[
-        styles.knowledgeQuestCard,
+        styles.container,
         {
           opacity: cardAnimation,
           transform: [
@@ -111,113 +188,81 @@ const KnowledgeQuestCard = ({
         },
       ]}
     >
-      <LinearGradient
-        colors={["#8B5CF6", "#6366F1"]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.knowledgeQuestGradient}
-      >
-        <View style={styles.knowledgeQuestContent}>
-          <View style={styles.knowledgeQuestHeader}>
-            <Text style={styles.knowledgeQuestTitle}>Knowledge Quest</Text>
-            <View style={styles.knowledgeQuestBadge}>
-              <Ionicons name="school" size={12} color="#FFFFFF" />
-              <Text style={styles.knowledgeQuestBadgeText}>Fun Learning</Text>
-            </View>
-          </View>
+      <TouchableOpacity style={styles.cardContainer} activeOpacity={0.9} onPress={handleViewAll}>
+        <LinearGradient
+          colors={["#6366F1", "#4F46E5"]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.gradient}
+        >
+          {loading ? renderLoading() : error ? renderError() : renderContent()}
 
-          <Text style={styles.knowledgeQuestDescription}>
-            Test your knowledge about places you've visited and earn badges!
-          </Text>
-
-          {stats && (
-            <View style={styles.knowledgeQuestStatsRow}>
-              <View style={styles.knowledgeQuestStat}>
-                <Text style={styles.knowledgeQuestStatValue}>{stats.totalQuizzesTaken}</Text>
-                <Text style={styles.knowledgeQuestStatLabel}>Quizzes</Text>
-              </View>
-
-              <View style={styles.knowledgeQuestStat}>
-                <Text style={styles.knowledgeQuestStatValue}>{stats.accuracy}%</Text>
-                <Text style={styles.knowledgeQuestStatLabel}>Accuracy</Text>
-              </View>
-
-              <View style={styles.knowledgeQuestStat}>
-                <Text style={styles.knowledgeQuestStatValue}>{stats.level}</Text>
-                <Text style={styles.knowledgeQuestStatLabel}>Level</Text>
-              </View>
-            </View>
-          )}
-
-          {featuredQuiz ? (
-            <View style={styles.featuredQuizContainer}>
-              <Text style={styles.featuredQuizLabel}>Featured Quiz</Text>
-              <Text style={styles.featuredQuizTitle}>{featuredQuiz.title}</Text>
-              <View style={styles.featuredQuizDetails}>
-                <View style={styles.featuredQuizDetail}>
-                  <Ionicons name="help-circle" size={14} color="rgba(255,255,255,0.7)" />
-                  <Text style={styles.featuredQuizDetailText}>
-                    {featuredQuiz.questions.length} questions
-                  </Text>
-                </View>
-                <View style={styles.featuredQuizDetail}>
-                  <Ionicons name="speedometer" size={14} color="rgba(255,255,255,0.7)" />
-                  <Text style={styles.featuredQuizDetailText}>{featuredQuiz.difficulty}</Text>
-                </View>
-              </View>
-            </View>
-          ) : (
-            <Text style={styles.noQuizText}>No quizzes available. Check back soon!</Text>
-          )}
-
-          <View style={styles.buttonContainer}>
-            {featuredQuiz && (
-              <TouchableOpacity style={styles.startKnowledgeQuestButton} onPress={handleStartQuiz}>
-                <Text style={styles.startKnowledgeQuestButtonText}>Start Quiz</Text>
-                <Ionicons name="play" size={16} color="#FFFFFF" />
+          <View style={styles.footer}>
+            {!loading && !error && featuredQuiz && (
+              <TouchableOpacity
+                style={styles.startButton}
+                onPress={handleStartQuiz}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.startButtonText}>Start Quiz</Text>
+                <Ionicons name="play" size={16} color="#4F46E5" />
               </TouchableOpacity>
             )}
 
-            <TouchableOpacity style={styles.viewAllButton} onPress={handleViewAll}>
-              <Text style={styles.viewAllButtonText}>View All Quizzes</Text>
+            <TouchableOpacity
+              style={styles.viewAllButton}
+              onPress={handleViewAll}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.viewAllText}>
+                {quizzes.length > 0 ? `View All (${quizzes.length})` : "Browse Quizzes"}
+              </Text>
               <Ionicons name="chevron-forward" size={16} color="#FFFFFF" />
             </TouchableOpacity>
           </View>
-        </View>
-      </LinearGradient>
+        </LinearGradient>
+      </TouchableOpacity>
     </Animated.View>
   );
 };
 
 const styles = StyleSheet.create({
-  knowledgeQuestCard: {
-    borderRadius: 16,
+  container: {
+    marginHorizontal: -8,
     marginBottom: 24,
+  },
+  cardContainer: {
+    borderRadius: 20,
     overflow: "hidden",
-    shadowColor: "#6366F1",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 10,
     elevation: 5,
+    shadowColor: "#4F46E5",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
   },
-  knowledgeQuestGradient: {
-    borderRadius: 16,
+  gradient: {
+    minHeight: 220,
+    justifyContent: "space-between",
   },
-  knowledgeQuestContent: {
-    padding: 20,
+  contentContainer: {
+    padding: 24,
+    flex: 1,
   },
-  knowledgeQuestHeader: {
+  header: {
+    marginBottom: 16,
+  },
+  titleContainer: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: 12,
   },
-  knowledgeQuestTitle: {
-    fontSize: 18,
+  cardTitle: {
+    fontSize: 20,
     fontWeight: "700",
     color: "#FFFFFF",
   },
-  knowledgeQuestBadge: {
+  badgeContainer: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "rgba(255, 255, 255, 0.2)",
@@ -225,103 +270,98 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 12,
   },
-  knowledgeQuestBadgeText: {
+  badgeText: {
     fontSize: 11,
     fontWeight: "600",
     color: "#FFFFFF",
     marginLeft: 4,
   },
-  knowledgeQuestDescription: {
-    fontSize: 14,
-    color: "#FFFFFF",
-    opacity: 0.9,
-    marginBottom: 16,
-  },
-  knowledgeQuestStatsRow: {
+  statsRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     backgroundColor: "rgba(255, 255, 255, 0.15)",
     borderRadius: 12,
     padding: 12,
-    marginBottom: 16,
   },
-  knowledgeQuestStat: {
-    alignItems: "center",
+  statItem: {
     flex: 1,
+    alignItems: "center",
   },
-  knowledgeQuestStatValue: {
+  statValue: {
     fontSize: 18,
     fontWeight: "700",
     color: "#FFFFFF",
     marginBottom: 2,
   },
-  knowledgeQuestStatLabel: {
+  statLabel: {
     fontSize: 11,
     color: "rgba(255, 255, 255, 0.8)",
   },
-  loadingContainer: {
-    padding: 40,
-    alignItems: "center",
-    justifyContent: "center",
+  statDivider: {
+    width: 1,
+    height: "80%",
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    alignSelf: "center",
   },
-  loadingText: {
-    color: "#FFFFFF",
-    marginTop: 8,
-    fontSize: 14,
-  },
-  featuredQuizContainer: {
+  featuredContainer: {
     backgroundColor: "rgba(255, 255, 255, 0.15)",
     borderRadius: 12,
-    padding: 14,
-    marginBottom: 16,
+    padding: 16,
+    marginTop: 8,
   },
-  featuredQuizLabel: {
+  featuredLabel: {
     fontSize: 12,
     fontWeight: "600",
     color: "rgba(255, 255, 255, 0.8)",
     marginBottom: 4,
   },
-  featuredQuizTitle: {
+  featuredTitle: {
     fontSize: 16,
     fontWeight: "700",
     color: "#FFFFFF",
     marginBottom: 8,
   },
-  featuredQuizDetails: {
+  quizDetails: {
     flexDirection: "row",
     justifyContent: "flex-start",
+    marginBottom: 10,
+    flexWrap: "wrap",
   },
-  featuredQuizDetail: {
+  quizDetail: {
     flexDirection: "row",
     alignItems: "center",
     marginRight: 16,
+    marginBottom: 4,
   },
-  featuredQuizDetailText: {
+  quizDetailText: {
     fontSize: 12,
     color: "rgba(255, 255, 255, 0.8)",
     marginLeft: 4,
   },
-  noQuizText: {
-    color: "rgba(255, 255, 255, 0.8)",
-    textAlign: "center",
-    marginVertical: 16,
-    fontStyle: "italic",
+  quizDescription: {
+    fontSize: 13,
+    lineHeight: 18,
+    color: "rgba(255, 255, 255, 0.9)",
   },
-  buttonContainer: {
+  footer: {
+    padding: 16,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255, 255, 255, 0.2)",
     gap: 12,
   },
-  startKnowledgeQuestButton: {
+  startButton: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#FFFFFF",
     paddingVertical: 12,
     borderRadius: 12,
+    marginBottom: 8,
   },
-  startKnowledgeQuestButtonText: {
+  startButtonText: {
     fontSize: 14,
     fontWeight: "600",
-    color: "#6366F1",
+    color: "#4F46E5",
     marginRight: 6,
   },
   viewAllButton: {
@@ -332,11 +372,62 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 12,
   },
-  viewAllButtonText: {
+  viewAllText: {
     fontSize: 14,
     fontWeight: "600",
     color: "#FFFFFF",
     marginRight: 6,
+  },
+  // Loading state styles
+  loadingText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#FFFFFF",
+    marginTop: 12,
+    textAlign: "center",
+  },
+  // Error state styles
+  errorTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#FFFFFF",
+    marginTop: 12,
+    marginBottom: 8,
+    textAlign: "center",
+  },
+  errorText: {
+    fontSize: 14,
+    color: "rgba(255, 255, 255, 0.9)",
+    marginBottom: 16,
+    textAlign: "center",
+  },
+  retryButton: {
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    alignSelf: "center",
+  },
+  retryButtonText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#FFFFFF",
+  },
+  // Empty state styles
+  emptyTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#FFFFFF",
+    marginTop: 12,
+    marginBottom: 8,
+    textAlign: "center",
+  },
+  emptyText: {
+    fontSize: 14,
+    color: "rgba(255, 255, 255, 0.9)",
+    textAlign: "center",
+    lineHeight: 20,
+    paddingHorizontal: 20,
   },
 });
 

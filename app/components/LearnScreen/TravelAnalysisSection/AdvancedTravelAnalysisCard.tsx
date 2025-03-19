@@ -28,7 +28,7 @@ import {
 import { VisitedPlaceDetails } from "../../../types/MapTypes";
 
 // Required number of places to unlock the feature
-const REQUIRED_PLACES = 3;
+const REQUIRED_PLACES = 10;
 
 interface AdvancedTravelAnalysisCardProps {
   cardAnimation: Animated.Value;

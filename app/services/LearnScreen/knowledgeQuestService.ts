@@ -1143,9 +1143,25 @@ export const getAllQuizResults = async (limitCount = 10): Promise<QuizResult[]> 
       return [];
     }
 
+    // Check if we have any in memory cache first
+    if (quizResultsCache.size > 0) {
+      const allResults = Array.from(quizResultsCache.values()).flat();
+      const sortedResults = allResults.sort(
+        (a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime()
+      );
+      return sortedResults.slice(0, limitCount);
+    }
+
     const resultsCollection = collection(db, "users", currentUser.uid, "quizResults");
-    const q = query(resultsCollection, orderBy("completedAt", "desc"), limit(limitCount));
-    const resultsSnapshot = await getDocs(q);
+
+    // Create the query correctly, using limit as a function
+    const resultsQuery = query(
+      resultsCollection,
+      orderBy("completedAt", "desc"),
+      limit(limitCount) // Pass the number to the limit function
+    );
+
+    const resultsSnapshot = await getDocs(resultsQuery);
 
     if (resultsSnapshot.empty) {
       return [];
@@ -1168,10 +1184,14 @@ export const getAllQuizResults = async (limitCount = 10): Promise<QuizResult[]> 
     // Cache results by quiz
     for (const [quizId, quizResults] of resultsByQuiz.entries()) {
       quizResultsCache.set(quizId, quizResults);
-      await AsyncStorage.setItem(
-        `${QUIZ_RESULTS_CACHE_PREFIX}${quizId}`,
-        JSON.stringify(quizResults)
-      );
+      try {
+        await AsyncStorage.setItem(
+          `${QUIZ_RESULTS_CACHE_PREFIX}${quizId}`,
+          JSON.stringify(quizResults)
+        );
+      } catch (asyncError) {
+        console.warn("Error caching quiz results to AsyncStorage:", asyncError);
+      }
     }
 
     return results;

@@ -36,7 +36,7 @@ interface LearnIntroOverlayProps {
 const LearnIntroOverlay: React.FC<LearnIntroOverlayProps> = ({ visible, onClose }) => {
   // State to track which intro screen to show
   const [currentStep, setCurrentStep] = useState(0);
-  const MAX_STEPS = 7; // One for each feature
+  const MAX_STEPS = 6; // One for each feature
   const prevStepRef = useRef(currentStep);
 
   // Animation values
@@ -360,52 +360,6 @@ const LearnIntroOverlay: React.FC<LearnIntroOverlayProps> = ({ visible, onClose 
         return (
           <>
             <View style={styles.stepHeader}>
-              <Ionicons name="compass" size={Math.min(iconSize * 0.8, 42)} color="#15803D" />
-              <Text style={styles.stepTitle}>AI-Recommended Destinations</Text>
-            </View>
-
-            <Text style={styles.stepDescription}>
-              Discover new places tailored to your interests based on your travel history and
-              preferences.
-            </Text>
-
-            <View style={styles.featureItemsContainer}>
-              {[
-                { icon: "map-marker", text: "Get personalized destination recommendations" },
-                { icon: "compass-rose", text: "See why each place matches your interests" },
-                { icon: "heart-outline", text: "Save places to your wishlist for future visits" },
-              ].map((item, index) => (
-                <Animated.View
-                  key={index}
-                  style={[
-                    styles.featureItem,
-                    {
-                      opacity: iconAnimValues[index],
-                      transform: [
-                        {
-                          translateX: iconAnimValues[index].interpolate({
-                            inputRange: [0, 1],
-                            outputRange: [20, 0],
-                          }),
-                        },
-                      ],
-                    },
-                  ]}
-                >
-                  <View style={styles.featureItemContent}>
-                    <MaterialCommunityIcons name={item.icon} size={22} color="#15803D" />
-                    <Text style={styles.featureText}>{item.text}</Text>
-                  </View>
-                </Animated.View>
-              ))}
-            </View>
-          </>
-        );
-
-      case 4:
-        return (
-          <>
-            <View style={styles.stepHeader}>
               <Ionicons name="people" size={Math.min(iconSize * 0.8, 42)} color="#7E22CE" />
               <Text style={styles.stepTitle}>Cultural Context</Text>
             </View>
@@ -448,7 +402,7 @@ const LearnIntroOverlay: React.FC<LearnIntroOverlayProps> = ({ visible, onClose 
           </>
         );
 
-      case 5:
+      case 4:
         return (
           <>
             <View style={styles.stepHeader}>
@@ -494,7 +448,7 @@ const LearnIntroOverlay: React.FC<LearnIntroOverlayProps> = ({ visible, onClose 
           </>
         );
 
-      case 6:
+      case 5:
         return (
           <>
             <View style={styles.stepHeader}>

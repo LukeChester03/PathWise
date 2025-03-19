@@ -39,27 +39,48 @@ const KnowledgeQuestScreen = ({ navigation }) => {
     loadData();
   }, []);
 
+  useEffect(() => {
+    // Check if route.params exists and contains activeTab
+    if (navigation.route && navigation.route.params && navigation.route.params.activeTab) {
+      setActiveTab(navigation.route.params.activeTab);
+    }
+  }, [navigation.route]);
+
   const loadData = async () => {
     try {
       setLoading(true);
 
-      // Get stats, quizzes, and recent results
-      const [userStats, availableQuizzes, results] = await Promise.all([
-        getKnowledgeQuestStats(),
-        getAvailableQuizzes(20),
-        getAllQuizResults(5),
-      ]);
+      // Make separate calls instead of Promise.all for better error handling
+      let userStats;
+      let availableQuizzes;
+      let results;
 
-      setStats(userStats);
-      setQuizzes(availableQuizzes);
-      setRecentResults(results);
+      try {
+        userStats = await getKnowledgeQuestStats();
+        setStats(userStats);
+      } catch (statsError) {
+        console.error("Error loading quiz stats:", statsError);
+      }
+
+      try {
+        availableQuizzes = await getAvailableQuizzes(20);
+        setQuizzes(availableQuizzes);
+      } catch (quizzesError) {
+        console.error("Error loading available quizzes:", quizzesError);
+      }
+
+      try {
+        results = await getAllQuizResults(5); // Pass number directly
+        setRecentResults(results);
+      } catch (resultsError) {
+        console.error("Error loading quiz results:", resultsError);
+      }
     } catch (error) {
       console.error("Error loading Knowledge Quest data:", error);
     } finally {
       setLoading(false);
     }
   };
-
   const handleRefresh = async () => {
     try {
       setRefreshing(true);
@@ -375,9 +396,10 @@ const KnowledgeQuestScreen = ({ navigation }) => {
           subtitle="Test your travel knowledge"
           showBackButton
           onBackPress={() => navigation.goBack()}
-          showIcon
+          showIcon={false}
           iconName="school"
           iconColor="#6366F1"
+          showHelp={false}
         />
 
         {renderHeader()}

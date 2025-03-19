@@ -15,11 +15,28 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { Colors } from "../constants/colours";
-import { getQuizById, recordQuizCompletion } from "../services/LearnScreen/knowledgeQuestService";
+import {
+  getQuizById,
+  recordQuizCompletion,
+  getKnowledgeQuestStats,
+} from "../services/LearnScreen/knowledgeQuestService";
 import { Quiz, QuizResult } from "../types/LearnScreen/KnowledgeQuestTypes";
 import { useFocusEffect } from "@react-navigation/native";
 import Header from "../components/Global/Header";
 import ScreenWithNavBar from "../components/Global/ScreenWithNavbar";
+import QuizAnalysis from "../components/LearnScreen/KnowledgeQuestSection/QuizAnalysis";
+import {
+  checkScoreBadges,
+  updateQuizBadgeProgress,
+} from "../services/LearnScreen/knowledgeQuestBadgeService";
+import { getAllUserBadges } from "../services/LearnScreen/badgeService";
+import { TravelBadge } from "../types/LearnScreen/TravelProfileTypes";
+import BadgeEarnedNotification from "../components/LearnScreen/KnowledgeQuestSection/BadgeEarnedNotification";
+import { awardQuizCompletionXP, awardBadgeCompletionXP } from "../services/Levelling/quizXpService";
+import XPEarnedNotification from "../components/LearnScreen/KnowledgeQuestSection/XpEarnedNotification";
+
+// Define result flow steps
+type ResultStep = "QUIZ" | "RESULTS" | "XP" | "BADGE";
 
 const QuizSessionScreen = ({ navigation, route }) => {
   const { quizId } = route.params;
@@ -40,6 +57,18 @@ const QuizSessionScreen = ({ navigation, route }) => {
   const [quizComplete, setQuizComplete] = useState(false);
   const [quizResult, setQuizResult] = useState<QuizResult | null>(null);
   const [questionStartTime, setQuestionStartTime] = useState<number>(0);
+  const [showDetailedAnalysis, setShowDetailedAnalysis] = useState(false);
+  const [earnedBadges, setEarnedBadges] = useState<TravelBadge[]>([]);
+  const [currentBadgeIndex, setCurrentBadgeIndex] = useState(0);
+  const [earnedXP, setEarnedXP] = useState<{
+    totalXP: number;
+    breakdown: { reason: string; amount: number }[];
+  }>({ totalXP: 0, breakdown: [] });
+  const [badgeXP, setBadgeXP] = useState<number>(0);
+
+  // Track which step of the result flow we're in
+  const [resultStep, setResultStep] = useState<ResultStep>("QUIZ");
+
   const scrollViewRef = useRef<ScrollView>(null);
 
   // Animation values
@@ -189,26 +218,76 @@ const QuizSessionScreen = ({ navigation, route }) => {
     try {
       // Record quiz completion
       const result = await recordQuizCompletion(quiz, answers);
+
+      // Log the result to debug
+      console.log("Quiz result:", result);
+
+      // Set the quiz result state
       setQuizResult(result);
+
+      // Get user stats for XP calculation
+      const stats = await getKnowledgeQuestStats();
+
+      // Award XP for quiz completion
+      const xpResult = await awardQuizCompletionXP(
+        quiz,
+        result,
+        stats.totalQuizzesTaken,
+        false, // You can determine if this is the first quiz in this category
+        stats.streakDays
+      );
+      setEarnedXP(xpResult);
+
+      // Check and award badges
+      const earnedBadgeIds = await updateQuizBadgeProgress();
+      // Also check score-specific badges
+      const scoreBadgeIds = await checkScoreBadges(result.score);
+
+      // Combine all earned badge IDs
+      const allBadgeIds = [...earnedBadgeIds, ...scoreBadgeIds];
+
+      if (allBadgeIds.length > 0) {
+        // Fetch full badge details for earned badges
+        const allBadges = await getAllUserBadges();
+        const completedBadges = allBadges.filter((badge) => allBadgeIds.includes(badge.id));
+
+        if (completedBadges.length > 0) {
+          setEarnedBadges(completedBadges);
+
+          // Award XP for each badge earned
+          let totalBadgeXP = 0;
+          for (const badge of completedBadges) {
+            const badgeXP = await awardBadgeCompletionXP(badge.name);
+            totalBadgeXP += badgeXP;
+          }
+          setBadgeXP(totalBadgeXP);
+        }
+      }
+
+      // Important: Set these AFTER all async operations to ensure state is set correctly
       setQuizComplete(true);
+      setResultStep("RESULTS");
 
-      // Reset animation for results screen
-      fadeAnim.setValue(0);
-      slideAnim.setValue(50);
+      // Wait a moment before animations to ensure state has updated
+      setTimeout(() => {
+        // Reset animation for results screen
+        fadeAnim.setValue(0);
+        slideAnim.setValue(50);
 
-      // Animate in results
-      Animated.parallel([
-        Animated.timing(fadeAnim, {
-          toValue: 1,
-          duration: 500,
-          useNativeDriver: true,
-        }),
-        Animated.timing(slideAnim, {
-          toValue: 0,
-          duration: 500,
-          useNativeDriver: true,
-        }),
-      ]).start();
+        // Animate in results
+        Animated.parallel([
+          Animated.timing(fadeAnim, {
+            toValue: 1,
+            duration: 500,
+            useNativeDriver: true,
+          }),
+          Animated.timing(slideAnim, {
+            toValue: 0,
+            duration: 500,
+            useNativeDriver: true,
+          }),
+        ]).start();
+      }, 100);
     } catch (error) {
       console.error("Error completing quiz:", error);
       Alert.alert(
@@ -217,6 +296,44 @@ const QuizSessionScreen = ({ navigation, route }) => {
         [{ text: "OK", onPress: () => navigation.goBack() }]
       );
     }
+  };
+
+  const handleContinueToXP = () => {
+    // Move to XP screen if earned XP
+    if (earnedXP.totalXP > 0) {
+      setResultStep("XP");
+    }
+    // Otherwise, move to badge screen if earned badges
+    else if (earnedBadges.length > 0) {
+      setResultStep("BADGE");
+      setCurrentBadgeIndex(0);
+    }
+    // If no XP or badges, stay on results
+  };
+
+  const handleXPContinue = () => {
+    // Move to badge screen if earned badges
+    if (earnedBadges.length > 0) {
+      setResultStep("BADGE");
+      setCurrentBadgeIndex(0);
+    } else {
+      // Go back to results if no badges
+      setResultStep("RESULTS");
+    }
+  };
+
+  const handleBadgeContinue = () => {
+    // If there are more badges to show, show the next one
+    if (currentBadgeIndex < earnedBadges.length - 1) {
+      setCurrentBadgeIndex((prevIndex) => prevIndex + 1);
+    } else {
+      // No more badges, go back to results
+      setResultStep("RESULTS");
+    }
+  };
+
+  const handleViewAllBadges = () => {
+    navigation.navigate("KnowledgeQuestScreen", { activeTab: "badges" });
   };
 
   const renderProgressBar = () => {
@@ -382,7 +499,18 @@ const QuizSessionScreen = ({ navigation, route }) => {
   };
 
   const renderResults = () => {
-    if (!quizResult) return null;
+    // Add debug logging
+    console.log("Rendering results:", { quizResult, quiz, quizComplete, resultStep });
+
+    if (!quizResult || !quiz) {
+      console.log("Quiz result or quiz is null, can't render results");
+      return (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={Colors.primary} />
+          <Text style={styles.loadingText}>Loading results...</Text>
+        </View>
+      );
+    }
 
     const accuracy = (quizResult.correctAnswers / quizResult.totalQuestions) * 100;
     let message = "";
@@ -447,6 +575,26 @@ const QuizSessionScreen = ({ navigation, route }) => {
               </View>
             </View>
 
+            {/* Toggle Analysis Button */}
+            <TouchableOpacity
+              style={styles.analysisToggleButton}
+              onPress={() => setShowDetailedAnalysis(!showDetailedAnalysis)}
+            >
+              <Text style={styles.analysisToggleText}>
+                {showDetailedAnalysis ? "Hide Detailed Analysis" : "Show Detailed Analysis"}
+              </Text>
+              <Ionicons
+                name={showDetailedAnalysis ? "chevron-up" : "chevron-down"}
+                size={18}
+                color="#6366F1"
+              />
+            </TouchableOpacity>
+
+            {/* Detailed Analysis */}
+            {showDetailedAnalysis && (
+              <QuizAnalysis quiz={quiz} answers={answers} result={quizResult} />
+            )}
+
             <View style={styles.resultsButtonsContainer}>
               <TouchableOpacity
                 style={[styles.resultsButton, styles.tryAgainButton]}
@@ -459,6 +607,8 @@ const QuizSessionScreen = ({ navigation, route }) => {
                   setQuizResult(null);
                   setAnswers([]);
                   setQuestionStartTime(Date.now());
+                  setShowDetailedAnalysis(false);
+                  setResultStep("QUIZ");
 
                   // Reset animations
                   fadeAnim.setValue(1);
@@ -469,16 +619,61 @@ const QuizSessionScreen = ({ navigation, route }) => {
                 <Text style={styles.tryAgainButtonText}>Try Again</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity
-                style={[styles.resultsButton, styles.backToQuizzesButton]}
-                onPress={() => navigation.navigate("KnowledgeQuestScreen")}
-              >
-                <Ionicons name="list" size={18} color="#FFFFFF" />
-                <Text style={styles.backToQuizzesButtonText}>All Quizzes</Text>
-              </TouchableOpacity>
+              {(earnedXP.totalXP > 0 || earnedBadges.length > 0) && (
+                <TouchableOpacity
+                  style={[styles.resultsButton, styles.backToQuizzesButton]}
+                  onPress={handleContinueToXP}
+                >
+                  <Ionicons
+                    name={earnedXP.totalXP > 0 ? "flash" : "ribbon"}
+                    size={18}
+                    color="#FFFFFF"
+                  />
+                  <Text style={styles.backToQuizzesButtonText}>
+                    {earnedXP.totalXP > 0 ? "View Rewards" : "View Badges"}
+                  </Text>
+                </TouchableOpacity>
+              )}
+
+              {earnedXP.totalXP === 0 && earnedBadges.length === 0 && (
+                <TouchableOpacity
+                  style={[styles.resultsButton, styles.backToQuizzesButton]}
+                  onPress={() => navigation.navigate("KnowledgeQuestScreen")}
+                >
+                  <Ionicons name="list" size={18} color="#FFFFFF" />
+                  <Text style={styles.backToQuizzesButtonText}>All Quizzes</Text>
+                </TouchableOpacity>
+              )}
             </View>
           </View>
         </Animated.View>
+      </ScrollView>
+    );
+  };
+
+  const renderXPEarned = () => {
+    return (
+      <ScrollView style={styles.scrollContainer}>
+        <XPEarnedNotification
+          totalXP={earnedXP.totalXP}
+          breakdown={earnedXP.breakdown}
+          onDismiss={handleXPContinue}
+        />
+      </ScrollView>
+    );
+  };
+
+  const renderBadgeEarned = () => {
+    return (
+      <ScrollView style={styles.scrollContainer}>
+        {earnedBadges.length > 0 && currentBadgeIndex < earnedBadges.length && (
+          <BadgeEarnedNotification
+            badge={earnedBadges[currentBadgeIndex]}
+            xpEarned={badgeXP / earnedBadges.length} // Distribute XP evenly among badges
+            onDismiss={handleBadgeContinue}
+            onViewAllBadges={handleViewAllBadges}
+          />
+        )}
       </ScrollView>
     );
   };
@@ -487,6 +682,24 @@ const QuizSessionScreen = ({ navigation, route }) => {
   const getTruncatedTitle = () => {
     if (!quiz) return "Knowledge Quest";
     return quiz.title.length > 20 ? quiz.title.substring(0, 20) + "..." : quiz.title;
+  };
+
+  // Helper to determine subtitle based on current state
+  const getSubtitle = () => {
+    if (!quizComplete) {
+      return `Question ${currentQuestionIndex + 1} of ${quiz?.questions.length || 0}`;
+    }
+
+    switch (resultStep) {
+      case "RESULTS":
+        return "Quiz Complete";
+      case "XP":
+        return "XP Earned";
+      case "BADGE":
+        return "Badge Earned";
+      default:
+        return "Quiz Complete";
+    }
   };
 
   if (loading) {
@@ -515,11 +728,7 @@ const QuizSessionScreen = ({ navigation, route }) => {
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
       <Header
         title={getTruncatedTitle()}
-        subtitle={
-          !quizComplete
-            ? `Question ${currentQuestionIndex + 1} of ${quiz?.questions.length || 0}`
-            : "Quiz Complete"
-        }
+        subtitle={getSubtitle()}
         showBackButton
         onBackPress={() => {
           if (quizComplete) {
@@ -543,7 +752,11 @@ const QuizSessionScreen = ({ navigation, route }) => {
             {renderQuestion()}
           </>
         ) : (
-          renderResults()
+          <>
+            {resultStep === "RESULTS" && renderResults()}
+            {resultStep === "XP" && renderXPEarned()}
+            {resultStep === "BADGE" && renderBadgeEarned()}
+          </>
         )}
       </View>
     </ScreenWithNavBar>
@@ -800,9 +1013,24 @@ const styles = StyleSheet.create({
     width: 1,
     backgroundColor: "#E5E7EB",
   },
+  analysisToggleButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#EEF2FF",
+    padding: 12,
+    borderRadius: 10,
+    marginBottom: 24,
+  },
+  analysisToggleText: {
+    color: "#6366F1",
+    fontWeight: "600",
+    marginRight: 8,
+  },
   resultsButtonsContainer: {
     flexDirection: "row",
     gap: 12,
+    marginTop: 24,
   },
   resultsButton: {
     flex: 1,
@@ -831,6 +1059,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
     color: "#FFFFFF",
+  },
+  modalContainer: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "center",
   },
 });
 
