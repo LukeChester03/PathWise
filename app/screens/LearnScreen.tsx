@@ -30,67 +30,6 @@ import AdvancedTravelAnalysisCard from "../components/LearnScreen/TravelAnalysis
 
 const { width, height } = Dimensions.get("window");
 
-// Mock data for when Firestore doesn't return places
-const mockPlaces = [
-  {
-    id: "mock1",
-    place_id: "mock1",
-    name: "Eiffel Tower",
-    location: "Paris, France",
-    rating: 4.8,
-    visitDate: "March 2, 2025",
-    visitedAt: new Date(),
-    isVisited: true,
-    images: [
-      {
-        uri: "https://images.unsplash.com/photo-1543349689-9a4d426bee8e?auto=format&fit=crop&q=80&w=1000",
-      },
-    ],
-    placeType: "landmark",
-    category: "architectural",
-    tags: ["landmark", "historical", "architectural", "tourist"],
-    description: "Iconic iron lattice tower on the Champ de Mars",
-  },
-  {
-    id: "mock2",
-    place_id: "mock2",
-    name: "Colosseum",
-    location: "Rome, Italy",
-    rating: 4.7,
-    visitDate: "February 15, 2025",
-    visitedAt: new Date(),
-    isVisited: true,
-    images: [
-      {
-        uri: "https://images.unsplash.com/photo-1552832230-c0197dd311b5?auto=format&fit=crop&q=80&w=1000",
-      },
-    ],
-    placeType: "historical",
-    category: "ancient",
-    tags: ["historical", "ancient", "roman", "ruins"],
-    description: "Ancient Roman amphitheatre in the center of Rome",
-  },
-  {
-    id: "mock3",
-    place_id: "mock3",
-    name: "Louvre Museum",
-    location: "Paris, France",
-    rating: 4.9,
-    visitDate: "March 5, 2025",
-    visitedAt: new Date(),
-    isVisited: true,
-    images: [
-      {
-        uri: "https://images.unsplash.com/photo-1565099824688-e93eb20fe622?auto=format&fit=crop&q=80&w=1000",
-      },
-    ],
-    placeType: "museum",
-    category: "cultural",
-    tags: ["museum", "art", "historical", "cultural", "indoor"],
-    description: "World's largest art museum and historic monument in Paris",
-  },
-];
-
 // Enhanced mock data for AI features
 const mockAiData = {
   // Feature 1: AI Travel Snapshot
@@ -381,7 +320,6 @@ const LearnScreen = ({ route, navigation }) => {
   const [visitedPlaces, setVisitedPlaces] = useState([]);
   const [noPlacesFound, setNoPlacesFound] = useState(false);
   const [error, setError] = useState(null);
-  const [useMockData, setUseMockData] = useState(false);
   const [showLearnIntro, setShowLearnIntro] = useState(false);
 
   // Knowledge Quest game state
@@ -406,13 +344,8 @@ const LearnScreen = ({ route, navigation }) => {
   const handleProfileUpdated = (profile) => {
     setTravelProfile(profile);
     console.log("Travel profile updated:", profile.type);
-
-    // You can use the profile data to update other parts of your UI
-    // For example, you could update recommendations based on travel preferences
-
-    // If you want to persist this information:
-    // You could save it to local storage or your backend
   };
+
   // Create separate animation values to avoid conflicts
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(50)).current;
@@ -518,9 +451,8 @@ const LearnScreen = ({ route, navigation }) => {
       const currentUser = auth.currentUser;
       if (!currentUser) {
         console.log("No authenticated user found");
-        setUseMockData(true);
-        setVisitedPlaces(mockPlaces);
-        setNoPlacesFound(false);
+        setNoPlacesFound(true);
+        setVisitedPlaces([]);
         setLoadingPlaces(false);
         return;
       }
@@ -533,10 +465,9 @@ const LearnScreen = ({ route, navigation }) => {
         console.log("Firestore query complete with", querySnapshot.size, "documents");
 
         if (querySnapshot.empty) {
-          console.log("No visited places found in Firestore - using mock data");
-          setUseMockData(true);
-          setVisitedPlaces(mockPlaces);
-          setNoPlacesFound(false);
+          console.log("No visited places found in Firestore");
+          setNoPlacesFound(true);
+          setVisitedPlaces([]);
         } else {
           // Transform Firestore documents to place objects
           const userPlacesData = querySnapshot.docs
@@ -587,10 +518,9 @@ const LearnScreen = ({ route, navigation }) => {
           console.log(`Found ${userPlacesData.length} places in Firestore (excluding init doc)`);
 
           if (userPlacesData.length === 0) {
-            console.log("No valid places found - using mock data");
-            setUseMockData(true);
-            setVisitedPlaces(mockPlaces);
-            setNoPlacesFound(false);
+            console.log("No valid places found");
+            setNoPlacesFound(true);
+            setVisitedPlaces([]);
           } else {
             setVisitedPlaces(userPlacesData);
             setNoPlacesFound(false);
@@ -598,18 +528,15 @@ const LearnScreen = ({ route, navigation }) => {
         }
       } catch (firestoreError) {
         console.error("Firestore error:", firestoreError);
-        setUseMockData(true);
-        setVisitedPlaces(mockPlaces);
-        setNoPlacesFound(false);
+        setError("Failed to load your visited places");
+        setVisitedPlaces([]);
       }
 
       setLoadingPlaces(false);
     } catch (error) {
       console.error("Error in fetchUserVisitedPlaces:", error);
       setError("Failed to load your visited places");
-      setUseMockData(true);
-      setVisitedPlaces(mockPlaces);
-      setNoPlacesFound(false);
+      setVisitedPlaces([]);
       setLoadingPlaces(false);
     }
   };
@@ -796,50 +723,6 @@ const LearnScreen = ({ route, navigation }) => {
   const handleModal = () => {
     console.log("Opening Learn intro modal");
     setShowLearnIntro(true);
-  };
-
-  const renderEmptyState = () => {
-    return (
-      <View style={styles.emptyStateCard}>
-        <LinearGradient
-          colors={["rgba(255,255,255,0.5)", "rgba(240,240,255,0.8)"]}
-          style={styles.emptyStateGradient}
-        />
-
-        {/* Background decoration */}
-        <View style={styles.emptyStateDecoration}>
-          <View style={[styles.decorationCircle, styles.circle1]} />
-          <View style={[styles.decorationCircle, styles.circle2]} />
-          <View style={[styles.decorationCircle, styles.circle3]} />
-        </View>
-
-        <View style={styles.emptyStateContent}>
-          <View style={styles.emptyStateIconContainer}>
-            <Ionicons name="book-outline" size={40} color={Colors.primary} />
-          </View>
-          <Text style={styles.emptyStateTitle}>No Places to Learn About</Text>
-          <Text style={styles.emptyStateMessage}>
-            Visit some places first, then come back to discover AI-powered insights about your
-            travels!
-          </Text>
-
-          <TouchableOpacity
-            style={styles.emptyStateButton}
-            onPress={() => navigation.navigate("Explore")}
-          >
-            <LinearGradient
-              colors={[Colors.primary, Colors.primary + "CC"]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={styles.buttonGradient}
-            >
-              <Text style={styles.emptyStateButtonText}>Explore Places</Text>
-              <Ionicons name="chevron-forward" size={16} color="#fff" />
-            </LinearGradient>
-          </TouchableOpacity>
-        </View>
-      </View>
-    );
   };
 
   const renderPlaceDetails = () => {
@@ -1699,7 +1582,7 @@ const LearnScreen = ({ route, navigation }) => {
       );
     }
 
-    if (error && !useMockData) {
+    if (error) {
       console.log("Rendering error state:", error);
       return (
         <View style={styles.errorContainer}>
@@ -1718,15 +1601,6 @@ const LearnScreen = ({ route, navigation }) => {
         </View>
       );
     }
-
-    if ((noPlacesFound || visitedPlaces.length === 0) && !useMockData) {
-      console.log("Rendering empty state");
-      return renderEmptyState();
-    }
-
-    // We have places to show (either real or mock)
-    const placesToShow = visitedPlaces;
-    console.log("Showing places:", placesToShow.length);
 
     // Handle active question rendering
     if (activeQuestion !== null) {
@@ -1752,7 +1626,7 @@ const LearnScreen = ({ route, navigation }) => {
           <AiTravelSnapshot
             fadeAnim={cardAnimations.travelSnapshot}
             pulseAnim={pulseAnim}
-            placesToShow={placesToShow}
+            placesToShow={visitedPlaces}
             onProfileUpdated={handleProfileUpdated}
           />
           {/* Feature Grid */}
@@ -1762,10 +1636,6 @@ const LearnScreen = ({ route, navigation }) => {
           <AdvancedTravelAnalysisCard
             cardAnimation={cardAnimations.analysis}
             visitedPlaces={visitedPlaces}
-            expandedFeatures={{
-              advancedAnalysis: expandedFeatures.travelAnalysis,
-            }}
-            toggleFeatureExpansion={() => toggleFeatureExpansion("travelAnalysis")}
           />
 
           {/* Feature 3: AI-Recommended Destinations */}
@@ -1798,7 +1668,7 @@ const LearnScreen = ({ route, navigation }) => {
 
             <View style={styles.carouselContainer}>
               <PlacesCarousel
-                places={placesToShow}
+                places={visitedPlaces}
                 onPlacePress={handlePlaceSelect}
                 sectionType="visited"
                 cardWidth={width * 0.85}

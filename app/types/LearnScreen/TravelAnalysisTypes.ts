@@ -1,4 +1,4 @@
-// types/LearnScreen/AdvancedTravelAnalysisTypes.ts
+// types/LearnScreen/TravelAnalysisTypes.ts
 import { VisitedPlaceDetails } from "../MapTypes";
 
 /**
@@ -6,43 +6,43 @@ import { VisitedPlaceDetails } from "../MapTypes";
  */
 export interface TemporalAnalysis {
   // Travel evolution over time
-  yearlyProgression: {
+  yearlyProgression?: {
     [year: string]: {
       totalVisits: number;
       uniqueLocations: number;
       dominantCategory: string;
-      explorationRadius: number; // Average distance from home base in km
+      explorationRadius: number;
       topDestination: string;
     };
   };
 
   // Seasonality patterns
-  seasonalPatterns: {
-    winter: {
+  seasonalPatterns?: {
+    winter?: {
       visitPercentage: number;
-      preferredCategories: string[];
-      averageDuration: string;
+      preferredCategories?: string[];
+      averageDuration?: string;
     };
-    spring: {
+    spring?: {
       visitPercentage: number;
-      preferredCategories: string[];
-      averageDuration: string;
+      preferredCategories?: string[];
+      averageDuration?: string;
     };
-    summer: {
+    summer?: {
       visitPercentage: number;
-      preferredCategories: string[];
-      averageDuration: string;
+      preferredCategories?: string[];
+      averageDuration?: string;
     };
-    fall: {
+    fall?: {
       visitPercentage: number;
-      preferredCategories: string[];
-      averageDuration: string;
+      preferredCategories?: string[];
+      averageDuration?: string;
     };
   };
 
   // Monthly visit distribution
-  monthlyDistribution: {
-    [month: string]: number; // Percentage of visits in each month
+  monthlyDistribution?: {
+    [month: string]: number;
   };
 }
 
@@ -51,39 +51,39 @@ export interface TemporalAnalysis {
  */
 export interface SpatialAnalysis {
   // Travel radius metrics
-  explorationRadius: {
-    average: number; // In kilometers
+  explorationRadius?: {
+    average: number;
     maximum: number;
     minimum: number;
-    growthRate: number; // Percentage change in radius over time
+    growthRate: number;
   };
 
   // Clustering analysis
-  locationClusters: {
+  locationClusters?: {
     clusterName: string;
-    centerPoint: string; // Main location name
+    centerPoint: string;
     numberOfVisits: number;
-    topCategories: string[];
+    topCategories?: string[];
     visits: number;
   }[];
 
   // Directional tendencies
-  directionTendencies: {
-    primaryDirection: string; // N, S, E, W, NE, etc.
+  directionTendencies?: {
+    primaryDirection: string;
     secondaryDirection: string;
-    directionPercentages: {
+    directionPercentages?: {
       [direction: string]: number;
     };
-    insight: string;
+    insight?: string;
   };
 
   // Region diversity
-  regionDiversity: {
+  regionDiversity?: {
     uniqueRegions: number;
     mostExploredRegion: string;
     leastExploredRegion: string;
-    regionSpread: number; // 0-100 score of geographical spread
-    diversityInsight: string;
+    regionSpread: number;
+    diversityInsight?: string;
   };
 }
 
@@ -92,36 +92,36 @@ export interface SpatialAnalysis {
  */
 export interface BehavioralAnalysis {
   // Exploration style
-  explorationStyle: {
-    spontaneityScore: number; // 0-100
-    planningLevel: number; // 0-100
-    varietySeeking: number; // 0-100
-    returnVisitRate: number; // Percentage of repeat visits
-    noveltyPreference: number; // 0-100
+  explorationStyle?: {
+    spontaneityScore: number;
+    planningLevel: number;
+    varietySeeking: number;
+    returnVisitRate: number;
+    noveltyPreference: number;
   };
 
   // Travel personality traits
-  travelPersonality: {
-    openness: number; // 0-100
-    cultureEngagement: number; // 0-100
-    socialOrientation: number; // 0-100 (low = solitary, high = social)
-    activityLevel: number; // 0-100 (low = relaxed, high = active)
-    adventurousness: number; // 0-100
+  travelPersonality?: {
+    openness: number;
+    cultureEngagement: number;
+    socialOrientation: number;
+    activityLevel: number;
+    adventurousness: number;
   };
 
   // Motivational factors
-  motivationalFactors: {
+  motivationalFactors?: {
     factor: string;
-    strength: number; // 0-100
-    insight: string;
+    strength: number;
+    insight?: string;
   }[];
 
   // Decision patterns
-  decisionPatterns: {
-    decisionSpeed: number; // 0-100 (low = deliberate, high = quick)
-    consistencyScore: number; // 0-100 (low = varied, high = consistent)
-    influenceFactors: string[];
-    insight: string;
+  decisionPatterns?: {
+    decisionSpeed: number;
+    consistencyScore: number;
+    influenceFactors?: string[];
+    insight?: string;
   };
 }
 
@@ -130,36 +130,36 @@ export interface BehavioralAnalysis {
  */
 export interface PredictiveAnalysis {
   // Next likely destinations
-  recommendedDestinations: {
+  recommendedDestinations?: {
     name: string;
-    confidenceScore: number; // 0-100
-    reasoningFactors: string[];
-    bestTimeToVisit: string;
-    expectedInterestLevel: number; // 0-100
+    confidenceScore: number;
+    reasoningFactors?: string[];
+    bestTimeToVisit?: string;
+    expectedInterestLevel: number;
   }[];
 
   // Future travel trends
-  predictedTrends: {
+  predictedTrends?: {
     trend: string;
-    likelihood: number; // 0-100
-    timeframe: string; // "Short-term", "Medium-term", "Long-term"
-    explanation: string;
+    likelihood: number;
+    timeframe: string;
+    explanation?: string;
   }[];
 
   // Interest evolution
-  interestEvolution: {
-    emergingInterests: string[];
-    decliningInterests: string[];
-    steadyInterests: string[];
-    newSuggestions: string[];
+  interestEvolution?: {
+    emergingInterests?: string[];
+    decliningInterests?: string[];
+    steadyInterests?: string[];
+    newSuggestions?: string[];
   };
 
   // Travel trajectory
-  travelTrajectory: {
-    explorationRate: number; // Predicted change in visit frequency
-    radiusChange: number; // Predicted change in exploration radius
-    nextPhase: string; // Description of predicted next travel phase
-    insightSummary: string;
+  travelTrajectory?: {
+    explorationRate: number;
+    radiusChange: number;
+    nextPhase?: string;
+    insightSummary?: string;
   };
 }
 
@@ -168,35 +168,35 @@ export interface PredictiveAnalysis {
  */
 export interface AnalyticalInsights {
   // Key behavioral insights
-  keyInsights: {
+  keyInsights?: {
     title: string;
-    description: string;
-    confidenceScore: number; // 0-100
-    category: string;
-    tags: string[];
+    description?: string;
+    confidenceScore: number;
+    category?: string;
+    tags?: string[];
   }[];
 
   // Pattern analysis
-  patternInsights: {
+  patternInsights?: {
     pattern: string;
-    strength: number; // 0-100
-    examples: string[];
-    implications: string;
+    strength: number;
+    examples?: string[];
+    implications?: string;
   }[];
 
   // Anomalies and unique behaviors
-  anomalies: {
+  anomalies?: {
     description: string;
-    significance: number; // 0-100
-    explanation: string;
+    significance: number;
+    explanation?: string;
   }[];
 
   // Correlations between factors
-  correlations: {
+  correlations?: {
     factor1: string;
     factor2: string;
-    correlationStrength: number; // -100 to 100
-    insight: string;
+    correlationStrength: number;
+    insight?: string;
   }[];
 }
 
@@ -205,36 +205,36 @@ export interface AnalyticalInsights {
  */
 export interface ComparativeAnalysis {
   // Persona comparison
-  personaComparison: {
+  personaComparison?: {
     mostSimilarPersona: string;
-    similarityScore: number; // 0-100
-    keyDifferences: string[];
-    distinctiveTraits: string[];
+    similarityScore: number;
+    keyDifferences?: string[];
+    distinctiveTraits?: string[];
   };
 
   // Traveler archetype analysis
-  archetypeAnalysis: {
+  archetypeAnalysis?: {
     primaryArchetype: string;
-    archetypeScore: number; // 0-100
+    archetypeScore: number;
     secondaryArchetype: string;
-    secondaryScore: number; // 0-100
-    atypicalTraits: string[];
+    secondaryScore: number;
+    atypicalTraits?: string[];
   };
 
   // Benchmark comparisons
-  benchmarks: {
+  benchmarks?: {
     category: string;
     userScore: number;
     averageScore: number;
-    percentile: number; // 0-100
-    insight: string;
+    percentile: number;
+    insight?: string;
   }[];
 
   // Uniqueness factors
-  uniquenessFactors: {
+  uniquenessFactors?: {
     factor: string;
-    uniquenessScore: number; // 0-100
-    explanation: string;
+    uniquenessScore: number;
+    explanation?: string;
   }[];
 }
 
@@ -258,8 +258,8 @@ export interface AdvancedTravelAnalysis {
   comparativeAnalysis: ComparativeAnalysis;
 
   // Meta information
-  analysisQuality: number; // 0-100 score based on data quality
-  confidenceScore: number; // 0-100 score of overall confidence
+  analysisQuality: number;
+  confidenceScore: number;
   lastRefreshed: string;
   nextRefreshDue: string;
 }
@@ -269,7 +269,7 @@ export interface AdvancedTravelAnalysis {
  */
 export interface AdvancedAnalysisSettings {
   lastUpdatedAt: number;
-  refreshInterval: number; // Milliseconds
+  refreshInterval: number;
   requestLimits?: {
     requestCount: number;
     lastRequestDate: string;
@@ -291,8 +291,8 @@ export interface AnalysisRequestLimitInfo {
  */
 export interface AnalysisGenerationProgress {
   isGenerating: boolean;
-  progress: number; // 0-100
+  progress: number;
   stage: string;
-  estimatedTimeRemaining?: number; // Seconds
-  startedAt?: number; // Timestamp
+  estimatedTimeRemaining?: number;
+  startedAt?: number;
 }

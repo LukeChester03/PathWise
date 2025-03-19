@@ -1,4 +1,4 @@
-// services/LearnScreen/advancedTravelAnalysisService.ts
+// services/LearnScreen/aiTravelAnalysisService.ts
 import { generateContent } from "../Gemini/geminiService";
 import {
   collection,
@@ -20,18 +20,12 @@ import {
   AdvancedAnalysisSettings,
   AnalysisRequestLimitInfo,
   AnalysisGenerationProgress,
-  TemporalAnalysis,
-  SpatialAnalysis,
-  BehavioralAnalysis,
-  PredictiveAnalysis,
-  AnalyticalInsights,
-  ComparativeAnalysis,
 } from "../../types/LearnScreen/TravelAnalysisTypes";
 import { VisitedPlaceDetails } from "../../types/MapTypes";
 
 // Constants
 const ANALYSIS_REFRESH_INTERVAL = 7 * 24 * 60 * 60 * 1000; // 7 days
-const MAX_DAILY_REQUESTS = 2; // More limited than standard profile generation
+const MAX_DAILY_REQUESTS = 5; // More limited than standard profile generation
 const ASYNC_STORAGE_KEY = "@advanced_travel_analysis";
 const ASYNC_STORAGE_SETTINGS_KEY = "@advanced_analysis_settings";
 const ASYNC_STORAGE_PROGRESS_KEY = "@advanced_analysis_progress";
@@ -40,74 +34,6 @@ const ASYNC_STORAGE_PROGRESS_KEY = "@advanced_analysis_progress";
 let memoryCache: AdvancedTravelAnalysis | null = null;
 let memoryCacheTimestamp = 0;
 let memoryCacheSettings: AdvancedAnalysisSettings | null = null;
-
-/**
- * Convert nested arrays to Firebase-compatible format (maps with numeric keys)
- */
-const convertToFirebaseCompatible = (data: any): any => {
-  if (data === null || data === undefined) {
-    return data;
-  }
-
-  if (Array.isArray(data)) {
-    // Convert array to object with numeric keys
-    return data.reduce((result, item, index) => {
-      result[`${index}`] = convertToFirebaseCompatible(item);
-      return result;
-    }, {});
-  }
-
-  if (typeof data === "object") {
-    // Process each property of the object
-    const result: Record<string, any> = {};
-    for (const key in data) {
-      if (Object.prototype.hasOwnProperty.call(data, key)) {
-        result[key] = convertToFirebaseCompatible(data[key]);
-      }
-    }
-    return result;
-  }
-
-  // Return primitive values as is
-  return data;
-};
-
-/**
- * Convert Firebase-compatible format back to original structure with arrays
- */
-const convertFromFirebaseCompatible = (data: any): any => {
-  if (data === null || data === undefined) {
-    return data;
-  }
-
-  if (typeof data === "object" && !Array.isArray(data)) {
-    // Check if this object is actually an array (keys are consecutive numbers starting from 0)
-    const keys = Object.keys(data);
-    const isArray =
-      keys.length > 0 &&
-      keys.every((key) => /^\d+$/.test(key)) &&
-      keys.every((_, i) => data[i.toString()] !== undefined);
-
-    if (isArray) {
-      // Convert back to array
-      return Array.from({ length: keys.length }, (_, i) =>
-        convertFromFirebaseCompatible(data[i.toString()])
-      );
-    }
-
-    // Process regular object
-    const result: Record<string, any> = {};
-    for (const key in data) {
-      if (Object.prototype.hasOwnProperty.call(data, key)) {
-        result[key] = convertFromFirebaseCompatible(data[key]);
-      }
-    }
-    return result;
-  }
-
-  // Return primitive values as is
-  return data;
-};
 
 /**
  * Check if user has reached their daily request limit
@@ -329,7 +255,34 @@ export const generateAdvancedTravelAnalysis = async (
       Provide a detailed analysis of how their travel patterns have evolved over time. 
       If there isn't enough data for certain timeframes, make reasonable inferences based on available information.
       
-      Return the analysis as a detailed JSON object with the exact structure of a TemporalAnalysis type.
+      Return the analysis as a detailed JSON object with this exact structure:
+      {
+        "yearlyProgression": {
+          "YYYY": {
+            "totalVisits": number,
+            "uniqueLocations": number,
+            "dominantCategory": string,
+            "explorationRadius": number,
+            "topDestination": string
+          }
+        },
+        "seasonalPatterns": {
+          "winter": {
+            "visitPercentage": number,
+            "preferredCategories": string[],
+            "averageDuration": string
+          },
+          "spring": {...},
+          "summer": {...},
+          "fall": {...}
+        },
+        "monthlyDistribution": {
+          "January": number,
+          "February": number,
+          ...
+        }
+      }
+      
       Format your response as valid JSON only. No explanations outside the JSON.
     `;
 
@@ -344,7 +297,7 @@ export const generateAdvancedTravelAnalysis = async (
       stage: "Analyzing spatial relationships",
     });
 
-    // Generate spatial analysis
+    // Generate spatial analysis with explicit structure
     const spatialPrompt = `
       Analyze the spatial relationships and geographical patterns in this travel history:
       ${JSON.stringify(placesData)}
@@ -358,7 +311,44 @@ export const generateAdvancedTravelAnalysis = async (
       Consider the coordinates of each place to determine spatial relationships. 
       If coordinate data is limited, use location names to estimate relationships.
       
-      Return the analysis as a detailed JSON object with the exact structure of a SpatialAnalysis type.
+      Return the analysis as a detailed JSON object with this exact structure:
+      {
+        "explorationRadius": {
+          "average": number,
+          "maximum": number,
+          "minimum": number,
+          "growthRate": number
+        },
+        "locationClusters": [
+          {
+            "clusterName": string,
+            "centerPoint": string,
+            "numberOfVisits": number,
+            "topCategories": string[],
+            "visits": number
+          }
+        ],
+        "directionTendencies": {
+          "primaryDirection": string,
+          "secondaryDirection": string,
+          "directionPercentages": {
+            "N": number,
+            "S": number,
+            "E": number,
+            "W": number,
+            ...
+          },
+          "insight": string
+        },
+        "regionDiversity": {
+          "uniqueRegions": number,
+          "mostExploredRegion": string,
+          "leastExploredRegion": string,
+          "regionSpread": number,
+          "diversityInsight": string
+        }
+      }
+      
       Format your response as valid JSON only. No explanations outside the JSON.
     `;
 
@@ -375,21 +365,51 @@ export const generateAdvancedTravelAnalysis = async (
 
     // Generate behavioral analysis
     const behavioralPrompt = `
-      Analyze the psychological and behavioral patterns in this travel history:
-      ${JSON.stringify(placesData)}
-      
-      Create a detailed behavioral analysis that includes:
-      1. Exploration style metrics (spontaneity vs. planning, variety-seeking, etc.)
-      2. Travel personality assessment (openness, cultural engagement, etc.)
-      3. Motivational factors driving their travel choices
-      4. Decision-making patterns (consistency, decision speed, etc.)
-      
-      Look for patterns in the types of places visited, frequency of visits, and timing 
-      to infer deeper psychological and behavioral tendencies.
-      
-      Return the analysis as a detailed JSON object with the exact structure of a BehavioralAnalysis type.
-      Format your response as valid JSON only. No explanations outside the JSON.
-    `;
+        Analyze the psychological and behavioral patterns in this travel history:
+        ${JSON.stringify(placesData)}
+        
+        Create a detailed behavioral analysis that includes:
+        1. Exploration style metrics (spontaneity vs. planning, variety-seeking, etc.)
+        2. Travel personality assessment (openness, cultural engagement, etc.)
+        3. Motivational factors driving their travel choices
+        4. Decision-making patterns (consistency, decision speed, etc.)
+        
+        Look for patterns in the types of places visited, frequency of visits, and timing 
+        to infer deeper psychological and behavioral tendencies.
+        
+        Return the analysis as a detailed JSON object with this exact structure:
+        {
+          "explorationStyle": {
+            "spontaneityScore": number,
+            "planningLevel": number,
+            "varietySeeking": number,
+            "returnVisitRate": number,
+            "noveltyPreference": number
+          },
+          "travelPersonality": {
+            "openness": number,
+            "cultureEngagement": number,
+            "socialOrientation": number,
+            "activityLevel": number,
+            "adventurousness": number
+          },
+          "motivationalFactors": [
+            {
+              "factor": string,
+              "strength": number,
+              "insight": string
+            }
+          ],
+          "decisionPatterns": {
+            "decisionSpeed": number,
+            "consistencyScore": number,
+            "influenceFactors": string[],
+            "insight": string
+          }
+        }
+        
+        Format your response as valid JSON only. No explanations outside the JSON.
+      `;
 
     const behavioralAnalysisResponse = await generateContent({
       prompt: behavioralPrompt,
@@ -404,21 +424,53 @@ export const generateAdvancedTravelAnalysis = async (
 
     // Generate predictive analysis
     const predictivePrompt = `
-      Based on this travel history, predict future travel patterns and interests:
-      ${JSON.stringify(placesData)}
-      
-      Create a detailed predictive analysis that includes:
-      1. Recommended future destinations with confidence scores
-      2. Predicted emerging travel trends for this user
-      3. Evolution of interests over time
-      4. Overall travel trajectory analysis
-      
-      Make predictions based on established patterns, evolving preferences, and 
-      emerging trends in their travel history.
-      
-      Return the analysis as a detailed JSON object with the exact structure of a PredictiveAnalysis type.
-      Format your response as valid JSON only. No explanations outside the JSON.
-    `;
+        Based on this travel history, predict future travel patterns and interests:
+        ${JSON.stringify(placesData)}
+        
+        Create a detailed predictive analysis that includes:
+        1. Recommended future destinations with confidence scores
+        2. Predicted emerging travel trends for this user
+        3. Evolution of interests over time
+        4. Overall travel trajectory analysis
+        
+        Make predictions based on established patterns, evolving preferences, and 
+        emerging trends in their travel history.
+        
+        Return the analysis as a detailed JSON object with this exact structure:
+        {
+          "recommendedDestinations": [
+            {
+              "name": string,
+              "confidenceScore": number,
+              "reasoningFactors": string[],
+              "bestTimeToVisit": string,
+              "expectedInterestLevel": number
+            }
+          ],
+          "predictedTrends": [
+            {
+              "trend": string,
+              "likelihood": number,
+              "timeframe": string,
+              "explanation": string
+            }
+          ],
+          "interestEvolution": {
+            "emergingInterests": string[],
+            "decliningInterests": string[],
+            "steadyInterests": string[],
+            "newSuggestions": string[]
+          },
+          "travelTrajectory": {
+            "explorationRate": number,
+            "radiusChange": number,
+            "nextPhase": string,
+            "insightSummary": string
+          }
+        }
+        
+        Format your response as valid JSON only. No explanations outside the JSON.
+      `;
 
     const predictiveAnalysisResponse = await generateContent({
       prompt: predictivePrompt,
@@ -433,21 +485,56 @@ export const generateAdvancedTravelAnalysis = async (
 
     // Generate analytical insights
     const insightsPrompt = `
-      Extract profound analytical insights from this travel history:
-      ${JSON.stringify(placesData)}
-      
-      Create a sophisticated set of analytical insights that includes:
-      1. Key behavioral insights with confidence scores
-      2. Pattern analysis with strength metrics
-      3. Anomalies and unique behaviors in their travel
-      4. Correlations between different factors in their travel choices
-      
-      Focus on insights that would not be immediately obvious from basic analysis.
-      Look for subtle patterns, unexpected connections, and distinctive behaviors.
-      
-      Return the analysis as a detailed JSON object with the exact structure of an AnalyticalInsights type.
-      Format your response as valid JSON only. No explanations outside the JSON.
-    `;
+        Extract profound analytical insights from this travel history:
+        ${JSON.stringify(placesData)}
+        
+        Create a sophisticated set of analytical insights that includes:
+        1. Key behavioral insights with confidence scores
+        2. Pattern analysis with strength metrics
+        3. Anomalies and unique behaviors in their travel
+        4. Correlations between different factors in their travel choices
+        
+        Focus on insights that would not be immediately obvious from basic analysis.
+        Look for subtle patterns, unexpected connections, and distinctive behaviors.
+        
+        Return the analysis as a detailed JSON object with this exact structure:
+        {
+          "keyInsights": [
+            {
+              "title": string,
+              "description": string,
+              "confidenceScore": number,
+              "category": string,
+              "tags": string[]
+            }
+          ],
+          "patternInsights": [
+            {
+              "pattern": string,
+              "strength": number,
+              "examples": string[],
+              "implications": string
+            }
+          ],
+          "anomalies": [
+            {
+              "description": string,
+              "significance": number,
+              "explanation": string
+            }
+          ],
+          "correlations": [
+            {
+              "factor1": string,
+              "factor2": string,
+              "correlationStrength": number,
+              "insight": string
+            }
+          ]
+        }
+        
+        Format your response as valid JSON only. No explanations outside the JSON.
+      `;
 
     const analyticalInsightsResponse = await generateContent({
       prompt: insightsPrompt,
@@ -462,35 +549,58 @@ export const generateAdvancedTravelAnalysis = async (
 
     // Generate comparative analysis
     const comparativePrompt = `
-      Compare this traveler's profile against general traveler archetypes and benchmarks:
-      ${JSON.stringify(placesData)}
-      
-      Create a detailed comparative analysis that includes:
-      1. Persona comparison (which established traveler persona they most resemble)
-      2. Traveler archetype analysis (primary and secondary archetypes)
-      3. Benchmark comparisons against typical travel patterns
-      4. Uniqueness factors that distinguish their travel behavior
-      
-      Compare against common traveler archetypes like "Cultural Explorer," "Adventure Seeker," 
-      "Urban Navigator," "Historical Enthusiast," etc. Identify what makes their 
-      travel patterns unique or typical.
-      
-      Return the analysis as a detailed JSON object with the exact structure of a ComparativeAnalysis type.
-      Format your response as valid JSON only. No explanations outside the JSON.
-    `;
+        Compare this traveler's profile against general traveler archetypes and benchmarks:
+        ${JSON.stringify(placesData)}
+        
+        Create a detailed comparative analysis that includes:
+        1. Persona comparison (which established traveler persona they most resemble)
+        2. Traveler archetype analysis (primary and secondary archetypes)
+        3. Benchmark comparisons against typical travel patterns
+        4. Uniqueness factors that distinguish their travel behavior
+        
+        Compare against common traveler archetypes like "Cultural Explorer," "Adventure Seeker," 
+        "Urban Navigator," "Historical Enthusiast," etc. Identify what makes their 
+        travel patterns unique or typical.
+        
+        Return the analysis as a detailed JSON object with this exact structure:
+        {
+          "personaComparison": {
+            "mostSimilarPersona": string,
+            "similarityScore": number,
+            "keyDifferences": string[],
+            "distinctiveTraits": string[]
+          },
+          "archetypeAnalysis": {
+            "primaryArchetype": string,
+            "archetypeScore": number,
+            "secondaryArchetype": string,
+            "secondaryScore": number,
+            "atypicalTraits": string[]
+          },
+          "benchmarks": [
+            {
+              "category": string,
+              "userScore": number,
+              "averageScore": number,
+              "percentile": number,
+              "insight": string
+            }
+          ],
+          "uniquenessFactors": [
+            {
+              "factor": string,
+              "uniquenessScore": number,
+              "explanation": string
+            }
+          ]
+        }
+        
+        Format your response as valid JSON only. No explanations outside the JSON.
+      `;
 
     const comparativeAnalysisResponse = await generateContent({
       prompt: comparativePrompt,
       responseFormat: "json",
-    });
-
-    // Update request counter after successful generation
-    await updateAdvancedAnalysisRequestCounter();
-
-    await setAdvancedAnalysisProgress({
-      isGenerating: true,
-      progress: 95,
-      stage: "Compiling comprehensive analysis",
     });
 
     // Calculate confidence and quality scores based on data richness
@@ -515,19 +625,12 @@ export const generateAdvancedTravelAnalysis = async (
       updatedAt: new Date().toISOString(),
       isGenerating: false,
       basedOnPlaces: visitedPlaces.length,
-      temporalAnalysis:
-        (temporalAnalysisResponse as TemporalAnalysis) ||
-        createDefaultTemporalAnalysis(visitedPlaces),
-      spatialAnalysis:
-        (spatialAnalysisResponse as SpatialAnalysis) || createDefaultSpatialAnalysis(visitedPlaces),
-      behavioralAnalysis:
-        (behavioralAnalysisResponse as BehavioralAnalysis) || createDefaultBehavioralAnalysis(),
-      predictiveAnalysis:
-        (predictiveAnalysisResponse as PredictiveAnalysis) || createDefaultPredictiveAnalysis(),
-      analyticalInsights:
-        (analyticalInsightsResponse as AnalyticalInsights) || createDefaultAnalyticalInsights(),
-      comparativeAnalysis:
-        (comparativeAnalysisResponse as ComparativeAnalysis) || createDefaultComparativeAnalysis(),
+      temporalAnalysis: temporalAnalysisResponse,
+      spatialAnalysis: spatialAnalysisResponse,
+      behavioralAnalysis: behavioralAnalysisResponse,
+      predictiveAnalysis: predictiveAnalysisResponse,
+      analyticalInsights: analyticalInsightsResponse,
+      comparativeAnalysis: comparativeAnalysisResponse,
       analysisQuality: dataQualityScore,
       confidenceScore: confidenceScore,
       lastRefreshed: new Date().toISOString(),
@@ -560,6 +663,45 @@ export const generateAdvancedTravelAnalysis = async (
 };
 
 /**
+ * Save advanced travel analysis directly to Firestore and local cache
+ */
+export const saveAdvancedTravelAnalysis = async (
+  analysis: AdvancedTravelAnalysis
+): Promise<void> => {
+  try {
+    const currentUser = auth.currentUser;
+    if (!currentUser) {
+      throw new Error("User not authenticated");
+    }
+
+    // Update timestamp
+    const updatedAnalysis = {
+      ...analysis,
+      updatedAt: new Date().toISOString(),
+    };
+
+    // Save to Firestore directly
+    const analysisRef = collection(db, "users", currentUser.uid, "advancedTravelAnalysis");
+    await addDoc(analysisRef, updatedAnalysis);
+
+    // Update settings with last updated timestamp
+    await updateAdvancedAnalysisSettings({
+      lastUpdatedAt: Date.now(),
+    });
+
+    // Update caches
+    memoryCache = updatedAnalysis;
+    memoryCacheTimestamp = Date.now();
+    await saveToAsyncStorage(updatedAnalysis);
+
+    console.log("Advanced travel analysis saved successfully");
+  } catch (error) {
+    console.error("Error saving advanced travel analysis:", error);
+    throw error;
+  }
+};
+
+/**
  * Get advanced travel analysis with multi-level caching
  */
 export const getAdvancedTravelAnalysis = async (
@@ -576,12 +718,12 @@ export const getAdvancedTravelAnalysis = async (
         updatedAt: new Date().toISOString(),
         isGenerating: true,
         basedOnPlaces: 0,
-        temporalAnalysis: createDefaultTemporalAnalysis([]),
-        spatialAnalysis: createDefaultSpatialAnalysis([]),
-        behavioralAnalysis: createDefaultBehavioralAnalysis(),
-        predictiveAnalysis: createDefaultPredictiveAnalysis(),
-        analyticalInsights: createDefaultAnalyticalInsights(),
-        comparativeAnalysis: createDefaultComparativeAnalysis(),
+        temporalAnalysis: {},
+        spatialAnalysis: {},
+        behavioralAnalysis: {},
+        predictiveAnalysis: {},
+        analyticalInsights: {},
+        comparativeAnalysis: {},
         analysisQuality: 0,
         confidenceScore: 0,
         lastRefreshed: new Date().toISOString(),
@@ -641,44 +783,32 @@ export const getAdvancedTravelAnalysis = async (
 };
 
 /**
- * Save advanced travel analysis to all storage levels
+ * Get latest analysis from Firestore
  */
-export const saveAdvancedTravelAnalysis = async (
-  analysis: AdvancedTravelAnalysis
-): Promise<void> => {
+const getLatestAnalysisFromFirestore = async (): Promise<AdvancedTravelAnalysis | null> => {
   try {
     const currentUser = auth.currentUser;
     if (!currentUser) {
-      throw new Error("User not authenticated");
+      return null;
     }
 
-    // Update timestamp
-    const updatedAnalysis = {
-      ...analysis,
-      updatedAt: new Date().toISOString(),
-    };
-
-    // Convert nested arrays to Firebase-compatible format
-    const firebaseCompatibleAnalysis = convertToFirebaseCompatible(updatedAnalysis);
-
-    // Save to Firestore
     const analysisRef = collection(db, "users", currentUser.uid, "advancedTravelAnalysis");
-    await addDoc(analysisRef, firebaseCompatibleAnalysis);
+    const q = query(analysisRef, orderBy("createdAt", "desc"), limit(1));
 
-    // Update settings with last updated timestamp
-    await updateAdvancedAnalysisSettings({
-      lastUpdatedAt: Date.now(),
-    });
+    const querySnapshot = await getDocs(q);
 
-    // Update caches - store original format in memory/local storage
-    memoryCache = updatedAnalysis;
-    memoryCacheTimestamp = Date.now();
-    await saveToAsyncStorage(updatedAnalysis);
+    if (querySnapshot.empty) {
+      return null;
+    }
 
-    console.log("Advanced travel analysis saved successfully");
+    const docData = querySnapshot.docs[0].data();
+    return {
+      id: querySnapshot.docs[0].id,
+      ...docData,
+    } as AdvancedTravelAnalysis;
   } catch (error) {
-    console.error("Error saving advanced travel analysis:", error);
-    throw error;
+    console.error("Error getting latest analysis from Firestore:", error);
+    return null;
   }
 };
 
@@ -781,40 +911,6 @@ export const updateAdvancedAnalysisSettings = async (
 };
 
 /**
- * Get latest analysis from Firestore with array conversion
- */
-const getLatestAnalysisFromFirestore = async (): Promise<AdvancedTravelAnalysis | null> => {
-  try {
-    const currentUser = auth.currentUser;
-    if (!currentUser) {
-      return null;
-    }
-
-    const analysisRef = collection(db, "users", currentUser.uid, "advancedTravelAnalysis");
-    const q = query(analysisRef, orderBy("createdAt", "desc"), limit(1));
-
-    const querySnapshot = await getDocs(q);
-
-    if (querySnapshot.empty) {
-      return null;
-    }
-
-    const docData = querySnapshot.docs[0].data();
-
-    // Convert Firebase format back to original structure with arrays
-    const convertedData = convertFromFirebaseCompatible(docData);
-
-    return {
-      id: querySnapshot.docs[0].id,
-      ...convertedData,
-    } as AdvancedTravelAnalysis;
-  } catch (error) {
-    console.error("Error getting latest analysis from Firestore:", error);
-    return null;
-  }
-};
-
-/**
  * Clear memory cache
  */
 export const clearMemoryCache = (): void => {
@@ -882,245 +978,4 @@ const getUniqueCategories = (visitedPlaces: VisitedPlaceDetails[]): string[] => 
     }
   });
   return Array.from(categories);
-};
-
-// Default data creation functions
-const createDefaultTemporalAnalysis = (visitedPlaces: VisitedPlaceDetails[]): TemporalAnalysis => {
-  // Extract years from visited places
-  const years = Object.keys(getYearsFromVisits(visitedPlaces)).sort();
-  const yearlyProgression: Record<string, any> = {};
-
-  // Create default entries for each year
-  years.forEach((year) => {
-    yearlyProgression[year] = {
-      totalVisits: 0,
-      uniqueLocations: 0,
-      dominantCategory: "Unknown",
-      explorationRadius: 5,
-      topDestination: "Unknown",
-    };
-  });
-
-  // If no years, create at least the current year
-  if (years.length === 0) {
-    const currentYear = new Date().getFullYear().toString();
-    yearlyProgression[currentYear] = {
-      totalVisits: 0,
-      uniqueLocations: 0,
-      dominantCategory: "Unknown",
-      explorationRadius: 5,
-      topDestination: "Unknown",
-    };
-  }
-
-  return {
-    yearlyProgression,
-    seasonalPatterns: {
-      winter: { visitPercentage: 25, preferredCategories: ["Unknown"], averageDuration: "Unknown" },
-      spring: { visitPercentage: 25, preferredCategories: ["Unknown"], averageDuration: "Unknown" },
-      summer: { visitPercentage: 25, preferredCategories: ["Unknown"], averageDuration: "Unknown" },
-      fall: { visitPercentage: 25, preferredCategories: ["Unknown"], averageDuration: "Unknown" },
-    },
-    monthlyDistribution: {
-      January: 8.3,
-      February: 8.3,
-      March: 8.3,
-      April: 8.3,
-      May: 8.3,
-      June: 8.3,
-      July: 8.4,
-      August: 8.4,
-      September: 8.4,
-      October: 8.3,
-      November: 8.3,
-      December: 8.4,
-    },
-  };
-};
-
-const createDefaultSpatialAnalysis = (visitedPlaces: VisitedPlaceDetails[]): SpatialAnalysis => {
-  return {
-    explorationRadius: {
-      average: 10,
-      maximum: 20,
-      minimum: 0,
-      growthRate: 5,
-    },
-    locationClusters: [
-      {
-        clusterName: "Primary Cluster",
-        centerPoint: "Unknown",
-        numberOfVisits: visitedPlaces.length,
-        topCategories: ["Unknown"],
-        visits: visitedPlaces.length,
-      },
-    ],
-    directionTendencies: {
-      primaryDirection: "N",
-      secondaryDirection: "E",
-      directionPercentages: {
-        N: 25,
-        S: 25,
-        E: 25,
-        W: 25,
-      },
-      insight: "No clear directional preference detected yet",
-    },
-    regionDiversity: {
-      uniqueRegions: 1,
-      mostExploredRegion: "Unknown",
-      leastExploredRegion: "Unknown",
-      regionSpread: 10,
-      diversityInsight: "More data needed to assess regional diversity",
-    },
-  };
-};
-
-const createDefaultBehavioralAnalysis = (): BehavioralAnalysis => {
-  return {
-    explorationStyle: {
-      spontaneityScore: 50,
-      planningLevel: 50,
-      varietySeeking: 50,
-      returnVisitRate: 10,
-      noveltyPreference: 50,
-    },
-    travelPersonality: {
-      openness: 50,
-      cultureEngagement: 50,
-      socialOrientation: 50,
-      activityLevel: 50,
-      adventurousness: 50,
-    },
-    motivationalFactors: [
-      {
-        factor: "Cultural Exploration",
-        strength: 50,
-        insight: "Moderate interest in cultural experiences",
-      },
-      {
-        factor: "Novelty Seeking",
-        strength: 50,
-        insight: "Balanced approach to familiar and new experiences",
-      },
-    ],
-    decisionPatterns: {
-      decisionSpeed: 50,
-      consistencyScore: 50,
-      influenceFactors: ["Personal interests", "Convenience"],
-      insight: "Balanced decision-making style",
-    },
-  };
-};
-
-const createDefaultPredictiveAnalysis = (): PredictiveAnalysis => {
-  return {
-    recommendedDestinations: [
-      {
-        name: "Cultural Destination",
-        confidenceScore: 50,
-        reasoningFactors: ["Based on past preferences"],
-        bestTimeToVisit: "Spring",
-        expectedInterestLevel: 70,
-      },
-      {
-        name: "Urban Exploration",
-        confidenceScore: 60,
-        reasoningFactors: ["Matches travel patterns"],
-        bestTimeToVisit: "Fall",
-        expectedInterestLevel: 75,
-      },
-    ],
-    predictedTrends: [
-      {
-        trend: "Increased interest in local cultural experiences",
-        likelihood: 70,
-        timeframe: "Medium-term",
-        explanation: "Based on evolving preferences",
-      },
-    ],
-    interestEvolution: {
-      emergingInterests: ["Local Cuisine", "Cultural Immersion"],
-      decliningInterests: [],
-      steadyInterests: ["Urban Exploration"],
-      newSuggestions: ["Historical Sites"],
-    },
-    travelTrajectory: {
-      explorationRate: 10,
-      radiusChange: 15,
-      nextPhase: "Broadening Horizons",
-      insightSummary: "Likely to expand travel scope in coming months",
-    },
-  };
-};
-
-const createDefaultAnalyticalInsights = (): AnalyticalInsights => {
-  return {
-    keyInsights: [
-      {
-        title: "Preference Pattern",
-        description: "Shows consistent interest in certain categories",
-        confidenceScore: 60,
-        category: "preferences",
-        tags: ["consistent", "patterns"],
-      },
-    ],
-    patternInsights: [
-      {
-        pattern: "Regular visitation pattern",
-        strength: 50,
-        examples: ["Example pattern observation"],
-        implications: "Suggests structured approach to travel",
-      },
-    ],
-    anomalies: [
-      {
-        description: "No significant anomalies detected yet",
-        significance: 10,
-        explanation: "More data needed to identify anomalies",
-      },
-    ],
-    correlations: [
-      {
-        factor1: "Weather",
-        factor2: "Visit frequency",
-        correlationStrength: 40,
-        insight: "Moderate correlation between seasonality and travel frequency",
-      },
-    ],
-  };
-};
-
-const createDefaultComparativeAnalysis = (): ComparativeAnalysis => {
-  return {
-    personaComparison: {
-      mostSimilarPersona: "Balanced Explorer",
-      similarityScore: 70,
-      keyDifferences: ["More focused on specific interests"],
-      distinctiveTraits: ["Methodical approach"],
-    },
-    archetypeAnalysis: {
-      primaryArchetype: "Curious Traveler",
-      archetypeScore: 75,
-      secondaryArchetype: "Cultural Explorer",
-      secondaryScore: 65,
-      atypicalTraits: ["Higher interest in structured experiences"],
-    },
-    benchmarks: [
-      {
-        category: "Exploration Range",
-        userScore: 50,
-        averageScore: 60,
-        percentile: 40,
-        insight: "Slightly below average exploration range",
-      },
-    ],
-    uniquenessFactors: [
-      {
-        factor: "Visit Consistency",
-        uniquenessScore: 65,
-        explanation: "More consistent visit patterns than average",
-      },
-    ],
-  };
 };
