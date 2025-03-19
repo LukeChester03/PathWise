@@ -1,15 +1,16 @@
+// components/LearnScreen/TravelMilestonesComponent.tsx
 import React, { useState, useEffect } from "react";
 import { View, Text, StyleSheet, ScrollView } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient";
 import {
   TravelProfile,
   TravelMilestone,
   TravelBadge,
-} from "../../types/LearnScreen/TravelProfileTypes";
-import { Colors, NeutralColors, AccentColors } from "../../constants/colours";
-import { getAllUserBadges } from "../../services/LearnScreen/badgeService";
-import { fetchUserVisitedPlaces } from "../../services/LearnScreen/travelProfileService";
+} from "../../../types/LearnScreen/TravelProfileTypes";
+import { Colors, NeutralColors, AccentColors } from "../../../constants/colours";
+import { getAllUserBadges } from "../../../services/LearnScreen/badgeService";
+import { fetchUserVisitedPlaces } from "../../../services/LearnScreen/travelProfileService";
+import GradientCard from "../../Global/GradientCard";
 
 interface TravelMilestonesComponentProps {
   profile: TravelProfile | null;
@@ -124,29 +125,14 @@ const TravelMilestonesComponent: React.FC<TravelMilestonesComponentProps> = ({ p
         contentContainerStyle={styles.scrollContent}
       >
         {milestones.map((milestone, index) => (
-          <LinearGradient
+          <GradientCard
             key={index}
-            colors={gradientColors[index % gradientColors.length]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.milestoneCard}
-          >
-            <View style={styles.cardContent}>
-              <View style={styles.iconValueContainer}>
-                <View style={styles.milestoneIconContainer}>
-                  <Ionicons name={milestone.icon as any} size={24} color="white" />
-                </View>
-                <Text style={styles.milestoneValue}>{milestone.value}</Text>
-              </View>
-
-              <View style={styles.textContainer}>
-                <Text style={styles.milestoneTitle}>{milestone.title}</Text>
-                {milestone.description && (
-                  <Text style={styles.milestoneDescription}>{milestone.description}</Text>
-                )}
-              </View>
-            </View>
-          </LinearGradient>
+            gradientColors={gradientColors[index % gradientColors.length]}
+            icon={milestone.icon}
+            value={milestone.value}
+            title={milestone.title}
+            description={milestone.description}
+          />
         ))}
       </ScrollView>
     </View>
@@ -176,52 +162,6 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingBottom: 8,
-  },
-  milestoneCard: {
-    borderRadius: 16,
-    marginBottom: 12,
-    elevation: 4,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  cardContent: {
-    padding: 16,
-  },
-  iconValueContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 12,
-  },
-  milestoneIconContainer: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: "rgba(255, 255, 255, 0.25)",
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 12,
-  },
-  textContainer: {
-    marginLeft: 62, // Aligns with the icon
-  },
-  milestoneValue: {
-    fontSize: 24,
-    fontWeight: "800",
-    color: "white",
-  },
-  milestoneTitle: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "white",
-    marginBottom: 6,
-  },
-  milestoneDescription: {
-    fontSize: 14,
-    fontWeight: "400",
-    color: "rgba(255, 255, 255, 0.85)",
-    lineHeight: 20,
   },
 });
 

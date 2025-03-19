@@ -2,7 +2,7 @@ import React from "react";
 import { View, Text, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { Colors, NeutralColors, AccentColors } from "../../constants/colours";
+import { Colors, NeutralColors, AccentColors } from "../../../constants/colours";
 
 interface VisitStatsCardsComponentProps {
   averageDuration: string;

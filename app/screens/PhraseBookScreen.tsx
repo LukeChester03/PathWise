@@ -13,6 +13,7 @@ import {
   Alert,
   Animated,
   Dimensions,
+  StatusBar,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
@@ -977,7 +978,8 @@ const PhrasebookScreen: React.FC<PhrasebookScreenProps> = ({ route, navigation }
   };
 
   return (
-    <ScreenWithNavBar>
+    <View style={styles.container}>
+      <StatusBar style="dark" />
       <Header
         title="Phrasebook"
         subtitle="Travel phrases"
@@ -1131,7 +1133,7 @@ const PhrasebookScreen: React.FC<PhrasebookScreenProps> = ({ route, navigation }
           onAddAll={handleAddAllPhrases}
         />
       </SafeAreaView>
-    </ScreenWithNavBar>
+    </View>
   );
 };
 

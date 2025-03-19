@@ -18,16 +18,17 @@ import { getAllUserBadges } from "../services/LearnScreen/badgeService";
 import { Colors, NeutralColors, AccentColors } from "../constants/colours";
 
 // Import components
-import TravelerTraitsComponent from "../components/LearnScreen/TravelerTraitsComponent";
-import TravelMilestonesComponent from "../components/LearnScreen/TravelMilestonesComponent";
-import TravelTimelineComponent from "../components/LearnScreen/TravelTimelineComponent";
-import VisitStatsCardsComponent from "../components/LearnScreen/VisitStatsCardComponent";
+import TravelerTraitsComponent from "../components/LearnScreen/TravelSnapshotSection/TravelerTraitsComponent";
+import TravelMilestonesComponent from "../components/LearnScreen/TravelSnapshotSection/TravelMilestonesComponent";
+import TravelTimelineComponent from "../components/LearnScreen/TravelSnapshotSection/TravelTimelineComponent";
+import VisitStatsCardsComponent from "../components/LearnScreen/TravelSnapshotSection/VisitStatsCardComponent";
 import ProfileHeader from "../components/LearnScreen/ProfileHeader";
 import SectionHeader from "../components/LearnScreen/SectionHeader";
 import BadgesSection from "../components/LearnScreen/BadgesSection";
-import TravelPatternsSection from "../components/LearnScreen/TravelPatternsSection";
-import PreferencesSection from "../components/LearnScreen/PreferencesSection";
-import InsightsSection from "../components/LearnScreen/InsightsSection";
+import TravelPatternsSection from "../components/LearnScreen/TravelSnapshotSection/TravelPatternsSection";
+import PreferencesSection from "../components/LearnScreen/TravelSnapshotSection/PreferencesSection";
+import InsightsSection from "../components/LearnScreen/TravelSnapshotSection/InsightsSection";
+import Header from "../components/Global/Header";
 
 // Define navigation types
 type RootStackParamList = {
@@ -243,17 +244,17 @@ const TravelProfileScreen: React.FC<TravelProfileScreenProps> = ({ route, naviga
   const formattedVisitation = formatVisitationData();
 
   return (
-    <SafeAreaView style={styles.container}>
-      {/* Screen Header */}
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-          <Ionicons name="arrow-back" size={24} color={Colors.text} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Travel Profile</Text>
-        <TouchableOpacity style={styles.refreshButton} onPress={fetchProfile}>
-          <Ionicons name="refresh" size={24} color={Colors.primary} />
-        </TouchableOpacity>
-      </View>
+    <View style={[styles.container, { paddingTop: 0 }]}>
+      <Header
+        title="Travel Snapshot"
+        subtitle="Your travel characteristics"
+        showBackButton={true}
+        onBackPress={() => navigation.goBack()}
+        showIcon={true}
+        iconName="analytics-outline"
+        iconColor={Colors.primary}
+        showHelp={false}
+      />
 
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         {/* Profile Header Component */}
@@ -337,7 +338,7 @@ const TravelProfileScreen: React.FC<TravelProfileScreenProps> = ({ route, naviga
           </View>
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 };
 

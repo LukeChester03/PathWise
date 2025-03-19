@@ -21,7 +21,7 @@ import { Colors, NeutralColors } from "../constants/colours";
 import ScreenWithNavBar from "../components/Global/ScreenWithNavbar";
 import Header from "../components/Global/Header";
 import PlacesCarousel from "../components/Places/PlacesCarousel";
-import AiTravelSnapshot from "../components/LearnScreen/AiTravelSnapshot";
+import AiTravelSnapshot from "../components/LearnScreen/TravelSnapshotSection/AiTravelSnapshot";
 import { TravelProfile } from "../types/LearnScreen/TravelProfileTypes";
 import LanguageAssistant from "../components/LearnScreen/LanguageSection/LanguageAssistant";
 import LearnIntroOverlay from "../components/LearnScreen/LearnIntroOverlayComponent";

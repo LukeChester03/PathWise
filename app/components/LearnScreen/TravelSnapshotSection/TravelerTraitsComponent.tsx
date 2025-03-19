@@ -2,8 +2,9 @@
 import React, { useEffect } from "react";
 import { View, Text, StyleSheet, ScrollView } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { TravelerTrait } from "../../types/LearnScreen/TravelProfileTypes";
-import { Colors, NeutralColors } from "../../constants/colours";
+import { TravelerTrait } from "../../../types/LearnScreen/TravelProfileTypes";
+import { Colors, NeutralColors } from "../../../constants/colours";
+import GradientCard from "../../Global/GradientCard";
 
 interface TravelerTraitsComponentProps {
   traits: TravelerTrait[] | undefined;
@@ -54,26 +55,27 @@ const TravelerTraitsComponent: React.FC<TravelerTraitsComponentProps> = ({ trait
           const safeTraitIcon = trait.icon || "person";
           const safeTraitColor = trait.color || Colors.primary;
 
+          // Create a gradient using the trait color
+          const traitGradient = [safeTraitColor, adjustColorBrightness(safeTraitColor, 30)];
+
           return (
-            <View
+            <GradientCard
               key={safeTraitId}
-              style={[
+              gradientColors={traitGradient}
+              icon={safeTraitIcon}
+              title={safeTraitTitle}
+              description={safeTraitDescription}
+              cardStyle={[
                 styles.traitCard,
-                { borderLeftColor: safeTraitColor },
                 index < traits.length - 1 ? styles.traitCardWithMargin : null,
               ]}
-            >
-              <View style={styles.traitCardContent}>
-                <View style={[styles.traitIconContainer, { backgroundColor: safeTraitColor }]}>
-                  <Ionicons name={safeTraitIcon as any} size={24} color="#FFFFFF" />
-                </View>
-
-                <View style={styles.traitTextContainer}>
-                  <Text style={styles.traitTitle}>{safeTraitTitle}</Text>
-                  <Text style={styles.traitDescription}>{safeTraitDescription}</Text>
-                </View>
-              </View>
-            </View>
+              contentStyle={styles.customCardContent}
+              iconContainerStyle={styles.customIconContainer}
+              titleStyle={styles.customTitleStyle}
+              descriptionStyle={styles.customDescriptionStyle}
+              gradientStart={{ x: 0, y: 0 }}
+              gradientEnd={{ x: 0, y: 1 }}
+            />
           );
         })}
       </ScrollView>
@@ -93,6 +95,35 @@ const TravelerTraitsComponent: React.FC<TravelerTraitsComponentProps> = ({ trait
   );
 };
 
+// Helper function to adjust color brightness
+function adjustColorBrightness(hex: string, percent: number): string {
+  // Validate hex color
+  hex = hex.replace(/^\s*#|\s*$/g, "");
+  if (hex.length === 3) {
+    hex = hex[0] + hex[0] + hex[1] + hex[1] + hex[2] + hex[2];
+  }
+
+  // Convert to RGB
+  const r = parseInt(hex.substring(0, 2), 16);
+  const g = parseInt(hex.substring(2, 4), 16);
+  const b = parseInt(hex.substring(4, 6), 16);
+
+  // Adjust brightness
+  const adjustR = Math.floor((r * (100 + percent)) / 100);
+  const adjustG = Math.floor((g * (100 + percent)) / 100);
+  const adjustB = Math.floor((b * (100 + percent)) / 100);
+
+  // Ensure the values are within valid range
+  const clampR = Math.min(255, Math.max(0, adjustR));
+  const clampG = Math.min(255, Math.max(0, adjustG));
+  const clampB = Math.min(255, Math.max(0, adjustB));
+
+  // Convert back to hex
+  return `#${clampR.toString(16).padStart(2, "0")}${clampG.toString(16).padStart(2, "0")}${clampB
+    .toString(16)
+    .padStart(2, "0")}`;
+}
+
 const styles = StyleSheet.create({
   traitsContainer: {
     marginTop: 12,
@@ -106,17 +137,13 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   traitsScrollView: {
-    maxHeight: 300, // Limit height to ensure it's scrollable
+    maxHeight: 480, // Limit height to ensure it's scrollable
   },
   traitsScrollContent: {
     paddingBottom: 8,
   },
   traitCard: {
-    width: "100%",
     borderRadius: 12,
-    backgroundColor: NeutralColors.gray100,
-    padding: 16,
-    borderLeftWidth: 4,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
@@ -126,30 +153,24 @@ const styles = StyleSheet.create({
   traitCardWithMargin: {
     marginBottom: 12,
   },
-  traitCardContent: {
-    flexDirection: "row",
-    alignItems: "center",
+  customCardContent: {
+    padding: 16,
   },
-  traitIconContainer: {
+  customIconContainer: {
     width: 46,
     height: 46,
     borderRadius: 23,
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 16,
+    backgroundColor: "rgba(255, 255, 255, 0.25)",
   },
-  traitTextContainer: {
-    flex: 1,
-  },
-  traitTitle: {
+  customTitleStyle: {
     fontSize: 16,
     fontWeight: "700",
-    color: Colors.text,
+    color: "white",
     marginBottom: 4,
   },
-  traitDescription: {
+  customDescriptionStyle: {
     fontSize: 14,
-    color: NeutralColors.gray600,
+    color: "rgba(255, 255, 255, 0.9)",
     lineHeight: 20,
   },
   emptyTraitsContainer: {

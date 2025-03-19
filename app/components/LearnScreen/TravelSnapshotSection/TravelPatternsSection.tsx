@@ -2,9 +2,9 @@
 import React from "react";
 import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { TravelProfile } from "../../types/LearnScreen/TravelProfileTypes";
-import { Colors, NeutralColors } from "../../constants/colours";
-import SectionHeader from "./SectionHeader";
+import { TravelProfile } from "../../../types/LearnScreen/TravelProfileTypes";
+import { Colors, NeutralColors } from "../../../constants/colours";
+import SectionHeader from "../SectionHeader";
 
 interface TravelPatternsSectionProps {
   profile: TravelProfile;

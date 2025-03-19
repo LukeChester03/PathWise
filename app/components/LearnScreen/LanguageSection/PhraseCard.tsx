@@ -39,11 +39,6 @@ const PhraseCard: React.FC<PhraseCardProps> = ({
       <View style={styles.cardHeader}>
         <View style={styles.languageContainer}>
           <Text style={styles.phraseLanguage}>{phrase.language}</Text>
-
-          <View style={styles.contextBadge}>
-            <Ionicons name={getCategoryIcon(phrase.useContext)} size={10} color="#6B7280" />
-            <Text style={styles.contextText}>{phrase.useContext}</Text>
-          </View>
         </View>
 
         <TouchableOpacity style={styles.saveButton} onPress={() => onToggleFavorite(phrase)}>

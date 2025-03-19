@@ -253,8 +253,6 @@ const styles = StyleSheet.create({
     backgroundColor: NeutralColors.gray100,
     padding: 12,
     borderRadius: 12,
-    borderLeftWidth: 4,
-    borderLeftColor: Colors.primary,
   },
   lockedBadgeItem: {
     borderLeftColor: NeutralColors.gray500,

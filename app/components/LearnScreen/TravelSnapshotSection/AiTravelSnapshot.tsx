@@ -10,10 +10,10 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useNavigation } from "@react-navigation/native";
-import { TravelProfile } from "../../types/LearnScreen/TravelProfileTypes";
-import { VisitedPlaceDetails } from "../../types/MapTypes";
-import { getTravelProfile } from "../../services/LearnScreen/travelProfileService";
-import { getVisitedPlaces } from "../../controllers/Map/visitedPlacesController";
+import { TravelProfile } from "../../../types/LearnScreen/TravelProfileTypes";
+import { VisitedPlaceDetails } from "../../../types/MapTypes";
+import { getTravelProfile } from "../../../services/LearnScreen/travelProfileService";
+import { getVisitedPlaces } from "../../../controllers/Map/visitedPlacesController";
 
 interface AiTravelSnapshotProps {
   fadeAnim: Animated.Value;
@@ -63,13 +63,6 @@ const AiTravelSnapshot: React.FC<AiTravelSnapshotProps> = ({
 
       // Now fetch the travel profile
       const { profile } = await getTravelProfile();
-
-      // Additional check for "No Data"
-      if (profile === "No Data") {
-        setProfile(null);
-        setError("Unable to generate travel profile. Please try again later.");
-        return;
-      }
 
       setProfile(profile);
 
