@@ -20,6 +20,8 @@ import {
   checkAdvancedAnalysisRequestLimit,
   getAdvancedAnalysisProgress,
   generateAdvancedTravelAnalysis,
+  checkAndPerformAutomaticUpdate, // Import the new function
+  getLatestAnalysisFromFirestore, // Import this to directly check Firebase
 } from "../services/LearnScreen/aiTravelAnalysisService";
 import { getVisitedPlaces } from "../controllers/Map/visitedPlacesController";
 import { VisitedPlaceDetails } from "../types/MapTypes";
@@ -65,6 +67,8 @@ const AdvancedTravelAnalysisScreen: React.FC<AdvancedTravelAnalysisScreenProps> 
     requestsRemaining: 2,
   });
   const [progress, setProgress] = useState<AnalysisGenerationProgress | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [firebaseDataExists, setFirebaseDataExists] = useState<boolean | null>(null);
   const scrollY = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -85,11 +89,24 @@ const AdvancedTravelAnalysisScreen: React.FC<AdvancedTravelAnalysisScreenProps> 
       const places = await getVisitedPlaces();
       setVisitedPlaces(places || []);
 
-      // Load advanced travel analysis
+      // First, directly check Firebase for existing analysis data
+      const firebaseData = await getLatestAnalysisFromFirestore();
+      setFirebaseDataExists(!!firebaseData);
+
+      // If we have enough visited places, check for auto-update
+      if (places && places.length > 0) {
+        await checkAndPerformAutomaticUpdate(places);
+      }
+
+      // Load advanced travel analysis (from cache or Firebase)
       const analysisData = await getAdvancedTravelAnalysis();
       if (analysisData) {
         setAnalysis(analysisData);
-      } else {
+        // Set last updated time from the analysis data
+        setLastUpdated(
+          analysisData.lastRefreshed ? new Date(analysisData.lastRefreshed) : new Date()
+        );
+      } else if (!firebaseData) {
         setError("No advanced analysis available. Generate your first analysis!");
       }
     } catch (err) {
@@ -166,6 +183,7 @@ const AdvancedTravelAnalysisScreen: React.FC<AdvancedTravelAnalysisScreenProps> 
 
       // Start the generation process
       await generateAdvancedTravelAnalysis(visitedPlaces);
+      setFirebaseDataExists(true); // Update this flag since we've created data in Firebase
 
       // The analysis will be loaded when the progress polling detects completion
     } catch (err: any) {
@@ -178,6 +196,37 @@ const AdvancedTravelAnalysisScreen: React.FC<AdvancedTravelAnalysisScreenProps> 
 
   const handleHelpPress = () => {
     console.log("Show help for Advanced Travel Analysis");
+  };
+
+  const formatLastUpdated = (date: Date | null) => {
+    if (!date) return "Never updated";
+
+    // Format the date and time
+    const formattedDate = date.toLocaleDateString(undefined, {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
+
+    const formattedTime = date.toLocaleTimeString(undefined, {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+
+    return `${formattedDate} at ${formattedTime}`;
+  };
+
+  // Calculate the next update time (24 hours after last update)
+  const getNextUpdateTime = (date: Date | null) => {
+    if (!date) return "Unknown";
+
+    const nextUpdate = new Date(date);
+    nextUpdate.setDate(nextUpdate.getDate() + 1); // Add 24 hours
+
+    return nextUpdate.toLocaleTimeString(undefined, {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
   };
 
   // Main render function
@@ -222,25 +271,18 @@ const AdvancedTravelAnalysisScreen: React.FC<AdvancedTravelAnalysisScreenProps> 
           <TabContent activeTab={activeTab} analysis={analysis} />
 
           <View style={styles.bottomActions}>
-            <TouchableOpacity
-              style={styles.refreshAnalysisButton}
-              onPress={handleGenerateAnalysis}
-              disabled={!requestLimits.canRequest || loading}
-            >
-              <Ionicons
-                name="refresh"
-                size={18}
-                color={requestLimits.canRequest ? "#FFFFFF" : "#CCCCCC"}
-              />
-              <Text
-                style={[
-                  styles.refreshAnalysisButtonText,
-                  !requestLimits.canRequest && styles.refreshButtonDisabled,
-                ]}
-              >
-                Refresh Analysis
+            <View style={styles.lastUpdatedContainer}>
+              <Ionicons name="time-outline" size={18} color={Colors.text} style={styles.timeIcon} />
+              <Text style={styles.lastUpdatedText}>
+                Last updated: {formatLastUpdated(lastUpdated)}
               </Text>
-            </TouchableOpacity>
+            </View>
+            <Text style={styles.automaticUpdateText}>
+              Analysis updates automatically every 24 hours
+            </Text>
+            <Text style={styles.nextUpdateText}>
+              Next update approximately at {getNextUpdateTime(lastUpdated)}
+            </Text>
           </View>
         </ScrollableContainer>
       )}
@@ -300,22 +342,31 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     paddingHorizontal: 16,
   },
-  refreshAnalysisButton: {
+  lastUpdatedContainer: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: Colors.primary,
-    paddingVertical: 14,
-    borderRadius: 10,
+    marginBottom: 8,
   },
-  refreshAnalysisButtonText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: NeutralColors.white,
-    marginLeft: 8,
+  timeIcon: {
+    marginRight: 6,
   },
-  refreshButtonDisabled: {
-    color: NeutralColors.gray400,
+  lastUpdatedText: {
+    fontSize: 15,
+    color: Colors.text,
+  },
+  automaticUpdateText: {
+    fontSize: 14,
+    color: NeutralColors.gray600,
+    textAlign: "center",
+    fontStyle: "italic",
+  },
+  nextUpdateText: {
+    fontSize: 13,
+    color: NeutralColors.gray500,
+    textAlign: "center",
+    marginTop: 4,
+    fontStyle: "italic",
   },
 });
 

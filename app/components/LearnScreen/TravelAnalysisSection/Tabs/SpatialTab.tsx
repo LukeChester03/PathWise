@@ -12,6 +12,14 @@ type SpatialTabProps = {
 const SpatialTab: React.FC<SpatialTabProps> = ({ spatialAnalysis }) => {
   if (!spatialAnalysis) return null;
 
+  // Helper function to format category names (tourist_attraction → Tourist Attraction)
+  const formatCategoryName = (category: string): string => {
+    return category
+      .split("_")
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(" ");
+  };
+
   return (
     <TabContainer>
       <SectionCard
@@ -23,7 +31,9 @@ const SpatialTab: React.FC<SpatialTabProps> = ({ spatialAnalysis }) => {
           <View style={styles.radiusMetricsContainer}>
             <View style={styles.radiusMetric}>
               <View style={styles.radiusMetricValue}>
-                <Text style={styles.radiusValue}>{spatialAnalysis.explorationRadius.average}</Text>
+                <Text style={styles.radiusValue}>
+                  {Math.round(spatialAnalysis.explorationRadius.average)}
+                </Text>
                 <Text style={styles.radiusUnit}>km</Text>
               </View>
               <Text style={styles.radiusLabel}>Average</Text>
@@ -31,7 +41,9 @@ const SpatialTab: React.FC<SpatialTabProps> = ({ spatialAnalysis }) => {
 
             <View style={styles.radiusMetric}>
               <View style={styles.radiusMetricValue}>
-                <Text style={styles.radiusValue}>{spatialAnalysis.explorationRadius.maximum}</Text>
+                <Text style={styles.radiusValue}>
+                  {Math.round(spatialAnalysis.explorationRadius.maximum)}
+                </Text>
                 <Text style={styles.radiusUnit}>km</Text>
               </View>
               <Text style={styles.radiusLabel}>Maximum</Text>
@@ -40,7 +52,7 @@ const SpatialTab: React.FC<SpatialTabProps> = ({ spatialAnalysis }) => {
             <View style={styles.radiusMetric}>
               <View style={styles.radiusMetricValue}>
                 <Text style={styles.radiusValue}>
-                  {spatialAnalysis.explorationRadius.growthRate}
+                  {Math.round(spatialAnalysis.explorationRadius.growthRate)}
                 </Text>
                 <Text style={styles.radiusUnit}>%</Text>
               </View>
@@ -75,7 +87,7 @@ const SpatialTab: React.FC<SpatialTabProps> = ({ spatialAnalysis }) => {
                   <View style={styles.categoryTags}>
                     {(cluster.topCategories || []).map((category: string, idx: number) => (
                       <View key={idx} style={styles.categoryTag}>
-                        <Text style={styles.categoryTagText}>{category}</Text>
+                        <Text style={styles.categoryTagText}>{formatCategoryName(category)}</Text>
                       </View>
                     ))}
                   </View>
@@ -118,7 +130,7 @@ const SpatialTab: React.FC<SpatialTabProps> = ({ spatialAnalysis }) => {
                       ]}
                     >
                       <Text style={styles.directionLetter}>{direction}</Text>
-                      <Text style={styles.directionPercentage}>{percentage}%</Text>
+                      <Text style={styles.directionPercentage}>{Math.round(percentage)}%</Text>
                     </View>
                   )
                 )}
@@ -146,14 +158,14 @@ const SpatialTab: React.FC<SpatialTabProps> = ({ spatialAnalysis }) => {
             <View style={styles.regionMetrics}>
               <View style={styles.regionMetric}>
                 <Text style={styles.regionMetricValue}>
-                  {spatialAnalysis.regionDiversity.uniqueRegions}
+                  {Math.round(spatialAnalysis.regionDiversity.uniqueRegions)}
                 </Text>
                 <Text style={styles.regionMetricLabel}>Unique Regions</Text>
               </View>
 
               <View style={styles.regionMetric}>
                 <Text style={styles.regionMetricValue}>
-                  {spatialAnalysis.regionDiversity.regionSpread}
+                  {Math.round(spatialAnalysis.regionDiversity.regionSpread)}
                 </Text>
                 <Text style={styles.regionMetricLabel}>Region Spread</Text>
               </View>

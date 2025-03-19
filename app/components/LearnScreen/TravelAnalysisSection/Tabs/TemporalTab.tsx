@@ -1,6 +1,6 @@
 // components/AdvancedAnalysis/tabs/TemporalTab.tsx
 import React from "react";
-import { View, Text, StyleSheet } from "react-native";
+import { View, Text, StyleSheet, Dimensions } from "react-native";
 import { Colors, NeutralColors } from "../../../../constants/colours";
 import SectionCard, { NoDataText } from "../SectionCard";
 import TabContainer from "../TabContainer";
@@ -8,6 +8,25 @@ import TabContainer from "../TabContainer";
 type TemporalTabProps = {
   temporalAnalysis: any; // Use proper type from your TravelAnalysisTypes
 };
+
+// Define month order to ensure consistent display
+const MONTH_ORDER = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+];
+
+// Get screen width for responsive calculations
+const screenWidth = Dimensions.get("window").width;
 
 const TemporalTab: React.FC<TemporalTabProps> = ({ temporalAnalysis }) => {
   if (!temporalAnalysis) return null;
@@ -41,7 +60,9 @@ const TemporalTab: React.FC<TemporalTabProps> = ({ temporalAnalysis }) => {
                       <Text style={styles.yearlyBarCount}>{yearData.totalVisits}</Text>
                     </View>
                     <View style={styles.yearlyBarWrapper}>
-                      <View style={[styles.yearlyBar, { height: `${barHeight}%` }]} />
+                      <View
+                        style={[styles.yearlyBar, { height: `${barHeight}%` }, styles.barShadow]}
+                      />
                     </View>
                     <Text style={styles.yearlyBarLabel}>{year}</Text>
                   </View>
@@ -82,6 +103,7 @@ const TemporalTab: React.FC<TemporalTabProps> = ({ temporalAnalysis }) => {
                           season === "spring" && styles.springBar,
                           season === "summer" && styles.summerBar,
                           season === "fall" && styles.fallBar,
+                          styles.barShadow,
                         ]}
                       />
                     </View>
@@ -112,18 +134,46 @@ const TemporalTab: React.FC<TemporalTabProps> = ({ temporalAnalysis }) => {
       >
         {temporalAnalysis.monthlyDistribution &&
         Object.keys(temporalAnalysis.monthlyDistribution).length > 0 ? (
-          <View style={styles.monthlyDistributionContainer}>
-            {Object.entries(temporalAnalysis.monthlyDistribution).map(
-              ([month, percentage]: [string, any]) => (
-                <View key={month} style={styles.monthItem}>
-                  <Text style={styles.monthName}>{month.substring(0, 3)}</Text>
-                  <View style={styles.monthBarContainer}>
-                    <View style={[styles.monthBar, { height: `${percentage * 4}%` }]} />
+          <View style={styles.monthlyDistributionWrapper}>
+            <View style={styles.monthlyDistributionContainer}>
+              {MONTH_ORDER.map((month) => {
+                const percentage = temporalAnalysis.monthlyDistribution[month] || 0;
+                // Find the maximum percentage for better scaling
+                const maxPercentage = Math.max(
+                  ...Object.values(temporalAnalysis.monthlyDistribution).map((val: any) =>
+                    typeof val === "number" ? val : 0
+                  ),
+                  1
+                );
+
+                // Scale the bar height based on the maximum percentage
+                // This ensures the tallest bar is at 100% and others are proportional
+                const heightPercentage = Math.max((percentage / maxPercentage) * 100, 5);
+
+                return (
+                  <View key={month} style={styles.monthItem}>
+                    <Text style={styles.monthPercentage}>
+                      {percentage > 0 ? percentage.toFixed(1) + "%" : ""}
+                    </Text>
+                    <View style={styles.monthBarContainer}>
+                      <View
+                        style={[
+                          styles.monthBar,
+                          { height: `${heightPercentage}%` },
+                          styles.barShadow,
+                          percentage === 0 && styles.emptyBar,
+                        ]}
+                      />
+                    </View>
+                    <Text style={styles.monthName}>{month.substring(0, 3)}</Text>
                   </View>
-                  <Text style={styles.monthPercentage}>{percentage?.toFixed(1)}%</Text>
-                </View>
-              )
-            )}
+                );
+              })}
+            </View>
+            <View style={styles.chartGuides}>
+              <View style={styles.chartAxisY} />
+              <View style={styles.chartAxisX} />
+            </View>
           </View>
         ) : (
           <NoDataText text="No monthly distribution data available" />
@@ -134,74 +184,81 @@ const TemporalTab: React.FC<TemporalTabProps> = ({ temporalAnalysis }) => {
 };
 
 const styles = StyleSheet.create({
+  // Yearly Progression Styles
   yearlyProgressionChart: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-end",
-    height: 200,
+    height: 220,
     marginTop: 16,
+    marginBottom: 10,
+    paddingHorizontal: 10,
+    position: "relative",
   },
   yearlyBarContainer: {
     flex: 1,
     alignItems: "center",
-    paddingHorizontal: 2,
+    paddingHorizontal: 4,
   },
   yearlyBarInfo: {
-    marginBottom: 4,
+    marginBottom: 6,
   },
   yearlyBarCount: {
-    fontSize: 12,
+    fontSize: 14,
     color: Colors.text,
     fontWeight: "600",
   },
   yearlyBarWrapper: {
-    width: "70%",
-    height: 150,
+    width: "75%",
+    height: 160,
     justifyContent: "flex-end",
   },
   yearlyBar: {
     width: "100%",
     backgroundColor: Colors.primary,
-    borderTopLeftRadius: 4,
-    borderTopRightRadius: 4,
+    borderTopLeftRadius: 6,
+    borderTopRightRadius: 6,
   },
   yearlyBarLabel: {
-    fontSize: 12,
-    color: NeutralColors.gray600,
+    fontSize: 13,
+    color: NeutralColors.gray700,
     marginTop: 8,
+    fontWeight: "500",
   },
+
+  // Seasonal Patterns Styles
   seasonalPatternsContainer: {
-    marginTop: 16,
+    marginTop: 20,
   },
   seasonalPattern: {
-    marginBottom: 16,
+    marginBottom: 20,
   },
   seasonalHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 4,
+    marginBottom: 6,
   },
   seasonalName: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: "600",
     color: Colors.text,
   },
   seasonalPercentage: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: "600",
     color: Colors.primary,
   },
   seasonalBarContainer: {
-    height: 8,
-    backgroundColor: NeutralColors.gray300,
-    borderRadius: 4,
+    height: 10,
+    backgroundColor: NeutralColors.gray200,
+    borderRadius: 5,
     overflow: "hidden",
-    marginBottom: 8,
+    marginBottom: 10,
   },
   seasonalBar: {
     height: "100%",
-    borderRadius: 4,
+    borderRadius: 5,
   },
   winterBar: {
     backgroundColor: Colors.info,
@@ -221,40 +278,90 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
   },
   seasonalDetailText: {
-    fontSize: 12,
-    color: NeutralColors.gray600,
+    fontSize: 13,
+    color: NeutralColors.gray700,
+  },
+
+  // Monthly Distribution Styles
+  monthlyDistributionWrapper: {
+    marginTop: 16,
+    marginBottom: 10,
+    paddingLeft: 10,
+    paddingRight: 5,
+    paddingBottom: 20,
+    height: 200,
+    position: "relative",
   },
   monthlyDistributionContainer: {
     flexDirection: "row",
     justifyContent: "space-between",
-    height: 120,
+    height: 160,
     alignItems: "flex-end",
-    paddingTop: 16,
+    zIndex: 2,
   },
   monthItem: {
     alignItems: "center",
-    flex: 1,
+    width: (screenWidth - 60) / 12, // Responsive width based on screen size
   },
   monthName: {
-    fontSize: 10,
-    color: NeutralColors.gray600,
-    marginBottom: 4,
+    fontSize: 12,
+    color: NeutralColors.gray700,
+    marginTop: 8,
+    fontWeight: "500",
   },
   monthBarContainer: {
-    width: 8,
-    height: 80,
+    width: "60%",
+    height: 140,
     justifyContent: "flex-end",
   },
   monthBar: {
     width: "100%",
     backgroundColor: Colors.primary,
-    borderTopLeftRadius: 2,
-    borderTopRightRadius: 2,
+    borderTopLeftRadius: 4,
+    borderTopRightRadius: 4,
+    minHeight: 4,
   },
   monthPercentage: {
-    fontSize: 10,
+    fontSize: 11,
     color: NeutralColors.gray600,
-    marginTop: 4,
+    marginBottom: 5,
+    height: 15,
+  },
+  emptyBar: {
+    backgroundColor: NeutralColors.gray300,
+  },
+
+  // Common Styles
+  barShadow: {
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 1.5,
+    elevation: 2,
+  },
+  chartGuides: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 20,
+    top: 0,
+    zIndex: 1,
+  },
+  chartAxisY: {
+    position: "absolute",
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 1,
+    backgroundColor: NeutralColors.gray300,
+  },
+  chartAxisX: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: 1,
+    backgroundColor: NeutralColors.gray300,
   },
 });
 
