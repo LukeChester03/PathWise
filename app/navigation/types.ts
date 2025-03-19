@@ -27,4 +27,8 @@ export type RootStackParamList = {
     region?: string;
   };
   AdvancedTravelAnalysis: undefined;
+  KnowledgeQuestScreen: undefined;
+  QuizSession: {
+    quizId: string;
+  };
 };

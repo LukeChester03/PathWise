@@ -25,7 +25,7 @@ const BehavioralTab: React.FC<BehavioralTabProps> = ({ behavioralAnalysis }) => 
               <View style={styles.explorationMetricHeader}>
                 <Text style={styles.explorationMetricLabel}>Spontaneity</Text>
                 <Text style={styles.explorationMetricValue}>
-                  {behavioralAnalysis.explorationStyle.spontaneityScore}%
+                  {Math.round(behavioralAnalysis.explorationStyle.spontaneityScore)}%
                 </Text>
               </View>
               <View style={styles.explorationMetricScale}>
@@ -46,7 +46,7 @@ const BehavioralTab: React.FC<BehavioralTabProps> = ({ behavioralAnalysis }) => 
               <View style={styles.explorationMetricHeader}>
                 <Text style={styles.explorationMetricLabel}>Variety Seeking</Text>
                 <Text style={styles.explorationMetricValue}>
-                  {behavioralAnalysis.explorationStyle.varietySeeking}%
+                  {Math.round(behavioralAnalysis.explorationStyle.varietySeeking)}%
                 </Text>
               </View>
               <View style={styles.explorationMetricScale}>
@@ -67,7 +67,7 @@ const BehavioralTab: React.FC<BehavioralTabProps> = ({ behavioralAnalysis }) => 
               <View style={styles.explorationMetricHeader}>
                 <Text style={styles.explorationMetricLabel}>Novelty Preference</Text>
                 <Text style={styles.explorationMetricValue}>
-                  {behavioralAnalysis.explorationStyle.noveltyPreference}%
+                  {Math.round(behavioralAnalysis.explorationStyle.noveltyPreference)}%
                 </Text>
               </View>
               <View style={styles.explorationMetricScale}>
@@ -87,7 +87,7 @@ const BehavioralTab: React.FC<BehavioralTabProps> = ({ behavioralAnalysis }) => 
             <View style={styles.returnVisitContainer}>
               <Text style={styles.returnVisitLabel}>Return Visit Rate</Text>
               <Text style={styles.returnVisitValue}>
-                {behavioralAnalysis.explorationStyle.returnVisitRate}%
+                {Math.round(behavioralAnalysis.explorationStyle.returnVisitRate)}%
               </Text>
             </View>
           </View>
@@ -105,77 +105,87 @@ const BehavioralTab: React.FC<BehavioralTabProps> = ({ behavioralAnalysis }) => 
           <View style={styles.personalityTraitsContainer}>
             <View style={styles.personalityTrait}>
               <Text style={styles.personalityTraitLabel}>Openness</Text>
-              <View style={styles.personalityTraitScale}>
-                <View
-                  style={[
-                    styles.personalityTraitFill,
-                    { width: `${behavioralAnalysis.travelPersonality.openness}%` },
-                  ]}
-                />
+              <View style={styles.personalityTraitScaleContainer}>
+                <View style={styles.personalityTraitScale}>
+                  <View
+                    style={[
+                      styles.personalityTraitFill,
+                      { width: `${behavioralAnalysis.travelPersonality.openness}%` },
+                    ]}
+                  />
+                </View>
+                <Text style={styles.personalityTraitValue}>
+                  {Math.round(behavioralAnalysis.travelPersonality.openness)}%
+                </Text>
               </View>
-              <Text style={styles.personalityTraitValue}>
-                {behavioralAnalysis.travelPersonality.openness}%
-              </Text>
             </View>
 
             <View style={styles.personalityTrait}>
               <Text style={styles.personalityTraitLabel}>Cultural Engagement</Text>
-              <View style={styles.personalityTraitScale}>
-                <View
-                  style={[
-                    styles.personalityTraitFill,
-                    { width: `${behavioralAnalysis.travelPersonality.cultureEngagement}%` },
-                  ]}
-                />
+              <View style={styles.personalityTraitScaleContainer}>
+                <View style={styles.personalityTraitScale}>
+                  <View
+                    style={[
+                      styles.personalityTraitFill,
+                      { width: `${behavioralAnalysis.travelPersonality.cultureEngagement}%` },
+                    ]}
+                  />
+                </View>
+                <Text style={styles.personalityTraitValue}>
+                  {Math.round(behavioralAnalysis.travelPersonality.cultureEngagement)}%
+                </Text>
               </View>
-              <Text style={styles.personalityTraitValue}>
-                {behavioralAnalysis.travelPersonality.cultureEngagement}%
-              </Text>
             </View>
 
             <View style={styles.personalityTrait}>
               <Text style={styles.personalityTraitLabel}>Social Orientation</Text>
-              <View style={styles.personalityTraitScale}>
-                <View
-                  style={[
-                    styles.personalityTraitFill,
-                    { width: `${behavioralAnalysis.travelPersonality.socialOrientation}%` },
-                  ]}
-                />
+              <View style={styles.personalityTraitScaleContainer}>
+                <View style={styles.personalityTraitScale}>
+                  <View
+                    style={[
+                      styles.personalityTraitFill,
+                      { width: `${behavioralAnalysis.travelPersonality.socialOrientation}%` },
+                    ]}
+                  />
+                </View>
+                <Text style={styles.personalityTraitValue}>
+                  {Math.round(behavioralAnalysis.travelPersonality.socialOrientation)}%
+                </Text>
               </View>
-              <Text style={styles.personalityTraitValue}>
-                {behavioralAnalysis.travelPersonality.socialOrientation}%
-              </Text>
             </View>
 
             <View style={styles.personalityTrait}>
               <Text style={styles.personalityTraitLabel}>Activity Level</Text>
-              <View style={styles.personalityTraitScale}>
-                <View
-                  style={[
-                    styles.personalityTraitFill,
-                    { width: `${behavioralAnalysis.travelPersonality.activityLevel}%` },
-                  ]}
-                />
+              <View style={styles.personalityTraitScaleContainer}>
+                <View style={styles.personalityTraitScale}>
+                  <View
+                    style={[
+                      styles.personalityTraitFill,
+                      { width: `${behavioralAnalysis.travelPersonality.activityLevel}%` },
+                    ]}
+                  />
+                </View>
+                <Text style={styles.personalityTraitValue}>
+                  {Math.round(behavioralAnalysis.travelPersonality.activityLevel)}%
+                </Text>
               </View>
-              <Text style={styles.personalityTraitValue}>
-                {behavioralAnalysis.travelPersonality.activityLevel}%
-              </Text>
             </View>
 
             <View style={styles.personalityTrait}>
               <Text style={styles.personalityTraitLabel}>Adventurousness</Text>
-              <View style={styles.personalityTraitScale}>
-                <View
-                  style={[
-                    styles.personalityTraitFill,
-                    { width: `${behavioralAnalysis.travelPersonality.adventurousness}%` },
-                  ]}
-                />
+              <View style={styles.personalityTraitScaleContainer}>
+                <View style={styles.personalityTraitScale}>
+                  <View
+                    style={[
+                      styles.personalityTraitFill,
+                      { width: `${behavioralAnalysis.travelPersonality.adventurousness}%` },
+                    ]}
+                  />
+                </View>
+                <Text style={styles.personalityTraitValue}>
+                  {Math.round(behavioralAnalysis.travelPersonality.adventurousness)}%
+                </Text>
               </View>
-              <Text style={styles.personalityTraitValue}>
-                {behavioralAnalysis.travelPersonality.adventurousness}%
-              </Text>
             </View>
           </View>
         ) : (
@@ -195,7 +205,9 @@ const BehavioralTab: React.FC<BehavioralTabProps> = ({ behavioralAnalysis }) => 
               <View key={index} style={styles.motivationalFactor}>
                 <View style={styles.motivationalFactorHeader}>
                   <Text style={styles.motivationalFactorName}>{factor.factor}</Text>
-                  <Text style={styles.motivationalFactorStrength}>{factor.strength}%</Text>
+                  <Text style={styles.motivationalFactorStrength}>
+                    {Math.round(factor.strength)}%
+                  </Text>
                 </View>
                 <View style={styles.motivationalFactorScale}>
                   <View style={[styles.motivationalFactorFill, { width: `${factor.strength}%` }]} />
@@ -350,28 +362,35 @@ const styles = StyleSheet.create({
   personalityTrait: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 12,
+    marginBottom: 16,
   },
   personalityTraitLabel: {
     width: "40%",
     fontSize: 14,
     color: Colors.text,
+    fontWeight: "500",
+    paddingRight: 2,
+  },
+  personalityTraitScaleContainer: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
   },
   personalityTraitScale: {
     flex: 1,
-    height: 8,
-    backgroundColor: NeutralColors.gray300,
-    borderRadius: 4,
+    height: 10,
+    backgroundColor: NeutralColors.gray200,
+    borderRadius: 5,
     overflow: "hidden",
-    marginHorizontal: 12,
+    marginRight: 8,
   },
   personalityTraitFill: {
     height: "100%",
     backgroundColor: Colors.primary,
-    borderRadius: 4,
+    borderRadius: 5,
   },
   personalityTraitValue: {
-    width: "10%",
+    width: 40,
     fontSize: 14,
     fontWeight: "600",
     color: Colors.primary,

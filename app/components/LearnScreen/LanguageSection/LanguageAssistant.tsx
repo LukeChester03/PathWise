@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -17,6 +17,10 @@ import {
   getLanguagePhrases,
   createMockPhrases,
   toggleFavoritePhrase,
+  getCachedPhrases,
+  getFavoritePhrases,
+  getSavedPhrases,
+  getComprehensivePhrasebook,
 } from "../../../services/LearnScreen/aiLanguageService";
 import useTextToSpeech from "../../../hooks/AI/useTextToSpeech";
 
@@ -36,6 +40,9 @@ interface LanguageAssistantProps {
 const LanguageAssistant: React.FC<LanguageAssistantProps> = ({ visitedPlaces, cardAnimation }) => {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [phrases, setPhrases] = useState<Phrase[]>([]);
+  const [displayPhrases, setDisplayPhrases] = useState<Phrase[]>([]);
+  const [totalLanguageCount, setTotalLanguageCount] = useState<number>(0);
+  const [totalPhraseCount, setTotalPhraseCount] = useState<number>(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { speakPhrase } = useTextToSpeech();
@@ -43,47 +50,170 @@ const LanguageAssistant: React.FC<LanguageAssistantProps> = ({ visitedPlaces, ca
   // Check if user has visited at least one place
   const hasVisitedPlaces = visitedPlaces?.length > 0;
 
+  // Function to calculate language and phrase counts
+  const calculateCounts = (allPhrases: Phrase[]) => {
+    // Count unique languages
+    const uniqueLanguages = new Set(allPhrases.map((p) => p.language)).size;
+    // Total phrases count
+    const totalPhrases = allPhrases.length;
+
+    // Set state with the counts
+    setTotalLanguageCount(uniqueLanguages);
+    setTotalPhraseCount(totalPhrases);
+
+    return { languageCount: uniqueLanguages, phraseCount: totalPhrases };
+  };
+
+  // New function to check Firebase for cached phrases first
+  const checkFirebaseCache = useCallback(async () => {
+    console.log("Checking Firebase for cached phrases...");
+    try {
+      // First try to get phrases from the cache
+      const { phrases: cachedPhrases, needsRefresh } = await getCachedPhrases();
+
+      if (cachedPhrases.length > 0) {
+        console.log(`Found ${cachedPhrases.length} cached phrases in Firebase`);
+
+        // Get favorite phrases to mark them appropriately
+        const favoritePhrases = await getFavoritePhrases();
+        const savedPhrases = await getSavedPhrases();
+
+        // Create a set of favorite phrase IDs for quick lookup
+        const favoriteIds = new Set(favoritePhrases.map((p) => p.id));
+        const savedIds = new Set(savedPhrases.map((p) => p.id));
+
+        // Mark phrases as favorites if they're in the favorites collection
+        const markedPhrases = cachedPhrases.map((phrase) => ({
+          ...phrase,
+          isFavorite: favoriteIds.has(phrase.id) || savedIds.has(phrase.id),
+        }));
+
+        // Calculate total counts from all phrases
+        const { languageCount, phraseCount } = calculateCounts(markedPhrases);
+        console.log(`Total languages: ${languageCount}, Total phrases: ${phraseCount}`);
+
+        // Store all phrases but only display a subset
+        setPhrases(markedPhrases);
+        setDisplayPhrases(markedPhrases.slice(0, 3)); // Display only first 3 for preview
+        setLoading(false);
+
+        // If cache needs refresh but we have data, show it first then refresh in background
+        if (needsRefresh && hasVisitedPlaces) {
+          fetchLanguagePhrases(true); // true = background refresh
+        }
+
+        return true; // Successfully loaded from cache
+      }
+
+      return false; // No cache data found
+    } catch (err) {
+      console.error("Error checking Firebase cache:", err);
+      return false; // Error, proceed to regular fetch
+    }
+  }, [hasVisitedPlaces]);
+
   useEffect(() => {
     if (hasVisitedPlaces) {
-      fetchLanguagePhrases();
+      // Always check Firebase first, then fallback to API if needed
+      checkFirebaseCache().then((foundInCache) => {
+        if (!foundInCache) {
+          // If not found in cache, do a regular fetch
+          fetchLanguagePhrases();
+        }
+      });
     } else {
       // Clear loading state if no places visited
       setLoading(false);
       setError(null);
       setPhrases([]);
+      setDisplayPhrases([]);
+      setTotalLanguageCount(0);
+      setTotalPhraseCount(0);
     }
-  }, [visitedPlaces]);
+  }, [visitedPlaces, checkFirebaseCache]);
 
-  const fetchLanguagePhrases = async () => {
-    setLoading(true);
-    setError(null);
+  const fetchLanguagePhrases = async (backgroundRefresh = false) => {
+    if (!backgroundRefresh) {
+      setLoading(true);
+      setError(null);
+    }
 
     try {
-      const generatedPhrases = await getLanguagePhrases(visitedPlaces);
+      console.log("Fetching language phrases from API...");
+      // First try to get comprehensive phrasebook
+      const comprehensivePhrases = await getComprehensivePhrasebook(visitedPlaces);
 
-      if (generatedPhrases.length > 0) {
-        setPhrases(generatedPhrases.slice(0, 3)); // Display only first 3 for preview
+      if (comprehensivePhrases.length > 0) {
+        // Calculate counts from all comprehensive phrases
+        calculateCounts(comprehensivePhrases);
+
+        // Store all phrases but only display a preview
+        setPhrases(comprehensivePhrases);
+
+        // If this is not a background refresh or we don't have any phrases yet, update display
+        if (!backgroundRefresh || displayPhrases.length === 0) {
+          setDisplayPhrases(comprehensivePhrases.slice(0, 3)); // Display only first 3 for preview
+        }
       } else {
-        // Use mock data as fallback
-        setPhrases(createMockPhrases().slice(0, 3));
+        // Fallback to regular phrases if comprehensive fails
+        const generatedPhrases = await getLanguagePhrases(visitedPlaces);
+
+        if (generatedPhrases.length > 0) {
+          // Calculate counts from all generated phrases
+          calculateCounts(generatedPhrases);
+
+          // Store all phrases but only display a preview
+          setPhrases(generatedPhrases);
+
+          if (!backgroundRefresh || displayPhrases.length === 0) {
+            setDisplayPhrases(generatedPhrases.slice(0, 3)); // Display only first 3 for preview
+          }
+        } else if (!backgroundRefresh) {
+          // Use mock data as final fallback only if not a background refresh
+          const mockPhrases = createMockPhrases();
+          calculateCounts(mockPhrases);
+          setPhrases(mockPhrases);
+          setDisplayPhrases(mockPhrases.slice(0, 3));
+        }
       }
     } catch (err) {
       console.error("Error getting phrases:", err);
-      setError("Failed to get phrases");
-      setPhrases(createMockPhrases().slice(0, 3));
+      if (!backgroundRefresh) {
+        setError("Failed to get phrases");
+        const mockPhrases = createMockPhrases();
+        calculateCounts(mockPhrases);
+        setPhrases(mockPhrases);
+        setDisplayPhrases(mockPhrases.slice(0, 3));
+      }
     } finally {
-      setLoading(false);
+      if (!backgroundRefresh) {
+        setLoading(false);
+      }
     }
   };
 
   const handleToggleFavorite = async (phrase: Phrase) => {
     try {
+      // Update both the display phrases and full phrases lists
+      setDisplayPhrases(
+        displayPhrases.map((p) => (p.id === phrase.id ? { ...p, isFavorite: !p.isFavorite } : p))
+      );
+
       setPhrases(
         phrases.map((p) => (p.id === phrase.id ? { ...p, isFavorite: !p.isFavorite } : p))
       );
+
       await toggleFavoritePhrase(phrase.id!, phrase.isFavorite || false, phrase);
     } catch (err) {
       console.error("Error toggling favorite:", err);
+
+      // Revert both display and full phrases on error
+      setDisplayPhrases(
+        displayPhrases.map((p) =>
+          p.id === phrase.id ? { ...p, isFavorite: phrase.isFavorite } : p
+        )
+      );
+
       setPhrases(
         phrases.map((p) => (p.id === phrase.id ? { ...p, isFavorite: phrase.isFavorite } : p))
       );
@@ -113,7 +243,7 @@ const LanguageAssistant: React.FC<LanguageAssistantProps> = ({ visitedPlaces, ca
     <View style={styles.contentContainer}>
       <Ionicons name="alert-circle-outline" size={36} color="#FFFFFF" />
       <Text style={styles.errorText}>{error || "We couldn't load language phrases right now"}</Text>
-      <TouchableOpacity style={styles.retryButton} onPress={fetchLanguagePhrases}>
+      <TouchableOpacity style={styles.retryButton} onPress={() => fetchLanguagePhrases()}>
         <Text style={styles.retryButtonText}>Try Again</Text>
       </TouchableOpacity>
     </View>
@@ -142,36 +272,39 @@ const LanguageAssistant: React.FC<LanguageAssistantProps> = ({ visitedPlaces, ca
 
   // Render content state (has visited places)
   const renderContent = () => {
-    // Count unique languages
-    const uniqueLanguages = new Set(phrases.map((p) => p.language)).size;
-
     return (
       <View style={styles.contentContainer}>
         <Text style={styles.sectionTitle}>Language Assistant</Text>
 
         <View style={styles.statsContainer}>
           <View style={styles.statBadge}>
-            <Text style={styles.statText}>{uniqueLanguages} Languages</Text>
+            <Text style={styles.statText}>
+              {totalLanguageCount > 0 ? `${totalLanguageCount} Languages` : "1 Language"}
+            </Text>
           </View>
           <View style={styles.statBadge}>
-            <Text style={styles.statText}>{phrases.length} Phrases</Text>
+            <Text style={styles.statText}>
+              {totalPhraseCount > 0 ? `${totalPhraseCount} Phrases` : "3 Phrases"}
+            </Text>
           </View>
         </View>
 
         {/* Featured phrase */}
-        {phrases.length > 0 && (
+        {displayPhrases.length > 0 && (
           <View style={styles.featuredPhraseContainer}>
             <View style={styles.featuredPhraseHeader}>
-              <Text style={styles.featuredLanguageLabel}>{phrases[0].language}</Text>
+              <Text style={styles.featuredLanguageLabel}>{displayPhrases[0].language}</Text>
               <TouchableOpacity
                 style={styles.playButton}
-                onPress={() => handlePlayPhrase(phrases[0].phrase, phrases[0].language)}
+                onPress={() =>
+                  handlePlayPhrase(displayPhrases[0].phrase, displayPhrases[0].language)
+                }
               >
                 <Ionicons name="volume-high" size={18} color="#FFFFFF" />
               </TouchableOpacity>
             </View>
-            <Text style={styles.featuredPhraseText}>{phrases[0].phrase}</Text>
-            <Text style={styles.featuredTranslationText}>{phrases[0].translation}</Text>
+            <Text style={styles.featuredPhraseText}>{displayPhrases[0].phrase}</Text>
+            <Text style={styles.featuredTranslationText}>{displayPhrases[0].translation}</Text>
           </View>
         )}
 
@@ -221,7 +354,11 @@ const LanguageAssistant: React.FC<LanguageAssistantProps> = ({ visitedPlaces, ca
 
           <View style={styles.footer}>
             <Text style={styles.footerText}>
-              {loading ? "Loading phrases..." : error ? "Try again later" : "View phrasebook now"}
+              {loading
+                ? "Loading phrases..."
+                : error
+                ? "Try again later"
+                : `View all ${totalPhraseCount} phrases`}
             </Text>
             <View style={styles.arrowContainer}>
               <Ionicons name="arrow-forward" size={16} color="#FFFFFF" />

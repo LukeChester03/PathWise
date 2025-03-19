@@ -109,7 +109,7 @@ const MemoizedPhraseCard = memo(
 
     // Color-coding cards by language
     const getLanguageColor = (language: string) => {
-      const colors = {
+      const colors: { [key: string]: string } = {
         French: "#E3F2FD",
         Spanish: "#FFF3E0",
         Italian: "#E8F5E9",
@@ -122,7 +122,7 @@ const MemoizedPhraseCard = memo(
         Arabic: "#FFF3E0",
       };
 
-      return colors[phrase.language] || "#F5F7FA";
+      return colors[language] || "#F5F7FA";
     };
 
     // Animation for heart icon
@@ -325,7 +325,7 @@ const CountryItem = ({
 }) => {
   // Function to get a flag emoji from country name
   const getCountryFlag = (countryName: string) => {
-    const flags = {
+    const flags: { [key: string]: string } = {
       France: "🇫🇷",
       Italy: "🇮🇹",
       Spain: "🇪🇸",
@@ -416,17 +416,17 @@ const PhrasebookScreen: React.FC<PhrasebookScreenProps> = ({ route, navigation }
     fetchRequestLimits();
   }, []);
 
-  // Process phrases into grouped format
+  // Improved: Add searchQuery to dependencies to reprocess whenever search changes
   useEffect(() => {
     processPhrases(phrases);
-  }, [phrases]);
+  }, [phrases, searchQuery]);
 
-  // Process saved phrases whenever they change
+  // Improved: Add searchQuery to dependencies for saved phrases processing
   useEffect(() => {
     if (viewMode === "saved") {
       processPhrases(savedPhrases);
     }
-  }, [savedPhrases, viewMode]);
+  }, [savedPhrases, viewMode, searchQuery]);
 
   // Fetch saved phrases from Firebase
   const fetchSavedPhrases = async () => {
@@ -468,61 +468,65 @@ const PhrasebookScreen: React.FC<PhrasebookScreenProps> = ({ route, navigation }
       // Get saved phrases
       const userSavedPhrases = await getSavedPhrases();
 
-      // Merge favorites with comprehensive phrases, marking favorites
-      let mergedPhrases: Phrase[] = [];
+      // Create a Map to track unique phrases by their content to avoid duplicates
+      const uniquePhrasesMap = new Map<string, Phrase>();
 
+      // Process all phrases in order of priority
       if (comprehensivePhrases.length > 0) {
-        mergedPhrases = comprehensivePhrases.map((phrase) => {
-          // Check if this phrase is a favorite
-          const matchingFavorite = favoritePhrases.find(
-            (fav) => fav.phrase === phrase.phrase && fav.language === phrase.language
-          );
-
-          // Also check if it's saved
-          const matchingSaved = userSavedPhrases.find(
-            (saved) => saved.phrase === phrase.phrase && saved.language === phrase.language
-          );
-
-          if (matchingFavorite) {
-            return { ...phrase, isFavorite: true, id: matchingFavorite.id };
-          } else if (matchingSaved) {
-            return { ...phrase, isFavorite: true, id: matchingSaved.id };
-          } else {
-            return phrase;
-          }
+        // Process comprehensive phrases first
+        comprehensivePhrases.forEach((phrase) => {
+          const phraseKey = `${phrase.language}-${phrase.phrase}`;
+          uniquePhrasesMap.set(phraseKey, {
+            ...phrase,
+            isFavorite: false,
+          });
         });
 
-        // Add any favorites that aren't in the comprehensive set
+        // Process favorite phrases, overriding any existing ones
         favoritePhrases.forEach((favorite) => {
-          const exists = mergedPhrases.some(
-            (p) => p.phrase === favorite.phrase && p.language === favorite.language
-          );
-
-          if (!exists) {
-            mergedPhrases.push(favorite);
+          const phraseKey = `${favorite.language}-${favorite.phrase}`;
+          if (uniquePhrasesMap.has(phraseKey)) {
+            // Update existing phrase with favorite's ID and marked as favorite
+            const existingPhrase = uniquePhrasesMap.get(phraseKey)!;
+            uniquePhrasesMap.set(phraseKey, {
+              ...existingPhrase,
+              id: favorite.id,
+              isFavorite: true,
+            });
+          } else {
+            // Add as new phrase
+            uniquePhrasesMap.set(phraseKey, favorite);
           }
         });
 
-        // Add any saved phrases that aren't in the set yet
+        // Process saved phrases, overriding any existing ones
         userSavedPhrases.forEach((saved) => {
-          const exists = mergedPhrases.some(
-            (p) => p.phrase === saved.phrase && p.language === saved.language
-          );
-
-          if (!exists) {
-            mergedPhrases.push(saved);
+          const phraseKey = `${saved.language}-${saved.phrase}`;
+          if (uniquePhrasesMap.has(phraseKey)) {
+            // Update existing phrase with saved's ID and marked as favorite
+            const existingPhrase = uniquePhrasesMap.get(phraseKey)!;
+            uniquePhrasesMap.set(phraseKey, {
+              ...existingPhrase,
+              id: saved.id,
+              isFavorite: true,
+            });
+          } else {
+            // Add as new phrase
+            uniquePhrasesMap.set(phraseKey, saved);
           }
         });
+
+        // Convert the map values to array
+        setPhrases(Array.from(uniquePhrasesMap.values()));
       } else if (favoritePhrases.length > 0) {
-        mergedPhrases = favoritePhrases;
+        setPhrases(favoritePhrases);
       } else if (userSavedPhrases.length > 0) {
-        mergedPhrases = userSavedPhrases;
+        setPhrases(userSavedPhrases);
       } else {
         // Fallback to mock data if all are empty
-        mergedPhrases = createMockPhrases();
+        setPhrases(createMockPhrases());
       }
 
-      setPhrases(mergedPhrases);
       setSavedPhrases(userSavedPhrases);
 
       // Update request limits after fetch
@@ -556,34 +560,46 @@ const PhrasebookScreen: React.FC<PhrasebookScreenProps> = ({ route, navigation }
     }
   };
 
-  const processPhrases = (phrasesToProcess: Phrase[]) => {
-    // Filter phrases based on search query
-    const filteredPhrases = phrasesToProcess.filter((phrase) =>
-      searchQuery
-        ? phrase.phrase.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          phrase.translation.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          phrase.useContext.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          (phrase.region && phrase.region.toLowerCase().includes(searchQuery.toLowerCase()))
-        : true
-    );
+  // Improved: Make processPhrases a useCallback with searchQuery as dependency
+  const processPhrases = useCallback(
+    (phrasesToProcess: Phrase[]) => {
+      console.log(`Processing ${phrasesToProcess.length} phrases with search: "${searchQuery}"`);
 
-    // Group by language
-    const grouped: { [key: string]: Phrase[] } = {};
-    filteredPhrases.forEach((phrase) => {
-      if (!grouped[phrase.language]) {
-        grouped[phrase.language] = [];
-      }
-      grouped[phrase.language].push(phrase);
-    });
+      // Filter phrases based on search query
+      const filteredPhrases = phrasesToProcess.filter((phrase) => {
+        if (!searchQuery) return true;
 
-    // Convert to array of language groups
-    const languageGroups = Object.keys(grouped).map((language) => ({
-      language,
-      phrases: grouped[language],
-    }));
+        const query = searchQuery.toLowerCase();
+        return (
+          phrase.phrase.toLowerCase().includes(query) ||
+          phrase.translation.toLowerCase().includes(query) ||
+          phrase.useContext.toLowerCase().includes(query) ||
+          phrase.language.toLowerCase().includes(query) ||
+          (phrase.region && phrase.region.toLowerCase().includes(query))
+        );
+      });
 
-    setGroupedPhrases(languageGroups);
-  };
+      console.log(`After filtering: ${filteredPhrases.length} phrases remain`);
+
+      // Group by language
+      const grouped: { [key: string]: Phrase[] } = {};
+      filteredPhrases.forEach((phrase) => {
+        if (!grouped[phrase.language]) {
+          grouped[phrase.language] = [];
+        }
+        grouped[phrase.language].push(phrase);
+      });
+
+      // Convert to array of language groups
+      const languageGroups = Object.keys(grouped).map((language) => ({
+        language,
+        phrases: grouped[language],
+      }));
+
+      setGroupedPhrases(languageGroups);
+    },
+    [searchQuery] // Add searchQuery as a dependency
+  );
 
   const handleRefresh = useCallback(() => {
     setRefreshing(true);
@@ -594,18 +610,12 @@ const PhrasebookScreen: React.FC<PhrasebookScreenProps> = ({ route, navigation }
     }
   }, [viewMode]);
 
-  const handleSearch = useCallback(
-    (text: string) => {
-      setSearchQuery(text);
-      // Re-process phrases based on the current view mode
-      if (viewMode === "all") {
-        processPhrases(phrases);
-      } else {
-        processPhrases(savedPhrases);
-      }
-    },
-    [viewMode, phrases, savedPhrases]
-  );
+  // Improved: Simplified handleSearch to just update searchQuery
+  // The useEffect hooks will take care of reprocessing
+  const handleSearch = useCallback((text: string) => {
+    console.log("Search query changed:", text);
+    setSearchQuery(text);
+  }, []);
 
   const handleSelectLanguage = useCallback(
     (language: string) => {
@@ -672,7 +682,7 @@ const PhrasebookScreen: React.FC<PhrasebookScreenProps> = ({ route, navigation }
         Alert.alert("Error", "Failed to update favorite status");
       }
     },
-    [viewMode, groupedPhrases, savedPhrases]
+    [viewMode, groupedPhrases, savedPhrases, processPhrases]
   );
 
   const handleToggleExpand = useCallback(
@@ -806,20 +816,12 @@ const PhrasebookScreen: React.FC<PhrasebookScreenProps> = ({ route, navigation }
   }, [previewPhrases, selectedCountry]);
 
   // Toggle between All and Saved views
-  const handleToggleViewMode = useCallback(
-    (mode: "all" | "saved") => {
-      setViewMode(mode);
-      setSelectedLanguage(null);
+  const handleToggleViewMode = useCallback((mode: "all" | "saved") => {
+    setViewMode(mode);
+    setSelectedLanguage(null);
 
-      // Process the appropriate set of phrases
-      if (mode === "all") {
-        processPhrases(phrases);
-      } else {
-        processPhrases(savedPhrases);
-      }
-    },
-    [phrases, savedPhrases]
-  );
+    // Process the appropriate set of phrases automatically through useEffect
+  }, []);
 
   // Toggle favorites filter
   const handleToggleFavoritesFilter = useCallback(() => {
@@ -949,7 +951,14 @@ const PhrasebookScreen: React.FC<PhrasebookScreenProps> = ({ route, navigation }
             index={index}
           />
         )}
-        keyExtractor={(item) => item.id || `phrase-${Math.random()}`}
+        keyExtractor={(item, index) => {
+          // Create a unique key that includes viewMode, item.id and index
+          if (item.id) {
+            return `${viewMode}-${item.id}-${index}`;
+          }
+          // Fallback to a predictable key based on index
+          return `phrase-${index}`;
+        }}
         showsVerticalScrollIndicator={false}
         refreshing={refreshing}
         onRefresh={handleRefresh}

@@ -18,6 +18,8 @@ import { Colors } from "./constants/colours";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import CulturalContextScreen from "./screens/CulturalContextScreen";
 import AdvancedTravelAnalysisScreen from "./screens/AdvancedTravelAnalysisScreen";
+import KnowledgeQuestScreen from "./screens/KnowledgeQuestScreen";
+import QuizSessionScreen from "./screens/QuizSessionScreen";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -99,6 +101,8 @@ export default function Layout() {
       <Stack.Screen name="Phrasebook" component={PhraseBookScreen} />
       <Stack.Screen name="CulturalContext" component={CulturalContextScreen} />
       <Stack.Screen name="AdvancedTravelAnalysis" component={AdvancedTravelAnalysisScreen} />
+      <Stack.Screen name="KnowledgeQuestScreen" component={KnowledgeQuestScreen} />
+      <Stack.Screen name="QuizSession" component={QuizSessionScreen} />
     </Stack.Navigator>
   );
 }
