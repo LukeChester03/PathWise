@@ -984,6 +984,7 @@ const PhrasebookScreen: React.FC<PhrasebookScreenProps> = ({ route, navigation }
         title="Phrasebook"
         subtitle="Travel phrases"
         showBackButton={true}
+        showHelp={false}
         onBackPress={() => navigation.goBack()}
         showIcon={true}
         iconName="language"

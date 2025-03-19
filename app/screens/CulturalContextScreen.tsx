@@ -657,14 +657,14 @@ const CulturalContextScreen = ({ route, navigation }: CulturalContextScreenProps
       <View style={styles.container}>
         <StatusBar style="dark" />
         <Header
-          title="Culture"
+          title="Cultural Context"
           subtitle="Discover local customs and traditions"
           showBackButton={true}
           onBackPress={() => navigation.goBack()}
-          showIcon={false}
+          showIcon={true}
           iconName="globe-outline"
           iconColor={Colors.primary}
-          showHelp={true}
+          showHelp={false}
           onHelpPress={handleHelpPress}
         />
         {renderLoading()}
@@ -697,7 +697,7 @@ const CulturalContextScreen = ({ route, navigation }: CulturalContextScreenProps
       <StatusBar style="dark" />
 
       <Header
-        title="Culture"
+        title="Cultural Context"
         subtitle={
           currentInsight
             ? `Exploring ${currentInsight.region}`
@@ -705,10 +705,10 @@ const CulturalContextScreen = ({ route, navigation }: CulturalContextScreenProps
         }
         showBackButton={true}
         onBackPress={() => navigation.goBack()}
-        showIcon={false}
+        showIcon={true}
         iconName="globe-outline"
         iconColor={Colors.primary}
-        showHelp={true}
+        showHelp={false}
         onHelpPress={handleHelpPress}
       />
 
