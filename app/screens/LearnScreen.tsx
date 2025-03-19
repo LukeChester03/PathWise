@@ -231,84 +231,6 @@ const mockAiData = {
       badges: ["Novice Explorer", "History Enthusiast"],
     },
   },
-
-  // Feature 8: AI Discovery Challenges
-  discoveryChallenges: {
-    active: [
-      {
-        id: "challenge1",
-        title: "Parisian Architectural Journey",
-        description: "Discover 3 distinct architectural styles within 2km of your location",
-        difficulty: "Medium",
-        duration: "3-4 hours",
-        points: 150,
-        progress: 67,
-        locations: [
-          { name: "Eiffel Tower", completed: true, style: "Iron Lattice" },
-          { name: "Notre-Dame Cathedral", completed: true, style: "Gothic" },
-          { name: "Sacré-Cœur Basilica", completed: false, style: "Romano-Byzantine" },
-        ],
-        reward: "Architectural Visionary Badge",
-      },
-      {
-        id: "challenge2",
-        title: "Roman Empire Expedition",
-        description: "Visit 3 sites showcasing Rome's imperial power",
-        difficulty: "Hard",
-        duration: "1-2 days",
-        points: 250,
-        progress: 33,
-        locations: [
-          { name: "Colosseum", completed: true, era: "Imperial" },
-          { name: "Roman Forum", completed: false, era: "Republican/Imperial" },
-          { name: "Pantheon", completed: false, era: "Imperial" },
-        ],
-        reward: "Roman Scholar Badge + 500 points",
-      },
-    ],
-    suggested: [
-      {
-        id: "challenge3",
-        title: "Hidden Paris",
-        description: "Explore 4 overlooked gems that tourists often miss",
-        difficulty: "Easy",
-        duration: "Half-day",
-        points: 100,
-        locations: [
-          "Rue Crémieux",
-          "Musée de la Chasse et de la Nature",
-          "Promenade Plantée",
-          "Belleville",
-        ],
-      },
-      {
-        id: "challenge4",
-        title: "Renaissance Masterpieces",
-        description: "Discover 5 Renaissance works in the Louvre from different Italian masters",
-        difficulty: "Medium",
-        duration: "2-3 hours",
-        points: 150,
-        locations: [
-          "Mona Lisa (da Vinci)",
-          "The Wedding at Cana (Veronese)",
-          "St. Francis of Assisi (Giotto)",
-          "The Pastoral Concert (Titian)",
-          "Apollo and Daphne (Bernini)",
-        ],
-      },
-    ],
-    completedRecent: [
-      {
-        id: "challenge5",
-        title: "Flavors of Italy",
-        description: "Sample 3 authentic Roman dishes in their traditional settings",
-        difficulty: "Easy",
-        completedDate: "February 17, 2025",
-        points: 100,
-        earnedReward: "Culinary Explorer Badge",
-      },
-    ],
-  },
 };
 
 const LearnScreen = ({ route, navigation }) => {
@@ -1237,26 +1159,6 @@ const LearnScreen = ({ route, navigation }) => {
           </Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.featureCard}>
-          <View style={[styles.featureIconContainer, { backgroundColor: "#FFEDD5" }]}>
-            <Ionicons name="school" size={24} color="#C2410C" />
-          </View>
-          <Text style={styles.featureTitle}>Knowledge Quest</Text>
-          <Text style={styles.featureDescription}>
-            Test what you've learned about visited landmarks with interactive quizzes
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.featureCard}>
-          <View style={[styles.featureIconContainer, { backgroundColor: "#DCFCE7" }]}>
-            <Ionicons name="flag" size={24} color="#15803D" />
-          </View>
-          <Text style={styles.featureTitle}>Discovery Challenges</Text>
-          <Text style={styles.featureDescription}>
-            Complete personalized exploration challenges tailored to your interests
-          </Text>
-        </TouchableOpacity>
-
         <TouchableOpacity
           style={styles.featureCard}
           onPress={() => {
@@ -1273,64 +1175,6 @@ const LearnScreen = ({ route, navigation }) => {
             AI insights on local customs and traditions in places you visit
           </Text>
         </TouchableOpacity>
-      </Animated.View>
-    );
-  };
-
-  const renderRecommendationsCard = (cardAnimation) => {
-    return (
-      <Animated.View
-        style={[
-          styles.aiRecommendationsCard,
-          {
-            opacity: cardAnimation,
-            transform: [
-              {
-                translateY: cardAnimation.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [50, 0],
-                }),
-              },
-            ],
-          },
-        ]}
-      >
-        <View style={styles.aiRecommendationsHeader}>
-          <Ionicons name="compass" size={22} color="#15803D" />
-          <Text style={styles.aiRecommendationsTitle}>AI-Recommended Destinations</Text>
-        </View>
-
-        <Text style={styles.aiRecommendationsSubtitle}>
-          Based on your travel preferences, you might enjoy:
-        </Text>
-
-        <View style={styles.recommendationsList}>
-          {mockAiData.recommendedPlaces.map((place, index) => (
-            <TouchableOpacity key={index} style={styles.enhancedRecommendationItem}>
-              <Image source={place.image} style={styles.recommendationImage} resizeMode="cover" />
-              <View style={styles.recommendationContent}>
-                <View style={styles.recommendationHeader}>
-                  <Text style={styles.recommendationName}>{place.name}</Text>
-                  <View style={styles.matchContainer}>
-                    <Text style={styles.matchText}>{place.matchPercentage}% match</Text>
-                  </View>
-                </View>
-                <Text style={styles.recommendationLocation}>{place.location}</Text>
-                <Text style={styles.recommendationReason}>{place.reason}</Text>
-                <View style={styles.recommendationFooter}>
-                  <View style={styles.distanceContainer}>
-                    <Ionicons name="navigate" size={14} color="#64748B" />
-                    <Text style={styles.distanceText}>{place.distance}</Text>
-                  </View>
-                  <TouchableOpacity style={styles.addToWishlistButton}>
-                    <Ionicons name="heart-outline" size={16} color="#15803D" />
-                    <Text style={styles.addToWishlistText}>Add to Wishlist</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </TouchableOpacity>
-          ))}
-        </View>
       </Animated.View>
     );
   };
@@ -1409,162 +1253,6 @@ const LearnScreen = ({ route, navigation }) => {
     );
   };
 
-  const renderDiscoveryChallengesCard = (cardAnimation) => {
-    return (
-      <Animated.View
-        style={[
-          styles.discoveryChallengesCard,
-          {
-            opacity: cardAnimation,
-            transform: [
-              {
-                translateY: cardAnimation.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [50, 0],
-                }),
-              },
-            ],
-          },
-        ]}
-      >
-        <View style={styles.discoveryChallengesHeader}>
-          <Ionicons name="flag" size={22} color="#15803D" />
-          <Text style={styles.discoveryChallengesTitle}>Advanced Travel Analysis</Text>
-        </View>
-
-        <Text style={styles.discoveryChallengesSubtitle}>
-          Analyses your travel patterns and provides extensive insights
-        </Text>
-
-        <View style={styles.activeChallengesContainer}>
-          <View style={styles.challengesSectionHeader}>
-            <Text style={styles.challengesSectionTitle}>Active Challenges</Text>
-            <View style={styles.challengeCountBadge}>
-              <Text style={styles.challengeCountText}>
-                {mockAiData.discoveryChallenges.active.length}
-              </Text>
-            </View>
-          </View>
-
-          {mockAiData.discoveryChallenges.active.map((challenge, index) => (
-            <TouchableOpacity
-              key={index}
-              style={styles.activeChallenge}
-              onPress={() => toggleChallengeExpansion(challenge.id)}
-            >
-              <View style={styles.challengeHeaderRow}>
-                <View style={styles.challengeTitleSection}>
-                  <Text style={styles.challengeTitle}>{challenge.title}</Text>
-                  <View style={styles.challengeDetails}>
-                    <View style={styles.challengeDifficultyBadge}>
-                      <Text style={styles.challengeDifficultyText}>{challenge.difficulty}</Text>
-                    </View>
-                    <View style={styles.challengeDuration}>
-                      <Ionicons name="time-outline" size={12} color="#64748B" />
-                      <Text style={styles.challengeDurationText}>{challenge.duration}</Text>
-                    </View>
-                  </View>
-                </View>
-                <View style={styles.challengeProgress}>
-                  <Text style={styles.challengeProgressText}>{challenge.progress}%</Text>
-                  <Ionicons
-                    name={expandedChallenge === challenge.id ? "chevron-up" : "chevron-down"}
-                    size={18}
-                    color="#15803D"
-                  />
-                </View>
-              </View>
-
-              <View style={styles.challengeProgressBar}>
-                <View style={[styles.challengeProgressFill, { width: `${challenge.progress}%` }]} />
-              </View>
-
-              {expandedChallenge === challenge.id && (
-                <View style={styles.expandedChallengeContent}>
-                  <Text style={styles.challengeDescription}>{challenge.description}</Text>
-
-                  <View style={styles.challengeLocationsContainer}>
-                    <Text style={styles.challengeLocationsTitle}>Challenge Locations:</Text>
-                    {challenge.locations.map((location, idx) => (
-                      <View key={idx} style={styles.challengeLocationItem}>
-                        <Ionicons
-                          name={location.completed ? "checkmark-circle" : "ellipse-outline"}
-                          size={16}
-                          color={location.completed ? "#15803D" : "#64748B"}
-                          style={styles.challengeLocationIcon}
-                        />
-                        <Text
-                          style={[
-                            styles.challengeLocationText,
-                            location.completed && { color: "#15803D", fontWeight: "600" },
-                          ]}
-                        >
-                          {location.name}
-                        </Text>
-                      </View>
-                    ))}
-                  </View>
-
-                  <View style={styles.challengeRewardContainer}>
-                    <Ionicons name="ribbon-outline" size={16} color="#15803D" />
-                    <Text style={styles.challengeRewardText}>Reward: {challenge.reward}</Text>
-                  </View>
-
-                  <TouchableOpacity style={styles.viewChallengeDetailsButton}>
-                    <Text style={styles.viewChallengeDetailsText}>View Challenge Details</Text>
-                    <Ionicons name="open-outline" size={16} color="#15803D" />
-                  </TouchableOpacity>
-                </View>
-              )}
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        <View style={styles.suggestedChallengesContainer}>
-          <Text style={styles.suggestedChallengesTitle}>Suggested For You</Text>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={styles.suggestedChallengesScroll}
-            contentContainerStyle={styles.suggestedChallengesContent}
-          >
-            {mockAiData.discoveryChallenges.suggested.map((challenge, index) => (
-              <View key={index} style={styles.suggestedChallengeCard}>
-                <View style={styles.suggestedChallengeHeader}>
-                  <Text style={styles.suggestedChallengeTitle}>{challenge.title}</Text>
-                  <View style={styles.suggestedChallengeDifficulty}>
-                    <Text style={styles.suggestedChallengeDifficultyText}>
-                      {challenge.difficulty}
-                    </Text>
-                  </View>
-                </View>
-
-                <Text style={styles.suggestedChallengeDescription}>{challenge.description}</Text>
-
-                <View style={styles.suggestedChallengeFooter}>
-                  <View style={styles.suggestedChallengeDuration}>
-                    <Ionicons name="time-outline" size={14} color="#64748B" />
-                    <Text style={styles.suggestedChallengeDurationText}>{challenge.duration}</Text>
-                  </View>
-
-                  <TouchableOpacity style={styles.startChallengeButton}>
-                    <Text style={styles.startChallengeButtonText}>Start</Text>
-                    <Ionicons name="arrow-forward" size={14} color="#15803D" />
-                  </TouchableOpacity>
-                </View>
-              </View>
-            ))}
-          </ScrollView>
-        </View>
-
-        <TouchableOpacity style={styles.viewAllChallengesButton}>
-          <Text style={styles.viewAllChallengesText}>Explore All Challenges</Text>
-          <Ionicons name="chevron-forward" size={16} color="#15803D" />
-        </TouchableOpacity>
-      </Animated.View>
-    );
-  };
-
   const renderLandingScreen = () => {
     console.log(
       "Rendering landing screen. Loading:",
@@ -1638,9 +1326,6 @@ const LearnScreen = ({ route, navigation }) => {
             visitedPlaces={visitedPlaces}
           />
 
-          {/* Feature 3: AI-Recommended Destinations */}
-          {renderRecommendationsCard(cardAnimations.recommendations)}
-
           {/* Feature 2: Language Assistant */}
           {renderLanguageAssistantCard(cardAnimations.languageAssistant)}
 
@@ -1656,26 +1341,6 @@ const LearnScreen = ({ route, navigation }) => {
 
           {/* Feature 7: Knowledge Quest Game */}
           {renderKnowledgeQuestCard(cardAnimations.quest)}
-
-          {/* Feature 8: AI Discovery Challenges */}
-          {renderDiscoveryChallengesCard(cardAnimations.challenges)}
-
-          <View style={styles.visitedSection}>
-            <Text style={styles.sectionHeading}>Recently Visited Places</Text>
-            <Text style={styles.sectionSubheading}>
-              Tap on any place to explore AI-powered insights
-            </Text>
-
-            <View style={styles.carouselContainer}>
-              <PlacesCarousel
-                places={visitedPlaces}
-                onPlacePress={handlePlaceSelect}
-                sectionType="visited"
-                cardWidth={width * 0.85}
-                cardHeight={180}
-              />
-            </View>
-          </View>
         </Animated.View>
       </ScrollView>
     );

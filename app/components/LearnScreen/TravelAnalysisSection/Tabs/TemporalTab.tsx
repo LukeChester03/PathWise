@@ -31,6 +31,14 @@ const screenWidth = Dimensions.get("window").width;
 const TemporalTab: React.FC<TemporalTabProps> = ({ temporalAnalysis }) => {
   if (!temporalAnalysis) return null;
 
+  // Helper function to format category names (tourist_attraction → Tourist Attraction)
+  const formatCategoryName = (category: string): string => {
+    return category
+      .split("_")
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(" ");
+  };
+
   return (
     <TabContainer>
       <SectionCard
@@ -111,7 +119,10 @@ const TemporalTab: React.FC<TemporalTabProps> = ({ temporalAnalysis }) => {
                     <View style={styles.seasonalDetails}>
                       <Text style={styles.seasonalDetailText}>
                         Top categories:{" "}
-                        {(data.preferredCategories || []).slice(0, 2).join(", ") || "None"}
+                        {(data.preferredCategories || [])
+                          .map(formatCategoryName)
+                          .slice(0, 2)
+                          .join(", ") || "None"}
                       </Text>
                       <Text style={styles.seasonalDetailText}>
                         Avg. duration: {data.averageDuration || "Unknown"}
@@ -153,7 +164,7 @@ const TemporalTab: React.FC<TemporalTabProps> = ({ temporalAnalysis }) => {
                 return (
                   <View key={month} style={styles.monthItem}>
                     <Text style={styles.monthPercentage}>
-                      {percentage > 0 ? percentage.toFixed(1) + "%" : ""}
+                      {percentage > 0 ? Math.round(percentage) + "%" : ""}
                     </Text>
                     <View style={styles.monthBarContainer}>
                       <View
@@ -179,6 +190,40 @@ const TemporalTab: React.FC<TemporalTabProps> = ({ temporalAnalysis }) => {
           <NoDataText text="No monthly distribution data available" />
         )}
       </SectionCard>
+
+      {/* Add dominant category formatting in yearly progression insights if needed */}
+      {temporalAnalysis.yearlyProgression &&
+        Object.entries(temporalAnalysis.yearlyProgression).length > 0 && (
+          <SectionCard
+            title="Annual Category Insights"
+            description="Dominant travel categories by year"
+            icon="ribbon"
+          >
+            <View style={styles.yearlyInsightsContainer}>
+              {Object.entries(temporalAnalysis.yearlyProgression)
+                .sort((a, b) => a[0].localeCompare(b[0])) // Sort by year
+                .map(([year, yearData]: [string, any]) => {
+                  if (!yearData || !yearData.dominantCategory) return null;
+
+                  return (
+                    <View key={year} style={styles.yearlyInsightItem}>
+                      <Text style={styles.yearlyInsightYear}>{year}</Text>
+                      <View style={styles.yearlyInsightContent}>
+                        <Text style={styles.yearlyInsightCategory}>
+                          {formatCategoryName(yearData.dominantCategory)}
+                        </Text>
+                        {yearData.topDestination && (
+                          <Text style={styles.yearlyInsightDestination}>
+                            Top: {yearData.topDestination}
+                          </Text>
+                        )}
+                      </View>
+                    </View>
+                  );
+                })}
+            </View>
+          </SectionCard>
+        )}
     </TabContainer>
   );
 };
@@ -329,6 +374,38 @@ const styles = StyleSheet.create({
   },
   emptyBar: {
     backgroundColor: NeutralColors.gray300,
+  },
+
+  // Yearly Insights Styles
+  yearlyInsightsContainer: {
+    marginTop: 16,
+    marginBottom: 10,
+  },
+  yearlyInsightItem: {
+    flexDirection: "row",
+    borderBottomWidth: 1,
+    borderBottomColor: NeutralColors.gray200,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+  },
+  yearlyInsightYear: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: Colors.text,
+    width: 60,
+  },
+  yearlyInsightContent: {
+    flex: 1,
+  },
+  yearlyInsightCategory: {
+    fontSize: 14,
+    color: Colors.primary,
+    fontWeight: "500",
+    marginBottom: 4,
+  },
+  yearlyInsightDestination: {
+    fontSize: 13,
+    color: NeutralColors.gray600,
   },
 
   // Common Styles
