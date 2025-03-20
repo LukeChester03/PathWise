@@ -157,7 +157,7 @@ export const generateCulturalInsights = async (
     const prompt = `
       Create comprehensive cultural context information for a traveler visiting ${region}.
       Include information about local customs, traditions, cultural norms, appropriate behaviors, and historical context.
-      
+      Only include information you know is accurate and can be supported by real facts.
       Format your response as a JSON object with this structure:
       {
         "region": "${region}",
