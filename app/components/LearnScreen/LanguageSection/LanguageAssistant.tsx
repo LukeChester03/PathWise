@@ -21,6 +21,7 @@ import {
   getFavoritePhrases,
   getSavedPhrases,
   getComprehensivePhrasebook,
+  checkRequestLimit,
 } from "../../../services/LearnScreen/aiLanguageService";
 import useTextToSpeech from "../../../hooks/AI/useTextToSpeech";
 
@@ -51,7 +52,7 @@ const LanguageAssistant: React.FC<LanguageAssistantProps> = ({ visitedPlaces, ca
   const hasVisitedPlaces = visitedPlaces?.length > 0;
 
   // Function to calculate language and phrase counts
-  const calculateCounts = (allPhrases: Phrase[]) => {
+  const calculateCounts = useCallback((allPhrases: Phrase[]) => {
     // Count unique languages
     const uniqueLanguages = new Set(allPhrases.map((p) => p.language)).size;
     // Total phrases count
@@ -62,17 +63,19 @@ const LanguageAssistant: React.FC<LanguageAssistantProps> = ({ visitedPlaces, ca
     setTotalPhraseCount(totalPhrases);
 
     return { languageCount: uniqueLanguages, phraseCount: totalPhrases };
-  };
+  }, []);
 
-  // New function to check Firebase for cached phrases first
+  // Updated function to check Firebase for cached phrases first
   const checkFirebaseCache = useCallback(async () => {
     console.log("Checking Firebase for cached phrases...");
     try {
-      // First try to get phrases from the cache
+      // Get phrases from the cache
       const { phrases: cachedPhrases, needsRefresh } = await getCachedPhrases();
 
       if (cachedPhrases.length > 0) {
-        console.log(`Found ${cachedPhrases.length} cached phrases in Firebase`);
+        console.log(
+          `Found ${cachedPhrases.length} cached phrases in Firebase, needsRefresh: ${needsRefresh}`
+        );
 
         // Get favorite phrases to mark them appropriately
         const favoritePhrases = await getFavoritePhrases();
@@ -97,9 +100,17 @@ const LanguageAssistant: React.FC<LanguageAssistantProps> = ({ visitedPlaces, ca
         setDisplayPhrases(markedPhrases.slice(0, 3)); // Display only first 3 for preview
         setLoading(false);
 
-        // If cache needs refresh but we have data, show it first then refresh in background
+        // If cache needs refresh, check request limits before attempting background refresh
         if (needsRefresh && hasVisitedPlaces) {
-          fetchLanguagePhrases(true); // true = background refresh
+          const limitInfo = await checkRequestLimit();
+          if (limitInfo.canRequest) {
+            console.log(
+              "Cache needs refresh and we have requests available - refreshing in background"
+            );
+            fetchLanguagePhrases(true); // true = background refresh
+          } else {
+            console.log("Cache needs refresh but we're at request limit - using cached data");
+          }
         }
 
         return true; // Successfully loaded from cache
@@ -110,14 +121,83 @@ const LanguageAssistant: React.FC<LanguageAssistantProps> = ({ visitedPlaces, ca
       console.error("Error checking Firebase cache:", err);
       return false; // Error, proceed to regular fetch
     }
-  }, [hasVisitedPlaces]);
+  }, [hasVisitedPlaces, calculateCounts]);
 
+  // Updated fetchLanguagePhrases function
+  const fetchLanguagePhrases = useCallback(
+    async (backgroundRefresh = false) => {
+      if (!backgroundRefresh) {
+        setLoading(true);
+        setError(null);
+      }
+
+      try {
+        console.log(
+          `Fetching language phrases from API (backgroundRefresh: ${backgroundRefresh})...`
+        );
+
+        // Check request limits before proceeding
+        const limitInfo = await checkRequestLimit();
+        if (!limitInfo.canRequest) {
+          if (!backgroundRefresh) {
+            setError("Daily request limit reached. Try again tomorrow.");
+            // Use mock data as fallback for foreground refresh when at limit
+            const mockPhrases = createMockPhrases();
+            calculateCounts(mockPhrases);
+            setPhrases(mockPhrases);
+            setDisplayPhrases(mockPhrases.slice(0, 3));
+          }
+          return;
+        }
+
+        // Get comprehensive phrasebook
+        const comprehensivePhrases = await getComprehensivePhrasebook(visitedPlaces);
+
+        if (comprehensivePhrases.length > 0) {
+          // Calculate counts from all comprehensive phrases
+          calculateCounts(comprehensivePhrases);
+
+          // Store all phrases but only display a preview
+          setPhrases(comprehensivePhrases);
+
+          // If this is not a background refresh or we don't have any phrases yet, update display
+          if (!backgroundRefresh || displayPhrases.length === 0) {
+            setDisplayPhrases(comprehensivePhrases.slice(0, 3)); // Display only first 3 for preview
+          }
+        } else {
+          // If no comprehensive phrases and we're not doing a background refresh, use mock data
+          if (!backgroundRefresh) {
+            const mockPhrases = createMockPhrases();
+            calculateCounts(mockPhrases);
+            setPhrases(mockPhrases);
+            setDisplayPhrases(mockPhrases.slice(0, 3));
+          }
+        }
+      } catch (err) {
+        console.error("Error getting phrases:", err);
+        if (!backgroundRefresh) {
+          setError("Failed to get phrases");
+          const mockPhrases = createMockPhrases();
+          calculateCounts(mockPhrases);
+          setPhrases(mockPhrases);
+          setDisplayPhrases(mockPhrases.slice(0, 3));
+        }
+      } finally {
+        if (!backgroundRefresh) {
+          setLoading(false);
+        }
+      }
+    },
+    [visitedPlaces, calculateCounts, displayPhrases.length]
+  );
+
+  // Updated useEffect for better initialization
   useEffect(() => {
     if (hasVisitedPlaces) {
       // Always check Firebase first, then fallback to API if needed
       checkFirebaseCache().then((foundInCache) => {
         if (!foundInCache) {
-          // If not found in cache, do a regular fetch
+          // If not found in cache, do a regular fetch (which will cache the results)
           fetchLanguagePhrases();
         }
       });
@@ -130,67 +210,7 @@ const LanguageAssistant: React.FC<LanguageAssistantProps> = ({ visitedPlaces, ca
       setTotalLanguageCount(0);
       setTotalPhraseCount(0);
     }
-  }, [visitedPlaces, checkFirebaseCache]);
-
-  const fetchLanguagePhrases = async (backgroundRefresh = false) => {
-    if (!backgroundRefresh) {
-      setLoading(true);
-      setError(null);
-    }
-
-    try {
-      console.log("Fetching language phrases from API...");
-      // First try to get comprehensive phrasebook
-      const comprehensivePhrases = await getComprehensivePhrasebook(visitedPlaces);
-
-      if (comprehensivePhrases.length > 0) {
-        // Calculate counts from all comprehensive phrases
-        calculateCounts(comprehensivePhrases);
-
-        // Store all phrases but only display a preview
-        setPhrases(comprehensivePhrases);
-
-        // If this is not a background refresh or we don't have any phrases yet, update display
-        if (!backgroundRefresh || displayPhrases.length === 0) {
-          setDisplayPhrases(comprehensivePhrases.slice(0, 3)); // Display only first 3 for preview
-        }
-      } else {
-        // Fallback to regular phrases if comprehensive fails
-        const generatedPhrases = await getLanguagePhrases(visitedPlaces);
-
-        if (generatedPhrases.length > 0) {
-          // Calculate counts from all generated phrases
-          calculateCounts(generatedPhrases);
-
-          // Store all phrases but only display a preview
-          setPhrases(generatedPhrases);
-
-          if (!backgroundRefresh || displayPhrases.length === 0) {
-            setDisplayPhrases(generatedPhrases.slice(0, 3)); // Display only first 3 for preview
-          }
-        } else if (!backgroundRefresh) {
-          // Use mock data as final fallback only if not a background refresh
-          const mockPhrases = createMockPhrases();
-          calculateCounts(mockPhrases);
-          setPhrases(mockPhrases);
-          setDisplayPhrases(mockPhrases.slice(0, 3));
-        }
-      }
-    } catch (err) {
-      console.error("Error getting phrases:", err);
-      if (!backgroundRefresh) {
-        setError("Failed to get phrases");
-        const mockPhrases = createMockPhrases();
-        calculateCounts(mockPhrases);
-        setPhrases(mockPhrases);
-        setDisplayPhrases(mockPhrases.slice(0, 3));
-      }
-    } finally {
-      if (!backgroundRefresh) {
-        setLoading(false);
-      }
-    }
-  };
+  }, [visitedPlaces, checkFirebaseCache, fetchLanguagePhrases]);
 
   const handleToggleFavorite = async (phrase: Phrase) => {
     try {

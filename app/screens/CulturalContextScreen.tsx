@@ -32,6 +32,7 @@ import {
   Recommendation,
 } from "../types/LearnScreen/CulturalContextTypes";
 import { VisitedPlaceDetails } from "../types/MapTypes";
+import GradientCard from "../components/Global/GradientCard";
 
 const { width } = Dimensions.get("window");
 
@@ -149,7 +150,7 @@ const CulturalContextScreen = ({ route, navigation }: CulturalContextScreenProps
     setRefreshing(false);
   }, []);
 
-  // Main data loading function - UPDATED
+  // Main data loading function
   const loadInitialData = async () => {
     try {
       setLoading(true);
@@ -164,7 +165,7 @@ const CulturalContextScreen = ({ route, navigation }: CulturalContextScreenProps
       // Load all cached insights
       const cachedInsights = await getAllCachedInsights();
 
-      // Set initial region selection - UPDATED
+      // Set initial region selection
       if (region) {
         // If region specified in params, use that
         setSelectedRegion(region);
@@ -281,6 +282,63 @@ const CulturalContextScreen = ({ route, navigation }: CulturalContextScreenProps
     console.log("Show help about Cultural Context");
   };
 
+  // Unified card renderer function that can be reused for different types of content
+  const renderGradientCard = ({
+    title,
+    description,
+    icon,
+    gradientColors,
+    iconColor,
+    key,
+  }: {
+    title: string;
+    description: string;
+    icon: string;
+    gradientColors: string[];
+    iconColor: string;
+    key?: string;
+  }) => {
+    return (
+      <GradientCard
+        key={key}
+        gradientColors={gradientColors}
+        title={title}
+        titleStyle={styles.cardTitle}
+        description={description}
+        descriptionStyle={styles.cardDescription}
+        cardStyle={styles.gradientCard}
+        icon={icon}
+        iconColor={iconColor}
+        iconSize={20}
+        iconContainerStyle={styles.cardIconContainer}
+      />
+    );
+  };
+
+  // Render custom card (traditions/customs)
+  const renderCustomCard = (custom: Custom, index: number) => {
+    return renderGradientCard({
+      title: custom.title,
+      description: custom.description,
+      icon: "book-outline",
+      gradientColors: [THEME.primaryLight, THEME.primaryMedium],
+      iconColor: THEME.primary,
+      key: `custom-${index}`,
+    });
+  };
+
+  // Render tip card using GradientCard
+  const renderTipCard = (tip: string, index: number) => {
+    return renderGradientCard({
+      title: "Traveler Tip",
+      description: tip,
+      icon: "bulb-outline",
+      gradientColors: [THEME.primaryLight, THEME.primaryMedium],
+      iconColor: THEME.primaryDark,
+      key: `tip-${index}`,
+    });
+  };
+
   // Render search bar
   const renderSearchBar = () => {
     if (!showSearch) return null;
@@ -382,31 +440,6 @@ const CulturalContextScreen = ({ route, navigation }: CulturalContextScreenProps
     );
   };
 
-  // Render custom card
-  const renderCustomCard = (custom: Custom, index: number) => {
-    return (
-      <View key={`custom-${index}`} style={styles.customCard}>
-        <View style={styles.customHeader}>
-          <View style={styles.customDot} />
-          <Text style={styles.customTitle}>{custom.title}</Text>
-        </View>
-        <Text style={styles.customDescription}>{custom.description}</Text>
-      </View>
-    );
-  };
-
-  // Render tip card
-  const renderTipCard = (tip: string, index: number) => {
-    return (
-      <View key={`tip-${index}`} style={styles.tipCard}>
-        <View style={styles.tipIconContainer}>
-          <Ionicons name="bulb-outline" size={20} color={THEME.accent4} />
-        </View>
-        <Text style={styles.tipText}>{tip}</Text>
-      </View>
-    );
-  };
-
   // Render content based on active section
   const renderSectionContent = () => {
     if (!currentInsight) return null;
@@ -443,28 +476,31 @@ const CulturalContextScreen = ({ route, navigation }: CulturalContextScreenProps
             </View>
 
             <View style={styles.overviewCards}>
-              <View style={styles.overviewCard}>
-                <View style={styles.overviewCardHeader}>
-                  <Ionicons name="hand-left-outline" size={22} color={THEME.primary} />
-                  <Text style={styles.overviewCardTitle}>Etiquette Snapshot</Text>
-                </View>
-                <Text style={styles.overviewCardText}>{currentInsight.etiquette}</Text>
-              </View>
+              {/* Using GradientCard for Etiquette Snapshot */}
+              {renderGradientCard({
+                title: "Etiquette Snapshot",
+                description: currentInsight.etiquette.substring(0, 300) + "...",
+                icon: "hand-left-outline",
+                gradientColors: [THEME.primaryLight, "#F3E8FF"],
+                iconColor: THEME.primary,
+              })}
 
-              <View style={styles.overviewCard}>
-                <View style={styles.overviewCardHeader}>
-                  <Ionicons name="restaurant-outline" size={22} color={THEME.primary} />
-                  <Text style={styles.overviewCardTitle}>Dining Overview</Text>
-                </View>
-                <Text style={styles.overviewCardText}>{currentInsight.diningTips}</Text>
-              </View>
+              {/* Using GradientCard for Dining Overview */}
+              {renderGradientCard({
+                title: "Dining Overview",
+                description: currentInsight.diningTips.substring(0, 300) + "...",
+                icon: "restaurant-outline",
+                gradientColors: ["#EFF6FF", "#DBEAFE"],
+                iconColor: THEME.accent3,
+              })}
 
+              {/* Keep the featured custom card as is */}
               {currentInsight.customs.length > 0 && (
                 <View style={styles.featuredCustomCard}>
                   <Text style={styles.featuredCustomTitle}>Featured Custom</Text>
                   <Text style={styles.featuredCustomName}>{currentInsight.customs[0].title}</Text>
                   <Text style={styles.featuredCustomDescription}>
-                    {currentInsight.customs[0].description}
+                    {currentInsight.customs[0].description.substring(0, 300) + "..."}
                   </Text>
                 </View>
               )}
@@ -508,9 +544,14 @@ const CulturalContextScreen = ({ route, navigation }: CulturalContextScreenProps
               Following these etiquette guidelines will help you navigate social situations
               appropriately in {currentInsight.region}.
             </Text>
-            <View style={styles.etiquetteCard}>
-              <Text style={styles.etiquetteText}>{currentInsight.etiquette}</Text>
-            </View>
+
+            {renderGradientCard({
+              title: "Social Etiquette",
+              description: currentInsight.etiquette,
+              icon: "people-outline",
+              gradientColors: [THEME.primaryLight, "#F3E8FF"],
+              iconColor: THEME.primary,
+            })}
           </View>
         );
 
@@ -525,9 +566,14 @@ const CulturalContextScreen = ({ route, navigation }: CulturalContextScreenProps
               Food is an important part of culture. Here's how to navigate dining situations in{" "}
               {currentInsight.region}.
             </Text>
-            <View style={styles.diningCard}>
-              <Text style={styles.diningText}>{currentInsight.diningTips}</Text>
-            </View>
+
+            {renderGradientCard({
+              title: "Dining Customs",
+              description: currentInsight.diningTips,
+              icon: "restaurant-outline",
+              gradientColors: ["#EFF6FF", "#DBEAFE"],
+              iconColor: THEME.accent3,
+            })}
           </View>
         );
 
@@ -692,99 +738,95 @@ const CulturalContextScreen = ({ route, navigation }: CulturalContextScreenProps
     );
   }
 
+  // ADDED MAIN RENDER for normal state (when not loading and no error)
   return (
     <View style={styles.container}>
       <StatusBar style="dark" />
-
       <Header
         title="Cultural Context"
-        subtitle={
-          currentInsight
-            ? `Exploring ${currentInsight.region}`
-            : "Discover local customs and traditions"
-        }
+        subtitle="Discover local customs and traditions"
         showBackButton={true}
         onBackPress={() => navigation.goBack()}
         showIcon={true}
         iconName="globe-outline"
         iconColor={Colors.primary}
-        showHelp={false}
+        showHelp={true}
         onHelpPress={handleHelpPress}
       />
 
-      {renderSearchBar()}
-
       <View style={styles.topControls}>
         {renderViewToggle()}
-        {renderRequestLimitIndicator()}
+        <View style={{ flexDirection: "row" }}>
+          {renderRequestLimitIndicator()}
+          <TouchableOpacity
+            style={[styles.searchButton, { marginLeft: 8 }]}
+            onPress={() => setShowSearch(!showSearch)}
+          >
+            <Ionicons name="search" size={20} color={THEME.textLight} />
+          </TouchableOpacity>
+        </View>
       </View>
 
+      {renderSearchBar()}
       {renderRegionSelector()}
 
-      {/* UPDATED CONDITIONAL CONTENT RENDERING */}
       {loadingInsight ? (
         renderLoading()
-      ) : (activeView === "visited" && visitedInsights.length === 0) ||
-        (activeView === "explore" && filteredRegions.length === 0) ? (
-        <View style={styles.emptyStateContainer}>
-          <Ionicons
-            name={activeView === "visited" ? "bookmark-outline" : "compass-outline"}
-            size={64}
-            color={THEME.primaryMedium}
-          />
-          <Text style={styles.emptyStateTitle}>
-            {activeView === "visited" ? "No Visited Places" : "No Regions to Explore"}
-          </Text>
-          <Text style={styles.emptyStateText}>
-            {activeView === "visited"
-              ? "You haven't visited any places yet. Start exploring to get cultural insights!"
-              : "No regions found. Try a different search term."}
-          </Text>
-          {activeView === "visited" && (
-            <TouchableOpacity
-              style={styles.exploreButton}
-              onPress={() => navigation.navigate("Discover")}
-            >
-              <Text style={styles.exploreButtonText}>Discover Places</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-      ) : currentInsight ? (
-        <>
-          {renderSectionNavigation()}
-          <ScrollView
-            style={styles.contentScrollView}
-            contentContainerStyle={styles.contentContainer}
-            showsVerticalScrollIndicator={false}
-            refreshControl={
-              <RefreshControl
-                refreshing={refreshing}
-                onRefresh={onRefresh}
-                colors={[THEME.primary]}
-              />
-            }
-          >
-            {renderSectionContent()}
-            {renderFooter()}
-          </ScrollView>
-        </>
       ) : (
-        <View style={styles.noInsightContainer}>
-          <Ionicons name="globe-outline" size={64} color={THEME.primaryMedium} />
-          <Text style={styles.noInsightTitle}>Select a Region</Text>
-          <Text style={styles.noInsightText}>
-            Choose a region above to discover cultural insights
-          </Text>
-        </View>
+        <>
+          {currentInsight ? (
+            <>
+              {renderSectionNavigation()}
+              <FlatList
+                ref={flatListRef}
+                data={[{ key: "content" }]}
+                renderItem={() => renderSectionContent()}
+                onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], {
+                  useNativeDriver: false,
+                })}
+                refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+                ListFooterComponent={renderFooter}
+              />
+            </>
+          ) : (
+            <View style={styles.noInsightContainer}>
+              <Ionicons name="globe-outline" size={56} color={THEME.primary} />
+              <Text style={styles.noInsightTitle}>No Cultural Insights</Text>
+              <Text style={styles.noInsightText}>
+                {activeView === "visited"
+                  ? "You haven't visited any places yet. Add some places to your journey to see cultural insights."
+                  : "Select a region to explore its cultural context."}
+              </Text>
+            </View>
+          )}
+        </>
       )}
     </View>
   );
 };
 
+// MOVED STYLES OUTSIDE THE COMPONENT FUNCTION
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: THEME.background,
+  },
+  gradientCard: {
+    marginBottom: 16,
+    borderRadius: 12,
+  },
+  cardTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: THEME.text,
+  },
+  cardDescription: {
+    fontSize: 14,
+    lineHeight: 22,
+    color: THEME.textSecondary,
+  },
+  cardIconContainer: {
+    backgroundColor: "rgba(126, 34, 206, 0.15)", // Lighter version of the purple primary
   },
   emptyStateTitle: {
     fontSize: 20,
@@ -812,6 +854,23 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.03)",
     justifyContent: "center",
     alignItems: "center",
+  },
+  customGradientCard: {
+    marginBottom: 16,
+    borderRadius: 12,
+  },
+  customCardTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: THEME.text,
+  },
+  customCardDescription: {
+    fontSize: 14,
+    lineHeight: 22,
+    color: THEME.textSecondary,
+  },
+  customCardIconContainer: {
+    backgroundColor: "rgba(126, 34, 206, 0.15)", // Lighter version of the purple primary
   },
   searchContainer: {
     flexDirection: "row",

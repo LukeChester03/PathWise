@@ -24,9 +24,17 @@ export interface Quiz {
   category: "history" | "culture" | "geography" | "art" | "food" | "general";
   relatedRegions: string[];
   createdAt: string;
-  expiresAt: string; // When to refresh from AI
-  completions: number; // Number of times user has taken this quiz
-  lastCompletedAt?: string;
+  expiresAt: string;
+  completions: number;
+  regionType?: string; // New: type of region (city, country, etc.)
+  metadata?: {
+    // New: additional metadata for disambiguation
+    disambiguated?: boolean;
+    originalRegion?: string;
+    clarifiedRegion?: string;
+    regionType?: string;
+    country?: string;
+  };
 }
 
 export interface QuizSession {

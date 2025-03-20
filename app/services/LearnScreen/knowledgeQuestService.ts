@@ -46,6 +46,21 @@ let statsCache: KnowledgeQuestStats | null = null;
 let settingsCache: KnowledgeQuestSettings | null = null;
 
 /**
+ * Interface for region context to improve disambiguation
+ */
+interface RegionContext {
+  name: string; // The region name
+  country?: string; // Country where the region is located, if available
+  placeType?: string; // Type of place: city, state, landmark, etc.
+  coordinates?: {
+    // Geographical coordinates if available
+    lat: number;
+    lng: number;
+  };
+  formattedAddress?: string; // Full formatted address if available
+}
+
+/**
  * Initialize Knowledge Quest service with required settings and cache
  */
 export const initializeKnowledgeQuest = async (): Promise<void> => {
@@ -424,16 +439,16 @@ export const refreshQuizzes = async (): Promise<Quiz[]> => {
       return await generateGenericQuizzes();
     }
 
-    // Extract regions from visited places
-    const regions = extractRegionsFromPlaces(visitedPlaces);
+    // Extract regions from visited places with improved context data
+    const regionContexts = extractRegionsFromPlaces(visitedPlaces);
 
-    if (regions.length === 0) {
+    if (regionContexts.length === 0) {
       console.log("No regions extracted from places, generating generic quizzes");
       return await generateGenericQuizzes();
     }
 
-    // Generate quizzes for regions
-    const quizzes = await generateQuizzesForRegions(regions);
+    // Generate quizzes for regions using the improved context
+    const quizzes = await generateQuizzesForRegions(regionContexts);
 
     if (quizzes.length === 0) {
       console.log("Failed to generate region-specific quizzes, falling back to generic quizzes");
@@ -453,31 +468,99 @@ export const refreshQuizzes = async (): Promise<Quiz[]> => {
 };
 
 /**
- * Extract regions from visited places
+ * Extract regions with context from visited places
+ * Returns a more detailed structure with disambiguated region information
  */
-const extractRegionsFromPlaces = (places: VisitedPlaceDetails[]): string[] => {
-  const regionSet = new Set<string>();
+const extractRegionsFromPlaces = (places: VisitedPlaceDetails[]): RegionContext[] => {
+  const regionsMap = new Map<string, RegionContext>();
 
   places.forEach((place) => {
-    if (place.vicinity) {
-      // Extract the country/region from vicinity
-      const parts = place.vicinity.split(",");
-      if (parts.length > 0) {
-        const region = parts[parts.length - 1].trim();
-        if (region) {
-          regionSet.add(region);
+    // Skip places without valid location data
+    if (!place.geometry?.location) return;
+
+    // Initialize region context with coordinates
+    const regionContext: RegionContext = {
+      name: "",
+      coordinates: {
+        lat: place.geometry.location.lat,
+        lng: place.geometry.location.lng,
+      },
+    };
+
+    // Try to extract place type
+    if (place.types && place.types.length > 0) {
+      // Prioritize more specific place types
+      const priorityTypes = [
+        "locality",
+        "administrative_area_level_1",
+        "country",
+        "point_of_interest",
+      ];
+      const foundType = place.types.find((type) => priorityTypes.includes(type));
+      regionContext.placeType = foundType || place.types[0];
+    }
+
+    // First try to use the formatted address
+    if (place.formatted_address) {
+      // Parse the formatted address to extract useful location info
+      const addressParts = place.formatted_address.split(",").map((part) => part.trim());
+
+      if (addressParts.length >= 2) {
+        // The first part is usually the most specific (street, POI, etc.)
+        // The last part is usually the country
+        regionContext.name = addressParts[0];
+        regionContext.country = addressParts[addressParts.length - 1];
+        regionContext.formattedAddress = place.formatted_address;
+      } else {
+        regionContext.name = place.formatted_address;
+      }
+    }
+    // If formatted address is not available, use name and vicinity
+    else if (place.name) {
+      regionContext.name = place.name;
+
+      if (place.vicinity) {
+        const vicinityParts = place.vicinity.split(",").map((part) => part.trim());
+        if (vicinityParts.length > 0) {
+          regionContext.country = vicinityParts[vicinityParts.length - 1];
         }
       }
     }
+
+    // Skip if we couldn't determine a name
+    if (!regionContext.name) return;
+
+    // Handle specific disambiguation cases
+    if (regionContext.name.toLowerCase() === "roma") {
+      // If the coordinates are close to Rome, Italy
+      if (
+        regionContext.coordinates &&
+        regionContext.coordinates.lat > 41 &&
+        regionContext.coordinates.lat < 42 &&
+        regionContext.coordinates.lng > 12 &&
+        regionContext.coordinates.lng < 13
+      ) {
+        regionContext.name = "Rome";
+        regionContext.country = "Italy";
+      }
+    }
+
+    // Use a composite key for the map to prevent duplicates
+    const key = `${regionContext.name}${regionContext.country ? "-" + regionContext.country : ""}`;
+
+    // Only add if we don't already have this region
+    if (!regionsMap.has(key)) {
+      regionsMap.set(key, regionContext);
+    }
   });
 
-  return Array.from(regionSet);
+  return Array.from(regionsMap.values());
 };
 
 /**
- * Generate quizzes for specific regions using AI
+ * Generate quizzes for specific regions using AI with improved disambiguation
  */
-const generateQuizzesForRegions = async (regions: string[]): Promise<Quiz[]> => {
+const generateQuizzesForRegions = async (regions: RegionContext[]): Promise<Quiz[]> => {
   try {
     const currentUser = auth.currentUser;
     if (!currentUser) {
@@ -492,7 +575,9 @@ const generateQuizzesForRegions = async (regions: string[]): Promise<Quiz[]> => 
     // Limit to a reasonable number of regions to avoid excessive API calls
     const regionsToProcess = regions.slice(0, 5);
 
-    console.log(`Generating quizzes for regions: ${regionsToProcess.join(", ")}`);
+    console.log(
+      `Generating quizzes for regions: ${regionsToProcess.map((r) => r.name).join(", ")}`
+    );
 
     for (const region of regionsToProcess) {
       // Create a balanced mix of categories and difficulties
@@ -501,7 +586,15 @@ const generateQuizzesForRegions = async (regions: string[]): Promise<Quiz[]> => 
         const difficulty = difficulties[Math.floor(i / 2) % difficulties.length];
 
         try {
-          const newQuiz = await generateQuizWithAI(region, category, difficulty);
+          // Pass the full context data to the quiz generation function
+          const contextData = {
+            country: region.country,
+            placeType: region.placeType,
+            coordinates: region.coordinates,
+          };
+
+          const newQuiz = await generateQuizWithAI(region.name, category, difficulty, contextData);
+
           if (newQuiz) {
             quizzes.push(newQuiz);
 
@@ -517,11 +610,17 @@ const generateQuizzesForRegions = async (regions: string[]): Promise<Quiz[]> => 
               JSON.stringify(newQuiz)
             );
 
-            console.log(`Generated and saved ${difficulty} ${category} quiz for ${region}`);
+            console.log(
+              `Generated and saved ${difficulty} ${category} quiz for ${region.name}${
+                region.country ? ` (${region.country})` : ""
+              }`
+            );
           }
         } catch (genError) {
           console.error(
-            `Error generating quiz for ${region} (${category}, ${difficulty}):`,
+            `Error generating quiz for ${region.name}${
+              region.country ? ` (${region.country})` : ""
+            } (${category}, ${difficulty}):`,
             genError
           );
         }
@@ -537,29 +636,43 @@ const generateQuizzesForRegions = async (regions: string[]): Promise<Quiz[]> => 
 };
 
 /**
- * Generate a single quiz for a region using AI
+ * Generate a single quiz for a region using AI with improved region disambiguation
  */
 const generateQuizWithAI = async (
   region: string,
   category: string,
-  difficulty: string
+  difficulty: string,
+  contextData?: { country?: string; placeType?: string; coordinates?: { lat: number; lng: number } }
 ): Promise<Quiz | null> => {
   try {
+    // Create a more specific prompt that helps disambiguate regions
     const prompt = `
-  Create a quiz with ${DEFAULT_QUESTIONS_PER_QUIZ} educational questions about "${region}" focusing on ${category}.
+  Create a quiz with ${DEFAULT_QUESTIONS_PER_QUIZ} educational questions about ${region} focusing on ${category}.
   
-  IMPORTANT - REGION VERIFICATION STEP:
+  IMPORTANT CONTEXT: This quiz is about a geographical location that the user has visited.
+  ${contextData?.country ? `• The location is in the country: ${contextData.country}` : ""}
+  ${
+    contextData?.placeType
+      ? `• The location is a: ${contextData.placeType} (city, region, landmark, etc.)`
+      : ""
+  }
+  ${
+    contextData?.coordinates
+      ? `• The geographical coordinates are approximately: lat ${contextData.coordinates.lat}, lng ${contextData.coordinates.lng}`
+      : ""
+  }
+  
+  CRITICAL DISAMBIGUATION INSTRUCTION:
+  • If "Roma" is mentioned, this refers to Rome, Italy (the city) - NOT the Roma people/ethnicity.
+  • If "Georgia" is mentioned without "USA" or "America", this refers to the country Georgia in the Caucasus region, not the US state.
+  • If "Washington" is mentioned without context, assume it's Washington DC, not the state.
+  • Always interpret location names as geographical places that can be visited, not as ethnic groups, organizations, or other entities.
+  
+  REGION VERIFICATION STEP:
   Before creating questions, explicitly identify what type of geographic entity "${region}" is:
-  - Is it a country? (e.g., France, Japan)
-  - Is it a state/province? (e.g., California, Bavaria)
-  - Is it a city? (e.g., Paris, Tokyo)
-  - Is it a landmark or specific area? (e.g., Grand Canyon)
-  - Is it something else?
-  
-  If you're uncertain about what "${region}" refers to, or if it's ambiguous:
-  1. Focus ONLY on widely known, verifiable facts about the region
-  2. Generate more general questions that would apply to the broader area
-  3. Do NOT include any questions where factual accuracy is uncertain
+  1. Verify if it's a city, state/province, country, landmark, or other geographical entity
+  2. Include the broader location context (e.g., "Rome, a city in Italy" or "Kyoto, a city in Japan")
+  3. If you're uncertain about what "${region}" refers to exactly, focus on broadly known facts
   
   The difficulty level should be ${difficulty}.
   
@@ -567,7 +680,8 @@ const generateQuizWithAI = async (
   {
     "title": "Brief catchy title for the quiz",
     "description": "Short engaging description of what this quiz covers",
-    "regionType": "country|state|city|landmark|unknown", // REQUIRED: Identify what this region is
+    "regionType": "city|state|country|landmark|unknown", // REQUIRED: Identify what this region is
+    "regionContext": "Brief clarification of the specific region (e.g., 'Rome, Italy' or 'Kyoto, Japan')",
     "questions": [
       {
         "question": "The actual question text",
@@ -585,11 +699,12 @@ const generateQuizWithAI = async (
   1. Questions are factually accurate and educational
   2. ONLY include questions with high or medium confidence levels
   3. Questions are appropriate for ${difficulty} difficulty
-  4. All questions are about "${region}" with a focus on ${category}
+  4. All questions are about "${region}" as a geographical location with a focus on ${category}
   5. Questions are diverse and cover different aspects of the topic
   6. Each question has exactly 4 options
   7. The correct answer is marked with the correct index (0-based)
   8. Explanations are informative and include interesting facts
+  9. You NEVER create questions about ethnic groups when geographical locations are intended
 `;
 
     const response = await generateContent({ prompt, responseFormat: "json" });
@@ -602,6 +717,10 @@ const generateQuizWithAI = async (
     if (!response.title || !response.description || !Array.isArray(response.questions)) {
       throw new Error("Missing required fields in AI response");
     }
+
+    // Store the region context for better display
+    const regionContext = response.regionContext || region;
+    const regionType = response.regionType || "unknown";
 
     // Validate and format questions
     const validatedQuestions = response.questions.map((q, index) => {
@@ -622,7 +741,7 @@ const generateQuizWithAI = async (
         correctAnswerIndex: q.correctAnswerIndex,
         explanation: q.explanation,
         difficulty: q.difficulty || difficulty,
-        relatedRegion: region,
+        relatedRegion: regionContext, // Use the disambiguated region context
       } as QuizQuestion;
     });
 
@@ -630,7 +749,7 @@ const generateQuizWithAI = async (
       throw new Error("Not enough valid questions generated");
     }
 
-    // Create quiz object
+    // Create quiz object with improved metadata
     const now = new Date();
     const expiryDate = new Date();
     expiryDate.setDate(now.getDate() + CACHE_EXPIRY_DAYS);
@@ -642,10 +761,18 @@ const generateQuizWithAI = async (
       questions: validatedQuestions,
       difficulty: difficulty as "easy" | "medium" | "hard",
       category: category as "history" | "culture" | "geography" | "art" | "food" | "general",
-      relatedRegions: [region],
+      relatedRegions: [regionContext], // Use the disambiguated region context
+      regionType: regionType, // Store the type of region for better filtering
       createdAt: now.toISOString(),
       expiresAt: expiryDate.toISOString(),
       completions: 0,
+      metadata: {
+        disambiguated: true,
+        originalRegion: region,
+        clarifiedRegion: regionContext,
+        regionType: regionType,
+        country: contextData?.country,
+      },
     };
 
     return quiz;
@@ -763,9 +890,16 @@ const generateGenericQuizzes = async (): Promise<Quiz[]> => {
           difficulty: difficulty as "easy" | "medium" | "hard",
           category: category as "history" | "culture" | "geography" | "art" | "food" | "general",
           relatedRegions: ["World"], // Generic applies worldwide
+          regionType: "global",
           createdAt: now.toISOString(),
           expiresAt: expiryDate.toISOString(),
           completions: 0,
+          metadata: {
+            disambiguated: true,
+            originalRegion: "World",
+            clarifiedRegion: "Global",
+            regionType: "global",
+          },
         };
 
         // Save to Firebase

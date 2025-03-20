@@ -265,8 +265,6 @@ export const toggleFavoritePhrase = async (
     throw error;
   }
 };
-// services/LearnScreen/aiLanguageService.ts
-// Add these new functions:
 
 /**
  * Save a phrase to the user's savedPhrases collection
@@ -357,23 +355,34 @@ export const getLanguagePhrases = async (
   visitedPlaces: VisitedPlaceDetails[]
 ): Promise<Phrase[]> => {
   try {
-    // First, check if we have cached phrases that are fresh
+    // First, check if we have cached phrases
     const cachedPhrases = await getCachedPhrases();
-    if (cachedPhrases.phrases.length > 0 && !cachedPhrases.needsRefresh) {
+
+    // Return cached phrases if they exist, regardless of whether they need refresh
+    // Let the caller decide whether to refresh based on needsRefresh value
+    if (cachedPhrases.phrases.length > 0) {
       console.log("Using cached phrases from Firebase");
       return cachedPhrases.phrases;
     }
 
+    // No cached phrases, check request limit
+    const limitInfo = await checkRequestLimit();
+    if (!limitInfo.canRequest) {
+      console.log("Request limit reached and no cache available");
+      return createMockPhrases(); // Return mock phrases if at limit with no cache
+    }
+
     // Generate new phrases
+    console.log("Generating new phrases via API");
     const phrases = await generateLanguagePhrases(visitedPlaces);
 
-    // Cache the phrases
+    // Cache the phrases for future use
     await cachePhrases(phrases);
 
     return phrases;
   } catch (error) {
     console.error("Error getting language phrases:", error);
-    return [];
+    return createMockPhrases(); // Return mock phrases on error
   }
 };
 
@@ -454,14 +463,31 @@ export const getComprehensivePhrasebook = async (
   visitedPlaces: VisitedPlaceDetails[]
 ): Promise<Phrase[]> => {
   try {
-    // Check if we have cached phrases first
+    // If no places visited, return empty array early
+    if (visitedPlaces.length === 0) {
+      return [];
+    }
+
+    // Extract locations from visited places for later use if needed
+    const locations = visitedPlaces.map((place) => place.vicinity || "").filter(Boolean);
+    if (locations.length === 0) {
+      return [];
+    }
+
+    // Check if we have cached phrases first - but DON'T auto-fetch based on needsRefresh
+    // Let the calling component decide what to do based on needsRefresh and requestLimits
     const cachedPhrases = await getCachedPhrases();
-    if (cachedPhrases.phrases.length > 0 && !cachedPhrases.needsRefresh) {
-      console.log("Using cached comprehensive phrasebook from Firebase");
+    if (cachedPhrases.phrases.length > 0) {
+      console.log(
+        `Found ${cachedPhrases.phrases.length} cached phrases, needsRefresh: ${cachedPhrases.needsRefresh}`
+      );
+
+      // We're changing this function to ALWAYS return cached phrases if they exist
+      // The calling component will decide whether to make a new request based on needsRefresh
       return cachedPhrases.phrases;
     }
 
-    // Check request limit before generating new phrases
+    // No cached phrases - check request limit before generating new ones
     const limitInfo = await checkRequestLimit();
     if (!limitInfo.canRequest) {
       throw new Error(
@@ -473,12 +499,7 @@ export const getComprehensivePhrasebook = async (
       );
     }
 
-    // Extract locations from visited places
-    const locations = visitedPlaces.map((place) => place.vicinity || "").filter(Boolean);
-
-    if (locations.length === 0) {
-      return [];
-    }
+    console.log("Generating new phrases via API request");
 
     const prompt = `
       Create a comprehensive phrasebook for a traveler who has visited these locations: ${locations.join(
@@ -519,13 +540,18 @@ export const getComprehensivePhrasebook = async (
 
     if (Array.isArray(generatedPhrases)) {
       // Add unique IDs and timestamps
-      return generatedPhrases.map((phrase, index) => ({
+      const phrasesWithIds = generatedPhrases.map((phrase, index) => ({
         ...phrase,
         id: `phrase-${Date.now()}-${index}`,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         isFavorite: false,
       }));
+
+      // Cache the newly generated phrases
+      await cachePhrases(phrasesWithIds);
+
+      return phrasesWithIds;
     }
 
     return [];
@@ -615,6 +641,12 @@ export const getCachedPhrases = async (): Promise<{ phrases: Phrase[]; needsRefr
       const now = Date.now();
       const age = now - settings.lastUpdatedAt;
 
+      // Log when the data was last updated
+      const lastUpdateDate = new Date(settings.lastUpdatedAt).toLocaleString();
+      console.log(
+        `Last phrases update: ${lastUpdateDate}, age: ${(age / (60 * 60 * 1000)).toFixed(1)} hours`
+      );
+
       if (age < PHRASEBOOK_REFRESH_INTERVAL) {
         needsRefresh = false;
       }
@@ -625,6 +657,7 @@ export const getCachedPhrases = async (): Promise<{ phrases: Phrase[]; needsRefr
     const querySnapshot = await getDocs(phrasesRef);
 
     if (querySnapshot.empty) {
+      console.log("No phrases found in cache");
       return { phrases: [], needsRefresh: true };
     }
 
@@ -636,6 +669,7 @@ export const getCachedPhrases = async (): Promise<{ phrases: Phrase[]; needsRefr
       } as Phrase;
     });
 
+    console.log(`Retrieved ${phrases.length} phrases from cache, needsRefresh: ${needsRefresh}`);
     return { phrases, needsRefresh };
   } catch (error) {
     console.error("Error getting cached phrases:", error);
@@ -650,16 +684,36 @@ export const cachePhrases = async (phrases: Phrase[]): Promise<void> => {
   try {
     const currentUser = auth.currentUser;
     if (!currentUser) {
+      console.log("No user logged in, cannot cache phrases");
       return;
     }
 
     // First, clear existing phrases that aren't favorites
+    console.log("Clearing non-favorite phrases before caching new ones");
     await clearNonFavoritePhrases();
 
     // Add new phrases to subcollection
     const phrasesRef = collection(db, "users", currentUser.uid, "phrases");
 
+    console.log(`Caching ${phrases.length} new phrases to Firebase`);
     for (const phrase of phrases) {
+      // Check if this phrase is already in favorites
+      // We don't want to overwrite favorite status
+      const q = query(
+        phrasesRef,
+        where("phrase", "==", phrase.phrase),
+        where("language", "==", phrase.language),
+        where("isFavorite", "==", true)
+      );
+
+      const querySnapshot = await getDocs(q);
+
+      if (!querySnapshot.empty) {
+        // Skip this phrase as it's already a favorite
+        console.log(`Skipping phrase "${phrase.phrase}" as it's already a favorite`);
+        continue;
+      }
+
       await addDoc(phrasesRef, {
         ...phrase,
         updatedAt: new Date().toISOString(),
@@ -668,17 +722,17 @@ export const cachePhrases = async (phrases: Phrase[]): Promise<void> => {
 
     // Update settings with last updated timestamp
     const settingsRef = doc(db, "users", currentUser.uid, "settings", "phrasebook");
+    const now = Date.now();
     await setDoc(
       settingsRef,
       {
-        lastUpdatedAt: Date.now(),
-        favoriteLanguages: [],
-        explorableCountries: ["France", "Italy", "Spain", "Japan", "Thailand"],
+        lastUpdatedAt: now,
+        lastUpdatedAtReadable: new Date(now).toLocaleString(),
       },
       { merge: true }
     );
 
-    console.log("Phrases cached successfully");
+    console.log("Phrases cached successfully at", new Date(now).toLocaleString());
   } catch (error) {
     console.error("Error caching phrases:", error);
   }

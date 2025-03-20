@@ -1,7 +1,7 @@
 // mapConstants.ts - All map configuration constants
 
 export const GOOGLE_MAPS_APIKEY = "AIzaSyDAGq_6eJGQpR3RcO0NrVOowel9-DxZkvA";
-export const DESTINATION_REACHED_THRESHOLD = 30; // In meters
+export const DESTINATION_REACHED_THRESHOLD = 50; // In meters
 export const MARKER_REFRESH_THRESHOLD = 60000; // In milliseconds
 export const DEFAULT_CIRCLE_RADIUS = 500; // In meters
 export const DEFAULT_ZOOM_LEVEL = 17;

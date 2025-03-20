@@ -32,6 +32,7 @@ import {
   savePhrase,
   removeSavedPhrase,
   checkRequestLimit,
+  getCachedPhrases,
 } from "../services/LearnScreen/aiLanguageService";
 import { Phrase, LanguageGroup } from "../types/LearnScreen/LanguageTypes";
 import useTextToSpeech from "../hooks/AI/useTextToSpeech";
@@ -456,11 +457,46 @@ const PhrasebookScreen: React.FC<PhrasebookScreenProps> = ({ route, navigation }
     setError(null);
 
     try {
-      // Check request limits before attempting to get new phrases
-      const limitInfo = await checkRequestLimit();
+      // First check for cached phrases
+      const cachedPhrases = await getCachedPhrases();
+      let comprehensivePhrases = [];
 
-      // Get comprehensive phrasebook
-      const comprehensivePhrases = await getComprehensivePhrasebook(visitedPlaces);
+      if (cachedPhrases.phrases.length > 0) {
+        // If we have cached phrases and they don't need refresh, use them
+        if (!cachedPhrases.needsRefresh) {
+          console.log("Using cached phrases from Firebase - no refresh needed");
+          comprehensivePhrases = cachedPhrases.phrases;
+        } else {
+          // If cached phrases need refresh, check if we're at our request limit
+          const limitInfo = await checkRequestLimit();
+
+          if (limitInfo.canRequest) {
+            // If we can make requests, get fresh phrases
+            console.log(
+              "Cached phrases need refresh and we have requests available - getting fresh data"
+            );
+            comprehensivePhrases = await getComprehensivePhrasebook(visitedPlaces);
+          } else {
+            // If at request limit, use cached phrases even though they're stale
+            console.log(
+              "Cached phrases need refresh but we're at request limit - using cached data"
+            );
+            comprehensivePhrases = cachedPhrases.phrases;
+          }
+        }
+      } else {
+        // No cached phrases, check request limits before attempting to get new phrases
+        const limitInfo = await checkRequestLimit();
+
+        if (limitInfo.canRequest) {
+          console.log("No cached phrases found - requesting new phrases");
+          comprehensivePhrases = await getComprehensivePhrasebook(visitedPlaces);
+        } else {
+          // At request limit with no cache, use mock data
+          console.log("At request limit with no cached data - using mock phrases");
+          comprehensivePhrases = createMockPhrases();
+        }
+      }
 
       // Get favorite phrases
       const favoritePhrases = await getFavoritePhrases();
