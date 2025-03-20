@@ -1183,6 +1183,65 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
     setShowArrow(true);
   };
 
+  const handleViewMoreInfo = () => {
+    try {
+      if (places.selectedPlace) {
+        console.log(`Navigating to place details for: ${places.selectedPlace.name}`);
+
+        // Store a reference to the selected place before resetting state
+        const placeToView = { ...places.selectedPlace };
+
+        // Reset UI state to remove modal/overlay before navigation
+        setShowCard(false);
+        setShowDiscoveredCard(false);
+
+        // Add a small delay to allow the card animation to complete
+        setTimeout(() => {
+          // If place doesn't have full details and we're online, try to load them before navigation
+          if (!placeToView.hasFullDetails && isConnected) {
+            // Try to get details before navigation but don't block if not immediately available
+            fetchPlaceDetailsOnDemand(placeToView.place_id)
+              .then((detailedPlace) => {
+                if (detailedPlace) {
+                  navigation.navigate("PlaceDetails", {
+                    placeId: detailedPlace.place_id,
+                    place: detailedPlace,
+                  });
+                } else {
+                  navigation.navigate("PlaceDetails", {
+                    placeId: placeToView.place_id,
+                    place: placeToView,
+                  });
+                }
+              })
+              .catch((error) => {
+                console.error("Error fetching place details before navigation:", error);
+                // Navigate anyway with basic place
+                navigation.navigate("PlaceDetails", {
+                  placeId: placeToView.place_id,
+                  place: placeToView,
+                });
+              });
+          } else {
+            // Already has full details or offline, navigate directly
+            navigation.navigate("PlaceDetails", {
+              placeId: placeToView.place_id,
+              place: placeToView,
+            });
+          }
+        }, 300); // Short delay for animation
+      } else {
+        console.error("Cannot navigate: No place selected");
+      }
+    } catch (error) {
+      console.error("Error navigating to place details:", error);
+      Alert.alert(
+        "Navigation Error",
+        "There was a problem opening the details page. Please try again."
+      );
+    }
+  };
+
   /**
    * Handle arrow press to show details card again
    */
@@ -1530,6 +1589,7 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
                   setShowDetailsCard
                 )
               }
+              onViewMoreInfo={handleViewMoreInfo}
             />
           </View>
         )}
