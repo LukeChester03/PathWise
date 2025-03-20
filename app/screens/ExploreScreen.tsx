@@ -822,19 +822,19 @@ const ExploreScreen: React.FC<ExploreScreenProps> = ({ navigation }) => {
   return (
     <ScreenWithNavBar>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+      <Header
+        title="Places"
+        subtitle="Discover new places around you"
+        showIcon={true}
+        iconName="compass"
+        iconColor={Colors.primary}
+        rightComponent={headerRightComponent}
+        customStyles={styles.headerCustomStyles}
+        onHelpPress={handleHelpPress}
+        showHelp={false}
+      />
       <SafeAreaView style={styles.container}>
         {/* Enhanced Header with subtitle and icon */}
-        <Header
-          title="Places"
-          subtitle="Discover new places around you"
-          showIcon={true}
-          iconName="compass"
-          iconColor={Colors.primary}
-          rightComponent={headerRightComponent}
-          customStyles={styles.headerCustomStyles}
-          onHelpPress={handleHelpPress}
-          showHelp={false}
-        />
 
         {/* Getting Started Modal */}
         <GettingStartedModal
