@@ -183,7 +183,7 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
 
   // Track placeToShow in ref to prevent processing it multiple times
   useEffect(() => {
-    if (placeToShow && !showCard && !journeyStarted) {
+    if (placeToShow && !showCard && !showDiscoveredCard && !journeyStarted) {
       console.log(`Map: DIRECT processing for place: ${placeToShow.name}`);
       setDebugInfo((prev) => ({ ...prev, placeReceived: true }));
 
@@ -216,28 +216,54 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
             const estimatedMinutes = Math.ceil(distanceInKm * 2);
             setTravelTime(`~${estimatedMinutes} min`);
 
-            // Set this immediately to show the card
-            setShowCard(true);
-            setDebugInfo((prev) => ({ ...prev, cardShown: true }));
+            // CHANGED: Instead of immediately showing the card, first check if it's discovered
+            console.log(`Checking if place ${placeToShow.name} is already discovered...`);
 
-            // Start more accurate travel time calculation in the background
-            setTimeout(async () => {
-              try {
-                // Process place selection while fetching details if needed
-                const result = await places.handlePlaceSelection(
-                  placeToShow,
-                  userLoc,
-                  location.region
-                );
+            // Process place selection while fetching details if needed
+            places
+              .handlePlaceSelection(placeToShow, userLoc, location.region)
+              .then((result) => {
+                // Now show the appropriate card based on discovery status
+                if (result && result.isDiscovered) {
+                  console.log(
+                    `Place ${placeToShow.name} is already discovered, showing discovered card`
+                  );
+                  setShowDiscoveredCard(true);
+                  // Make sure explore card is not shown
+                  setShowCard(false);
+                } else {
+                  console.log(`Place ${placeToShow.name} is not discovered, showing explore card`);
+                  // Only now show the explore card if not discovered
+                  setShowCard(true);
+                  // Make sure discovered card is not shown
+                  setShowDiscoveredCard(false);
+                }
 
-                // Check if we need to fetch more details using Firebase-first approach
-                if (!placeToShow.hasFullDetails) {
-                  // Check network connectivity first
-                  if (isConnected) {
-                    console.log(`Map: Fetching details from Firebase/API for ${placeToShow.name}`);
-                    try {
-                      // First check Firebase before making any API call
-                      const detailedPlace = await fetchPlaceDetailsOnDemand(placeToShow.place_id);
+                // Notify parent that card is shown
+                if (onPlaceCardShown) {
+                  setTimeout(() => {
+                    onPlaceCardShown();
+                  }, 300);
+                }
+
+                setDebugInfo((prev) => ({ ...prev, placeProcessed: true, cardShown: true }));
+              })
+              .catch((error) => {
+                console.error("Error checking discovery status:", error);
+                // Fallback - show the explore card anyway
+                setShowCard(true);
+                if (onPlaceCardShown) onPlaceCardShown();
+              });
+
+            // Check if we need to fetch more details using Firebase-first approach
+            if (!placeToShow.hasFullDetails) {
+              // Check network connectivity first
+              if (isConnected) {
+                console.log(`Map: Fetching details from Firebase/API for ${placeToShow.name}`);
+                try {
+                  // First check Firebase before making any API call
+                  fetchPlaceDetailsOnDemand(placeToShow.place_id)
+                    .then((detailedPlace) => {
                       if (
                         detailedPlace &&
                         places.selectedPlace?.place_id === detailedPlace.place_id
@@ -246,50 +272,80 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
                         places.setSelectedPlace(detailedPlace);
                         console.log(`Map: Updated with full details for ${detailedPlace.name}`);
                       }
-                    } catch (detailError) {
+                    })
+                    .catch((detailError) => {
                       console.warn("Error fetching place details:", detailError);
                       // Continue with basic place info
-                    }
-                  } else {
-                    console.log("Map: Offline, using basic place data");
-                  }
-                } else {
-                  console.log(`Map: Place ${placeToShow.name} already has full details`);
+                    });
+                } catch (detailError) {
+                  console.warn("Error fetching place details:", detailError);
+                  // Continue with basic place info
                 }
-
-                console.log("Background place processing complete");
-              } catch (error) {
-                console.error("Error in background processing:", error);
+              } else {
+                console.log("Map: Offline, using basic place data");
               }
-            }, 300);
-
-            // Notify parent that card is shown
-            if (onPlaceCardShown) {
-              setTimeout(() => {
-                onPlaceCardShown();
-              }, 300);
+            } else {
+              console.log(`Map: Place ${placeToShow.name} already has full details`);
             }
-
-            setDebugInfo((prev) => ({ ...prev, placeProcessed: true }));
           } catch (estimateError) {
             console.warn("Error estimating travel time:", estimateError);
-            // Fallback - show the card anyway
-            setShowCard(true);
-            if (onPlaceCardShown) onPlaceCardShown();
+            // Fallback - check discovery status anyway
+            places
+              .handlePlaceSelection(placeToShow, location.userLocation, location.region)
+              .then((result) => {
+                if (result && result.isDiscovered) {
+                  setShowDiscoveredCard(true);
+                } else {
+                  setShowCard(true);
+                }
+                if (onPlaceCardShown) onPlaceCardShown();
+              })
+              .catch(() => {
+                setShowCard(true);
+                if (onPlaceCardShown) onPlaceCardShown();
+              });
           }
         } else {
-          // No location yet, but still show the card
-          setShowCard(true);
-          if (onPlaceCardShown) onPlaceCardShown();
+          // No location yet, but still check discovery status
+          places
+            .handlePlaceSelection(
+              placeToShow,
+              { latitude: 0, longitude: 0 },
+              location.region || {
+                latitude: 0,
+                longitude: 0,
+                latitudeDelta: 0.05,
+                longitudeDelta: 0.05,
+              }
+            )
+            .then((result) => {
+              if (result && result.isDiscovered) {
+                setShowDiscoveredCard(true);
+              } else {
+                setShowCard(true);
+              }
+              if (onPlaceCardShown) onPlaceCardShown();
+            })
+            .catch(() => {
+              setShowCard(true);
+              if (onPlaceCardShown) onPlaceCardShown();
+            });
         }
       } catch (error) {
         console.error("Error processing place to show:", error);
-        // Fallback - attempt to show the card even on error
+        // Fallback - show the explore card as a last resort
         setShowCard(true);
         if (onPlaceCardShown) onPlaceCardShown();
       }
     }
-  }, [placeToShow, showCard, journeyStarted, isConnected, location.userLocation]);
+  }, [
+    placeToShow,
+    showCard,
+    showDiscoveredCard,
+    journeyStarted,
+    isConnected,
+    location.userLocation,
+  ]);
 
   // Separate effect to handle processing the pending place
   // This runs on a timer to keep trying until successful or max attempts reached
@@ -923,66 +979,70 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
         }
       }
 
-      // Show card right away
-      setShowCard(true);
+      // IMPORTANT: Don't show any card yet - check if discovered first
+      console.log(`Checking if place ${place.name} is already discovered...`);
 
-      // Then process additional data in the background
-      setTimeout(async () => {
-        try {
-          // Use location fallbacks if needed
-          const userLocationForProcess = location.userLocation || {
-            latitude: 0,
-            longitude: 0,
-          };
-          const regionForProcess = location.region || {
-            latitude: 0,
-            longitude: 0,
-            latitudeDelta: 0.05,
-            longitudeDelta: 0.05,
-          };
+      try {
+        // Use location fallbacks if needed
+        const userLocationForProcess = location.userLocation || {
+          latitude: 0,
+          longitude: 0,
+        };
+        const regionForProcess = location.region || {
+          latitude: 0,
+          longitude: 0,
+          latitudeDelta: 0.05,
+          longitudeDelta: 0.05,
+        };
 
-          const result = await places.handlePlaceSelection(
-            place,
-            userLocationForProcess,
-            regionForProcess
-          );
+        // First synchronously check if the place is already discovered before showing any card
+        const result = await places.handlePlaceSelection(
+          place,
+          userLocationForProcess,
+          regionForProcess
+        );
 
-          // Update UI based on result if needed
-          if (result) {
-            if (result.isAlreadyAt) {
-              console.log(`User is already at ${place.name}`);
-            } else if (result.isDiscovered) {
-              setShowCard(false);
-              setShowDiscoveredCard(true);
-            }
-          }
-
-          // Fetch detailed place info in the background if needed and connected
-          if (!place.hasFullDetails && isConnected) {
-            console.log(
-              `Map: Background fetching details from Firebase/permanent storage for ${place.name}`
-            );
-            try {
-              // First check Firebase before attempting any API call
-              const detailedPlace = await fetchPlaceDetailsOnDemand(place.place_id);
-              if (detailedPlace && places.selectedPlace?.place_id === detailedPlace.place_id) {
-                // Update the place with detailed info
-                places.setSelectedPlace(detailedPlace);
-                console.log(`Map: Updated with full details for ${place.name}`);
-              }
-            } catch (detailError) {
-              console.warn("Error fetching place details:", detailError);
-              // Continue with basic place info
-            }
-          } else if (place.hasFullDetails) {
-            console.log(`Map: Place ${place.name} already has full details`);
-          } else {
-            console.log("Map: Offline, using basic place data");
-          }
-        } catch (backgroundError) {
-          console.warn("Background place processing error:", backgroundError);
+        // Now show the appropriate card based on discovery status
+        if (result && result.isDiscovered) {
+          console.log(`Place ${place.name} is already discovered, showing discovered card`);
+          setShowDiscoveredCard(true);
+          // Make sure explore card is not shown
+          setShowCard(false);
+        } else {
+          console.log(`Place ${place.name} is not discovered, showing explore card`);
+          // Only now show the explore card if not discovered
+          setShowCard(true);
+          // Make sure discovered card is not shown
+          setShowDiscoveredCard(false);
         }
-      }, 300);
+
+        // Fetch detailed place info in the background if needed and connected
+        if (!place.hasFullDetails && isConnected) {
+          console.log(
+            `Map: Background fetching details from Firebase/permanent storage for ${place.name}`
+          );
+          try {
+            // First check Firebase before attempting any API call
+            const detailedPlace = await fetchPlaceDetailsOnDemand(place.place_id);
+            if (detailedPlace && places.selectedPlace?.place_id === detailedPlace.place_id) {
+              // Update the place with detailed info
+              places.setSelectedPlace(detailedPlace);
+              console.log(`Map: Updated with full details for ${place.name}`);
+            }
+          } catch (detailError) {
+            console.warn("Error fetching place details:", detailError);
+            // Continue with basic place info
+          }
+        } else if (place.hasFullDetails) {
+          console.log(`Map: Place ${place.name} already has full details`);
+        } else {
+          console.log("Map: Offline, using basic place data");
+        }
+      } catch (error) {
+        console.error("Error checking place discovery status:", error);
+        // Fallback: Show explore card if error occurs
+        setShowCard(true);
+      }
     } catch (error) {
       console.error("Error in place selection:", error);
       // Keep showing the card even if there's an error in the background processing
