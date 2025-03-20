@@ -61,6 +61,9 @@ import { getQuotaRecord, getRemainingQuota } from "../../controllers/Map/quotaCo
 
 // Constants for visible places
 const MAX_VISIBLE_PLACES = 40; // Show only the 40 closest places on the map
+// Set a smaller threshold specifically for detecting when destination is reached
+const DESTINATION_CHECK_INTERVAL = 5000; // Check every 5 seconds
+const DESTINATION_TRACKING_THRESHOLD = 5; // 5 meters instead of using hasMovedSignificantly
 
 type MapNavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -101,6 +104,9 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
   // NEW STATE: Track visible places - limited to the closest 40
   const [visiblePlaces, setVisiblePlaces] = useState<Place[]>([]);
 
+  // NEW STATE: Dedicated location tracking for journey that updates more frequently
+  const [journeyTrackingLocation, setJourneyTrackingLocation] = useState<Coordinate | null>(null);
+
   // Route state variables
   const [routeCoordinates, setRouteCoordinates] = useState<Coordinate[]>([]);
   const [travelTime, setTravelTime] = useState<string | null>(null);
@@ -112,6 +118,10 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
   const cameraUserControlTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const pendingPlaceToShowRef = useRef<Place | null>(null);
   const placeCardShownRef = useRef<boolean>(false);
+  // NEW REF: Reference to interval for checking destination proximity
+  const destinationCheckIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  // NEW REF: Track last time destination proximity was checked
+  const lastDestinationCheckTimeRef = useRef<number>(0);
 
   // Custom hooks
   const location = useMapLocation();
@@ -468,6 +478,106 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
   }, [loading]);
 
   /**
+   * NEW FUNCTION: Check if user has reached destination
+   * This is called both by the location update effect and the interval timer
+   */
+  const checkDestinationReached = useCallback(
+    (userLoc: Coordinate) => {
+      if (!journeyStarted || !places.destinationCoordinateRef.current || destinationReached) {
+        return false;
+      }
+
+      // Get the current time to avoid checking too frequently
+      const now = Date.now();
+      // Only check if it's been at least 1 second since the last check
+      if (now - lastDestinationCheckTimeRef.current < 1000) {
+        return false;
+      }
+      lastDestinationCheckTimeRef.current = now;
+
+      // Calculate distance to destination
+      const distanceToDestination = mapUtils.haversineDistance(
+        userLoc.latitude,
+        userLoc.longitude,
+        places.destinationCoordinateRef.current.latitude,
+        places.destinationCoordinateRef.current.longitude
+      );
+
+      // Log distance to destination (but not too frequently)
+      if (now % 5000 < 1000) {
+        // Log roughly every 5 seconds
+        console.log(
+          `Distance to destination: ${distanceToDestination.toFixed(2)}m, ` +
+            `Threshold: ${DESTINATION_REACHED_THRESHOLD}m, ` +
+            `Current: ${userLoc.latitude.toFixed(6)},${userLoc.longitude.toFixed(6)}, ` +
+            `Destination: ${places.destinationCoordinateRef.current.latitude.toFixed(6)},` +
+            `${places.destinationCoordinateRef.current.longitude.toFixed(6)}`
+        );
+      }
+
+      // Use a more lenient threshold to determine when destination is reached
+      const reachThreshold = Math.min(DESTINATION_REACHED_THRESHOLD, 20);
+      const reached = distanceToDestination <= reachThreshold;
+
+      if (reached) {
+        console.log(`🎯 Destination reached! Distance: ${distanceToDestination.toFixed(2)}m`);
+        setDestinationReached(true);
+
+        // Reset the save attempt ref
+        destinationSaveAttemptedRef.current = false;
+
+        // Vibrate to alert user
+        try {
+          Vibration.vibrate([0, 200, 100, 200]);
+        } catch (error) {
+          console.warn("Could not vibrate:", error);
+        }
+
+        // Announce destination reached
+        mapNavigation.announceDestinationReached();
+
+        // Mark place as visited with both methods
+        if (places.selectedPlace) {
+          console.log(`Saving place to database: ${places.selectedPlace.name}`);
+
+          // Method 1: Use the handler
+          handleDestinationReached(places.selectedPlace);
+
+          // Method 2: Direct save as a backup
+          saveVisitedPlace({
+            ...places.selectedPlace,
+            isVisited: true,
+            visitedAt: new Date().toISOString(),
+          })
+            .then((success) => {
+              console.log(`Direct save result: ${success ? "Success" : "Failed"}`);
+              if (success) {
+                setDestinationSaved(true);
+              }
+            })
+            .catch((err) => console.error("Error during direct save:", err));
+        }
+
+        // Clear the interval check if set
+        if (destinationCheckIntervalRef.current) {
+          clearInterval(destinationCheckIntervalRef.current);
+          destinationCheckIntervalRef.current = null;
+        }
+
+        return true;
+      }
+
+      return false;
+    },
+    [
+      journeyStarted,
+      places.destinationCoordinateRef.current,
+      destinationReached,
+      places.selectedPlace,
+    ]
+  );
+
+  /**
    * Initialize map using pre-loaded location and places data
    */
   useEffect(() => {
@@ -579,6 +689,12 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
       // Clear camera control timeout on unmount
       if (cameraUserControlTimeoutRef.current) {
         clearTimeout(cameraUserControlTimeoutRef.current);
+      }
+
+      // Clear destination check interval
+      if (destinationCheckIntervalRef.current) {
+        clearInterval(destinationCheckIntervalRef.current);
+        destinationCheckIntervalRef.current = null;
       }
     };
   }, []);
@@ -714,8 +830,45 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
   }, [userControllingCamera, journeyStarted, viewMode]);
 
   /**
+   * NEW EFFECT: Set up an interval to periodically check if we've reached the destination
+   * This serves as a fallback when location updates are infrequent
+   */
+  useEffect(() => {
+    // Clean up previous interval if it exists
+    if (destinationCheckIntervalRef.current) {
+      clearInterval(destinationCheckIntervalRef.current);
+      destinationCheckIntervalRef.current = null;
+    }
+
+    // Only set up interval if a journey is active and we're not already at destination
+    if (journeyStarted && !destinationReached && places.destinationCoordinateRef.current) {
+      console.log("Setting up destination check interval");
+
+      destinationCheckIntervalRef.current = setInterval(() => {
+        // Only check if we have a valid location
+        if (location.userLocation) {
+          checkDestinationReached(location.userLocation);
+        }
+      }, DESTINATION_CHECK_INTERVAL);
+    }
+
+    return () => {
+      if (destinationCheckIntervalRef.current) {
+        clearInterval(destinationCheckIntervalRef.current);
+        destinationCheckIntervalRef.current = null;
+      }
+    };
+  }, [
+    journeyStarted,
+    destinationReached,
+    places.destinationCoordinateRef.current,
+    checkDestinationReached,
+  ]);
+
+  /**
    * Update user heading and check for destination when location changes
    * MODIFIED: Now also updates visible places when location changes significantly
+   * FIXED: Now always updates journeyTrackingLocation for more frequent destination checks
    */
   useEffect(() => {
     if (!location.userLocation) return;
@@ -752,66 +905,13 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
         updateVisiblePlaces();
       }
 
-      // If journey started, check if we've reached the destination
-      if (journeyStarted && places.destinationCoordinateRef.current && !destinationReached) {
-        // Calculate distance to destination
-        const distanceToDestination = mapUtils.haversineDistance(
-          location.userLocation.latitude,
-          location.userLocation.longitude,
-          places.destinationCoordinateRef.current.latitude,
-          places.destinationCoordinateRef.current.longitude
-        );
+      // IMPORTANT: Always update journey tracking location for more sensitive destination detection
+      // This runs even if the movement is not "significant" by the hasMovedSignificantly standards
+      if (journeyStarted) {
+        setJourneyTrackingLocation(location.userLocation);
 
-        console.log(
-          `Distance to destination: ${distanceToDestination.toFixed(
-            2
-          )}m, Threshold: ${DESTINATION_REACHED_THRESHOLD}m`
-        );
-
-        // Explicitly use 20 meters as the threshold
-        const reachThreshold = Math.min(DESTINATION_REACHED_THRESHOLD, 20);
-
-        const reached = distanceToDestination <= reachThreshold;
-
-        if (reached) {
-          console.log(`Destination reached! Distance: ${distanceToDestination.toFixed(2)}m`);
-          setDestinationReached(true);
-
-          // Reset the save attempt ref
-          destinationSaveAttemptedRef.current = false;
-
-          // Vibrate to alert user
-          try {
-            Vibration.vibrate([0, 200, 100, 200]);
-          } catch (error) {
-            console.warn("Could not vibrate:", error);
-          }
-
-          // Announce destination reached
-          mapNavigation.announceDestinationReached();
-
-          // Mark place as visited with both methods
-          if (places.selectedPlace) {
-            console.log(`Saving place to database: ${places.selectedPlace.name}`);
-
-            // Method 1: Use the handler
-            handleDestinationReached(places.selectedPlace);
-
-            // Method 2: Direct save as a backup
-            saveVisitedPlace({
-              ...places.selectedPlace,
-              isVisited: true,
-              visitedAt: new Date().toISOString(),
-            })
-              .then((success) => {
-                console.log(`Direct save result: ${success ? "Success" : "Failed"}`);
-                if (success) {
-                  setDestinationSaved(true);
-                }
-              })
-              .catch((err) => console.error("Error during direct save:", err));
-          }
-        }
+        // Check if we've reached the destination using the main location update
+        checkDestinationReached(location.userLocation);
       }
 
       // Update navigation instructions if journey started
@@ -822,7 +922,24 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
       console.error("Error in location update effect:", error);
       // Don't set map error here to avoid interrupting the user experience
     }
-  }, [location.userLocation, userControllingCamera, updateVisiblePlaces]);
+  }, [location.userLocation, userControllingCamera, updateVisiblePlaces, checkDestinationReached]);
+
+  /**
+   * NEW EFFECT: Dedicated effect for journey tracking location updates
+   * This provides more frequent destination checks during navigation
+   */
+  useEffect(() => {
+    if (!journeyTrackingLocation || !journeyStarted || destinationReached) {
+      return;
+    }
+
+    try {
+      // Check if we've reached the destination using the more frequent journey tracking location
+      checkDestinationReached(journeyTrackingLocation);
+    } catch (error) {
+      console.error("Error in journey tracking location effect:", error);
+    }
+  }, [journeyTrackingLocation, journeyStarted, destinationReached, checkDestinationReached]);
 
   // Add a separate effect to ensure place is saved when destination is reached
   useEffect(() => {
@@ -901,12 +1018,34 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
       setUserControllingCamera(false); // Reset user control when journey starts
       destinationSaveAttemptedRef.current = false;
 
+      // Reset last destination check time
+      lastDestinationCheckTimeRef.current = 0;
+
       // Reset tracking state
       location.resetLocationTracking();
       camera.resetCameraState();
 
       // Reset navigation state
       mapNavigation.resetNavigation();
+
+      // IMPORTANT: Make sure destination coordinates are set properly
+      if (places.selectedPlace) {
+        places.destinationCoordinateRef.current = {
+          latitude: places.selectedPlace.geometry.location.lat,
+          longitude: places.selectedPlace.geometry.location.lng,
+        };
+
+        console.log("Destination coordinates set:", places.destinationCoordinateRef.current);
+      } else {
+        console.error("Cannot start journey: No place selected");
+        Alert.alert("Navigation Error", "No destination selected. Please select a place first.");
+        return;
+      }
+
+      // Initialize journey tracking location with current position
+      if (location.userLocation) {
+        setJourneyTrackingLocation(location.userLocation);
+      }
     } catch (error) {
       console.error("Error starting journey:", error);
       Alert.alert("Navigation Error", "There was a problem starting navigation. Please try again.");
@@ -1117,6 +1256,13 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
       setDestinationReached(false);
       setDestinationSaved(false);
       destinationSaveAttemptedRef.current = false;
+
+      // Clear the destination check interval
+      if (destinationCheckIntervalRef.current) {
+        clearInterval(destinationCheckIntervalRef.current);
+        destinationCheckIntervalRef.current = null;
+      }
+
       handleCancel(
         setConfirmEndJourney,
         places.setSelectedPlace,
@@ -1255,6 +1401,12 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
    */
   const handleEndJourney = () => {
     try {
+      // Clear the destination check interval
+      if (destinationCheckIntervalRef.current) {
+        clearInterval(destinationCheckIntervalRef.current);
+        destinationCheckIntervalRef.current = null;
+      }
+
       handleCancel(
         setConfirmEndJourney,
         places.setSelectedPlace,
@@ -1419,36 +1571,43 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
           }}
           onUserLocationChange={(event) => {
             try {
-              // Throttle location updates
+              // Get the coordinate from the event
+              const { coordinate } = event.nativeEvent;
+              if (!coordinate) return;
+
+              // Create a location update object
+              const locationUpdate = {
+                latitude: coordinate.latitude,
+                longitude: coordinate.longitude,
+              };
+
+              // IMPORTANT FIX: Always update journey tracking location during active journeys
+              // This ensures we have frequent updates for destination detection
+              if (journeyStarted && !destinationReached) {
+                setJourneyTrackingLocation(locationUpdate);
+              }
+
+              // Standard throttled location updates for the map
               location.locationUpdateCounterRef.current =
                 (location.locationUpdateCounterRef.current + 1) % LOCATION_UPDATE_THROTTLE;
               if (location.locationUpdateCounterRef.current !== 0) return;
 
-              const { coordinate } = event.nativeEvent;
-              if (coordinate) {
-                // Update user location state with just coordinate properties
-                const locationUpdate = {
-                  latitude: coordinate.latitude,
-                  longitude: coordinate.longitude,
-                };
+              // Update user location state if we've moved significantly
+              if (hasMovedSignificantly(locationUpdate)) {
+                location.setUserLocation(locationUpdate);
 
-                // Check if the movement is significant before updating state
-                if (hasMovedSignificantly(locationUpdate)) {
-                  location.setUserLocation(locationUpdate);
-
-                  // If we need to update region separately
-                  if (location.region) {
-                    location.setRegion({
-                      latitude: coordinate.latitude,
-                      longitude: coordinate.longitude,
-                      latitudeDelta: location.region.latitudeDelta,
-                      longitudeDelta: location.region.longitudeDelta,
-                    });
-                  }
-
-                  // Update visible places when location changes significantly
-                  updateVisiblePlaces();
+                // If we need to update region separately
+                if (location.region) {
+                  location.setRegion({
+                    latitude: coordinate.latitude,
+                    longitude: coordinate.longitude,
+                    latitudeDelta: location.region.latitudeDelta,
+                    longitudeDelta: location.region.longitudeDelta,
+                  });
                 }
+
+                // Update visible places when location changes significantly
+                updateVisiblePlaces();
               }
             } catch (error) {
               console.error("Error in location change handler:", error);
