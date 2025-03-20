@@ -3,20 +3,22 @@ import React, { useState, useRef, useEffect } from "react";
 import {
   View,
   Text,
-  ScrollView,
   TouchableOpacity,
   StyleSheet,
-  Animated,
-  Dimensions,
   ActivityIndicator,
   StatusBar,
+  Platform,
+  Animated,
+  Easing,
+  SafeAreaView,
+  Dimensions,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { collection, getDocs } from "firebase/firestore";
 import { auth, db } from "../config/firebaseConfig";
 import { globalStyles } from "../constants/globalStyles";
-import { Colors, NeutralColors } from "../constants/colours";
+import { Colors } from "../constants/colours";
 import ScreenWithNavBar from "../components/Global/ScreenWithNavbar";
 import Header from "../components/Global/Header";
 import AiTravelSnapshot from "../components/LearnScreen/TravelSnapshotSection/AiTravelSnapshot";
@@ -28,104 +30,167 @@ import KnowledgeQuestCard from "../components/LearnScreen/KnowledgeQuestSection/
 import { Quiz } from "../types/LearnScreen/KnowledgeQuestTypes";
 import { initializeKnowledgeQuest } from "../services/LearnScreen/knowledgeQuestService";
 import { initializeQuizBadges } from "../services/LearnScreen/knowledgeQuestBadgeService";
+import { VisitedPlaceDetails } from "../types/MapTypes";
 
 const { width } = Dimensions.get("window");
 
-const LearnScreen = ({ navigation }) => {
+interface TravelProfile {
+  type: string;
+  [key: string]: any;
+}
+
+interface NavigationProps {
+  navigate: (route: string, params?: any) => void;
+}
+
+const LearnScreen = ({ navigation }: { navigation: NavigationProps }) => {
   // State variables
-  const [loadingPlaces, setLoadingPlaces] = useState(true);
-  const [visitedPlaces, setVisitedPlaces] = useState([]);
-  const [noPlacesFound, setNoPlacesFound] = useState(false);
-  const [error, setError] = useState(null);
-  const [showLearnIntro, setShowLearnIntro] = useState(false);
-  const [travelProfile, setTravelProfile] = useState(null);
-  const [expandedFeatures, setExpandedFeatures] = useState({
-    travelProfile: false,
-    culturalInsights: false,
-    travelAnalysis: false,
-  });
+  const [loadingPlaces, setLoadingPlaces] = useState<boolean>(true);
+  const [visitedPlaces, setVisitedPlaces] = useState<VisitedPlaceDetails[]>([]);
+  const [noPlacesFound, setNoPlacesFound] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
+  const [showLearnIntro, setShowLearnIntro] = useState<boolean>(false);
+  const [travelProfile, setTravelProfile] = useState<TravelProfile | null>(null);
+  const [isDataReady, setIsDataReady] = useState<boolean>(false);
 
-  // Animation references
+  // Animation values
   const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(50)).current;
-  const pulseAnim = useRef(new Animated.Value(1)).current;
-  const cardAnimations = useRef({
-    travelSnapshot: new Animated.Value(0),
-    languageAssistant: new Animated.Value(0),
-    cultural: new Animated.Value(0),
-    analysis: new Animated.Value(0),
-    quest: new Animated.Value(0),
-  }).current;
+  const scrollY = useRef(new Animated.Value(0)).current;
+  const loadingAnim = useRef(new Animated.Value(0)).current;
 
-  // Fetch user's visited places from Firestore
-  useEffect(() => {
-    console.log("LearnScreen mounted - fetching places");
-    fetchUserVisitedPlaces();
+  // Section animations (using the same pattern as ProfileScreen)
+  const sections = {
+    welcome: useRef(new Animated.Value(0)).current,
+    snapshot: useRef(new Animated.Value(0)).current,
+    features: useRef(new Animated.Value(0)).current,
+    analysis: useRef(new Animated.Value(0)).current,
+    language: useRef(new Animated.Value(0)).current,
+    cultural: useRef(new Animated.Value(0)).current,
+    quest: useRef(new Animated.Value(0)).current,
+  };
 
-    // Initialize Knowledge Quest
-    initializeKnowledgeQuest().catch((error) => {
-      console.error("Error initializing Knowledge Quest:", error);
-    });
+  // Dummy animation values for child components
+  const dummyAnim = useRef(new Animated.Value(1)).current;
 
-    // Initialize quiz badges
-    initializeQuizBadges().catch((error) => {
-      console.error("Error initializing quiz badges:", error);
-    });
-  }, []);
+  // Start loading animation
+  const startLoadingAnimation = () => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(loadingAnim, {
+          toValue: 1,
+          duration: 800,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(loadingAnim, {
+          toValue: 0,
+          duration: 800,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+  };
 
-  // Run entrance animations when component mounts
-  useEffect(() => {
-    console.log("Starting entrance animations");
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
+  // Trigger staggered entry animations
+  const triggerEntryAnimations = () => {
+    // Fade in the whole screen
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 600,
+      useNativeDriver: true,
+      easing: Easing.out(Easing.cubic),
+    }).start();
+
+    // Staggered animation for sections (matching ProfileScreen pattern)
+    Animated.stagger(120, [
+      Animated.timing(sections.welcome, {
         toValue: 1,
-        duration: 800,
+        duration: 600,
         useNativeDriver: true,
+        easing: Easing.out(Easing.back(1.5)),
       }),
-      Animated.timing(slideAnim, {
-        toValue: 0,
-        duration: 800,
+      Animated.timing(sections.snapshot, {
+        toValue: 1,
+        duration: 600,
         useNativeDriver: true,
+        easing: Easing.out(Easing.back(1.5)),
+      }),
+      Animated.timing(sections.features, {
+        toValue: 1,
+        duration: 600,
+        useNativeDriver: true,
+        easing: Easing.out(Easing.back(1.5)),
+      }),
+      Animated.timing(sections.analysis, {
+        toValue: 1,
+        duration: 600,
+        useNativeDriver: true,
+        easing: Easing.out(Easing.back(1.5)),
+      }),
+      Animated.timing(sections.language, {
+        toValue: 1,
+        duration: 600,
+        useNativeDriver: true,
+        easing: Easing.out(Easing.back(1.5)),
+      }),
+      Animated.timing(sections.cultural, {
+        toValue: 1,
+        duration: 600,
+        useNativeDriver: true,
+        easing: Easing.out(Easing.back(1.5)),
+      }),
+      Animated.timing(sections.quest, {
+        toValue: 1,
+        duration: 600,
+        useNativeDriver: true,
+        easing: Easing.out(Easing.back(1.5)),
       }),
     ]).start();
+  };
 
-    // Staggered animations for each card
-    const animations = Object.keys(cardAnimations).map((key, index) => {
-      return Animated.timing(cardAnimations[key], {
-        toValue: 1,
-        duration: 500,
-        delay: 100 + index * 100, // Stagger effect
-        useNativeDriver: true,
-      });
-    });
-
-    Animated.stagger(50, animations).start();
-  }, []);
-
-  // Create pulsing animation for AI badge
+  // Initial loading
   useEffect(() => {
-    console.log("Starting pulse animation");
-    const pulse = Animated.sequence([
-      Animated.timing(pulseAnim, {
-        toValue: 1.1,
-        duration: 800,
-        useNativeDriver: true,
-      }),
-      Animated.timing(pulseAnim, {
-        toValue: 1,
-        duration: 800,
-        useNativeDriver: true,
-      }),
-    ]);
+    console.log("LearnScreen mounted - loading data");
 
-    const pulseLoop = Animated.loop(pulse);
-    pulseLoop.start();
+    // Start loading animation
+    startLoadingAnimation();
 
-    return () => {
-      pulseLoop.stop();
-      pulseAnim.setValue(1);
+    // Initialize data
+    const initializeData = async () => {
+      try {
+        await fetchUserVisitedPlaces();
+
+        // Initialize non-blocking services
+        setTimeout(() => {
+          initializeKnowledgeQuest().catch((error) => {
+            console.error("Error initializing Knowledge Quest:", error);
+          });
+
+          initializeQuizBadges().catch((error) => {
+            console.error("Error initializing quiz badges:", error);
+          });
+        }, 1000);
+
+        // Apply small delay to ensure smooth transition
+        setTimeout(() => {
+          setIsDataReady(true);
+          triggerEntryAnimations();
+        }, 300);
+      } catch (error) {
+        console.error("Error initializing data:", error);
+        setIsDataReady(true);
+        triggerEntryAnimations();
+      }
     };
+
+    initializeData();
   }, []);
+
+  // Handle scroll events (using the pattern from ProfileScreen)
+  const handleScroll = Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], {
+    useNativeDriver: true,
+  });
 
   const fetchUserVisitedPlaces = async () => {
     try {
@@ -157,7 +222,7 @@ const LearnScreen = ({ navigation }) => {
           setVisitedPlaces([]);
         } else {
           // Transform Firestore documents to place objects
-          const userPlacesData = querySnapshot.docs
+          const userPlacesData: VisitedPlaceDetails[] = querySnapshot.docs
             .filter((doc) => {
               // Filter out the initialization document
               const data = doc.data();
@@ -165,8 +230,6 @@ const LearnScreen = ({ navigation }) => {
             })
             .map((doc) => {
               const data = doc.data();
-              console.log("Processing place:", data.name || doc.id);
-
               return {
                 ...data, // Keep all original properties
                 id: doc.id,
@@ -174,7 +237,9 @@ const LearnScreen = ({ navigation }) => {
                 name: data.name || "Unknown Place",
                 location: data.vicinity || data.location || "",
                 description: data.description || "",
-                geometry: data.geometry,
+                geometry: data.geometry || {
+                  location: { lat: 0, lng: 0 },
+                },
                 photos: data.photos || [],
                 images: data.photos
                   ? [
@@ -190,7 +255,7 @@ const LearnScreen = ({ navigation }) => {
                       },
                     ],
                 rating: data.rating || 4.5,
-                visitedAt: data.visitedAt,
+                visitedAt: data.visitedAt || new Date().toISOString(),
                 visitDate: data.visitedAt
                   ? new Date(data.visitedAt).toLocaleDateString("en-US", {
                       year: "numeric",
@@ -199,7 +264,8 @@ const LearnScreen = ({ navigation }) => {
                     })
                   : "Recently",
                 isVisited: true, // Explicitly mark as visited
-              };
+                website: data.website || null,
+              } as VisitedPlaceDetails;
             });
 
           console.log(`Found ${userPlacesData.length} places in Firestore (excluding init doc)`);
@@ -228,22 +294,13 @@ const LearnScreen = ({ navigation }) => {
     }
   };
 
-  const handleProfileUpdated = (profile) => {
+  const handleProfileUpdated = (profile: TravelProfile) => {
     setTravelProfile(profile);
     console.log("Travel profile updated:", profile.type);
   };
 
-  // Handle Knowledge Quest actions
   const handleStartQuiz = (quiz: Quiz) => {
     navigation.navigate("QuizSession", { quizId: quiz.id });
-  };
-
-  // Toggle feature expansion
-  const toggleFeatureExpansion = (feature) => {
-    setExpandedFeatures((prev) => ({
-      ...prev,
-      [feature]: !prev[feature],
-    }));
   };
 
   const handleModal = () => {
@@ -251,184 +308,293 @@ const LearnScreen = ({ navigation }) => {
     setShowLearnIntro(true);
   };
 
-  const renderFeatureCards = (cardAnimation) => {
+  // Render loading state (match ProfileScreen pattern)
+  if (!isDataReady) {
     return (
-      <Animated.View
-        style={[
-          styles.featuresGrid,
-          {
-            opacity: cardAnimation,
-            transform: [
-              {
-                translateY: cardAnimation.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [50, 0],
-                }),
-              },
-            ],
-          },
-        ]}
-      >
-        <TouchableOpacity
-          style={styles.featureCard}
-          onPress={() => {
-            navigation.navigate("Phrasebook", {
-              visitedPlaces,
-            });
-          }}
-        >
-          <View style={[styles.featureIconContainer, { backgroundColor: "#E0F2FE" }]}>
-            <Ionicons name="language" size={24} color="#0284C7" />
-          </View>
-          <Text style={styles.featureTitle}>Language Assistant</Text>
-          <Text style={styles.featureDescription}>
-            Phrases from local languages of places you've visited
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.featureCard}
-          onPress={() => {
-            navigation.navigate("CulturalContext", {
-              visitedPlaces,
-            });
-          }}
-        >
-          <View style={[styles.featureIconContainer, { backgroundColor: "#F3E8FF" }]}>
-            <Ionicons name="people" size={24} color="#7E22CE" />
-          </View>
-          <Text style={styles.featureTitle}>Cultural Context</Text>
-          <Text style={styles.featureDescription}>
-            AI insights on local customs and traditions in places you visit
-          </Text>
-        </TouchableOpacity>
-      </Animated.View>
-    );
-  };
-
-  const renderLanguageAssistantCard = (cardAnimation) => {
-    return <LanguageAssistant visitedPlaces={visitedPlaces} cardAnimation={cardAnimation} />;
-  };
-
-  const renderLandingScreen = () => {
-    console.log(
-      "Rendering landing screen. Loading:",
-      loadingPlaces,
-      "Places count:",
-      visitedPlaces.length
-    );
-
-    if (loadingPlaces) {
-      return (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={Colors.primary} />
-          <Text style={styles.loadingText}>Loading your visited places...</Text>
-        </View>
-      );
-    }
-
-    if (error) {
-      console.log("Rendering error state:", error);
-      return (
-        <View style={styles.errorContainer}>
-          <Ionicons name="alert-circle-outline" size={60} color="#ccc" />
-          <Text style={styles.errorText}>{error}</Text>
-          <TouchableOpacity style={styles.retryButton} onPress={fetchUserVisitedPlaces}>
-            <LinearGradient
-              colors={[Colors.primary, Colors.primary + "CC"]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={styles.buttonGradient}
+      <ScreenWithNavBar>
+        <SafeAreaView style={styles.safeArea}>
+          <View style={styles.loadingContainer}>
+            <Animated.View
+              style={[
+                styles.loadingIndicator,
+                {
+                  opacity: loadingAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0.6, 1],
+                  }),
+                  transform: [
+                    {
+                      scale: loadingAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [0.9, 1.1],
+                      }),
+                    },
+                  ],
+                },
+              ]}
             >
-              <Text style={styles.retryButtonText}>Try Again</Text>
-            </LinearGradient>
-          </TouchableOpacity>
-        </View>
-      );
-    }
-
-    return (
-      <ScrollView style={styles.landingContainer} showsVerticalScrollIndicator={false}>
-        <Animated.View
-          style={[
-            styles.contentContainer,
-            { opacity: fadeAnim, transform: [{ translateY: slideAnim }] },
-          ]}
-        >
-          <View style={styles.welcomeSection}>
-            <Text style={styles.welcomeText}>Welcome back!</Text>
-            <Text style={styles.subtitleText}>
-              Explore your travel journey and discover new insights
-            </Text>
+              <LinearGradient
+                colors={[Colors.primary, Colors.primary + "99"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.loadingGradient}
+              />
+            </Animated.View>
+            <Text style={styles.loadingText}>Preparing your journey...</Text>
           </View>
-
-          {/* Feature 1: AI Travel Snapshot */}
-          <AiTravelSnapshot
-            fadeAnim={cardAnimations.travelSnapshot}
-            pulseAnim={pulseAnim}
-            placesToShow={visitedPlaces}
-            onProfileUpdated={handleProfileUpdated}
-          />
-
-          {/* Feature Grid */}
-          {renderFeatureCards(cardAnimations.travelSnapshot)}
-
-          {/* Feature 5 & 6: Advanced Travel Analysis + Travel Preferences */}
-          <AdvancedTravelAnalysisCard
-            cardAnimation={cardAnimations.analysis}
-            visitedPlaces={visitedPlaces}
-          />
-
-          {/* Feature 2: Language Assistant */}
-          {renderLanguageAssistantCard(cardAnimations.languageAssistant)}
-
-          {/* Feature 4: Cultural Context */}
-          <CulturalContextCard
-            cardAnimation={cardAnimations.cultural}
-            visitedPlaces={visitedPlaces}
-            navigation={navigation}
-            expandedFeatures={expandedFeatures}
-            toggleFeatureExpansion={toggleFeatureExpansion}
-          />
-
-          {/* Feature 7: Knowledge Quest Game */}
-          <KnowledgeQuestCard
-            cardAnimation={cardAnimations.quest}
-            navigation={navigation}
-            onStartQuiz={handleStartQuiz}
-          />
-        </Animated.View>
-      </ScrollView>
+        </SafeAreaView>
+      </ScreenWithNavBar>
     );
-  };
+  }
 
   return (
     <ScreenWithNavBar>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
-      <View style={[globalStyles.container, styles.container]}>
-        <Header
-          title="Learn"
-          subtitle="Your Travel Helper"
-          showIcon={true}
-          iconName="sparkles"
-          iconColor={Colors.primary}
-          showHelp={true}
-          onHelpPress={() => handleModal()}
-        />
+      <Animated.View style={[styles.container, { opacity: fadeAnim }]}>
+        <SafeAreaView style={styles.safeArea}>
+          <Header
+            title="Learn"
+            subtitle="Your Travel Helper"
+            showIcon={true}
+            iconName="sparkles"
+            iconColor={Colors.primary}
+            showHelp={true}
+            onHelpPress={handleModal}
+          />
 
-        {renderLandingScreen()}
+          {error ? (
+            <View style={styles.errorContainer}>
+              <Ionicons name="alert-circle-outline" size={60} color="#ccc" />
+              <Text style={styles.errorText}>{error}</Text>
+              <TouchableOpacity style={styles.retryButton} onPress={fetchUserVisitedPlaces}>
+                <LinearGradient
+                  colors={[Colors.primary, Colors.primary + "CC"]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.buttonGradient}
+                >
+                  <Text style={styles.retryButtonText}>Try Again</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <Animated.ScrollView
+              style={styles.scrollView}
+              contentContainerStyle={styles.scrollContent}
+              showsVerticalScrollIndicator={false}
+              bounces={true}
+              onScroll={handleScroll}
+              scrollEventThrottle={16}
+            >
+              {/* Welcome Section */}
+              <Animated.View
+                style={[
+                  styles.welcomeSection,
+                  {
+                    opacity: sections.welcome,
+                    transform: [
+                      {
+                        translateY: sections.welcome.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [30, 0],
+                        }),
+                      },
+                    ],
+                  },
+                ]}
+              >
+                <Text style={styles.welcomeText}>Welcome back!</Text>
+                <Text style={styles.subtitleText}>
+                  Explore your travel journey and discover new insights
+                </Text>
+              </Animated.View>
 
-        <LearnIntroOverlay
-          visible={showLearnIntro}
-          onClose={() => {
-            setShowLearnIntro(false);
-            // Allow modal to fully close before it can be reopened
-            setTimeout(() => {
-              console.log("Modal state reset complete");
-            }, 100);
-          }}
-        />
-      </View>
+              {/* Feature 1: AI Travel Snapshot */}
+              <Animated.View
+                style={[
+                  styles.cardContainer,
+                  {
+                    opacity: sections.snapshot,
+                    transform: [
+                      {
+                        translateY: sections.snapshot.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [30, 0],
+                        }),
+                      },
+                    ],
+                  },
+                ]}
+              >
+                <AiTravelSnapshot
+                  placesToShow={visitedPlaces}
+                  onProfileUpdated={handleProfileUpdated}
+                  fadeAnim={dummyAnim}
+                  pulseAnim={dummyAnim}
+                />
+              </Animated.View>
+
+              {/* Feature Grid */}
+              <Animated.View
+                style={[
+                  styles.cardContainer,
+                  {
+                    opacity: sections.features,
+                    transform: [
+                      {
+                        translateY: sections.features.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [30, 0],
+                        }),
+                      },
+                    ],
+                  },
+                ]}
+              >
+                <View style={styles.featuresGrid}>
+                  <TouchableOpacity
+                    style={styles.featureCard}
+                    onPress={() => {
+                      navigation.navigate("Phrasebook", {
+                        visitedPlaces,
+                      });
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <View style={[styles.featureIconContainer, { backgroundColor: "#E0F2FE" }]}>
+                      <Ionicons name="language" size={24} color="#0284C7" />
+                    </View>
+                    <Text style={styles.featureTitle}>Language Assistant</Text>
+                    <Text style={styles.featureDescription}>
+                      Phrases from local languages of places you've visited
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.featureCard}
+                    onPress={() => {
+                      navigation.navigate("CulturalContext", {
+                        visitedPlaces,
+                      });
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <View style={[styles.featureIconContainer, { backgroundColor: "#F3E8FF" }]}>
+                      <Ionicons name="people" size={24} color="#7E22CE" />
+                    </View>
+                    <Text style={styles.featureTitle}>Cultural Context</Text>
+                    <Text style={styles.featureDescription}>
+                      AI insights on local customs and traditions in places you visit
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </Animated.View>
+
+              {/* Feature 5 & 6: Advanced Travel Analysis + Travel Preferences */}
+              <Animated.View
+                style={[
+                  styles.cardContainer,
+                  {
+                    opacity: sections.analysis,
+                    transform: [
+                      {
+                        translateY: sections.analysis.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [30, 0],
+                        }),
+                      },
+                    ],
+                  },
+                ]}
+              >
+                <AdvancedTravelAnalysisCard
+                  cardAnimation={dummyAnim}
+                  visitedPlaces={visitedPlaces}
+                />
+              </Animated.View>
+
+              {/* Feature 2: Language Assistant */}
+              <Animated.View
+                style={[
+                  styles.cardContainer,
+                  {
+                    opacity: sections.language,
+                    transform: [
+                      {
+                        translateY: sections.language.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [30, 0],
+                        }),
+                      },
+                    ],
+                  },
+                ]}
+              >
+                <LanguageAssistant visitedPlaces={visitedPlaces} cardAnimation={dummyAnim} />
+              </Animated.View>
+
+              {/* Feature 4: Cultural Context */}
+              <Animated.View
+                style={[
+                  styles.cardContainer,
+                  {
+                    opacity: sections.cultural,
+                    transform: [
+                      {
+                        translateY: sections.cultural.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [30, 0],
+                        }),
+                      },
+                    ],
+                  },
+                ]}
+              >
+                <CulturalContextCard
+                  cardAnimation={dummyAnim}
+                  visitedPlaces={visitedPlaces}
+                  navigation={navigation}
+                />
+              </Animated.View>
+
+              {/* Feature 7: Knowledge Quest Game */}
+              <Animated.View
+                style={[
+                  styles.cardContainer,
+                  {
+                    opacity: sections.quest,
+                    transform: [
+                      {
+                        translateY: sections.quest.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [30, 0],
+                        }),
+                      },
+                    ],
+                  },
+                ]}
+              >
+                <KnowledgeQuestCard
+                  cardAnimation={dummyAnim}
+                  navigation={navigation}
+                  onStartQuiz={handleStartQuiz}
+                />
+              </Animated.View>
+            </Animated.ScrollView>
+          )}
+
+          <LearnIntroOverlay
+            visible={showLearnIntro}
+            onClose={() => {
+              setShowLearnIntro(false);
+              // Allow modal to fully close before it can be reopened
+              setTimeout(() => {
+                console.log("Modal state reset complete");
+              }, 100);
+            }}
+          />
+        </SafeAreaView>
+      </Animated.View>
     </ScreenWithNavBar>
   );
 };
@@ -438,15 +604,25 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#F9FAFB",
   },
-  landingContainer: {
+  safeArea: {
     flex: 1,
+    backgroundColor: "transparent",
   },
-  contentContainer: {
-    padding: 16,
+  scrollView: {
+    flex: 1,
+    backgroundColor: "#F9FAFB",
+  },
+  scrollContent: {
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 100, // Extra padding for scroll
+  },
+  cardContainer: {
+    marginBottom: 20,
+    width: "100%",
   },
   welcomeSection: {
-    marginTop: 8,
-    marginBottom: 20,
+    marginBottom: 24,
   },
   welcomeText: {
     fontSize: 24,
@@ -458,13 +634,12 @@ const styles = StyleSheet.create({
     color: "#6B7280",
     marginTop: 4,
   },
-
   // Feature Grid
   featuresGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
     justifyContent: "space-between",
-    marginBottom: 20,
+    width: "100%",
   },
   featureCard: {
     width: "48%",
@@ -472,11 +647,17 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 16,
     marginBottom: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 4,
+      },
+    }),
   },
   featureIconContainer: {
     width: 50,
@@ -497,19 +678,30 @@ const styles = StyleSheet.create({
     color: "#6B7280",
     lineHeight: 16,
   },
-
-  // Loading and error states
+  // Loading state styles - matching ProfileScreen's pattern
   loadingContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    padding: 20,
+    backgroundColor: "#F9FAFB",
+  },
+  loadingIndicator: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    marginBottom: 20,
+    overflow: "hidden",
+  },
+  loadingGradient: {
+    width: "100%",
+    height: "100%",
   },
   loadingText: {
-    marginTop: 16,
     fontSize: 16,
     color: "#6B7280",
+    fontWeight: "500",
   },
+  // Error state styles
   errorContainer: {
     flex: 1,
     justifyContent: "center",
