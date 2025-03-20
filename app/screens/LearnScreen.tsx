@@ -408,7 +408,7 @@ const LearnScreen = ({ navigation }) => {
       <View style={[globalStyles.container, styles.container]}>
         <Header
           title="Learn"
-          subtitle="Explore your visited places"
+          subtitle="Your Travel Helper"
           showIcon={true}
           iconName="sparkles"
           iconColor={Colors.primary}
