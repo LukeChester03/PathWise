@@ -12,6 +12,7 @@ import {
   SafeAreaView,
   Platform,
   PanResponder,
+  Image,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons, MaterialCommunityIcons, FontAwesome5 } from "@expo/vector-icons";
@@ -252,11 +253,7 @@ const JourneyIntroOverlay: React.FC<JourneyIntroOverlayProps> = ({ visible, onCl
         return (
           <>
             <View style={styles.welcomeContainer}>
-              <MaterialCommunityIcons
-                name="map-marker-path"
-                size={iconSize}
-                color={Colors.primary}
-              />
+              <Image source={require("../../assets/logo.png")} style={styles.logo} />
               <Text style={styles.welcomeTitle}>Welcome to Pathwise</Text>
               <Text style={styles.welcomeSubtitle}>Your Passport to Adventure</Text>
             </View>
@@ -842,6 +839,10 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600",
     marginRight: 8,
+  },
+  logo: {
+    width: 80,
+    height: 80,
   },
 });
 

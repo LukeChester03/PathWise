@@ -1,4 +1,4 @@
-// HomeScreen.tsx - With help button on hero image
+// HomeScreen.tsx - Refined layout with reduced whitespace
 import React, { useState, useEffect, useRef } from "react";
 import {
   SafeAreaView,
@@ -44,7 +44,7 @@ interface JourneyTip {
   icon: string;
 }
 
-// Onboarding Tips Component - Updated with modern styling
+// Refined Onboarding Tips Component with reduced whitespace
 const OnboardingTips: React.FC = () => {
   const [currentTipIndex, setCurrentTipIndex] = useState(0);
   const fadeAnim = useRef(new Animated.Value(1)).current;
@@ -76,7 +76,7 @@ const OnboardingTips: React.FC = () => {
   ];
 
   const animateToNextTip = (nextIndex: number) => {
-    // Animate current tip out
+    // Animation implementation (unchanged)
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 0,
@@ -89,12 +89,9 @@ const OnboardingTips: React.FC = () => {
         useNativeDriver: true,
       }),
     ]).start(() => {
-      // Change to next tip
       setCurrentTipIndex(nextIndex);
-      // Reset animation values
       slideAnim.setValue(100);
 
-      // Animate new tip in
       Animated.parallel([
         Animated.timing(fadeAnim, {
           toValue: 1,
@@ -171,7 +168,7 @@ const OnboardingTips: React.FC = () => {
   );
 };
 
-// Enhanced HomeScreen component with new design
+// Enhanced HomeScreen component with refined spacing
 const HomeScreen: React.FC = () => {
   const navigation = useNavigation();
   const route = useRoute();
@@ -251,21 +248,15 @@ const HomeScreen: React.FC = () => {
         // Fetch user profile from Firestore
         const userProfile = await fetchUserProfile(navigation);
 
-        // Add clear logging for debugging
-        console.log("User profile loaded:", JSON.stringify(userProfile));
-        console.log("Is new user value:", userProfile.isNewUser);
-
         // Update username and profile image
         setUserName(userProfile.name || "User");
         setProfileImage(userProfile.profileImage || null);
 
         // Explicit check with triple equals for boolean type
         if (userProfile.isNewUser === true) {
-          console.log("Setting showJourneyIntro to true - user is new");
           setShowJourneyIntro(true);
           setIsNewUser(true);
         } else {
-          console.log("User is not new, not showing journey intro");
           setShowJourneyIntro(false);
           setIsNewUser(false);
         }
@@ -642,19 +633,19 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
-    paddingBottom: 90, // Consistent padding at the bottom to account for navbar
+    paddingBottom: 70, // Reduced from 90 to 70
   },
   contentContainer: {
     flex: 1,
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    gap: 24, // Consistent spacing between all sections
+    paddingHorizontal: 12, // Reduced from 16 to 12
+    paddingTop: 12, // Reduced from 16 to 12
+    gap: 16, // Reduced from 24 to 16 for tighter spacing
   },
-  // Hero Section Styles
+  // Hero Section Styles - Refined
   heroSection: {
     width: width,
-    height: height * 0.4,
-    marginBottom: 16,
+    height: height * 0.38, // Slightly reduced height
+    marginBottom: 10, // Reduced from 16 to 10
   },
   heroBg: {
     width: "100%",
@@ -663,31 +654,31 @@ const styles = StyleSheet.create({
   heroGradient: {
     flex: 1,
     justifyContent: "flex-end",
-    padding: 20,
+    padding: 16, // Reduced from 20 to 16
   },
   heroContent: {
     alignItems: "center",
-    paddingBottom: 20,
+    paddingBottom: 16, // Reduced from 20 to 16
   },
   heroTitle: {
     fontSize: 36,
     fontWeight: "800",
     color: "#fff",
-    marginBottom: 8,
+    marginBottom: 6, // Reduced from 8 to 6
     textAlign: "center",
   },
   heroSubtitle: {
     fontSize: 18,
     fontWeight: "500",
     color: "rgba(255,255,255,0.9)",
-    marginBottom: 24,
+    marginBottom: 20, // Reduced from 24 to 20
     textAlign: "center",
   },
   heroButton: {
     flexDirection: "row",
     backgroundColor: Colors.primary,
-    paddingVertical: 12,
-    paddingHorizontal: 20,
+    paddingVertical: 10, // Reduced from 12 to 10
+    paddingHorizontal: 18, // Reduced from 20 to 18
     borderRadius: 30,
     alignItems: "center",
     justifyContent: "center",
@@ -702,11 +693,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600",
   },
-  // Help button on hero image
+  // Help button on hero image - Improved positioning
   heroHelpButton: {
     position: "absolute",
     top: Platform.OS === "ios" ? 50 : 35,
-    right: 20,
+    right: 16, // Reduced from 20 to 16
     width: 40,
     height: 40,
     borderRadius: 20,
@@ -715,15 +706,15 @@ const styles = StyleSheet.create({
     alignItems: "center",
     zIndex: 5,
   },
-  // Card container style shared by all card components
+  // Card container style - Refined
   cardContainer: {
     backgroundColor: "#FFFFFF",
     borderRadius: 16,
-    padding: 16,
+    padding: 14, // Reduced from 16 to 14
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
-    shadowRadius: 8,
+    shadowRadius: 6, // Reduced from 8 to 6
     elevation: 2,
   },
   // Loading styles
@@ -737,7 +728,7 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: 30,
-    marginBottom: 20,
+    marginBottom: 16, // Reduced from 20 to 16
     overflow: "hidden",
   },
   loadingGradient: {
@@ -750,11 +741,11 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
 
-  // Section header styles (used in multiple components)
+  // Section header styles - Refined
   sectionHeader: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 16,
+    marginBottom: 12, // Reduced from 16 to 12
   },
   sectionTitle: {
     fontSize: 18,
@@ -762,12 +753,12 @@ const styles = StyleSheet.create({
     color: "#333",
     marginLeft: 8,
   },
-  // Onboarding Tips Styles
+  // Onboarding Tips Styles - Refined
   tipCardContainer: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 16,
+    marginBottom: 12, // Reduced from 16 to 12
   },
   tipNavButton: {
     width: 36,
@@ -780,23 +771,23 @@ const styles = StyleSheet.create({
   tipCard: {
     flex: 1,
     alignItems: "center",
-    paddingVertical: 20,
-    paddingHorizontal: 16,
+    paddingVertical: 16, // Reduced from 20 to 16
+    paddingHorizontal: 14, // Reduced from 16 to 14
   },
   tipIconContainer: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+    width: 46, // Reduced from 50 to 46
+    height: 46, // Reduced from 50 to 46
+    borderRadius: 23,
     backgroundColor: "rgba(74, 144, 226, 0.1)",
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 12,
+    marginBottom: 10, // Reduced from 12 to 10
   },
   tipTitle: {
     fontSize: 16,
     fontWeight: "600",
     color: "#333",
-    marginBottom: 8,
+    marginBottom: 6, // Reduced from 8 to 6
     textAlign: "center",
   },
   tipDescription: {
@@ -809,6 +800,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
+    marginTop: 2, // Added to create some space above the indicators
   },
   tipIndicator: {
     width: 8,

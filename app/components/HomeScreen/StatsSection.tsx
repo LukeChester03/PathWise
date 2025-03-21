@@ -576,14 +576,12 @@ const StatsSection: React.FC = () => {
 const styles = StyleSheet.create({
   statsContainer: {
     width: "100%",
-    marginBottom: 32,
-    paddingTop: 8,
   },
   headerContainer: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 16,
+    marginBottom: 8,
     paddingHorizontal: 4,
   },
   sectionTitle: {
