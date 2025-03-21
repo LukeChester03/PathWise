@@ -538,9 +538,10 @@ const StatsSection: React.FC = () => {
         },
       ]}
     >
+      {/* Updated section header to match other components */}
       <Animated.View
         style={[
-          styles.headerContainer,
+          styles.sectionHeader,
           {
             opacity: headerAnimation,
             transform: [
@@ -554,6 +555,7 @@ const StatsSection: React.FC = () => {
           },
         ]}
       >
+        <Ionicons name="stats-chart" size={22} color={Colors.primary} />
         <Text style={styles.sectionTitle}>Your Journey Stats</Text>
       </Animated.View>
 
@@ -576,19 +578,20 @@ const StatsSection: React.FC = () => {
 const styles = StyleSheet.create({
   statsContainer: {
     width: "100%",
+    marginVertical: 10, // Added consistent margin
   },
-  headerContainer: {
+  // Updated section header styling to match other components
+  sectionHeader: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 8,
-    paddingHorizontal: 4,
+    marginBottom: 12,
+    paddingLeft: 4,
   },
   sectionTitle: {
-    fontSize: 22,
-    fontWeight: "bold",
-    color: Colors.text,
-    letterSpacing: 0.3,
+    fontSize: 18, // Updated from 22 to 18
+    fontWeight: "600", // Updated from bold to 600
+    color: Colors.text || "#333",
+    marginLeft: 8,
   },
   statsCarousel: {
     paddingVertical: 12,

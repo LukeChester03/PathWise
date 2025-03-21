@@ -23,6 +23,7 @@ const ActionCards: React.FC<ActionCardsProps> = ({ navigateToScreen }) => {
   // Animation values for entrance and hover effects
   const cardsOpacity = useRef(new Animated.Value(0)).current;
   const cardsScale = useRef(new Animated.Value(0.9)).current;
+  const headerAnimation = useRef(new Animated.Value(0)).current;
 
   // Animated values for each card's hover effect
   const discoverPulse = useRef(new Animated.Value(0)).current;
@@ -31,6 +32,14 @@ const ActionCards: React.FC<ActionCardsProps> = ({ navigateToScreen }) => {
 
   // Start entrance animation on component mount
   useEffect(() => {
+    // Header animation
+    Animated.timing(headerAnimation, {
+      toValue: 1,
+      duration: 600,
+      useNativeDriver: true,
+      easing: Easing.out(Easing.cubic),
+    }).start();
+
     // Entrance animation
     Animated.parallel([
       Animated.timing(cardsOpacity, {
@@ -100,229 +109,267 @@ const ActionCards: React.FC<ActionCardsProps> = ({ navigateToScreen }) => {
   const learnRef = useRef<typeof TouchableOpacity>(null);
 
   return (
-    <Animated.View
-      style={[
-        styles.container,
-        {
-          opacity: cardsOpacity,
-          transform: [{ scale: cardsScale }],
-        },
-      ]}
-    >
-      {/* Discover Card */}
-      <TouchableOpacity
-        ref={discoverRef}
-        style={styles.actionCard}
-        activeOpacity={0.85}
-        onPress={() => {
-          createPressAnimation(discoverRef);
-          navigateToScreen("Discover");
-        }}
-      >
-        <LinearGradient
-          colors={["#4A90E2", "#5DA9FF"]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.cardGradient}
-        >
-          <Animated.View
-            style={[
-              styles.backgroundCircle,
+    <View style={styles.container}>
+      {/* Added section header */}
+      <Animated.View
+        style={[
+          styles.sectionHeader,
+          {
+            opacity: headerAnimation,
+            transform: [
               {
-                opacity: discoverPulse.interpolate({
+                translateX: headerAnimation.interpolate({
                   inputRange: [0, 1],
-                  outputRange: [0.1, 0.25],
+                  outputRange: [-20, 0],
                 }),
-                transform: [
-                  {
-                    scale: discoverPulse.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [1, 1.15],
-                    }),
-                  },
-                ],
               },
-            ]}
-          />
+            ],
+          },
+        ]}
+      >
+        <Ionicons name="albums-outline" size={22} color={Colors.primary} />
+        <Text style={styles.sectionTitle}>Explore Features</Text>
+      </Animated.View>
 
-          <View style={styles.iconContainer}>
-            <Ionicons name="compass-outline" size={24} color="#fff" />
-          </View>
-
-          <View style={styles.cardTextContainer}>
-            <Text style={styles.cardTitle}>Discover</Text>
-            <Text style={styles.cardDescription}>Explore nearby landmarks and hidden gems</Text>
-          </View>
-
-          <View style={styles.arrowContainer}>
+      <Animated.View
+        style={[
+          styles.cardsContainer,
+          {
+            opacity: cardsOpacity,
+            transform: [{ scale: cardsScale }],
+          },
+        ]}
+      >
+        {/* Discover Card */}
+        <TouchableOpacity
+          ref={discoverRef}
+          style={styles.actionCard}
+          activeOpacity={0.85}
+          onPress={() => {
+            createPressAnimation(discoverRef);
+            navigateToScreen("Discover");
+          }}
+        >
+          <LinearGradient
+            colors={["#4A90E2", "#5DA9FF"]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.cardGradient}
+          >
             <Animated.View
               style={[
-                styles.arrowButton,
+                styles.backgroundCircle,
                 {
+                  opacity: discoverPulse.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0.1, 0.25],
+                  }),
                   transform: [
                     {
-                      translateX: discoverPulse.interpolate({
+                      scale: discoverPulse.interpolate({
                         inputRange: [0, 1],
-                        outputRange: [0, 4],
+                        outputRange: [1, 1.15],
                       }),
                     },
                   ],
                 },
               ]}
-            >
-              <Ionicons name="arrow-forward" size={16} color="#fff" />
-            </Animated.View>
-          </View>
-        </LinearGradient>
-      </TouchableOpacity>
+            />
 
-      {/* Places Card */}
-      <TouchableOpacity
-        ref={placesRef}
-        style={styles.actionCard}
-        activeOpacity={0.85}
-        onPress={() => {
-          createPressAnimation(placesRef);
-          navigateToScreen("Explore");
-        }}
-      >
-        <LinearGradient
-          colors={["#FF9500", "#FF5E3A"]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.cardGradient}
-        >
-          <Animated.View
-            style={[
-              styles.backgroundCircle,
-              styles.bgCircleAlt,
-              {
-                opacity: placesPulse.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [0.1, 0.25],
-                }),
-                transform: [
+            <View style={styles.iconContainer}>
+              <Ionicons name="compass-outline" size={24} color="#fff" />
+            </View>
+
+            <View style={styles.cardTextContainer}>
+              <Text style={styles.cardTitle}>Discover</Text>
+              <Text style={styles.cardDescription}>Explore nearby landmarks and hidden gems</Text>
+            </View>
+
+            <View style={styles.arrowContainer}>
+              <Animated.View
+                style={[
+                  styles.arrowButton,
                   {
-                    scale: placesPulse.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [1, 1.15],
-                    }),
+                    transform: [
+                      {
+                        translateX: discoverPulse.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [0, 4],
+                        }),
+                      },
+                    ],
                   },
-                ],
-              },
-            ]}
-          />
+                ]}
+              >
+                <Ionicons name="arrow-forward" size={16} color="#fff" />
+              </Animated.View>
+            </View>
+          </LinearGradient>
+        </TouchableOpacity>
 
-          <View style={styles.iconContainer}>
-            <Ionicons name="map-outline" size={24} color="#fff" />
-          </View>
-
-          <View style={styles.cardTextContainer}>
-            <Text style={styles.cardTitle}>Places</Text>
-            <Text style={styles.cardDescription}>
-              View your visited locations and Nearby Places
-            </Text>
-          </View>
-
-          <View style={styles.arrowContainer}>
+        {/* Places Card */}
+        <TouchableOpacity
+          ref={placesRef}
+          style={styles.actionCard}
+          activeOpacity={0.85}
+          onPress={() => {
+            createPressAnimation(placesRef);
+            navigateToScreen("Explore");
+          }}
+        >
+          <LinearGradient
+            colors={["#FF9500", "#FF5E3A"]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.cardGradient}
+          >
             <Animated.View
               style={[
-                styles.arrowButton,
+                styles.backgroundCircle,
+                styles.bgCircleAlt,
                 {
+                  opacity: placesPulse.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0.1, 0.25],
+                  }),
                   transform: [
                     {
-                      translateX: placesPulse.interpolate({
+                      scale: placesPulse.interpolate({
                         inputRange: [0, 1],
-                        outputRange: [0, 4],
+                        outputRange: [1, 1.15],
                       }),
                     },
                   ],
                 },
               ]}
-            >
-              <Ionicons name="arrow-forward" size={16} color="#fff" />
-            </Animated.View>
-          </View>
-        </LinearGradient>
-      </TouchableOpacity>
+            />
 
-      {/* Learn Card */}
-      <TouchableOpacity
-        ref={learnRef}
-        style={styles.actionCard}
-        activeOpacity={0.85}
-        onPress={() => {
-          createPressAnimation(learnRef);
-          navigateToScreen("Learn");
-        }}
-      >
-        <LinearGradient
-          colors={["#4CAF50", "#8BC34A"]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.cardGradient}
-        >
-          <Animated.View
-            style={[
-              styles.backgroundCircle,
-              styles.bgCircleBottom,
-              {
-                opacity: learnPulse.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [0.1, 0.25],
-                }),
-                transform: [
+            <View style={styles.iconContainer}>
+              <Ionicons name="map-outline" size={24} color="#fff" />
+            </View>
+
+            <View style={styles.cardTextContainer}>
+              <Text style={styles.cardTitle}>Places</Text>
+              <Text style={styles.cardDescription}>
+                View your visited locations and Nearby Places
+              </Text>
+            </View>
+
+            <View style={styles.arrowContainer}>
+              <Animated.View
+                style={[
+                  styles.arrowButton,
                   {
-                    scale: learnPulse.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [1, 1.15],
-                    }),
+                    transform: [
+                      {
+                        translateX: placesPulse.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [0, 4],
+                        }),
+                      },
+                    ],
                   },
-                ],
-              },
-            ]}
-          />
+                ]}
+              >
+                <Ionicons name="arrow-forward" size={16} color="#fff" />
+              </Animated.View>
+            </View>
+          </LinearGradient>
+        </TouchableOpacity>
 
-          <View style={styles.iconContainer}>
-            <Ionicons name="school-outline" size={24} color="#fff" />
-          </View>
-
-          <View style={styles.cardTextContainer}>
-            <Text style={styles.cardTitle}>Learn</Text>
-            <Text style={styles.cardDescription}>
-              Get AI insights on history, culture and your travel preferences
-            </Text>
-          </View>
-
-          <View style={styles.arrowContainer}>
+        {/* Learn Card */}
+        <TouchableOpacity
+          ref={learnRef}
+          style={styles.actionCard}
+          activeOpacity={0.85}
+          onPress={() => {
+            createPressAnimation(learnRef);
+            navigateToScreen("Learn");
+          }}
+        >
+          <LinearGradient
+            colors={["#4CAF50", "#8BC34A"]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.cardGradient}
+          >
             <Animated.View
               style={[
-                styles.arrowButton,
+                styles.backgroundCircle,
+                styles.bgCircleBottom,
                 {
+                  opacity: learnPulse.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0.1, 0.25],
+                  }),
                   transform: [
                     {
-                      translateX: learnPulse.interpolate({
+                      scale: learnPulse.interpolate({
                         inputRange: [0, 1],
-                        outputRange: [0, 4],
+                        outputRange: [1, 1.15],
                       }),
                     },
                   ],
                 },
               ]}
-            >
-              <Ionicons name="arrow-forward" size={16} color="#fff" />
-            </Animated.View>
-          </View>
-        </LinearGradient>
-      </TouchableOpacity>
-    </Animated.View>
+            />
+
+            <View style={styles.iconContainer}>
+              <Ionicons name="school-outline" size={24} color="#fff" />
+            </View>
+
+            <View style={styles.cardTextContainer}>
+              <Text style={styles.cardTitle}>Learn</Text>
+              <Text style={styles.cardDescription}>
+                Get AI insights on history, culture and your travel preferences
+              </Text>
+            </View>
+
+            <View style={styles.arrowContainer}>
+              <Animated.View
+                style={[
+                  styles.arrowButton,
+                  {
+                    transform: [
+                      {
+                        translateX: learnPulse.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [0, 4],
+                        }),
+                      },
+                    ],
+                  },
+                ]}
+              >
+                <Ionicons name="arrow-forward" size={16} color="#fff" />
+              </Animated.View>
+            </View>
+          </LinearGradient>
+        </TouchableOpacity>
+      </Animated.View>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    marginVertical: 8,
-    gap: 12,
+    marginVertical: 10,
+    marginBottom: -32,
+  },
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 12,
+    paddingLeft: 4,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: Colors.text || "#333",
+    marginLeft: 8,
+  },
+  cardsContainer: {
+    gap: 10, // Reduced from 12 to 10
   },
   actionCard: {
     height: 80,

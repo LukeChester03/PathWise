@@ -20,7 +20,7 @@ import { Colors } from "../../constants/colours";
 
 const { width } = Dimensions.get("window");
 const LOCATION_CARD_WIDTH = width * 0.42; // Slightly wider cards
-const SPACING = 12;
+const SPACING = 10; // Reduced from 12 to tighten layout
 
 interface DiscoveredLocationsSectionProps {
   navigateToScreen: (screenName: string, params?: any) => void;
@@ -64,7 +64,9 @@ const DiscoveredLocationsSection: React.FC<DiscoveredLocationsSectionProps> = ({
       easing: Easing.out(Easing.cubic),
     }).start();
 
-    fadeAnimation.setValue(0.6);
+    // Start with higher initial opacity (1 instead of 0.6)
+    fadeAnimation.setValue(1);
+
     // Start the entrance animations
     Animated.parallel([
       Animated.timing(fadeAnimation, {
@@ -216,7 +218,7 @@ const DiscoveredLocationsSection: React.FC<DiscoveredLocationsSectionProps> = ({
           (discoveredLocations.length - 1) * (LOCATION_CARD_WIDTH + SPACING) - width,
           (discoveredLocations.length - 0.5) * (LOCATION_CARD_WIDTH + SPACING) - width,
         ],
-        outputRange: [0.6, 1],
+        outputRange: [0.9, 1], // Increased minimum opacity from 0.6 to 0.9
         extrapolate: "clamp",
       });
 
@@ -231,7 +233,7 @@ const DiscoveredLocationsSection: React.FC<DiscoveredLocationsSectionProps> = ({
                     (discoveredLocations.length - 1) * (LOCATION_CARD_WIDTH + SPACING) - width,
                     discoveredLocations.length * (LOCATION_CARD_WIDTH + SPACING) - width,
                   ],
-                  outputRange: [0.92, 1],
+                  outputRange: [0.95, 1], // Increased minimum scale from 0.92 to 0.95
                   extrapolate: "clamp",
                 }),
               },
@@ -240,7 +242,7 @@ const DiscoveredLocationsSection: React.FC<DiscoveredLocationsSectionProps> = ({
         >
           <TouchableOpacity
             style={styles.viewAllCard}
-            onPress={() => navigateToScreen("ViewAll")}
+            onPress={() => navigateToScreen("ViewAll", { viewType: "myPlaces" })}
             activeOpacity={0.9}
           >
             <LinearGradient
@@ -327,28 +329,32 @@ const DiscoveredLocationsSection: React.FC<DiscoveredLocationsSectionProps> = ({
       (index + 1) * (LOCATION_CARD_WIDTH + SPACING),
     ];
 
+    // Fixed opacity animation - increased minimum opacity from 0.7 to 0.9
     const opacity = scrollX.interpolate({
       inputRange,
-      outputRange: [0.7, 1, 0.7],
+      outputRange: [0.9, 1, 0.9],
       extrapolate: "clamp",
     });
 
+    // Fixed scale animation - increased minimum scale from 0.92 to 0.96
     const scale = scrollX.interpolate({
       inputRange,
-      outputRange: [0.92, 1, 0.92],
+      outputRange: [0.96, 1, 0.96],
       extrapolate: "clamp",
     });
 
+    // Reduced vertical movement to make it more subtle
     const translateY = scrollX.interpolate({
       inputRange,
-      outputRange: [7, 0, 7],
+      outputRange: [4, 0, 4], // Reduced from [7, 0, 7] to [4, 0, 4]
       extrapolate: "clamp",
     });
 
     return (
       <Animated.View
         style={{
-          opacity: Animated.multiply(fadeAnimation, opacity),
+          // Use opacity directly instead of multiplying with fadeAnimation
+          opacity: opacity,
           transform: [{ scale }, { translateY }],
         }}
       >
@@ -670,9 +676,9 @@ const DiscoveredLocationsSection: React.FC<DiscoveredLocationsSectionProps> = ({
         },
       ]}
     >
-      <Animated.Text
+      <Animated.View
         style={[
-          styles.sectionTitle,
+          styles.sectionHeader,
           {
             opacity: headerAnimation,
             transform: [
@@ -686,8 +692,9 @@ const DiscoveredLocationsSection: React.FC<DiscoveredLocationsSectionProps> = ({
           },
         ]}
       >
-        Discovered Locations
-      </Animated.Text>
+        <Ionicons name="location-outline" size={22} color={Colors.primary} />
+        <Text style={styles.sectionTitle}>Discovered Locations</Text>
+      </Animated.View>
       {renderContent()}
     </Animated.View>
   );
@@ -695,23 +702,28 @@ const DiscoveredLocationsSection: React.FC<DiscoveredLocationsSectionProps> = ({
 
 const styles = StyleSheet.create({
   locationsContainer: {
-    marginVertical: 16,
+    marginVertical: 10, // Standardized margin
     width: "100%",
   },
-  sectionTitle: {
-    fontSize: 22,
-    fontWeight: "bold",
-    color: Colors.text,
-    marginBottom: 16,
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 12,
     paddingLeft: 4,
   },
+  sectionTitle: {
+    fontSize: 18, // Standardized font size
+    fontWeight: "600", // Standardized font weight
+    color: Colors.text || "#333", // Consistent color with fallback
+    marginLeft: 8,
+  },
   locationsCarousel: {
-    paddingVertical: 8,
+    paddingVertical: 6, // Reduced from 8 to 6
     paddingRight: SPACING,
   },
   locationCard: {
     width: LOCATION_CARD_WIDTH,
-    height: 170,
+    height: 165, // Reduced from 170 to 165
     marginRight: SPACING,
     borderRadius: 16,
     overflow: "hidden",
@@ -747,7 +759,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    padding: 12,
+    padding: 10, // Reduced from 12 to 10
   },
   locationName: {
     fontSize: 15,
@@ -803,7 +815,7 @@ const styles = StyleSheet.create({
   },
   viewAllCard: {
     width: LOCATION_CARD_WIDTH,
-    height: 170,
+    height: 165, // Reduced from 170 to 165
     marginRight: SPACING,
     borderRadius: 16,
     overflow: "hidden",
@@ -864,14 +876,14 @@ const styles = StyleSheet.create({
   },
   viewAllContent: {
     alignItems: "center",
-    padding: 16,
+    padding: 14, // Reduced from 16 to 14
     zIndex: 1,
   },
   viewAllText: {
     fontSize: 18,
     fontWeight: "bold",
     color: "#fff",
-    marginTop: 12,
+    marginTop: 10, // Reduced from 12 to 10
     marginBottom: 4,
   },
   viewAllSubtext: {
@@ -884,7 +896,7 @@ const styles = StyleSheet.create({
   // Empty state styles (with animation enhancements)
   emptyStateCard: {
     width: "100%",
-    height: 170,
+    height: 165, // Reduced from 170 to 165
     borderRadius: 16,
     backgroundColor: "#ffffff",
     overflow: "hidden",
@@ -907,7 +919,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     width: "100%",
-    paddingHorizontal: 24,
+    paddingHorizontal: 20, // Reduced from 24 to 20
     zIndex: 1,
     height: "100%",
   },
@@ -925,7 +937,7 @@ const styles = StyleSheet.create({
   },
   middleContainer: {
     flex: 1,
-    paddingHorizontal: 16,
+    paddingHorizontal: 14, // Reduced from 16 to 14
   },
   emptyStateTitle: {
     fontSize: 18,
@@ -952,7 +964,7 @@ const styles = StyleSheet.create({
   },
   clickPromptContainer: {
     position: "absolute",
-    bottom: 16,
+    bottom: 14, // Reduced from 16 to 14
     left: 0,
     right: 0,
     flexDirection: "row",
@@ -974,7 +986,7 @@ const styles = StyleSheet.create({
 
   // Loading state styles
   loadingContainer: {
-    height: 170,
+    height: 165, // Reduced from 170 to 165
     justifyContent: "center",
     alignItems: "center",
     backgroundColor: "#f9f9f9",
@@ -989,12 +1001,12 @@ const styles = StyleSheet.create({
 
   // Error state styles
   errorContainer: {
-    height: 170,
+    height: 165, // Reduced from 170 to 165
     justifyContent: "center",
     alignItems: "center",
     backgroundColor: "#f9f9f9",
     borderRadius: 16,
-    padding: 20,
+    padding: 18, // Reduced from 20 to 18
     width: "100%",
   },
   errorText: {
@@ -1002,7 +1014,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#666",
     textAlign: "center",
-    marginBottom: 14,
+    marginBottom: 12, // Reduced from 14 to 12
   },
   retryButton: {
     backgroundColor: "#d03f74",

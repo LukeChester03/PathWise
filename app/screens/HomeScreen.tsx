@@ -1,4 +1,4 @@
-// HomeScreen.tsx - Refined layout with reduced whitespace
+// HomeScreen.tsx - Refined layout with consistent spacing and headers
 import React, { useState, useEffect, useRef } from "react";
 import {
   SafeAreaView,
@@ -44,7 +44,7 @@ interface JourneyTip {
   icon: string;
 }
 
-// Refined Onboarding Tips Component with reduced whitespace
+// Refined Onboarding Tips Component with consistent section header
 const OnboardingTips: React.FC = () => {
   const [currentTipIndex, setCurrentTipIndex] = useState(0);
   const fadeAnim = useRef(new Animated.Value(1)).current;
@@ -168,7 +168,7 @@ const OnboardingTips: React.FC = () => {
   );
 };
 
-// Enhanced HomeScreen component with refined spacing
+// Enhanced HomeScreen component with consistent spacing and headers
 const HomeScreen: React.FC = () => {
   const navigation = useNavigation();
   const route = useRoute();
@@ -741,16 +741,17 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
 
-  // Section header styles - Refined
+  // Section header styles - Standardized across all components
   sectionHeader: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 12, // Reduced from 16 to 12
+    marginBottom: 12,
+    paddingLeft: 4,
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: "600",
-    color: "#333",
+    color: Colors.text || "#333",
     marginLeft: 8,
   },
   // Onboarding Tips Styles - Refined
