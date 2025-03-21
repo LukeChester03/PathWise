@@ -34,6 +34,188 @@ let memoryCacheTimestamp = 0;
 let memoryCacheSettings: CulturalContextSettings | null = null;
 
 /**
+ * Extracts the region name from an address or vicinity string.
+ * Intelligently handles various address formats to find the actual city/region.
+ *
+ * Examples:
+ * - "Piazza Venezia, 5, 00186 Roma RM, Italy" -> "Roma"
+ * - "123 Main St, Frankfurt am Main, Germany" -> "Frankfurt"
+ * - "Unter den Linden 77, 10117 Berlin, Germany" -> "Berlin"
+ */
+export const extractRegionFromVicinity = (vicinity: string): string | null => {
+  if (!vicinity) return null;
+
+  // Clean up the vicinity string
+  const cleanVicinity = vicinity.trim();
+
+  // Split by commas
+  const parts = cleanVicinity.split(",").map((part) => part.trim());
+
+  // If there's only one part, return it formatted
+  if (parts.length === 1) {
+    return formatRegionName(parts[0]);
+  }
+
+  // Check if we have a proper address with city and country
+  // Most address formats will have the city in parts before the country
+  // Usually 2nd to last or 3rd to last element has the city
+
+  // Handle common patterns:
+
+  // Pattern 1: Full address with postal code: "Street, Number, Postal City, Country"
+  // Example: "Piazza Venezia, 5, 00186 Roma RM, Italy"
+  // The city part typically contains postal code followed by city name
+  if (parts.length >= 3) {
+    // Check each part from position 2 onwards for city patterns
+    for (let i = 2; i < parts.length; i++) {
+      const part = parts[i];
+
+      // Look for parts that have postal codes followed by city names
+      // Postal code patterns (digits followed by letters or spaces then letters)
+      const postalCityMatch = part.match(/^\d+\s*(?:[A-Za-z]+\s+)+([A-Za-z\s]+)/);
+      if (postalCityMatch && postalCityMatch[1]) {
+        return formatRegionName(postalCityMatch[1]);
+      }
+
+      // Check if this part contains letters (likely a city name, not just a number)
+      // Exclude parts that are just numbers or postal codes
+      if (!/^\d+$/.test(part) && /[A-Za-z]/.test(part)) {
+        // If we find a part with letters after position 1, it's likely a city or region
+        return formatRegionName(part);
+      }
+    }
+  }
+
+  // Pattern 2: Basic address: "Street, City, Country"
+  // The city is typically the second-to-last part
+  if (parts.length >= 3) {
+    const potentialCity = parts[parts.length - 2];
+    // Check if it looks like a city name (contains letters, not just numbers)
+    if (/[A-Za-z]/.test(potentialCity) && !/^\d+$/.test(potentialCity)) {
+      return formatRegionName(potentialCity);
+    }
+  }
+
+  // Pattern 3: Simple format with just "City, Country"
+  if (parts.length === 2) {
+    // First part could be the city if it's not just a number
+    if (/[A-Za-z]/.test(parts[0]) && !/^\d+$/.test(parts[0])) {
+      return formatRegionName(parts[0]);
+    }
+  }
+
+  // Pattern 4: Complex format with multiple parts, look for the last part with alphabetic characters
+  // before the country
+  for (let i = parts.length - 2; i >= 0; i--) {
+    const part = parts[i];
+    // Find a part that's not just numbers and has letters
+    if (/[A-Za-z]/.test(part) && !/^\d+$/.test(part)) {
+      return formatRegionName(part);
+    }
+  }
+
+  // Fallback: Use the last part (usually the country) if everything else fails
+  return formatRegionName(parts[parts.length - 1]);
+};
+
+/**
+ * Formats a region name for display by removing unnecessary qualifiers
+ */
+export const formatRegionName = (regionName: string): string => {
+  if (!regionName) return "Unknown Region";
+
+  // Remove everything after hyphen/dash (including the hyphen)
+  let formatted = regionName.split(/[-–—]/)[0].trim();
+
+  // Remove postal codes and region/state codes
+  formatted = formatted.replace(/\b\d{5}\b/, ""); // Remove 5-digit postal codes
+  formatted = formatted.replace(/\b[A-Z]{2}\b/, ""); // Remove 2-letter state/region codes
+
+  // Remove qualifiers like "am Main", "an der", etc.
+  formatted = formatted
+    .replace(/ am Main\b/i, "")
+    .replace(/ an der [A-Za-z]+\b/i, "")
+    .replace(/ on the [A-Za-z]+\b/i, "")
+    .replace(/ della [A-Za-z]+\b/i, "")
+    .replace(/ di [A-Za-z]+\b/i, "")
+    .replace(/ sur [A-Za-z]+\b/i, "")
+    .replace(/ al [A-Za-z]+\b/i, "")
+    .trim();
+
+  // Remove any extra spaces
+  formatted = formatted.replace(/\s+/g, " ").trim();
+
+  // If we ended up with an empty string, return Unknown
+  return formatted || "Unknown Region";
+};
+
+/**
+ * Uses AI to extract and validate region names from full address strings
+ *
+ * @param addressStrings Array of full address strings from visited places
+ * @returns Array of validated, standardized region names
+ */
+export const extractAndValidateRegionsWithAI = async (
+  addressStrings: string[]
+): Promise<string[]> => {
+  try {
+    if (!addressStrings || addressStrings.length === 0) {
+      return [];
+    }
+
+    console.log("Sending full addresses to AI for region extraction:", addressStrings);
+
+    // Create a prompt asking the AI to extract proper region names from full addresses
+    const prompt = `
+      I have the following full address strings from places a user has visited:
+      ${addressStrings.join("\n")}
+
+      For each address, please identify and extract the most relevant region name for a traveler.
+      This could be:
+      - A city (like "Paris", "Rome", "Loughborough")
+      - A county or province (like "Leicestershire", "Tuscany")
+      - A distinct area or neighborhood if significant enough (like "Manhattan", "Montmartre")
+      
+      Guidelines:
+      1. Pick the most culturally distinct and meaningful level for a traveler (usually the city, but sometimes a county or province)
+      2. Use standardized English names where appropriate
+      3. Remove any street addresses, building numbers, or postal codes
+      4. Remove qualifiers like "am Main" from "Frankfurt am Main"
+      5. Return only the cleanest form of the name (e.g., "Frankfurt", "Rome", "Loughborough", "Leicestershire")
+      
+      Return ONLY a JSON array of the extracted region names with duplicates removed.
+      Example: ["Paris", "Rome", "Loughborough"]
+      
+      If you can't extract a valid region from an address, don't include it in the results.
+    `;
+
+    // Use the Gemini service to get the extracted regions
+    const validatedRegions = await generateContent({
+      prompt,
+      responseFormat: "json",
+    });
+
+    // Check if we got a valid response
+    if (Array.isArray(validatedRegions) && validatedRegions.length > 0) {
+      console.log("AI extracted these regions from full addresses:", validatedRegions);
+      return validatedRegions;
+    }
+
+    // If AI validation failed, fall back to basic extraction
+    console.log("AI region extraction failed, using basic extraction");
+    return addressStrings
+      .map((addr) => extractRegionFromVicinity(addr))
+      .filter(Boolean) as string[];
+  } catch (error) {
+    console.error("Error extracting regions with AI:", error);
+    // On error, fall back to the original extraction method
+    return addressStrings
+      .map((addr) => extractRegionFromVicinity(addr))
+      .filter(Boolean) as string[];
+  }
+};
+
+/**
  * Check if user has reached their daily request limit
  */
 export const checkRequestLimit = async (): Promise<{
@@ -207,9 +389,12 @@ export const generateCulturalInsights = async (
     await updateRequestCounter();
 
     if (generatedInsight && typeof generatedInsight === "object") {
+      // Format the region name before creating the insight
+      const formattedRegion = formatRegionName(region);
+
       // Start with the base insight properties
       const baseInsight: CulturalInsight = {
-        region: region,
+        region: formattedRegion, // Use the formatted name
         customs: Array.isArray(generatedInsight.customs) ? generatedInsight.customs : [],
         etiquette: typeof generatedInsight.etiquette === "string" ? generatedInsight.etiquette : "",
         diningTips:
@@ -221,13 +406,13 @@ export const generateCulturalInsights = async (
         ...baseInsight,
         restaurants: Array.isArray(generatedInsight.restaurants)
           ? generatedInsight.restaurants
-          : generateFallbackRestaurants(region),
+          : generateFallbackRestaurants(formattedRegion),
         bars: Array.isArray(generatedInsight.bars)
           ? generatedInsight.bars
-          : generateFallbackBars(region),
+          : generateFallbackBars(formattedRegion),
         localTips: Array.isArray(generatedInsight.localTips)
           ? generatedInsight.localTips
-          : generateFallbackLocalTips(region),
+          : generateFallbackLocalTips(formattedRegion),
       };
 
       return enhancedInsight;
@@ -245,15 +430,18 @@ export const generateCulturalInsights = async (
  */
 export const getCulturalInsights = async (region: string): Promise<EnhancedCulturalInsight> => {
   try {
+    // Format the region name first
+    const formattedRegion = formatRegionName(region);
+
     // 1. Try memory cache first (fastest)
-    const memoryInsight = getFromMemoryCache(region);
+    const memoryInsight = getFromMemoryCache(formattedRegion);
     if (memoryInsight) {
       console.log("Using in-memory cached cultural insights");
       return memoryInsight;
     }
 
     // 2. Try AsyncStorage next (fast, persistent)
-    const asyncStorageInsight = await getFromAsyncStorage(region);
+    const asyncStorageInsight = await getFromAsyncStorage(formattedRegion);
     if (asyncStorageInsight) {
       // Add to memory cache for future requests
       addToMemoryCache(asyncStorageInsight);
@@ -262,7 +450,7 @@ export const getCulturalInsights = async (region: string): Promise<EnhancedCultu
     }
 
     // 3. Try Firebase cache (slower, synced)
-    const cachedInsight = await getCachedInsightForRegion(region);
+    const cachedInsight = await getCachedInsightForRegion(formattedRegion);
     if (cachedInsight) {
       // Convert to enhanced insight
       const enhancedInsight = convertToEnhancedInsight(cachedInsight);
@@ -297,32 +485,51 @@ export const getCulturalInsightsForVisitedPlaces = async (
   visitedPlaces: VisitedPlaceDetails[]
 ): Promise<EnhancedCulturalInsight[]> => {
   try {
-    // Extract locations from visited places
-    const locations = visitedPlaces
-      .map((place) => {
-        const vicinity = place.vicinity || "";
-        // Extract country or city from vicinity (usually in format "City, Country")
-        const parts = vicinity.split(",");
-        return parts.length > 1 ? parts[parts.length - 1].trim() : vicinity.trim();
-      })
-      .filter(Boolean);
-
-    // Remove duplicates
-    const uniqueLocations = [...new Set(locations)];
-
-    if (uniqueLocations.length === 0) {
+    if (!visitedPlaces || visitedPlaces.length === 0) {
       return [];
     }
 
-    // Get insights for each location
+    console.log(`Processing ${visitedPlaces.length} visited places for cultural insights`);
+
+    // Extract the full address/vicinity strings from visited places
+    const fullAddresses = visitedPlaces
+      .map((place) => place.vicinity || "")
+      .filter((addr) => addr.trim() !== "");
+
+    if (fullAddresses.length === 0) {
+      return [];
+    }
+
+    // Send full addresses to AI for region extraction
+    let regions: string[];
+    try {
+      regions = await extractAndValidateRegionsWithAI(fullAddresses);
+    } catch (e) {
+      console.error("AI region extraction failed, using basic extraction:", e);
+      regions = fullAddresses
+        .map((addr) => extractRegionFromVicinity(addr))
+        .filter(Boolean) as string[];
+    }
+
+    // Remove duplicates
+    const uniqueRegions = [...new Set(regions)];
+
+    if (uniqueRegions.length === 0) {
+      console.warn("No valid regions found after extraction");
+      return [];
+    }
+
+    console.log(`Found ${uniqueRegions.length} unique regions:`, uniqueRegions);
+
+    // Get insights for each validated region
     const insights: EnhancedCulturalInsight[] = [];
 
-    for (const location of uniqueLocations) {
+    for (const region of uniqueRegions) {
       try {
-        const insight = await getCulturalInsights(location);
+        const insight = await getCulturalInsights(region);
         insights.push(insight);
       } catch (error) {
-        console.error(`Error getting insights for ${location}:`, error);
+        console.error(`Error getting insights for ${region}:`, error);
         // Continue with other locations
       }
     }
@@ -341,43 +548,69 @@ export const getSuggestedRegions = async (
   visitedPlaces: VisitedPlaceDetails[]
 ): Promise<string[]> => {
   try {
-    // Extract locations from visited places
-    const locations = visitedPlaces.map((place) => place.vicinity || "").filter(Boolean);
-
-    if (locations.length === 0) {
-      // Return default regions if no places visited
-      return getDefaultExploreRegions();
-    }
-
-    // Check memory cache for settings
+    // First check memory cache for settings
     if (
       memoryCacheSettings?.explorableRegions &&
       memoryCacheSettings.explorableRegions.length > 0
     ) {
+      console.log("Using memory cached regions");
       return memoryCacheSettings.explorableRegions;
     }
 
     // Check AsyncStorage for settings
     const asyncSettings = await getSettingsFromAsyncStorage();
     if (asyncSettings?.explorableRegions && asyncSettings.explorableRegions.length > 0) {
+      console.log("Using AsyncStorage cached regions");
       return asyncSettings.explorableRegions;
     }
 
     // Check for saved suggested regions in Firebase
     const settings = await getCulturalContextSettings();
     if (settings.explorableRegions && settings.explorableRegions.length > 0) {
+      console.log("Using Firebase cached regions");
       return settings.explorableRegions;
+    }
+
+    // Extract the full address/vicinity strings from visited places
+    const fullAddresses = visitedPlaces
+      .map((place) => place.vicinity || "")
+      .filter((addr) => addr.trim() !== "");
+
+    if (fullAddresses.length === 0) {
+      console.log("No addresses found, using default regions");
+      return getDefaultExploreRegions();
+    }
+
+    // Extract regions using AI from full addresses
+    let regions: string[];
+    try {
+      regions = await extractAndValidateRegionsWithAI(fullAddresses);
+    } catch (e) {
+      console.error("AI region extraction failed, using basic extraction:", e);
+      regions = fullAddresses
+        .map((addr) => extractRegionFromVicinity(addr))
+        .filter(Boolean) as string[];
+    }
+
+    // Remove duplicates
+    const uniqueRegions = [...new Set(regions)];
+
+    if (uniqueRegions.length === 0) {
+      console.warn("No valid regions found after extraction");
+      return getDefaultExploreRegions();
     }
 
     // Check request limit - suggestions count as a request too
     const limitInfo = await checkRequestLimit();
     if (!limitInfo.canRequest) {
       // If limit reached, return default regions
+      console.log("Request limit reached, using default regions");
       return getDefaultExploreRegions();
     }
 
+    console.log("Generating suggested regions based on:", uniqueRegions.join(", "));
     const prompt = `
-      Based on these locations a traveler has visited: ${locations.join(", ")},
+      Based on these locations a traveler has visited: ${uniqueRegions.join(", ")},
       suggest 5 other culturally distinct regions they might be interested in exploring.
       
       Return a JSON array of region names only, like: ["Region1", "Region2", "Region3", "Region4", "Region5"]
@@ -420,9 +653,12 @@ export const getCachedInsightForRegion = async (
       return null;
     }
 
+    // Format the region name for consistent storage/retrieval
+    const formattedRegion = formatRegionName(region);
+
     // Get cultural insights collection
     const insightsRef = collection(db, "users", currentUser.uid, "culturalInsights");
-    const q = query(insightsRef, where("region", "==", region));
+    const q = query(insightsRef, where("region", "==", formattedRegion));
     const querySnapshot = await getDocs(q);
 
     if (querySnapshot.empty) {
@@ -450,7 +686,7 @@ export const getCachedInsightForRegion = async (
       !insightData.etiquette ||
       !insightData.diningTips
     ) {
-      console.warn(`Cached insight for ${region} is missing required properties`);
+      console.warn(`Cached insight for ${formattedRegion} is missing required properties`);
       return null;
     }
 
@@ -475,9 +711,15 @@ export const cacheInsight = async (insight: EnhancedCulturalInsight): Promise<vo
       return;
     }
 
+    // Format the region name before caching
+    const insightWithFormattedRegion = {
+      ...insight,
+      region: formatRegionName(insight.region),
+    };
+
     // Add or update insight in subcollection
     const insightsRef = collection(db, "users", currentUser.uid, "culturalInsights");
-    const q = query(insightsRef, where("region", "==", insight.region));
+    const q = query(insightsRef, where("region", "==", insightWithFormattedRegion.region));
     const querySnapshot = await getDocs(q);
 
     if (!querySnapshot.empty) {
@@ -486,7 +728,7 @@ export const cacheInsight = async (insight: EnhancedCulturalInsight): Promise<vo
       await setDoc(
         insightDoc.ref,
         {
-          ...insight,
+          ...insightWithFormattedRegion,
           updatedAt: new Date().toISOString(),
         },
         { merge: true }
@@ -494,7 +736,7 @@ export const cacheInsight = async (insight: EnhancedCulturalInsight): Promise<vo
     } else {
       // Add new insight
       await addDoc(insightsRef, {
-        ...insight,
+        ...insightWithFormattedRegion,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       });
@@ -565,15 +807,21 @@ export const getAllCachedInsights = async (): Promise<EnhancedCulturalInsight[]>
       })
       .filter((insight): insight is EnhancedCulturalInsight => insight !== null);
 
+    // Format region names for all insights
+    const formattedInsights = validInsights.map((insight) => ({
+      ...insight,
+      region: formatRegionName(insight.region),
+    }));
+
     // Cache these insights in AsyncStorage and memory for future requests
-    validInsights.forEach((insight) => {
+    formattedInsights.forEach((insight) => {
       addToMemoryCache(insight);
       saveToAsyncStorage(insight).catch((error) =>
         console.error(`Error saving insight to AsyncStorage: ${error}`)
       );
     });
 
-    return validInsights;
+    return formattedInsights;
   } catch (error) {
     console.error("Error getting all cached insights:", error);
     return [];
@@ -668,32 +916,37 @@ export const updateCulturalContextSettings = async (
  * Create AI-generated fallback cultural insights when data is missing
  */
 export const createFallbackCulturalInsights = (regions: string[]): EnhancedCulturalInsight[] => {
-  return regions.map((region) => ({
-    region,
-    customs: [
-      {
-        title: "Traditional Greeting",
-        description: "The common way people greet each other in this region.",
-      },
-      {
-        title: "Local Customs",
-        description: "General customs and traditions observed in daily life.",
-      },
-      {
-        title: "Business Etiquette",
-        description: "How business and formal interactions are typically conducted.",
-      },
-      {
-        title: "Religious Practices",
-        description: "Common religious customs and considerations for visitors.",
-      },
-    ],
-    etiquette: "General etiquette guidelines for visitors to this region.",
-    diningTips: "Common dining practices and food etiquette in this region.",
-    restaurants: generateFallbackRestaurants(region),
-    bars: generateFallbackBars(region),
-    localTips: generateFallbackLocalTips(region),
-  }));
+  return regions.map((region) => {
+    // Format the region name
+    const formattedRegion = formatRegionName(region);
+
+    return {
+      region: formattedRegion,
+      customs: [
+        {
+          title: "Traditional Greeting",
+          description: "The common way people greet each other in this region.",
+        },
+        {
+          title: "Local Customs",
+          description: "General customs and traditions observed in daily life.",
+        },
+        {
+          title: "Business Etiquette",
+          description: "How business and formal interactions are typically conducted.",
+        },
+        {
+          title: "Religious Practices",
+          description: "Common religious customs and considerations for visitors.",
+        },
+      ],
+      etiquette: "General etiquette guidelines for visitors to this region.",
+      diningTips: "Common dining practices and food etiquette in this region.",
+      restaurants: generateFallbackRestaurants(formattedRegion),
+      bars: generateFallbackBars(formattedRegion),
+      localTips: generateFallbackLocalTips(formattedRegion),
+    };
+  });
 };
 
 // ======== Memory Caching Functions ========
@@ -702,9 +955,17 @@ export const createFallbackCulturalInsights = (regions: string[]): EnhancedCultu
  * Add insight to memory cache
  */
 const addToMemoryCache = (insight: EnhancedCulturalInsight): void => {
-  // Normalize region name as key (lowercase)
-  const key = insight.region.toLowerCase();
-  memoryCache[key] = insight;
+  // Format the region name and normalize as key (lowercase)
+  const formattedRegion = formatRegionName(insight.region);
+  const key = formattedRegion.toLowerCase();
+
+  // Make sure the insight has the formatted region name
+  const formattedInsight = {
+    ...insight,
+    region: formattedRegion,
+  };
+
+  memoryCache[key] = formattedInsight;
   memoryCacheTimestamp = Date.now();
 };
 
@@ -723,7 +984,8 @@ const getFromMemoryCache = (region: string): EnhancedCulturalInsight | null => {
   }
 
   // Normalize region name as key (lowercase)
-  const key = region.toLowerCase();
+  const formattedRegion = formatRegionName(region);
+  const key = formattedRegion.toLowerCase();
   return memoryCache[key] || null;
 };
 
@@ -743,9 +1005,18 @@ export const clearMemoryCache = (): void => {
  */
 const saveToAsyncStorage = async (insight: EnhancedCulturalInsight): Promise<void> => {
   try {
+    // Format the region name
+    const formattedRegion = formatRegionName(insight.region);
+
+    // Make sure the insight has the formatted region name
+    const formattedInsight = {
+      ...insight,
+      region: formattedRegion,
+    };
+
     // Normalize region name as key (lowercase)
-    const key = `${ASYNC_STORAGE_PREFIX}${insight.region.toLowerCase()}`;
-    await AsyncStorage.setItem(key, JSON.stringify(insight));
+    const key = `${ASYNC_STORAGE_PREFIX}${formattedRegion.toLowerCase()}`;
+    await AsyncStorage.setItem(key, JSON.stringify(formattedInsight));
   } catch (error) {
     console.error("Error saving to AsyncStorage:", error);
   }
@@ -756,8 +1027,9 @@ const saveToAsyncStorage = async (insight: EnhancedCulturalInsight): Promise<voi
  */
 const getFromAsyncStorage = async (region: string): Promise<EnhancedCulturalInsight | null> => {
   try {
-    // Normalize region name as key (lowercase)
-    const key = `${ASYNC_STORAGE_PREFIX}${region.toLowerCase()}`;
+    // Format and normalize region name as key (lowercase)
+    const formattedRegion = formatRegionName(region);
+    const key = `${ASYNC_STORAGE_PREFIX}${formattedRegion.toLowerCase()}`;
     const jsonValue = await AsyncStorage.getItem(key);
 
     if (jsonValue) {
@@ -788,7 +1060,10 @@ const getAllFromAsyncStorage = async (): Promise<EnhancedCulturalInsight[]> => {
 
     for (const [key, value] of jsonValues) {
       if (value) {
-        insights.push(JSON.parse(value) as EnhancedCulturalInsight);
+        const insight = JSON.parse(value) as EnhancedCulturalInsight;
+        // Ensure region name is formatted
+        insight.region = formatRegionName(insight.region);
+        insights.push(insight);
       }
     }
 
@@ -804,7 +1079,15 @@ const getAllFromAsyncStorage = async (): Promise<EnhancedCulturalInsight[]> => {
  */
 const saveSettingsToAsyncStorage = async (settings: CulturalContextSettings): Promise<void> => {
   try {
-    await AsyncStorage.setItem(ASYNC_STORAGE_SETTINGS_KEY, JSON.stringify(settings));
+    // Format any region names in the settings
+    const formattedSettings = { ...settings };
+    if (formattedSettings.explorableRegions) {
+      formattedSettings.explorableRegions = formattedSettings.explorableRegions.map((region) =>
+        formatRegionName(region)
+      );
+    }
+
+    await AsyncStorage.setItem(ASYNC_STORAGE_SETTINGS_KEY, JSON.stringify(formattedSettings));
   } catch (error) {
     console.error("Error saving settings to AsyncStorage:", error);
   }
@@ -818,7 +1101,16 @@ const getSettingsFromAsyncStorage = async (): Promise<CulturalContextSettings | 
     const jsonValue = await AsyncStorage.getItem(ASYNC_STORAGE_SETTINGS_KEY);
 
     if (jsonValue) {
-      return JSON.parse(jsonValue) as CulturalContextSettings;
+      const settings = JSON.parse(jsonValue) as CulturalContextSettings;
+
+      // Format any region names in the settings
+      if (settings.explorableRegions) {
+        settings.explorableRegions = settings.explorableRegions.map((region) =>
+          formatRegionName(region)
+        );
+      }
+
+      return settings;
     }
 
     return null;
@@ -862,27 +1154,33 @@ const getDefaultSettings = (): CulturalContextSettings => {
  * Get default regions for exploration
  */
 const getDefaultExploreRegions = (): string[] => {
-  return ["Paris, France", "Rome, Italy", "Tokyo, Japan", "Istanbul, Turkey", "Marrakech, Morocco"];
+  return ["Paris", "Rome", "Tokyo", "Istanbul", "Marrakech"];
 };
 
 /**
  * Convert basic cultural insight to enhanced version
  */
 const convertToEnhancedInsight = (insight: CulturalInsight): EnhancedCulturalInsight => {
+  // Format the region name
+  const formattedRegion = formatRegionName(insight.region);
+
   // Start with the base insight
-  const enhancedInsight: EnhancedCulturalInsight = { ...insight };
+  const enhancedInsight: EnhancedCulturalInsight = {
+    ...insight,
+    region: formattedRegion,
+  };
 
   // Add enhanced properties if they don't exist
   if (!enhancedInsight.restaurants) {
-    enhancedInsight.restaurants = generateFallbackRestaurants(insight.region);
+    enhancedInsight.restaurants = generateFallbackRestaurants(formattedRegion);
   }
 
   if (!enhancedInsight.bars) {
-    enhancedInsight.bars = generateFallbackBars(insight.region);
+    enhancedInsight.bars = generateFallbackBars(formattedRegion);
   }
 
   if (!enhancedInsight.localTips) {
-    enhancedInsight.localTips = generateFallbackLocalTips(insight.region);
+    enhancedInsight.localTips = generateFallbackLocalTips(formattedRegion);
   }
 
   return enhancedInsight;
@@ -892,22 +1190,22 @@ const convertToEnhancedInsight = (insight: CulturalInsight): EnhancedCulturalIns
  * Generate fallback restaurant recommendations based on region
  */
 const generateFallbackRestaurants = (region: string): Recommendation[] => {
-  // Extract city/country from region
-  const locationName = region.split(",")[0].trim();
+  // Make sure the region name is formatted
+  const formattedRegion = formatRegionName(region);
 
   return [
     {
-      name: `${locationName} Traditional Restaurant`,
-      description: `A local establishment serving authentic cuisine from the ${locationName} region.`,
+      name: `${formattedRegion} Traditional Restaurant`,
+      description: `A local establishment serving authentic cuisine from the ${formattedRegion} region.`,
       specialty: `Local specialties prepared using traditional methods and ingredients.`,
     },
     {
-      name: `${locationName} Fine Dining`,
+      name: `${formattedRegion} Fine Dining`,
       description: `An upscale dining experience featuring contemporary interpretations of local cuisine.`,
       specialty: `Seasonal tasting menus showcasing regional ingredients.`,
     },
     {
-      name: `${locationName} Street Food`,
+      name: `${formattedRegion} Street Food`,
       description: `A casual spot where locals go for authentic and affordable regional dishes.`,
       specialty: `Quick, flavorful dishes that represent the area's culinary heritage.`,
     },
@@ -918,22 +1216,22 @@ const generateFallbackRestaurants = (region: string): Recommendation[] => {
  * Generate fallback bar recommendations based on region
  */
 const generateFallbackBars = (region: string): Recommendation[] => {
-  // Extract city/country from region
-  const locationName = region.split(",")[0].trim();
+  // Make sure the region name is formatted
+  const formattedRegion = formatRegionName(region);
 
   return [
     {
-      name: `${locationName} Historic Bar`,
+      name: `${formattedRegion} Historic Bar`,
       description: `A traditional drinking establishment with historical significance to the area.`,
       specialty: `Local spirits and beverages served in a authentic atmosphere.`,
     },
     {
-      name: `${locationName} Modern Lounge`,
+      name: `${formattedRegion} Modern Lounge`,
       description: `A contemporary venue popular with locals and visitors alike.`,
       specialty: `Craft cocktails inspired by local ingredients and traditions.`,
     },
     {
-      name: `${locationName} Night Spot`,
+      name: `${formattedRegion} Night Spot`,
       description: `A lively venue where you can experience the local nightlife scene.`,
       specialty: `Regional drinks and a vibrant social atmosphere.`,
     },
@@ -944,14 +1242,14 @@ const generateFallbackBars = (region: string): Recommendation[] => {
  * Generate fallback local tips based on region
  */
 const generateFallbackLocalTips = (region: string): string[] => {
-  // Extract city/country from region
-  const locationName = region.split(",")[0].trim();
+  // Make sure the region name is formatted
+  const formattedRegion = formatRegionName(region);
 
   return [
-    `When visiting attractions in ${locationName}, arrive early in the morning to avoid crowds.`,
-    `Public transportation is generally a convenient way to get around ${locationName}.`,
-    `Learning a few basic phrases in the local language is appreciated by residents of ${locationName}.`,
-    `Weather in ${locationName} can vary by season, so check conditions before your trip.`,
+    `When visiting attractions in ${formattedRegion}, arrive early in the morning to avoid crowds.`,
+    `Public transportation is generally a convenient way to get around ${formattedRegion}.`,
+    `Learning a few basic phrases in the local language is appreciated by residents of ${formattedRegion}.`,
+    `Weather in ${formattedRegion} can vary by season, so check conditions before your trip.`,
   ];
 };
 

@@ -1,5 +1,5 @@
 // components/LearnScreen/CulturalContextCard.tsx
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   Animated,
   ActivityIndicator,
   Dimensions,
+  Easing,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
@@ -19,6 +20,7 @@ import {
 import { EnhancedCulturalInsight } from "../../types/LearnScreen/CulturalContextTypes";
 
 const { width } = Dimensions.get("window");
+const ROTATION_INTERVAL = 6000; // 6 seconds between regions
 
 interface CulturalContextCardProps {
   cardAnimation: Animated.Value;
@@ -33,6 +35,7 @@ const CulturalContextCard = ({
 }: CulturalContextCardProps) => {
   // State for cultural insights
   const [culturalInsights, setCulturalInsights] = useState<EnhancedCulturalInsight[]>([]);
+  const [currentInsightIndex, setCurrentInsightIndex] = useState<number>(0);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [requestLimitInfo, setRequestLimitInfo] = useState<{
@@ -40,14 +43,103 @@ const CulturalContextCard = ({
     requestsRemaining: number;
   }>({ canRequest: true, requestsRemaining: 5 });
 
+  // Animation refs
+  const fadeAnim = useRef(new Animated.Value(1)).current;
+  const slideAnim = useRef(new Animated.Value(0)).current;
+  const rotationTimer = useRef<NodeJS.Timeout | null>(null);
+  const isAnimating = useRef<boolean>(false);
+
   // Determine which insight to show as a preview
-  const previewInsight = culturalInsights.length > 0 ? culturalInsights[0] : null;
+  const previewInsight = culturalInsights.length > 0 ? culturalInsights[currentInsightIndex] : null;
+
+  // Setup rotation timer when insights are loaded
+  useEffect(() => {
+    if (culturalInsights.length > 1 && !loading && !error) {
+      startRotationTimer();
+    }
+
+    // Cleanup timer on unmount
+    return () => {
+      if (rotationTimer.current) {
+        clearInterval(rotationTimer.current);
+      }
+    };
+  }, [culturalInsights, loading, error]);
 
   // Fetch cultural insights when component mounts
   useEffect(() => {
     fetchCulturalInsights();
     checkApiLimits();
+
+    // Cleanup timer on unmount
+    return () => {
+      if (rotationTimer.current) {
+        clearInterval(rotationTimer.current);
+      }
+    };
   }, [visitedPlaces]);
+
+  // Start the rotation timer
+  const startRotationTimer = () => {
+    if (rotationTimer.current) {
+      clearInterval(rotationTimer.current);
+    }
+
+    rotationTimer.current = setInterval(() => {
+      if (!isAnimating.current && culturalInsights.length > 1) {
+        rotateToNextInsight();
+      }
+    }, ROTATION_INTERVAL);
+  };
+
+  // Animate to the next insight
+  const rotateToNextInsight = () => {
+    if (culturalInsights.length <= 1) return;
+
+    isAnimating.current = true;
+
+    // Fade out current insight
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+        easing: Easing.out(Easing.ease),
+      }),
+      Animated.timing(slideAnim, {
+        toValue: -20,
+        duration: 300,
+        useNativeDriver: true,
+        easing: Easing.out(Easing.ease),
+      }),
+    ]).start(() => {
+      // Update index
+      setCurrentInsightIndex((prevIndex) =>
+        prevIndex === culturalInsights.length - 1 ? 0 : prevIndex + 1
+      );
+
+      // Reset animations
+      slideAnim.setValue(20);
+
+      // Fade in new insight
+      Animated.parallel([
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+          easing: Easing.out(Easing.ease),
+        }),
+        Animated.timing(slideAnim, {
+          toValue: 0,
+          duration: 300,
+          useNativeDriver: true,
+          easing: Easing.out(Easing.ease),
+        }),
+      ]).start(() => {
+        isAnimating.current = false;
+      });
+    });
+  };
 
   // Fetch cultural insights from AI service
   const fetchCulturalInsights = async () => {
@@ -60,8 +152,12 @@ const CulturalContextCard = ({
         return;
       }
 
-      // Get insights using our enhanced service with caching
+      // Get insights using our enhanced service with caching and AI validation
       const insights = await getCulturalInsightsForVisitedPlaces(visitedPlaces);
+      console.log(
+        `Received ${insights.length} cultural insights:`,
+        insights.map((i) => i.region)
+      );
       setCulturalInsights(insights);
       setLoading(false);
     } catch (err) {
@@ -135,7 +231,15 @@ const CulturalContextCard = ({
     const highlightedCustom = getHighlightedCustom();
 
     return (
-      <View style={styles.contentContainer}>
+      <Animated.View
+        style={[
+          styles.contentContainer,
+          {
+            opacity: fadeAnim,
+            transform: [{ translateX: slideAnim }],
+          },
+        ]}
+      >
         <View style={styles.regionBadge}>
           <Text style={styles.regionText}>{previewInsight?.region}</Text>
         </View>
@@ -171,7 +275,7 @@ const CulturalContextCard = ({
           <Ionicons name="flash" size={12} color="#ffffff" />
           <Text style={styles.aiText}>AI-Generated Insights</Text>
         </View>
-      </View>
+      </Animated.View>
     );
   };
 
