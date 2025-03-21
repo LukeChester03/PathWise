@@ -1199,42 +1199,23 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
       if (places.selectedPlace) {
         console.log(`Navigating to place details for: ${places.selectedPlace.name}`);
 
-        // If place doesn't have full details and we're online, try to load them before navigation
+        // Navigate immediately with the current place data
+        navigation.navigate("PlaceDetails", {
+          placeId: places.selectedPlace.place_id,
+          place: places.selectedPlace,
+        });
+
+        // If place doesn't have full details and we're online, fetch in background
         if (!places.selectedPlace.hasFullDetails && isConnected) {
-          // This creates a smoother experience - try to get details before navigation
-          // but don't block navigation if details aren't immediately available
           fetchPlaceDetailsOnDemand(places.selectedPlace.place_id)
             .then((detailedPlace) => {
               if (detailedPlace) {
-                // Use the correctly typed navigation.navigate with the detailed place
-                navigation.navigate("PlaceDetails", {
-                  placeId: detailedPlace.place_id,
-                  place: detailedPlace,
-                });
-              } else if (places.selectedPlace) {
-                // Fall back to basic place if details aren't available
-                navigation.navigate("PlaceDetails", {
-                  placeId: places.selectedPlace.place_id,
-                  place: places.selectedPlace,
-                });
+                console.log("Fetched detailed place data in background");
               }
             })
             .catch((error) => {
-              console.error("Error fetching place details before navigation:", error);
-              // Navigate anyway with basic place if it exists
-              if (places.selectedPlace) {
-                navigation.navigate("PlaceDetails", {
-                  placeId: places.selectedPlace.place_id,
-                  place: places.selectedPlace,
-                });
-              }
+              console.error("Error fetching place details in background:", error);
             });
-        } else {
-          // Already has full details or offline, navigate directly
-          navigation.navigate("PlaceDetails", {
-            placeId: places.selectedPlace.place_id,
-            place: places.selectedPlace,
-          });
         }
       } else {
         console.error("Cannot navigate: No place selected");
@@ -1341,41 +1322,27 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
         setShowCard(false);
         setShowDiscoveredCard(false);
 
-        // Add a small delay to allow the card animation to complete
-        setTimeout(() => {
-          // If place doesn't have full details and we're online, try to load them before navigation
-          if (!placeToView.hasFullDetails && isConnected) {
-            // Try to get details before navigation but don't block if not immediately available
-            fetchPlaceDetailsOnDemand(placeToView.place_id)
-              .then((detailedPlace) => {
-                if (detailedPlace) {
-                  navigation.navigate("PlaceDetails", {
-                    placeId: detailedPlace.place_id,
-                    place: detailedPlace,
-                  });
-                } else {
-                  navigation.navigate("PlaceDetails", {
-                    placeId: placeToView.place_id,
-                    place: placeToView,
-                  });
-                }
-              })
-              .catch((error) => {
-                console.error("Error fetching place details before navigation:", error);
-                // Navigate anyway with basic place
-                navigation.navigate("PlaceDetails", {
-                  placeId: placeToView.place_id,
-                  place: placeToView,
-                });
-              });
-          } else {
-            // Already has full details or offline, navigate directly
-            navigation.navigate("PlaceDetails", {
-              placeId: placeToView.place_id,
-              place: placeToView,
+        // IMPORTANT: Navigate immediately instead of using setTimeout
+        // This ensures navigation happens before any state updates might interfere
+        navigation.navigate("PlaceDetails", {
+          placeId: placeToView.place_id,
+          place: placeToView,
+        });
+
+        // Fetch additional details in background if needed
+        if (!placeToView.hasFullDetails && isConnected) {
+          fetchPlaceDetailsOnDemand(placeToView.place_id)
+            .then((detailedPlace) => {
+              if (detailedPlace) {
+                console.log(
+                  "Fetched detailed place data, it will be used if the details page checks again"
+                );
+              }
+            })
+            .catch((error) => {
+              console.error("Error fetching place details in background:", error);
             });
-          }
-        }, 300); // Short delay for animation
+        }
       } else {
         console.error("Cannot navigate: No place selected");
       }
@@ -1454,52 +1421,31 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
    */
   const handleViewDiscoveredDetails = () => {
     try {
-      setShowDiscoveredCard(false);
       if (places.selectedPlace) {
         console.log(`View details for discovered place: ${places.selectedPlace.name}`);
 
-        // If we're online, ensure we have the latest details from Firebase/permanent cache
-        if (isConnected && !places.selectedPlace.hasFullDetails) {
+        // Capture current state before changing anything
+        const placeToView = places.visitedPlaceDetails || places.selectedPlace;
+
+        // Clear the card state
+        setShowDiscoveredCard(false);
+
+        // IMPORTANT: Navigate immediately instead of checking Firebase first
+        // This ensures navigation happens without delay
+        navigation.navigate("PlaceDetails", {
+          placeId: places.selectedPlace.place_id,
+          place: placeToView,
+        });
+
+        // Optionally fetch updated details in background after navigation
+        if (isConnected && !placeToView.hasFullDetails) {
           fetchPlaceDetailsOnDemand(places.selectedPlace.place_id)
             .then((detailedPlace) => {
-              // Navigate with either the detailed place or the visited place if available
               if (detailedPlace) {
-                navigation.navigate("PlaceDetails", {
-                  placeId: places.selectedPlace!.place_id,
-                  place: detailedPlace,
-                });
-              } else if (places.visitedPlaceDetails) {
-                navigation.navigate("PlaceDetails", {
-                  placeId: places.selectedPlace!.place_id,
-                  place: places.visitedPlaceDetails,
-                });
-              } else if (places.selectedPlace) {
-                navigation.navigate("PlaceDetails", {
-                  placeId: places.selectedPlace.place_id,
-                  place: places.selectedPlace,
-                });
+                console.log("Fetched detailed place data in background");
               }
             })
-            .catch((error) => {
-              console.error("Error fetching place details:", error);
-              // Navigate with what we have, checking for null
-              if (places.selectedPlace) {
-                const placeToUse = places.visitedPlaceDetails || places.selectedPlace;
-                navigation.navigate("PlaceDetails", {
-                  placeId: places.selectedPlace.place_id,
-                  place: placeToUse,
-                });
-              }
-            });
-        } else {
-          // Navigate with what we have, ensuring it's not null
-          if (places.selectedPlace) {
-            const placeToUse = places.visitedPlaceDetails || places.selectedPlace;
-            navigation.navigate("PlaceDetails", {
-              placeId: places.selectedPlace.place_id,
-              place: placeToUse,
-            });
-          }
+            .catch((error) => console.error("Error fetching background details:", error));
         }
       } else {
         console.error("Cannot navigate: No place selected");
