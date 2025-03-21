@@ -1,4 +1,4 @@
-// components/Home/FeaturesSection.tsx
+// components/HomeScreen/FeaturesSection.tsx
 import React, { useRef, useEffect } from "react";
 import {
   View,
@@ -9,9 +9,11 @@ import {
   Dimensions,
   Easing,
   Platform,
+  FlatList,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
+import { Colors } from "../../constants/colours";
 
 const { width } = Dimensions.get("window");
 const CARD_WIDTH = width * 0.85;
@@ -32,14 +34,14 @@ interface FeaturesSectionProps {
 
 const FeaturesSection: React.FC<FeaturesSectionProps> = ({ navigateToScreen }) => {
   const scrollX = useRef(new Animated.Value(0)).current;
-  const flatListRef = useRef<Animated.FlatList<FeatureCard>>(null);
+  const flatListRef = useRef<FlatList<FeatureCard>>(null);
 
   // Animation values
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const titleAnim = useRef(new Animated.Value(0)).current;
   const pulseAnim = useRef(new Animated.Value(0)).current;
   const rotateAnim = useRef(new Animated.Value(0)).current;
   const floatAnim = useRef(new Animated.Value(0)).current;
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const titleAnim = useRef(new Animated.Value(0)).current;
 
   const featureCards: FeatureCard[] = [
     {
@@ -67,10 +69,35 @@ const FeaturesSection: React.FC<FeaturesSectionProps> = ({ navigateToScreen }) =
       screen: "Explore",
       gradientColors: ["#FF7043", "#FF8A65"],
     },
+    {
+      id: 4,
+      title: "Achievements",
+      description: "Track your progress and earn badges as you explore new locations.",
+      icon: "trophy-outline",
+      screen: "Achievements",
+      gradientColors: ["#9C27B0", "#BA68C8"],
+    },
   ];
 
   // Setup animations
   useEffect(() => {
+    // Fade in main component
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 800,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+
+    // Title slide in
+    Animated.timing(titleAnim, {
+      toValue: 1,
+      duration: 600,
+      delay: 300,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+
     // Pulse animation for icons
     Animated.loop(
       Animated.sequence([
@@ -124,23 +151,6 @@ const FeaturesSection: React.FC<FeaturesSectionProps> = ({ navigateToScreen }) =
         }),
       ])
     ).start();
-
-    // Fade in section
-    Animated.timing(fadeAnim, {
-      toValue: 1,
-      duration: 800,
-      easing: Easing.out(Easing.ease),
-      useNativeDriver: true,
-    }).start();
-
-    // Title animation
-    Animated.timing(titleAnim, {
-      toValue: 1,
-      duration: 600,
-      delay: 300,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: true,
-    }).start();
   }, []);
 
   const onScroll = Animated.event([{ nativeEvent: { contentOffset: { x: scrollX } } }], {
@@ -476,7 +486,6 @@ const FeaturesSection: React.FC<FeaturesSectionProps> = ({ navigateToScreen }) =
                     },
                   ]}
                 >
-                  {/* FIXED: Using transform: scaleX instead of animated width */}
                   <Animated.View
                     style={[
                       styles.tapPromptLine,
@@ -497,7 +506,6 @@ const FeaturesSection: React.FC<FeaturesSectionProps> = ({ navigateToScreen }) =
                     ]}
                   />
                   <Text style={styles.tapPromptText}>tap to explore</Text>
-                  {/* FIXED: Using transform: scaleX instead of animated width */}
                   <Animated.View
                     style={[
                       styles.tapPromptLine,
@@ -555,43 +563,7 @@ const FeaturesSection: React.FC<FeaturesSectionProps> = ({ navigateToScreen }) =
           ],
         },
       ]}
-    >
-      <Animated.Text
-        style={[
-          styles.sectionTitle,
-          {
-            transform: [
-              {
-                translateX: titleAnim.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [-10, 0],
-                }),
-              },
-            ],
-            opacity: titleAnim,
-          },
-        ]}
-      >
-        Explore Features
-      </Animated.Text>
-
-      <Animated.FlatList<FeatureCard>
-        ref={flatListRef}
-        data={featureCards}
-        keyExtractor={(item) => item.id.toString()}
-        renderItem={renderCard}
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.carouselContainer}
-        snapToInterval={CARD_WIDTH + SPACING * 2}
-        decelerationRate="fast"
-        onScroll={onScroll}
-        scrollEventThrottle={16}
-        snapToAlignment="center"
-        bounces={true}
-        initialNumToRender={3}
-      />
-    </Animated.View>
+    ></Animated.View>
   );
 };
 
@@ -625,6 +597,11 @@ const styles = StyleSheet.create({
     minHeight: 220,
     width: "100%",
     position: "relative",
+    elevation: 4,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
   cardGradient: {
     width: "100%",

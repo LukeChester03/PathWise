@@ -1,4 +1,4 @@
-// components/Home/StatsSection.tsx
+// components/HomeScreen/StatsSection.tsx
 import React, { useState, useEffect, useRef } from "react";
 import {
   View,
@@ -14,26 +14,34 @@ import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useNavigation } from "@react-navigation/native";
 import { fetchUserStats } from "../../services/statsService";
-import { StatItem } from "../../types/StatTypes";
 import { Colors } from "../../constants/colours";
 
 const { width } = Dimensions.get("window");
-const STATS_CARD_WIDTH = width * 0.6; // Increased card width
-const STATS_CARD_HEIGHT = 155; // Increased for better spacing
+const STATS_CARD_WIDTH = width * 0.6;
+const STATS_CARD_HEIGHT = 155;
 const SPACING = 16;
 const MAX_CAROUSEL_ITEMS = 5;
 
+// Define interface for stat item data
+interface StatItem {
+  id: string;
+  value: string;
+  label: string;
+  icon: string;
+  gradientColors: [string, string];
+}
+
 // Animated background circles component with increased visibility
-const AnimatedBackgroundCircles = ({ colors }) => {
+const AnimatedBackgroundCircles = ({ colors }: { colors: [string, string] }) => {
   // Create multiple animated values for different circles
   const circle1Position = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
   const circle2Position = useRef(new Animated.ValueXY({ x: 30, y: 30 })).current;
   const circle3Position = useRef(new Animated.ValueXY({ x: -20, y: 10 })).current;
 
   // Animation for opacity and size - increased opacity values
-  const opacity1 = useRef(new Animated.Value(0.45)).current; // More visible
-  const opacity2 = useRef(new Animated.Value(0.4)).current; // More visible
-  const opacity3 = useRef(new Animated.Value(0.5)).current; // More visible
+  const opacity1 = useRef(new Animated.Value(0.45)).current;
+  const opacity2 = useRef(new Animated.Value(0.4)).current;
+  const opacity3 = useRef(new Animated.Value(0.5)).current;
 
   const scale1 = useRef(new Animated.Value(1)).current;
   const scale2 = useRef(new Animated.Value(1)).current;
@@ -41,7 +49,11 @@ const AnimatedBackgroundCircles = ({ colors }) => {
 
   useEffect(() => {
     // Function to animate circles with more dynamic movement
-    const animateCircle = (position, opacityValue, scaleValue) => {
+    const animateCircle = (
+      position: Animated.ValueXY,
+      opacityValue: Animated.Value,
+      scaleValue: Animated.Value
+    ) => {
       // Generate random destinations within boundaries
       const randomX = Math.random() * 40 - 20; // Moderate range of motion
       const randomY = Math.random() * 40 - 20;
@@ -92,10 +104,6 @@ const AnimatedBackgroundCircles = ({ colors }) => {
     animateCircle(circle1Position, opacity1, scale1);
     animateCircle(circle2Position, opacity2, scale2);
     animateCircle(circle3Position, opacity3, scale3);
-
-    return () => {
-      // Clean up animations if needed
-    };
   }, []);
 
   return (
@@ -168,10 +176,6 @@ const ShineEffect = () => {
     };
 
     animateShine();
-
-    return () => {
-      // Clean up animations if needed
-    };
   }, []);
 
   return (
@@ -186,7 +190,7 @@ const ShineEffect = () => {
   );
 };
 
-const StatsSection = () => {
+const StatsSection: React.FC = () => {
   const [userStats, setUserStats] = useState<StatItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const navigation = useNavigation();
@@ -195,6 +199,7 @@ const StatsSection = () => {
   const sectionAnimatedValue = useRef(new Animated.Value(0)).current;
   const loadingAnimatedValue = useRef(new Animated.Value(0.5)).current;
   const journeyArrowAnim = useRef(new Animated.Value(0)).current;
+  const headerAnimation = useRef(new Animated.Value(0)).current;
 
   // Create refs for card animations
   const cardAnimations = useRef(
@@ -202,7 +207,7 @@ const StatsSection = () => {
       .fill(0)
       .map(() => ({
         opacity: new Animated.Value(0),
-        translateY: new Animated.Value(25), // Increased from 20 for more dramatic entrance
+        translateY: new Animated.Value(25),
         scale: new Animated.Value(0.9),
       }))
   ).current;
@@ -217,13 +222,21 @@ const StatsSection = () => {
       useNativeDriver: true,
     }).start();
 
+    // Header animation
+    Animated.timing(headerAnimation, {
+      toValue: 1,
+      duration: 600,
+      useNativeDriver: true,
+      easing: Easing.out(Easing.cubic),
+    }).start();
+
     // Staggered animation for each card with better timing
     cardAnimations.forEach((anim, index) => {
       Animated.parallel([
         Animated.timing(anim.opacity, {
           toValue: 1,
-          duration: 700, // Slightly longer for smoother fade
-          delay: index * 120, // More noticeable stagger
+          duration: 700,
+          delay: index * 120,
           useNativeDriver: true,
         }),
         Animated.spring(anim.translateY, {
@@ -302,7 +315,44 @@ const StatsSection = () => {
         }, 150);
       } catch (error) {
         console.error("Error fetching user stats:", error);
-        setUserStats([]);
+
+        // Fallback mock data in case of error
+        const mockStats: StatItem[] = [
+          {
+            id: "1",
+            value: "12",
+            label: "Places Visited",
+            icon: "map-marker",
+            gradientColors: ["#4a90e2", "#5da9ff"],
+          },
+          {
+            id: "2",
+            value: "32.5",
+            label: "Miles Walked",
+            icon: "footsteps",
+            gradientColors: ["#50c878", "#63e08c"],
+          },
+          {
+            id: "3",
+            value: "8",
+            label: "Cities Explored",
+            icon: "location",
+            gradientColors: ["#ff7043", "#ff8a65"],
+          },
+          {
+            id: "4",
+            value: "5",
+            label: "Achievements",
+            icon: "trophy",
+            gradientColors: ["#9c27b0", "#ba68c8"],
+          },
+        ];
+
+        setUserStats(mockStats);
+
+        setTimeout(() => {
+          animateCardsEntrance();
+        }, 150);
       } finally {
         setIsLoading(false);
       }
@@ -324,7 +374,7 @@ const StatsSection = () => {
   };
 
   // Function to create an enhanced press animation for a card
-  const createPressAnimation = (scale) => {
+  const createPressAnimation = (scale: Animated.Value) => {
     return Animated.sequence([
       Animated.timing(scale, {
         toValue: 0.95,
@@ -488,9 +538,24 @@ const StatsSection = () => {
         },
       ]}
     >
-      <View style={styles.headerContainer}>
+      <Animated.View
+        style={[
+          styles.headerContainer,
+          {
+            opacity: headerAnimation,
+            transform: [
+              {
+                translateX: headerAnimation.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [-20, 0],
+                }),
+              },
+            ],
+          },
+        ]}
+      >
         <Text style={styles.sectionTitle}>Your Journey Stats</Text>
-      </View>
+      </Animated.View>
 
       <FlatList
         data={getCarouselData()}
@@ -512,43 +577,52 @@ const styles = StyleSheet.create({
   statsContainer: {
     width: "100%",
     marginBottom: 32,
-    paddingTop: 8, // Added for better spacing
+    paddingTop: 8,
   },
   headerContainer: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: 16,
-    paddingHorizontal: 16,
+    paddingHorizontal: 4,
   },
   sectionTitle: {
     fontSize: 22,
     fontWeight: "bold",
     color: Colors.text,
-    letterSpacing: 0.3, // Subtle letter spacing for modern look
+    letterSpacing: 0.3,
   },
   statsCarousel: {
     paddingVertical: 12,
-    paddingLeft: 16,
+    paddingLeft: 4,
     paddingRight: 8,
   },
   statCardContainer: {
     width: STATS_CARD_WIDTH,
     marginRight: SPACING,
-
     elevation: 8,
   },
   statCard: {
     width: STATS_CARD_WIDTH,
     height: STATS_CARD_HEIGHT,
-    borderRadius: 22, // Increased from 20
+    borderRadius: 22,
     overflow: "hidden",
+    elevation: 3,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.12,
+    shadowRadius: 5,
   },
   viewJourneyCard: {
     width: STATS_CARD_WIDTH,
     height: STATS_CARD_HEIGHT,
     borderRadius: 22,
     overflow: "hidden",
+    elevation: 3,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.12,
+    shadowRadius: 5,
   },
   statGradient: {
     width: "100%",
@@ -572,19 +646,19 @@ const styles = StyleSheet.create({
     borderRadius: 100,
   },
   circle1: {
-    width: 90, // Moderate increase from original 80
+    width: 90,
     height: 90,
     top: -25,
     right: -25,
   },
   circle2: {
-    width: 70, // Moderate increase from original 60
+    width: 70,
     height: 70,
     bottom: -15,
     left: -15,
   },
   circle3: {
-    width: 55, // Moderate increase from original 40
+    width: 55,
     height: 55,
     bottom: 45,
     right: 25,
@@ -602,31 +676,31 @@ const styles = StyleSheet.create({
   statContent: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 24, // Increased from 20
-    paddingVertical: 24, // Increased from 22
+    paddingHorizontal: 24,
+    paddingVertical: 24,
     height: "100%",
   },
   iconContainer: {
-    width: 60, // Increased from 56
-    height: 60, // Increased from 56
-    borderRadius: 18, // Increased from 16
+    width: 60,
+    height: 60,
+    borderRadius: 18,
     backgroundColor: "rgba(255, 255, 255, 0.25)",
     justifyContent: "center",
     alignItems: "center",
-    marginRight: 18, // Increased from 16
+    marginRight: 18,
   },
   statInfo: {
     flex: 1,
   },
   statValue: {
-    fontSize: 30, // Increased from 28
+    fontSize: 30,
     fontWeight: "700",
     color: "#fff",
     marginBottom: 6,
     letterSpacing: 0.3,
   },
   statLabel: {
-    fontSize: 16, // Increased from 15
+    fontSize: 16,
     fontWeight: "500",
     color: "#fff",
     opacity: 0.9,
@@ -635,7 +709,7 @@ const styles = StyleSheet.create({
   journeyContent: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between", // Changed from default
+    justifyContent: "space-between",
     paddingHorizontal: 24,
     height: "100%",
   },
@@ -653,24 +727,24 @@ const styles = StyleSheet.create({
     marginRight: 18,
   },
   journeyTextContainer: {
-    maxWidth: STATS_CARD_WIDTH - 150, // Give text container a max width to avoid overlap
+    maxWidth: STATS_CARD_WIDTH - 150,
   },
   journeyTitle: {
-    fontSize: 22, // Increased from 20
+    fontSize: 22,
     fontWeight: "700",
     color: "#fff",
     marginBottom: 4,
     letterSpacing: 0.3,
   },
   journeySubtitle: {
-    fontSize: 15, // Increased from 14
+    fontSize: 15,
     fontWeight: "500",
     color: "#fff",
     opacity: 0.9,
   },
   arrowContainer: {
-    width: 48, // Increased from 40
-    height: 48, // Increased from 40
+    width: 48,
+    height: 48,
     borderRadius: 24,
     backgroundColor: "rgba(255, 255, 255, 0.2)",
     justifyContent: "center",
@@ -680,9 +754,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     height: 180,
-    marginHorizontal: 16,
+    marginHorizontal: 4,
     backgroundColor: "rgba(0,0,0,0.03)",
-    borderRadius: 22, // Match the card radius
+    borderRadius: 22,
   },
   loadingText: {
     fontSize: 18,

@@ -38,7 +38,7 @@ interface JourneyIntroOverlayProps {
 const JourneyIntroOverlay: React.FC<JourneyIntroOverlayProps> = ({ visible, onClose }) => {
   // State to track which intro screen to show
   const [currentStep, setCurrentStep] = useState(0);
-  const MAX_STEPS = 4;
+  const MAX_STEPS = 5; // Increased from 4 to include the Learn step
   const prevStepRef = useRef(currentStep);
 
   // Animation values
@@ -82,6 +82,8 @@ const JourneyIntroOverlay: React.FC<JourneyIntroOverlayProps> = ({ visible, onCl
   useEffect(() => {
     if (visible) {
       StatusBar.setBarStyle("light-content");
+      // Reset to first step when opening
+      setCurrentStep(0);
       // Only fade in the overlay container
       Animated.timing(fadeAnim, {
         toValue: 1,
@@ -185,6 +187,8 @@ const JourneyIntroOverlay: React.FC<JourneyIntroOverlayProps> = ({ visible, onCl
       duration: 300,
       useNativeDriver: true,
     }).start(() => {
+      // Reset to first step when closing
+      setCurrentStep(0);
       onClose();
     });
   };
@@ -233,6 +237,8 @@ const JourneyIntroOverlay: React.FC<JourneyIntroOverlayProps> = ({ visible, onCl
       duration: 300,
       useNativeDriver: true,
     }).start(() => {
+      // Reset to first step when closing
+      setCurrentStep(0);
       onClose();
     });
   };
@@ -362,9 +368,12 @@ const JourneyIntroOverlay: React.FC<JourneyIntroOverlayProps> = ({ visible, onCl
                 { icon: "brain", text: "AI-generated historical insights" },
                 {
                   icon: "book-open-page-variant",
-                  text: "Tailored content based on your interests",
+                  text: "In depth content to keep you learning",
                 },
-                { icon: "text-to-speech", text: "Audio narration for hands-free exploration" },
+                {
+                  icon: "lightbulb-variant-outline",
+                  text: "A personal guide to answer any questions",
+                },
               ].map((item, index) => (
                 <Animated.View
                   key={index}
@@ -394,6 +403,57 @@ const JourneyIntroOverlay: React.FC<JourneyIntroOverlayProps> = ({ visible, onCl
         );
 
       case 3:
+        return (
+          <>
+            <View style={styles.stepHeader}>
+              <MaterialCommunityIcons
+                name="account-search"
+                size={Math.min(iconSize * 0.8, 42)}
+                color="#4F46E5"
+              />
+              <Text style={styles.stepTitle}>Learn & Analyze</Text>
+            </View>
+
+            <Text style={styles.stepDescription}>
+              Our AI analyzes your travel patterns to provide personalized insights on what kind of
+              traveler you are, and helps you learn more deeply about each location you visit.
+            </Text>
+
+            <View style={styles.featureItemsContainer}>
+              {[
+                { icon: "chart-bar", text: "Personalized travel profile analytics" },
+                { icon: "account-details", text: "Discover your unique traveler characteristics" },
+                { icon: "lightbulb-on", text: "Deep-dive learning about visited locations" },
+                { icon: "connection", text: "Connect with local cultures" },
+              ].map((item, index) => (
+                <Animated.View
+                  key={index}
+                  style={[
+                    styles.featureItem,
+                    {
+                      opacity: iconAnimValues[index],
+                      transform: [
+                        {
+                          translateX: iconAnimValues[index].interpolate({
+                            inputRange: [0, 1],
+                            outputRange: [20, 0],
+                          }),
+                        },
+                      ],
+                    },
+                  ]}
+                >
+                  <View style={styles.featureItemContent}>
+                    <MaterialCommunityIcons name={item.icon} size={22} color="#4F46E5" />
+                    <Text style={styles.featureText}>{item.text}</Text>
+                  </View>
+                </Animated.View>
+              ))}
+            </View>
+          </>
+        );
+
+      case 4:
         return (
           <>
             <View style={styles.stepHeader}>
