@@ -1,5 +1,3 @@
-// Updated ViewAllScreen.tsx with all place settings removed
-
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   View,
@@ -14,6 +12,7 @@ import {
   ListRenderItem,
   RefreshControl,
   Alert,
+  Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
@@ -523,21 +522,24 @@ const ViewAllScreen: React.FC<ViewAllScreenProps> = ({ route, navigation }) => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
+      {/* We're replacing SafeAreaView with a custom approach for better control */}
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
 
-      {/* Dynamic Header based on view type */}
-      <Header
-        title={currentHeaderConfig.title}
-        subtitle={currentHeaderConfig.subtitle}
-        showIcon={false}
-        iconName={currentHeaderConfig.icon}
-        iconColor={currentHeaderConfig.color}
-        showBackButton={true}
-        showHelp={false}
-        onHelpPress={() => {}}
-        onBackPress={() => navigation.goBack()}
-      />
+      {/* Apply platform-specific top padding */}
+      <View style={styles.headerContainer}>
+        <Header
+          title={currentHeaderConfig.title}
+          subtitle={currentHeaderConfig.subtitle}
+          showIcon={false}
+          iconName={currentHeaderConfig.icon}
+          iconColor={currentHeaderConfig.color}
+          showBackButton={true}
+          showHelp={false}
+          onHelpPress={() => {}}
+          onBackPress={() => navigation.goBack()}
+        />
+      </View>
 
       {/* Network Status Indicator - Show when offline */}
       {!isConnected && (
@@ -599,7 +601,7 @@ const ViewAllScreen: React.FC<ViewAllScreenProps> = ({ route, navigation }) => {
           }
         />
       )}
-    </SafeAreaView>
+    </View>
   );
 };
 
@@ -607,6 +609,17 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.background,
+  },
+  headerContainer: {
+    paddingTop:
+      Platform.OS === "ios"
+        ? // On iOS, apply minimal padding based on device
+          Platform.select({
+            ios: Math.max(StatusBar.currentHeight || 0, 10),
+            default: 0,
+          })
+        : // On Android, just enough for the status bar
+          StatusBar.currentHeight || 0,
   },
   centerContainer: {
     flex: 1,
