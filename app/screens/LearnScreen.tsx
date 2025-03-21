@@ -351,17 +351,16 @@ const LearnScreen = ({ navigation }: { navigation: NavigationProps }) => {
     <ScreenWithNavBar>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
       <Animated.View style={[styles.container, { opacity: fadeAnim }]}>
+        <Header
+          title="Learn"
+          subtitle="Your Travel Helper"
+          showIcon={true}
+          iconName="sparkles"
+          iconColor={Colors.primary}
+          showHelp={true}
+          onHelpPress={handleModal}
+        />
         <SafeAreaView style={styles.safeArea}>
-          <Header
-            title="Learn"
-            subtitle="Your Travel Helper"
-            showIcon={true}
-            iconName="sparkles"
-            iconColor={Colors.primary}
-            showHelp={true}
-            onHelpPress={handleModal}
-          />
-
           {error ? (
             <View style={styles.errorContainer}>
               <Ionicons name="alert-circle-outline" size={60} color="#ccc" />
