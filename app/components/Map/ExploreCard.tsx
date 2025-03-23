@@ -513,7 +513,7 @@ const styles = StyleSheet.create({
   cardContainer: {
     width: width * 0.9,
     maxWidth: 400,
-    maxHeight: height - (HEADER_HEIGHT + NAVBAR_HEIGHT + (StatusBar.currentHeight ?? 0)) - 80,
+    maxHeight: height - (HEADER_HEIGHT + NAVBAR_HEIGHT + (StatusBar.currentHeight ?? 0)) - 162,
     backgroundColor: "white",
     borderRadius: 16,
     overflow: "hidden",
@@ -521,7 +521,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.3,
     shadowRadius: 20,
-    elevation: 15,
+    elevation: 24,
   },
   closeButton: {
     position: "absolute",
@@ -609,7 +609,7 @@ const styles = StyleSheet.create({
     marginLeft: 4,
   },
   contentContainer: {
-    padding: 20,
+    padding: 16,
   },
   descriptionContainer: {
     backgroundColor: NeutralColors.gray100,
@@ -702,6 +702,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 12,
     borderWidth: 1,
+    marginBottom: 16,
     borderColor: Colors.primary,
   },
   buttonIcon: {

@@ -828,7 +828,6 @@ const ExploreScreen: React.FC<ExploreScreenProps> = ({ navigation }) => {
         showIcon={true}
         iconName="compass"
         iconColor={Colors.primary}
-        rightComponent={headerRightComponent}
         customStyles={styles.headerCustomStyles}
         onHelpPress={handleHelpPress}
         showHelp={false}

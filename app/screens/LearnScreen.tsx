@@ -450,7 +450,7 @@ const LearnScreen = ({ navigation }: { navigation: NavigationProps }) => {
                   },
                 ]}
               >
-                <View style={styles.featuresGrid}>
+                {/* <View style={styles.featuresGrid}>
                   <TouchableOpacity
                     style={styles.featureCard}
                     onPress={() => {
@@ -486,7 +486,7 @@ const LearnScreen = ({ navigation }: { navigation: NavigationProps }) => {
                       AI insights on local customs and traditions in places you visit
                     </Text>
                   </TouchableOpacity>
-                </View>
+                </View> */}
               </Animated.View>
 
               {/* Feature 5 & 6: Advanced Travel Analysis + Travel Preferences */}

@@ -183,6 +183,7 @@ const createDefaultQuizBadges = async (): Promise<void> => {
 
 /**
  * Update quiz badge progress based on Knowledge Quest stats
+ * FIXED: Better error handling and logging
  */
 export const updateQuizBadgeProgress = async (): Promise<string[]> => {
   try {
@@ -196,6 +197,8 @@ export const updateQuizBadgeProgress = async (): Promise<string[]> => {
     const stats = await getKnowledgeQuestStats();
     const badges = await getAllUserBadges();
 
+    console.log("Updating quiz badge progress with current stats");
+
     // Filter for quiz-related badges that aren't completed
     const quizBadges = badges.filter(
       (badge) =>
@@ -203,6 +206,7 @@ export const updateQuizBadgeProgress = async (): Promise<string[]> => {
     );
 
     if (quizBadges.length === 0) {
+      console.log("No incomplete quiz badges found to update");
       return [];
     }
 
@@ -256,14 +260,26 @@ export const updateQuizBadgeProgress = async (): Promise<string[]> => {
 
       // Update badge requirements if needed
       if (requirementsUpdated) {
-        await updateBadgeRequirements(badge.id, updatedRequirements);
+        try {
+          await updateBadgeRequirements(badge.id, updatedRequirements);
+          console.log(`Updated requirements for badge: ${badge.name}`);
+        } catch (updateError) {
+          console.error(`Error updating requirements for badge ${badge.id}:`, updateError);
+          // Continue with other badges even if one fails
+          continue;
+        }
       }
 
       // Complete the badge if all requirements are met
       if (allRequirementsMet) {
-        await completeBadge(badge.id);
-        completedBadgeIds.push(badge.id);
-        console.log(`Badge completed: ${badge.name}`);
+        try {
+          await completeBadge(badge.id);
+          completedBadgeIds.push(badge.id);
+          console.log(`Badge completed: ${badge.name}`);
+        } catch (completeError) {
+          console.error(`Error completing badge ${badge.id}:`, completeError);
+          // Continue with other badges even if one fails to complete
+        }
       }
     }
 
@@ -276,13 +292,23 @@ export const updateQuizBadgeProgress = async (): Promise<string[]> => {
 
 /**
  * Check if a new high score should update a badge
+ * FIXED: Better error handling and validation
  */
 export const checkScoreBadges = async (score: number): Promise<string[]> => {
   try {
     const currentUser = auth.currentUser;
     if (!currentUser) {
+      console.warn("Cannot check score badges: No authenticated user");
       return [];
     }
+
+    // Validate score is a positive number
+    if (typeof score !== "number" || score < 0 || score > 100) {
+      console.warn(`Invalid score value: ${score}. Must be between 0 and 100.`);
+      return [];
+    }
+
+    console.log(`Checking score badges for new score: ${score}%`);
 
     const badges = await getAllUserBadges();
 
@@ -292,9 +318,11 @@ export const checkScoreBadges = async (score: number): Promise<string[]> => {
     );
 
     if (scoreBadges.length === 0) {
+      console.log("No incomplete score badges found");
       return [];
     }
 
+    console.log(`Found ${scoreBadges.length} score badges to check`);
     const completedBadgeIds: string[] = [];
 
     for (const badge of scoreBadges) {
@@ -332,14 +360,26 @@ export const checkScoreBadges = async (score: number): Promise<string[]> => {
 
       // Update badge requirements if needed
       if (requirementsUpdated) {
-        await updateBadgeRequirements(badge.id, updatedRequirements);
+        try {
+          await updateBadgeRequirements(badge.id, updatedRequirements);
+          console.log(`Updated requirements for score badge: ${badge.name}`);
+        } catch (updateError) {
+          console.error(`Error updating requirements for badge ${badge.id}:`, updateError);
+          // Continue with other badges even if one fails
+          continue;
+        }
       }
 
       // Complete the badge if all requirements are met
       if (allRequirementsMet) {
-        await completeBadge(badge.id);
-        completedBadgeIds.push(badge.id);
-        console.log(`Badge completed: ${badge.name}`);
+        try {
+          await completeBadge(badge.id);
+          completedBadgeIds.push(badge.id);
+          console.log(`Score badge completed: ${badge.name}`);
+        } catch (completeError) {
+          console.error(`Error completing badge ${badge.id}:`, completeError);
+          // Continue with other badges even if one fails to complete
+        }
       }
     }
 

@@ -20,13 +20,13 @@ const StatsHeader: React.FC<StatsHeaderProps> = ({ stats }) => {
         <View style={styles.statsContainer}>
           {stats ? (
             <>
-              <View style={styles.topStatsRow}>
-                <View style={styles.statCard}>
+              {/* <View style={styles.topStatsRow}> */}
+              {/* <View style={styles.statCard}>
                   <Text style={styles.statValue}>{stats.level}</Text>
                   <Text style={styles.statLabel}>Level</Text>
-                </View>
+                </View> */}
 
-                <View style={styles.levelProgressContainer}>
+              {/* <View style={styles.levelProgressContainer}>
                   <View style={styles.levelProgress}>
                     <View
                       style={[
@@ -43,8 +43,8 @@ const StatsHeader: React.FC<StatsHeaderProps> = ({ stats }) => {
                   <Text style={styles.levelProgressText}>
                     {stats.pointsToNextLevel} points to next level
                   </Text>
-                </View>
-              </View>
+                </View> */}
+              {/* </View> */}
 
               <View style={styles.statsRow}>
                 <View style={styles.statItem}>

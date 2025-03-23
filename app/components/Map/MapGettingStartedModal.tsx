@@ -270,13 +270,13 @@ const MapGettingStartedModal: React.FC<MapGettingStartedModalProps> = ({ visible
             </View>
 
             <Text style={styles.stepDescription}>
-              The map shows the 20 closest attractions to your current location. Tap on any marker
+              The map shows the 40 closest attractions to your current location. Tap on any marker
               to learn more about that place.
             </Text>
 
             <View style={styles.featureItemsContainer}>
               {[
-                { icon: "map-marker", text: "View the 20 closest attractions to you" },
+                { icon: "map-marker", text: "View the 40 closest attractions to you" },
                 { icon: "information-outline", text: "Tap any marker to see detailed information" },
                 { icon: "image-outline", text: "View photos and read about each place" },
               ].map((item, index) => (
@@ -333,7 +333,7 @@ const MapGettingStartedModal: React.FC<MapGettingStartedModalProps> = ({ visible
                 { icon: "directions", text: "Get directions to any place with one tap" },
                 {
                   icon: "car",
-                  text: "The app detects if you're driving or walking",
+                  text: "PathWise detects if you're driving or walking",
                 },
                 {
                   icon: "map-marker-path",

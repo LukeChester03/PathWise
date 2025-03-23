@@ -4,6 +4,7 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView, FlatList } from "
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { Quiz, QuizResult } from "../../../types/LearnScreen/KnowledgeQuestTypes";
+import { useNavigation } from "@react-navigation/native";
 
 interface QuizAnalysisProps {
   quiz: Quiz;
@@ -18,6 +19,7 @@ interface QuizAnalysisProps {
 
 const QuizAnalysis = ({ quiz, answers, result }: QuizAnalysisProps) => {
   const [activeTab, setActiveTab] = useState("overview");
+  const navigation = useNavigation();
 
   // Calculate category performance if available
   const categoryPerformance = React.useMemo(() => {
@@ -269,26 +271,15 @@ const QuizAnalysis = ({ quiz, answers, result }: QuizAnalysisProps) => {
         ))}
       </View>
 
-      <View style={styles.nextStepsContainer}>
-        <Text style={styles.nextStepsTitle}>Next Steps</Text>
-
-        <TouchableOpacity style={styles.nextStepButton}>
-          <Ionicons name="refresh" size={18} color="#6366F1" />
-          <Text style={styles.nextStepButtonText}>Retry This Quiz</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.nextStepButton}>
-          <Ionicons name="search" size={18} color="#6366F1" />
-          <Text style={styles.nextStepButtonText}>Find Similar Quizzes</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={[styles.nextStepButton, styles.primaryButton]}>
-          <Ionicons name="list" size={18} color="#FFFFFF" />
-          <Text style={[styles.nextStepButtonText, styles.primaryButtonText]}>
-            Return to All Quizzes
-          </Text>
-        </TouchableOpacity>
-      </View>
+      <TouchableOpacity
+        style={[styles.nextStepButton, styles.primaryButton]}
+        onPress={() => navigation.navigate("KnowledgeQuestScreen")}
+      >
+        <Ionicons name="list" size={18} color="#FFFFFF" />
+        <Text style={[styles.nextStepButtonText, styles.primaryButtonText]}>
+          Return to All Quizzes
+        </Text>
+      </TouchableOpacity>
     </View>
   );
 

@@ -221,12 +221,12 @@ const PlaceDetailsScreen: React.FC = () => {
     try {
       // First provide haptic feedback
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-
       if (placeDetails) {
         console.log(`PlaceDetailsScreen: Starting journey for ${placeDetails.name}`);
 
         // Create a deep copy of the place to avoid reference issues
         const placeToShow = JSON.parse(JSON.stringify(placeDetails));
+        setShowPreVisitModal(false);
 
         // Use NavigationService with a slight delay
         setTimeout(() => {

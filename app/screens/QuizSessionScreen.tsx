@@ -216,52 +216,118 @@ const QuizSessionScreen = ({ navigation, route }) => {
     if (!quiz) return;
 
     try {
+      console.log("[SESSION DEBUG] Starting quiz completion for quiz:", quiz.id);
+
+      // Ensure quiz has necessary properties before proceeding
+      const completeQuiz = {
+        ...quiz,
+        id: quiz.id || `local_${Date.now()}`,
+        title: quiz.title || "Untitled Quiz",
+        difficulty: quiz.difficulty || "medium",
+        category: quiz.category || "general",
+        createdAt: quiz.createdAt || new Date().toISOString(),
+        expiresAt: quiz.expiresAt || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+        completions: quiz.completions || 0,
+        relatedRegions: quiz.relatedRegions || ["Unknown"],
+      };
+
       // Record quiz completion
-      const result = await recordQuizCompletion(quiz, answers);
+      try {
+        console.log("[SESSION DEBUG] Calling recordQuizCompletion");
+        const result = await recordQuizCompletion(completeQuiz, answers);
+        console.log("[SESSION DEBUG] Quiz result:", result);
 
-      // Log the result to debug
-      console.log("Quiz result:", result);
+        // Set the quiz result state
+        setQuizResult(result);
+      } catch (recordError) {
+        console.error("[SESSION DEBUG] Error in recordQuizCompletion:", recordError);
 
-      // Set the quiz result state
-      setQuizResult(result);
+        // Create a fallback result if recordQuizCompletion fails
+        const correctAnswers = answers.filter((a) => a.isCorrect).length;
+        const score = Math.round((correctAnswers / quiz.questions.length) * 100);
+        const totalTimeSpent = answers.reduce((total, answer) => total + answer.timeSpent, 0);
+
+        const fallbackResult: QuizResult = {
+          id: `fallback_${Date.now()}`,
+          quizId: quiz.id,
+          title: quiz.title,
+          score,
+          correctAnswers,
+          totalQuestions: quiz.questions.length,
+          completedAt: new Date().toISOString(),
+          timeSpent: totalTimeSpent,
+          difficulty: quiz.difficulty,
+          category: quiz.category,
+        };
+
+        setQuizResult(fallbackResult);
+      }
 
       // Get user stats for XP calculation
-      const stats = await getKnowledgeQuestStats();
+      try {
+        const stats = await getKnowledgeQuestStats();
 
-      // Award XP for quiz completion
-      const xpResult = await awardQuizCompletionXP(
-        quiz,
-        result,
-        stats.totalQuizzesTaken,
-        false, // You can determine if this is the first quiz in this category
-        stats.streakDays
-      );
-      setEarnedXP(xpResult);
+        // Award XP for quiz completion
+        const xpResult = await awardQuizCompletionXP(
+          quiz,
+          quizResult || {
+            id: `temp_${Date.now()}`,
+            quizId: quiz.id,
+            title: quiz.title,
+            score: Math.round(
+              (answers.filter((a) => a.isCorrect).length / quiz.questions.length) * 100
+            ),
+            correctAnswers: answers.filter((a) => a.isCorrect).length,
+            totalQuestions: quiz.questions.length,
+            completedAt: new Date().toISOString(),
+            timeSpent: answers.reduce((total, answer) => total + answer.timeSpent, 0),
+            difficulty: quiz.difficulty,
+            category: quiz.category,
+          },
+          stats.totalQuizzesTaken,
+          false,
+          stats.streakDays
+        );
+        setEarnedXP(xpResult);
+      } catch (xpError) {
+        console.error("[SESSION DEBUG] Error awarding XP:", xpError);
+        setEarnedXP({ totalXP: 0, breakdown: [] });
+      }
 
       // Check and award badges
-      const earnedBadgeIds = await updateQuizBadgeProgress();
-      // Also check score-specific badges
-      const scoreBadgeIds = await checkScoreBadges(result.score);
+      try {
+        const earnedBadgeIds = await updateQuizBadgeProgress();
+        const scoreBadgeIds = await checkScoreBadges(
+          quizResult?.score ||
+            Math.round((answers.filter((a) => a.isCorrect).length / quiz.questions.length) * 100)
+        );
 
-      // Combine all earned badge IDs
-      const allBadgeIds = [...earnedBadgeIds, ...scoreBadgeIds];
+        // Combine all earned badge IDs
+        const allBadgeIds = [...earnedBadgeIds, ...scoreBadgeIds];
 
-      if (allBadgeIds.length > 0) {
-        // Fetch full badge details for earned badges
-        const allBadges = await getAllUserBadges();
-        const completedBadges = allBadges.filter((badge) => allBadgeIds.includes(badge.id));
+        if (allBadgeIds.length > 0) {
+          // Fetch full badge details for earned badges
+          const allBadges = await getAllUserBadges();
+          const completedBadges = allBadges.filter((badge) => allBadgeIds.includes(badge.id));
 
-        if (completedBadges.length > 0) {
-          setEarnedBadges(completedBadges);
+          if (completedBadges.length > 0) {
+            setEarnedBadges(completedBadges);
 
-          // Award XP for each badge earned
-          let totalBadgeXP = 0;
-          for (const badge of completedBadges) {
-            const badgeXP = await awardBadgeCompletionXP(badge.name);
-            totalBadgeXP += badgeXP;
+            // Award XP for each badge earned
+            let totalBadgeXP = 0;
+            for (const badge of completedBadges) {
+              try {
+                const badgeXP = await awardBadgeCompletionXP(badge.name);
+                totalBadgeXP += badgeXP;
+              } catch (badgeXpError) {
+                console.error("[SESSION DEBUG] Error awarding badge XP:", badgeXpError);
+              }
+            }
+            setBadgeXP(totalBadgeXP);
           }
-          setBadgeXP(totalBadgeXP);
         }
+      } catch (badgeError) {
+        console.error("[SESSION DEBUG] Error processing badges:", badgeError);
       }
 
       // Important: Set these AFTER all async operations to ensure state is set correctly
@@ -289,12 +355,49 @@ const QuizSessionScreen = ({ navigation, route }) => {
         ]).start();
       }, 100);
     } catch (error) {
-      console.error("Error completing quiz:", error);
-      Alert.alert(
-        "Error",
-        "There was a problem saving your quiz results. Your progress may be lost.",
-        [{ text: "OK", onPress: () => navigation.goBack() }]
-      );
+      console.error("[SESSION DEBUG] Critical error in quiz completion:", error);
+
+      // Still show results even if there's an error
+      setQuizComplete(true);
+      setResultStep("RESULTS");
+
+      // Create a basic result if needed
+      if (!quizResult) {
+        const correctAnswers = answers.filter((a) => a.isCorrect).length;
+        const score = Math.round((correctAnswers / quiz.questions.length) * 100);
+        const totalTimeSpent = answers.reduce((total, answer) => total + answer.timeSpent, 0);
+
+        setQuizResult({
+          id: `error_${Date.now()}`,
+          quizId: quiz.id,
+          title: quiz.title,
+          score,
+          correctAnswers,
+          totalQuestions: quiz.questions.length,
+          completedAt: new Date().toISOString(),
+          timeSpent: totalTimeSpent,
+          difficulty: quiz.difficulty,
+          category: quiz.category,
+        });
+      }
+
+      // Reset animation for results screen
+      setTimeout(() => {
+        fadeAnim.setValue(0);
+        slideAnim.setValue(50);
+        Animated.parallel([
+          Animated.timing(fadeAnim, {
+            toValue: 1,
+            duration: 500,
+            useNativeDriver: true,
+          }),
+          Animated.timing(slideAnim, {
+            toValue: 0,
+            duration: 500,
+            useNativeDriver: true,
+          }),
+        ]).start();
+      }, 100);
     }
   };
 
