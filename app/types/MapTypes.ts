@@ -193,6 +193,10 @@ export interface PlacePhoto {
 
 export interface VisitedPlaceDetails extends Place {
   visitedAt: string;
+  placeType?: string;
+  tags?: string[];
+  visitDate?: string;
+  location?: string;
 }
 
 // Cache statistics response interface

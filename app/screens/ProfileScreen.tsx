@@ -28,6 +28,9 @@ import { fetchUserStats, fetchUserLevelInfo } from "../services/statsService";
 import { fetchUserProfile, UserProfile } from "../services/userService";
 import { EXPLORATION_LEVELS } from "../types/StatTypes";
 import { StatItem } from "../types/StatTypes";
+import BadgesSection from "../components/LearnScreen/BadgesSection";
+import { TravelBadge, TravelProfile } from "../types/LearnScreen/TravelProfileTypes";
+import { getAllUserBadges } from "../services/LearnScreen/badgeService";
 
 const { width, height } = Dimensions.get("window");
 
@@ -46,6 +49,8 @@ const ProfileScreen = () => {
     xpNeeded: 100,
     xpProgress: 0,
   });
+  const [badgesView, setBadgesView] = useState<"earned" | "progress">("earned");
+  const [badges, setBadges] = useState<TravelBadge[]>([]);
 
   // User profile state
   const [userProfile, setUserProfile] = useState<UserProfile & { joinDate: string }>({
@@ -146,6 +151,88 @@ const ProfileScreen = () => {
     return meaningfulStats.slice(0, count);
   }, []);
 
+  // Helper functions for badge handling - follow the pattern from TravelProfileScreen
+  const getCompletedBadges = (): TravelBadge[] => {
+    return badges.filter((badge) => badge.completed);
+  };
+
+  const getInProgressBadges = (): TravelBadge[] => {
+    // Get badges in progress
+    const inProgressBadges = badges.filter((badge) => !badge.completed);
+
+    // Limit in-progress badges to prevent overwhelming display
+    return inProgressBadges.slice(0, 4);
+  };
+
+  // Create a simplified travel profile
+  const travelProfile: TravelProfile = {
+    type: levelInfo.title,
+    level: levelInfo.level.toString(),
+    description: "Your personal travel journey",
+    streak: 0,
+    visitFrequency: {
+      weekdays: {
+        most: "Weekends",
+        percentage: 60,
+        insight: "You tend to explore more on weekends",
+      },
+      timeOfDay: {
+        most: "Afternoon",
+        percentage: 70,
+        insight: "Afternoon adventures are your preferred time to explore",
+      },
+      season: {
+        most: "Summer",
+        percentage: 50,
+        insight: "Summer seems to be your favorite time to travel",
+      },
+    },
+    visitation: {
+      averageDuration: "2 hours",
+      averageDistance: "5 km",
+      mostVisitedCity: "Unknown",
+    },
+    patterns: ["Weekend Explorer", "Cultural Enthusiast"],
+    preferences: {
+      categories: [],
+      architecturalStyles: [],
+      activities: [],
+    },
+    recentInsights: [],
+    explorationScore: levelInfo.xp,
+    isGenerating: false,
+  };
+
+  // Function to fetch all badges - similar to what's in TravelProfileScreen
+  const fetchAllBadges = async () => {
+    try {
+      // Get all badges from the service
+      const allBadges = await getAllUserBadges();
+      setBadges(allBadges);
+    } catch (err) {
+      console.error("Error fetching all badges:", err);
+
+      // Fallback: create dummy badges from userData if the service fails
+      const dummyBadges: TravelBadge[] = userData.achievements.map((achievement) => ({
+        id: achievement.id.toString(),
+        name: achievement.title,
+        description: achievement.description,
+        icon: achievement.icon,
+        completed: achievement.completed,
+        dateEarned: achievement.completed ? new Date() : new Date(0),
+        requirements: [
+          {
+            type: "visitCount",
+            value: 10,
+            current: achievement.completed ? 10 : 5,
+          },
+        ],
+      }));
+
+      setBadges(dummyBadges);
+    }
+  };
+
   // Navigate to the journey screen with all stats
   const navigateToJourneyScreen = () => {
     // Include all stats, even those with zero values
@@ -214,6 +301,9 @@ const ProfileScreen = () => {
         setDisplayedStats([]);
       }
     };
+
+    // Fetch badges
+    fetchAllBadges();
 
     // Load both user profile and stats
     loadUserProfile();
@@ -360,6 +450,10 @@ const ProfileScreen = () => {
           </TouchableOpacity>
         }
         customStyles={styles.header}
+        onHelpPress={function (): void {
+          throw new Error("Function not implemented.");
+        }}
+        showHelp={false}
       />
 
       <ScrollView
@@ -540,78 +634,16 @@ const ProfileScreen = () => {
           </View>
         </View>
 
-        {/* Achievements Section */}
-        <View style={styles.sectionContainer}>
-          <View style={styles.sectionTitleContainer}>
-            <View style={styles.sectionTitleLeft}>
-              <Ionicons name="trophy" size={20} color={Colors.primary} style={styles.sectionIcon} />
-              <Text style={styles.sectionTitle}>Achievements</Text>
-            </View>
-          </View>
+        {/* Badges Section */}
 
-          <View style={styles.achievementsContainer}>
-            {userData.achievements.map((achievement, index) => (
-              <Animated.View
-                key={achievement.id}
-                style={[
-                  {
-                    opacity: fadeIn,
-                    transform: [
-                      {
-                        translateY: translateY.interpolate({
-                          inputRange: [0, 1],
-                          outputRange: [0, 15 * index],
-                        }),
-                      },
-                    ],
-                  },
-                ]}
-              >
-                <View style={styles.achievementItem}>
-                  <LinearGradient
-                    colors={
-                      achievement.completed
-                        ? [Colors.primary, Colors.primary + "80"]
-                        : ["#BDC3C7", "#95A5A6"]
-                    }
-                    style={[
-                      styles.achievementIconContainer,
-                      achievement.completed ? null : styles.achievementIconDisabled,
-                    ]}
-                  >
-                    <FontAwesome5 name={achievement.icon} size={18} color={"#fff"} />
-                  </LinearGradient>
-                  <View style={styles.achievementDetails}>
-                    <Text
-                      style={[
-                        styles.achievementTitle,
-                        achievement.completed ? null : styles.achievementTitleDisabled,
-                      ]}
-                    >
-                      {achievement.title}
-                    </Text>
-                    <Text
-                      style={[
-                        styles.achievementDescription,
-                        achievement.completed ? null : styles.achievementDescriptionDisabled,
-                      ]}
-                    >
-                      {achievement.description}
-                    </Text>
-                  </View>
-                  {achievement.completed ? (
-                    <View style={styles.achievementCompletedBadge}>
-                      <Ionicons name="checkmark-circle" size={22} color={Colors.primary} />
-                    </View>
-                  ) : (
-                    <View style={styles.achievementLockedBadge}>
-                      <Ionicons name="lock-closed" size={18} color={NeutralColors.gray400} />
-                    </View>
-                  )}
-                </View>
-              </Animated.View>
-            ))}
-          </View>
+        <View style={styles.badgesSectionWrapper}>
+          <BadgesSection
+            completedBadges={getCompletedBadges()}
+            inProgressBadges={getInProgressBadges()}
+            badgesView={badgesView}
+            setBadgesView={setBadgesView}
+            profile={travelProfile}
+          />
         </View>
 
         {/* Logout button at the bottom */}
@@ -721,7 +753,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-
+  badgesSectionWrapper: {
+    marginHorizontal: -16,
+  },
   // Content
   scrollView: {
     flex: 1,

@@ -17,4 +17,18 @@ export type RootStackParamList = {
     placeId: string;
     place?: Place | VisitedPlaceDetails;
   };
+  TravelProfile: undefined;
+  Phrasebook: {
+    visitedPlaces: VisitedPlaceDetails[];
+    phrases?: any[];
+  };
+  CulturalContext: {
+    visitedPlaces: VisitedPlaceDetails[];
+    region?: string;
+  };
+  AdvancedTravelAnalysis: undefined;
+  KnowledgeQuestScreen: undefined;
+  QuizSession: {
+    quizId: string;
+  };
 };

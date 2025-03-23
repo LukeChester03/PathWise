@@ -1,4 +1,4 @@
-// components/Home/DiscoveredLocationsSection.js
+// components/HomeScreen/DiscoveredLocationsSection.tsx
 import React, { useState, useEffect, useRef } from "react";
 import {
   View,
@@ -16,31 +16,57 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { getVisitedPlaces } from "../../controllers/Map/visitedPlacesController";
-import { useNavigation } from "expo-router";
 import { Colors } from "../../constants/colours";
 
 const { width } = Dimensions.get("window");
 const LOCATION_CARD_WIDTH = width * 0.42; // Slightly wider cards
-const SPACING = 12;
+const SPACING = 10; // Reduced from 12 to tighten layout
 
-const DiscoveredLocationsSection = ({ navigateToScreen }) => {
-  const [discoveredLocations, setDiscoveredLocations] = useState([]);
+interface DiscoveredLocationsSectionProps {
+  navigateToScreen: (screenName: string, params?: any) => void;
+}
+
+interface PlaceData {
+  id: string;
+  name: string;
+  city: string;
+  image: string;
+  date: string;
+  placeData: any;
+  rating: number | null;
+}
+
+const DiscoveredLocationsSection: React.FC<DiscoveredLocationsSectionProps> = ({
+  navigateToScreen,
+}) => {
+  const [discoveredLocations, setDiscoveredLocations] = useState<PlaceData[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const navigation = useNavigation();
+  const [error, setError] = useState<string | null>(null);
 
   // Animation values
   const fadeAnimation = useRef(new Animated.Value(0)).current;
   const slideAnimation = useRef(new Animated.Value(30)).current;
   const scaleAnimation = useRef(new Animated.Value(0.9)).current;
   const loadingAnimation = useRef(new Animated.Value(0)).current;
+  const headerAnimation = useRef(new Animated.Value(0)).current;
 
   // Scroll handling for location cards
   const scrollX = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     fetchUserDiscoveredLocations();
-    fadeAnimation.setValue(0.6);
+
+    // Start animations
+    Animated.timing(headerAnimation, {
+      toValue: 1,
+      duration: 800,
+      useNativeDriver: true,
+      easing: Easing.out(Easing.cubic),
+    }).start();
+
+    // Start with higher initial opacity (1 instead of 0.6)
+    fadeAnimation.setValue(1);
+
     // Start the entrance animations
     Animated.parallel([
       Animated.timing(fadeAnimation, {
@@ -143,7 +169,7 @@ const DiscoveredLocationsSection = ({ navigateToScreen }) => {
   };
 
   // Helper function to format visit date
-  const formatVisitDate = (visitedAt) => {
+  const formatVisitDate = (visitedAt: string | number | Date | undefined) => {
     if (!visitedAt) return "Unknown date";
 
     try {
@@ -177,7 +203,13 @@ const DiscoveredLocationsSection = ({ navigateToScreen }) => {
     }
   };
 
-  const renderLocationCard = ({ item, index }) => {
+  const renderLocationCard = ({
+    item,
+    index,
+  }: {
+    item: PlaceData | { id: string };
+    index: number;
+  }) => {
     // For the "View All" card at the end
     if (item.id === "ViewAll") {
       // Animation for the view-all card
@@ -186,7 +218,7 @@ const DiscoveredLocationsSection = ({ navigateToScreen }) => {
           (discoveredLocations.length - 1) * (LOCATION_CARD_WIDTH + SPACING) - width,
           (discoveredLocations.length - 0.5) * (LOCATION_CARD_WIDTH + SPACING) - width,
         ],
-        outputRange: [0.6, 1],
+        outputRange: [0.9, 1], // Increased minimum opacity from 0.6 to 0.9
         extrapolate: "clamp",
       });
 
@@ -201,7 +233,7 @@ const DiscoveredLocationsSection = ({ navigateToScreen }) => {
                     (discoveredLocations.length - 1) * (LOCATION_CARD_WIDTH + SPACING) - width,
                     discoveredLocations.length * (LOCATION_CARD_WIDTH + SPACING) - width,
                   ],
-                  outputRange: [0.92, 1],
+                  outputRange: [0.95, 1], // Increased minimum scale from 0.92 to 0.95
                   extrapolate: "clamp",
                 }),
               },
@@ -210,7 +242,7 @@ const DiscoveredLocationsSection = ({ navigateToScreen }) => {
         >
           <TouchableOpacity
             style={styles.viewAllCard}
-            onPress={() => navigateToScreen("ViewAll")}
+            onPress={() => navigateToScreen("ViewAll", { viewType: "myPlaces" })}
             activeOpacity={0.9}
           >
             <LinearGradient
@@ -288,6 +320,8 @@ const DiscoveredLocationsSection = ({ navigateToScreen }) => {
       );
     }
 
+    const typedItem = item as PlaceData;
+
     // Calculate input range for animations
     const inputRange = [
       (index - 1) * (LOCATION_CARD_WIDTH + SPACING),
@@ -295,46 +329,53 @@ const DiscoveredLocationsSection = ({ navigateToScreen }) => {
       (index + 1) * (LOCATION_CARD_WIDTH + SPACING),
     ];
 
+    // Fixed opacity animation - increased minimum opacity from 0.7 to 0.9
     const opacity = scrollX.interpolate({
       inputRange,
-      outputRange: [0.7, 1, 0.7],
+      outputRange: [0.9, 1, 0.9],
       extrapolate: "clamp",
     });
 
+    // Fixed scale animation - increased minimum scale from 0.92 to 0.96
     const scale = scrollX.interpolate({
       inputRange,
-      outputRange: [0.92, 1, 0.92],
+      outputRange: [0.96, 1, 0.96],
       extrapolate: "clamp",
     });
 
+    // Reduced vertical movement to make it more subtle
     const translateY = scrollX.interpolate({
       inputRange,
-      outputRange: [7, 0, 7],
+      outputRange: [4, 0, 4], // Reduced from [7, 0, 7] to [4, 0, 4]
       extrapolate: "clamp",
     });
 
     return (
       <Animated.View
         style={{
-          opacity: Animated.multiply(fadeAnimation, opacity),
+          // Use opacity directly instead of multiplying with fadeAnimation
+          opacity: opacity,
           transform: [{ scale }, { translateY }],
         }}
       >
         <TouchableOpacity
           style={styles.locationCard}
           onPress={() =>
-            navigateToScreen("PlaceDetails", { placeId: item.id, placeData: item.placeData })
+            navigateToScreen("PlaceDetails", {
+              placeId: typedItem.id,
+              placeData: typedItem.placeData,
+            })
           }
           activeOpacity={0.9}
         >
-          <Image source={{ uri: item.image }} style={styles.locationImage} />
+          <Image source={{ uri: typedItem.image }} style={styles.locationImage} />
           <LinearGradient
             colors={["transparent", "rgba(0,0,0,0.9)"]}
             style={styles.locationGradient}
           />
 
           {/* Rating badge with animation if available */}
-          {item.rating && (
+          {typedItem.rating && (
             <Animated.View
               style={[
                 styles.ratingBadge,
@@ -351,22 +392,22 @@ const DiscoveredLocationsSection = ({ navigateToScreen }) => {
               ]}
             >
               <Ionicons name="star" size={12} color="#FFD700" style={{ marginRight: 2 }} />
-              <Text style={styles.ratingText}>{item.rating.toFixed(1)}</Text>
+              <Text style={styles.ratingText}>{typedItem.rating.toFixed(1)}</Text>
             </Animated.View>
           )}
 
           <View style={styles.locationInfo}>
             <Text style={styles.locationName} numberOfLines={1} ellipsizeMode="tail">
-              {item.name}
+              {typedItem.name}
             </Text>
             <View style={styles.locationMeta}>
               <Text style={styles.locationCity} numberOfLines={1} ellipsizeMode="tail">
-                {item.city}
+                {typedItem.city}
               </Text>
             </View>
             <View style={styles.dateContainer}>
               <Ionicons name="time-outline" size={10} color="#fff" style={{ marginRight: 2 }} />
-              <Text style={styles.dateText}>{item.date}</Text>
+              <Text style={styles.dateText}>{typedItem.date}</Text>
             </View>
           </View>
         </TouchableOpacity>
@@ -469,7 +510,7 @@ const DiscoveredLocationsSection = ({ navigateToScreen }) => {
             </View>
           </View>
 
-          {/* "Click to explore" text at the bottom - FIXED to use scaleX instead of width */}
+          {/* "Click to explore" text at the bottom */}
           <Animated.View
             style={[
               styles.clickPromptContainer,
@@ -494,7 +535,6 @@ const DiscoveredLocationsSection = ({ navigateToScreen }) => {
                       }),
                     },
                   ],
-                  transformOrigin: "left", // Make it grow from left to right
                 },
               ]}
             />
@@ -512,7 +552,6 @@ const DiscoveredLocationsSection = ({ navigateToScreen }) => {
                       }),
                     },
                   ],
-                  transformOrigin: "right", // Make it grow from right to left
                 },
               ]}
             />
@@ -637,23 +676,25 @@ const DiscoveredLocationsSection = ({ navigateToScreen }) => {
         },
       ]}
     >
-      <Animated.Text
+      <Animated.View
         style={[
-          styles.sectionTitle,
+          styles.sectionHeader,
           {
+            opacity: headerAnimation,
             transform: [
               {
-                translateX: slideAnimation.interpolate({
-                  inputRange: [0, 30],
-                  outputRange: [0, -20],
+                translateX: headerAnimation.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [-20, 0],
                 }),
               },
             ],
           },
         ]}
       >
-        Discovered Locations
-      </Animated.Text>
+        <Ionicons name="location-outline" size={22} color={Colors.primary} />
+        <Text style={styles.sectionTitle}>Discovered Locations</Text>
+      </Animated.View>
       {renderContent()}
     </Animated.View>
   );
@@ -661,25 +702,28 @@ const DiscoveredLocationsSection = ({ navigateToScreen }) => {
 
 const styles = StyleSheet.create({
   locationsContainer: {
-    marginTop: 16,
-    marginBottom: 24,
-    paddingHorizontal: 16, // Add proper padding to container
+    marginVertical: 10, // Standardized margin
     width: "100%",
   },
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 12,
+    paddingLeft: 4,
+  },
   sectionTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: Colors.text,
-    marginBottom: 16,
-    paddingLeft: 4, // Ensure title is properly visible
+    fontSize: 18, // Standardized font size
+    fontWeight: "600", // Standardized font weight
+    color: Colors.text || "#333", // Consistent color with fallback
+    marginLeft: 8,
   },
   locationsCarousel: {
-    paddingVertical: 8,
+    paddingVertical: 6, // Reduced from 8 to 6
     paddingRight: SPACING,
   },
   locationCard: {
     width: LOCATION_CARD_WIDTH,
-    height: 170, // Slightly shorter cards
+    height: 165, // Reduced from 170 to 165
     marginRight: SPACING,
     borderRadius: 16,
     overflow: "hidden",
@@ -696,7 +740,7 @@ const styles = StyleSheet.create({
       },
     }),
     borderWidth: 1,
-    borderColor: "rgba(0,0,0,0.05)", // Subtle border for definition
+    borderColor: "rgba(0,0,0,0.05)",
   },
   locationImage: {
     width: "100%",
@@ -708,14 +752,14 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    height: "65%", // Cover more of the image for better text readability
+    height: "65%",
   },
   locationInfo: {
     position: "absolute",
     bottom: 0,
     left: 0,
     right: 0,
-    padding: 12,
+    padding: 10, // Reduced from 12 to 10
   },
   locationName: {
     fontSize: 15,
@@ -736,7 +780,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#fff",
     opacity: 0.9,
-    flex: 1, // Allow text to take available space
+    flex: 1,
   },
   dateContainer: {
     flexDirection: "row",
@@ -771,7 +815,7 @@ const styles = StyleSheet.create({
   },
   viewAllCard: {
     width: LOCATION_CARD_WIDTH,
-    height: 170,
+    height: 165, // Reduced from 170 to 165
     marginRight: SPACING,
     borderRadius: 16,
     overflow: "hidden",
@@ -832,14 +876,14 @@ const styles = StyleSheet.create({
   },
   viewAllContent: {
     alignItems: "center",
-    padding: 16,
+    padding: 14, // Reduced from 16 to 14
     zIndex: 1,
   },
   viewAllText: {
     fontSize: 18,
     fontWeight: "bold",
     color: "#fff",
-    marginTop: 12,
+    marginTop: 10, // Reduced from 12 to 10
     marginBottom: 4,
   },
   viewAllSubtext: {
@@ -852,7 +896,7 @@ const styles = StyleSheet.create({
   // Empty state styles (with animation enhancements)
   emptyStateCard: {
     width: "100%",
-    height: 170,
+    height: 165, // Reduced from 170 to 165
     borderRadius: 16,
     backgroundColor: "#ffffff",
     overflow: "hidden",
@@ -875,7 +919,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     width: "100%",
-    paddingHorizontal: 24,
+    paddingHorizontal: 20, // Reduced from 24 to 20
     zIndex: 1,
     height: "100%",
   },
@@ -893,7 +937,7 @@ const styles = StyleSheet.create({
   },
   middleContainer: {
     flex: 1,
-    paddingHorizontal: 16,
+    paddingHorizontal: 14, // Reduced from 16 to 14
   },
   emptyStateTitle: {
     fontSize: 18,
@@ -920,7 +964,7 @@ const styles = StyleSheet.create({
   },
   clickPromptContainer: {
     position: "absolute",
-    bottom: 16,
+    bottom: 14, // Reduced from 16 to 14
     left: 0,
     right: 0,
     flexDirection: "row",
@@ -942,7 +986,7 @@ const styles = StyleSheet.create({
 
   // Loading state styles
   loadingContainer: {
-    height: 170,
+    height: 165, // Reduced from 170 to 165
     justifyContent: "center",
     alignItems: "center",
     backgroundColor: "#f9f9f9",
@@ -957,12 +1001,12 @@ const styles = StyleSheet.create({
 
   // Error state styles
   errorContainer: {
-    height: 170,
+    height: 165, // Reduced from 170 to 165
     justifyContent: "center",
     alignItems: "center",
     backgroundColor: "#f9f9f9",
     borderRadius: 16,
-    padding: 20,
+    padding: 18, // Reduced from 20 to 18
     width: "100%",
   },
   errorText: {
@@ -970,7 +1014,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#666",
     textAlign: "center",
-    marginBottom: 14,
+    marginBottom: 12, // Reduced from 14 to 12
   },
   retryButton: {
     backgroundColor: "#d03f74",

@@ -23,6 +23,7 @@ interface ExploreCardProps {
   travelTime: string | null;
   onStartJourney: () => void;
   onCancel: () => void;
+  onViewMoreInfo?: () => void; // New prop for navigation to PlaceDetails
   visible?: boolean;
   travelMode?: TravelMode;
   rating?: number | string;
@@ -39,6 +40,7 @@ const ExploreCard: React.FC<ExploreCardProps> = ({
   travelTime,
   onStartJourney,
   onCancel,
+  onViewMoreInfo,
   visible = false,
   travelMode = "walking", // Default to walking if not provided
   rating = 0,
@@ -61,6 +63,7 @@ const ExploreCard: React.FC<ExploreCardProps> = ({
   const contentAnim = useRef(new Animated.Value(0)).current;
   const primaryButtonScale = useRef(new Animated.Value(1)).current;
   const secondaryButtonScale = useRef(new Animated.Value(1)).current;
+  const infoButtonScale = useRef(new Animated.Value(1)).current; // New animation for info button
   const badgePulse = useRef(new Animated.Value(1)).current;
   const descriptionAnim = useRef(new Animated.Value(0)).current;
   const rotateAnim = useRef(new Animated.Value(0)).current;
@@ -78,6 +81,7 @@ const ExploreCard: React.FC<ExploreCardProps> = ({
       imageOpacity.setValue(0);
       primaryButtonScale.setValue(1);
       secondaryButtonScale.setValue(1);
+      infoButtonScale.setValue(1); // Reset info button scale
 
       // Animation sequence - all completed in under a second
       Animated.sequence([
@@ -186,9 +190,35 @@ const ExploreCard: React.FC<ExploreCardProps> = ({
     }).start();
   };
 
+  // Handle info button press animations
+  const handleInfoPressIn = () => {
+    Animated.spring(infoButtonScale, {
+      toValue: 0.95,
+      friction: 8,
+      tension: 100,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const handleInfoPressOut = () => {
+    Animated.spring(infoButtonScale, {
+      toValue: 1,
+      friction: 8,
+      tension: 100,
+      useNativeDriver: true,
+    }).start();
+  };
+
   // Handle start journey
   const handleStartJourney = () => {
     animateOut(() => onStartJourney());
+  };
+
+  // Handle view more info
+  const handleViewMoreInfo = () => {
+    if (onViewMoreInfo) {
+      animateOut(() => onViewMoreInfo());
+    }
   };
 
   // Handle dismiss
@@ -439,31 +469,40 @@ const ExploreCard: React.FC<ExploreCardProps> = ({
             </TouchableOpacity>
           </Animated.View>
 
-          {/* Maybe Later Button */}
-          <Animated.View
-            style={{
-              transform: [
-                { scale: secondaryButtonScale },
-                {
-                  translateY: contentAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [10, 0],
-                  }),
-                },
-              ],
-              opacity: contentAnim,
-            }}
-          >
-            {/* <TouchableOpacity
-              style={styles.secondaryButton}
-              onPress={handleDismiss}
-              onPressIn={handleSecondaryPressIn}
-              onPressOut={handleSecondaryPressOut}
-              activeOpacity={0.8}
+          {/* View More Info Button */}
+          {onViewMoreInfo && (
+            <Animated.View
+              style={{
+                transform: [
+                  { scale: infoButtonScale },
+                  {
+                    translateY: contentAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [10, 0],
+                    }),
+                  },
+                ],
+                opacity: contentAnim,
+                marginBottom: 12,
+              }}
             >
-              <Text style={styles.secondaryButtonText}>Maybe Later</Text>
-            </TouchableOpacity> */}
-          </Animated.View>
+              <TouchableOpacity
+                style={styles.secondaryButton}
+                onPress={handleViewMoreInfo}
+                onPressIn={handleInfoPressIn}
+                onPressOut={handleInfoPressOut}
+                activeOpacity={0.8}
+              >
+                <Ionicons
+                  name="information-circle"
+                  size={18}
+                  color={Colors.primary}
+                  style={styles.buttonIcon}
+                />
+                <Text style={styles.secondaryButtonText}>View More Info</Text>
+              </TouchableOpacity>
+            </Animated.View>
+          )}
         </View>
       </Animated.View>
     </Animated.View>
@@ -474,7 +513,7 @@ const styles = StyleSheet.create({
   cardContainer: {
     width: width * 0.9,
     maxWidth: 400,
-    maxHeight: height - (HEADER_HEIGHT + NAVBAR_HEIGHT + (StatusBar.currentHeight ?? 0)) - 80,
+    maxHeight: height - (HEADER_HEIGHT + NAVBAR_HEIGHT + (StatusBar.currentHeight ?? 0)) - 162,
     backgroundColor: "white",
     borderRadius: 16,
     overflow: "hidden",
@@ -482,7 +521,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.3,
     shadowRadius: 20,
-    elevation: 15,
+    elevation: 24,
   },
   closeButton: {
     position: "absolute",
@@ -570,7 +609,7 @@ const styles = StyleSheet.create({
     marginLeft: 4,
   },
   contentContainer: {
-    padding: 20,
+    padding: 16,
   },
   descriptionContainer: {
     backgroundColor: NeutralColors.gray100,
@@ -662,6 +701,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingVertical: 12,
     borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 16,
+    borderColor: Colors.primary,
   },
   buttonIcon: {
     marginRight: 8,
@@ -672,7 +714,7 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   secondaryButtonText: {
-    color: NeutralColors.gray500,
+    color: Colors.primary,
     fontSize: 16,
     fontWeight: "500",
   },

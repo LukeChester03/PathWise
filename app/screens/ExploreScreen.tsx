@@ -663,43 +663,6 @@ const ExploreScreen: React.FC<ExploreScreenProps> = ({ navigation }) => {
     );
   };
 
-  const renderSavedPlacesSection = (): JSX.Element => {
-    if (loadingMyPlaces) {
-      return renderLoadingState("Loading your places...");
-    }
-
-    return (
-      <>
-        <View style={styles.sectionHeader}>
-          <View style={styles.sectionTitleContainer}>
-            <Ionicons name="bookmark" size={22} color={Colors.primary} style={styles.sectionIcon} />
-            <Text style={styles.sectionTitle}>Saved Places</Text>
-          </View>
-          {myPlaces.length > 0 && (
-            <TouchableOpacity
-              onPress={() => navigateToViewAll("myPlaces")}
-              style={styles.viewAllButton}
-            >
-              <Text style={styles.viewAllText}>View All</Text>
-              <Ionicons name="chevron-forward" size={14} color={Colors.primary} />
-            </TouchableOpacity>
-          )}
-        </View>
-
-        {noMyPlacesFound || myPlaces.length === 0 ? (
-          renderEmptyState(
-            "You haven't discovered any places yet. Start your journey by exploring new destinations!",
-            "footsteps-outline",
-            navigateToDiscover,
-            "Start Exploring"
-          )
-        ) : (
-          <PlacesCarousel places={myPlaces} onPlacePress={navigateToPlaceDetails} />
-        )}
-      </>
-    );
-  };
-
   const renderMyPlacesSection = (): JSX.Element => {
     if (loadingMyPlaces) {
       return renderLoadingState("Loading your places...");
@@ -777,73 +740,6 @@ const ExploreScreen: React.FC<ExploreScreenProps> = ({ navigation }) => {
     );
   };
 
-  const renderFeaturedSection = (): JSX.Element => {
-    return (
-      <>
-        <View style={styles.sectionHeader}>
-          <View style={styles.sectionTitleContainer}>
-            <Ionicons name="star" size={22} color={Colors.primary} style={styles.sectionIcon} />
-            <Text style={styles.sectionTitle}>Popular Destinations</Text>
-          </View>
-        </View>
-
-        <View style={styles.featuredGrid}>
-          <TouchableOpacity style={styles.featuredItem} onPress={navigateToDiscover}>
-            <Image
-              source={{ uri: "https://source.unsplash.com/random/?city" }}
-              style={styles.featuredImage}
-            />
-            <LinearGradient
-              colors={["transparent", "rgba(0,0,0,0.8)"]}
-              style={styles.featuredGradient}
-            >
-              <Text style={styles.featuredTitle}>Cities</Text>
-            </LinearGradient>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.featuredItem} onPress={navigateToDiscover}>
-            <Image
-              source={{ uri: "https://source.unsplash.com/random/?nature" }}
-              style={styles.featuredImage}
-            />
-            <LinearGradient
-              colors={["transparent", "rgba(0,0,0,0.8)"]}
-              style={styles.featuredGradient}
-            >
-              <Text style={styles.featuredTitle}>Nature</Text>
-            </LinearGradient>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.featuredItem} onPress={navigateToDiscover}>
-            <Image
-              source={{ uri: "https://source.unsplash.com/random/?beach" }}
-              style={styles.featuredImage}
-            />
-            <LinearGradient
-              colors={["transparent", "rgba(0,0,0,0.8)"]}
-              style={styles.featuredGradient}
-            >
-              <Text style={styles.featuredTitle}>Beaches</Text>
-            </LinearGradient>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.featuredItem} onPress={navigateToDiscover}>
-            <Image
-              source={{ uri: "https://source.unsplash.com/random/?mountain" }}
-              style={styles.featuredImage}
-            />
-            <LinearGradient
-              colors={["transparent", "rgba(0,0,0,0.8)"]}
-              style={styles.featuredGradient}
-            >
-              <Text style={styles.featuredTitle}>Mountains</Text>
-            </LinearGradient>
-          </TouchableOpacity>
-        </View>
-      </>
-    );
-  };
-
   const renderContent = (): JSX.Element => {
     // Show only the loading state when both are loading
     if (loading && loadingMyPlaces) {
@@ -903,15 +799,8 @@ const ExploreScreen: React.FC<ExploreScreenProps> = ({ navigation }) => {
 
         {/* My Places Section */}
         <View style={styles.sectionContainer}>{renderMyPlacesSection()}</View>
-
-        {/* Saved Places Section */}
-        <View style={styles.sectionContainer}>{renderSavedPlacesSection()}</View>
-
         {/* Nearby Places Section */}
         <View style={styles.sectionContainer}>{renderNearbyPlacesSection()}</View>
-
-        {/* Featured Destinations Section */}
-        <View style={styles.sectionContainer}>{renderFeaturedSection()}</View>
       </ScrollView>
     );
   };
@@ -933,19 +822,18 @@ const ExploreScreen: React.FC<ExploreScreenProps> = ({ navigation }) => {
   return (
     <ScreenWithNavBar>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+      <Header
+        title="Places"
+        subtitle="Discover new places around you"
+        showIcon={true}
+        iconName="compass"
+        iconColor={Colors.primary}
+        customStyles={styles.headerCustomStyles}
+        onHelpPress={handleHelpPress}
+        showHelp={false}
+      />
       <SafeAreaView style={styles.container}>
         {/* Enhanced Header with subtitle and icon */}
-        <Header
-          title="Places"
-          subtitle="Discover new places around you"
-          showIcon={true}
-          iconName="compass"
-          iconColor={Colors.primary}
-          rightComponent={headerRightComponent}
-          customStyles={styles.headerCustomStyles}
-          onHelpPress={handleHelpPress}
-          showHelp={false}
-        />
 
         {/* Getting Started Modal */}
         <GettingStartedModal

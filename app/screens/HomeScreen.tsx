@@ -1,3 +1,4 @@
+// HomeScreen.tsx - Refined layout with consistent spacing and headers
 import React, { useState, useEffect, useRef } from "react";
 import {
   SafeAreaView,
@@ -11,6 +12,8 @@ import {
   Text,
   TouchableOpacity,
   Image,
+  ImageBackground,
+  Dimensions,
 } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { Ionicons, MaterialCommunityIcons, FontAwesome5 } from "@expo/vector-icons";
@@ -23,8 +26,12 @@ import DiscoveredLocationsSection from "../components/HomeScreen/DiscoveredLocat
 import FeaturesSection from "../components/HomeScreen/FeaturesSection";
 import JourneyInspiration from "../components/HomeScreen/JourneyInspiration";
 import JourneyIntroOverlay from "../components/HomeScreen/JourneyIntroOverlay";
+import ActionCards from "../components/HomeScreen/ActionCards";
+import QuickActions from "../components/HomeScreen/QuickActions";
 import { fetchUserProfile } from "../services/userService";
 import { auth } from "../config/firebaseConfig";
+
+const { width, height } = Dimensions.get("window");
 
 // TypeScript interfaces
 interface NavigationParams {
@@ -37,9 +44,11 @@ interface JourneyTip {
   icon: string;
 }
 
-// Onboarding Tips Component
+// Refined Onboarding Tips Component with consistent section header
 const OnboardingTips: React.FC = () => {
   const [currentTipIndex, setCurrentTipIndex] = useState(0);
+  const fadeAnim = useRef(new Animated.Value(1)).current;
+  const slideAnim = useRef(new Animated.Value(0)).current;
 
   const tips: JourneyTip[] = [
     {
@@ -66,12 +75,47 @@ const OnboardingTips: React.FC = () => {
     },
   ];
 
+  const animateToNextTip = (nextIndex: number) => {
+    // Animation implementation (unchanged)
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: -100,
+        duration: 250,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      setCurrentTipIndex(nextIndex);
+      slideAnim.setValue(100);
+
+      Animated.parallel([
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 250,
+          useNativeDriver: true,
+        }),
+        Animated.timing(slideAnim, {
+          toValue: 0,
+          duration: 300,
+          useNativeDriver: true,
+          easing: Easing.out(Easing.cubic),
+        }),
+      ]).start();
+    });
+  };
+
   const nextTip = () => {
-    setCurrentTipIndex((prevIndex) => (prevIndex + 1) % tips.length);
+    const nextIndex = (currentTipIndex + 1) % tips.length;
+    animateToNextTip(nextIndex);
   };
 
   const prevTip = () => {
-    setCurrentTipIndex((prevIndex) => (prevIndex - 1 + tips.length) % tips.length);
+    const nextIndex = (currentTipIndex - 1 + tips.length) % tips.length;
+    animateToNextTip(nextIndex);
   };
 
   const currentTip = tips[currentTipIndex];
@@ -84,19 +128,27 @@ const OnboardingTips: React.FC = () => {
       </View>
 
       <View style={styles.tipCardContainer}>
-        <TouchableOpacity style={styles.tipNavButton} onPress={prevTip}>
+        <TouchableOpacity style={styles.tipNavButton} onPress={prevTip} activeOpacity={0.7}>
           <Ionicons name="chevron-back" size={22} color="#888" />
         </TouchableOpacity>
 
-        <View style={styles.tipCard}>
+        <Animated.View
+          style={[
+            styles.tipCard,
+            {
+              opacity: fadeAnim,
+              transform: [{ translateX: slideAnim }],
+            },
+          ]}
+        >
           <View style={styles.tipIconContainer}>
             <Ionicons name={currentTip.icon} size={24} color={Colors.primary} />
           </View>
           <Text style={styles.tipTitle}>{currentTip.title}</Text>
           <Text style={styles.tipDescription}>{currentTip.description}</Text>
-        </View>
+        </Animated.View>
 
-        <TouchableOpacity style={styles.tipNavButton} onPress={nextTip}>
+        <TouchableOpacity style={styles.tipNavButton} onPress={nextTip} activeOpacity={0.7}>
           <Ionicons name="chevron-forward" size={22} color="#888" />
         </TouchableOpacity>
       </View>
@@ -116,7 +168,7 @@ const OnboardingTips: React.FC = () => {
   );
 };
 
-// Enhanced HomeScreen component with new journey-focused sections
+// Enhanced HomeScreen component with consistent spacing and headers
 const HomeScreen: React.FC = () => {
   const navigation = useNavigation();
   const route = useRoute();
@@ -131,21 +183,40 @@ const HomeScreen: React.FC = () => {
   const scrollY = useRef<Animated.Value>(new Animated.Value(0)).current;
   const loadingAnim = useRef<Animated.Value>(new Animated.Value(0)).current;
 
+  // Hero image parallax effect
+  const heroTranslateY = scrollY.interpolate({
+    inputRange: [0, 200],
+    outputRange: [0, -50],
+    extrapolate: "clamp",
+  });
+
+  const heroScale = scrollY.interpolate({
+    inputRange: [0, 200],
+    outputRange: [1, 1.1],
+    extrapolate: "clamp",
+  });
+
   // Refs to control staggered animations of sections
   const sections: {
+    hero: Animated.Value;
     header: Animated.Value;
+    action: Animated.Value;
     stats: Animated.Value;
-    inspiration: Animated.Value;
-    locations: Animated.Value;
-    tips: Animated.Value;
     features: Animated.Value;
+    locations: Animated.Value;
+    inspiration: Animated.Value;
+    tips: Animated.Value;
+    quickActions: Animated.Value;
   } = {
+    hero: useRef<Animated.Value>(new Animated.Value(0)).current,
     header: useRef<Animated.Value>(new Animated.Value(0)).current,
+    action: useRef<Animated.Value>(new Animated.Value(0)).current,
     stats: useRef<Animated.Value>(new Animated.Value(0)).current,
-    inspiration: useRef<Animated.Value>(new Animated.Value(0)).current,
-    locations: useRef<Animated.Value>(new Animated.Value(0)).current,
-    tips: useRef<Animated.Value>(new Animated.Value(0)).current,
     features: useRef<Animated.Value>(new Animated.Value(0)).current,
+    locations: useRef<Animated.Value>(new Animated.Value(0)).current,
+    inspiration: useRef<Animated.Value>(new Animated.Value(0)).current,
+    tips: useRef<Animated.Value>(new Animated.Value(0)).current,
+    quickActions: useRef<Animated.Value>(new Animated.Value(0)).current,
   };
 
   // Load user profile and trigger animations
@@ -177,21 +248,15 @@ const HomeScreen: React.FC = () => {
         // Fetch user profile from Firestore
         const userProfile = await fetchUserProfile(navigation);
 
-        // Add clear logging for debugging
-        console.log("User profile loaded:", JSON.stringify(userProfile));
-        console.log("Is new user value:", userProfile.isNewUser);
-
         // Update username and profile image
         setUserName(userProfile.name || "User");
         setProfileImage(userProfile.profileImage || null);
 
         // Explicit check with triple equals for boolean type
         if (userProfile.isNewUser === true) {
-          console.log("Setting showJourneyIntro to true - user is new");
           setShowJourneyIntro(true);
           setIsNewUser(true);
         } else {
-          console.log("User is not new, not showing journey intro");
           setShowJourneyIntro(false);
           setIsNewUser(false);
         }
@@ -221,9 +286,21 @@ const HomeScreen: React.FC = () => {
       easing: Easing.out(Easing.cubic),
     }).start();
 
-    // Staggered animation for sections
-    Animated.stagger(150, [
+    // Staggered animation for sections with improved timing
+    Animated.stagger(80, [
+      Animated.timing(sections.hero, {
+        toValue: 1,
+        duration: 800,
+        useNativeDriver: true,
+        easing: Easing.out(Easing.cubic),
+      }),
       Animated.timing(sections.header, {
+        toValue: 1,
+        duration: 800,
+        useNativeDriver: true,
+        easing: Easing.out(Easing.back(1.5)),
+      }),
+      Animated.timing(sections.action, {
         toValue: 1,
         duration: 800,
         useNativeDriver: true,
@@ -254,6 +331,12 @@ const HomeScreen: React.FC = () => {
         easing: Easing.out(Easing.back(1.5)),
       }),
       Animated.timing(sections.tips, {
+        toValue: 1,
+        duration: 800,
+        useNativeDriver: true,
+        easing: Easing.out(Easing.back(1.5)),
+      }),
+      Animated.timing(sections.quickActions, {
         toValue: 1,
         duration: 800,
         useNativeDriver: true,
@@ -328,6 +411,7 @@ const HomeScreen: React.FC = () => {
   return (
     <ScreenWithNavBar>
       <StatusBar translucent backgroundColor="transparent" barStyle="light-content" />
+
       <Animated.View style={[styles.container, { opacity: fadeAnim }]}>
         <SafeAreaView style={styles.safeArea}>
           <Animated.ScrollView
@@ -337,7 +421,58 @@ const HomeScreen: React.FC = () => {
             onScroll={handleScroll}
             scrollEventThrottle={16}
           >
-            {/* Header with parallax effect */}
+            {/* Hero Section with Parallax Effect */}
+            <Animated.View
+              style={[
+                styles.heroSection,
+                {
+                  opacity: sections.hero,
+                  transform: [{ translateY: heroTranslateY }, { scale: heroScale }],
+                },
+              ]}
+            >
+              <ImageBackground
+                source={{
+                  uri: "https://images.unsplash.com/photo-1514924013411-cbf25faa35bb?auto=format&w=1000&q=80",
+                }}
+                style={styles.heroBg}
+              >
+                <LinearGradient
+                  colors={["rgba(0,0,0,0.3)", "rgba(0,0,0,0.7)"]}
+                  style={styles.heroGradient}
+                >
+                  {/* Help button in the hero section */}
+                  <TouchableOpacity
+                    style={styles.heroHelpButton}
+                    onPress={() => setShowJourneyIntro(true)}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons name="help-circle-outline" size={24} color="#FFFFFF" />
+                  </TouchableOpacity>
+
+                  <View style={styles.heroContent}>
+                    <Text style={styles.heroTitle}>Pathwise</Text>
+                    <Text style={styles.heroSubtitle}>Discover the Past, Unlock the City</Text>
+
+                    <TouchableOpacity
+                      style={styles.heroButton}
+                      onPress={() => navigateToScreen("Discover")}
+                      activeOpacity={0.85}
+                    >
+                      <Text style={styles.heroButtonText}>Start Exploring</Text>
+                      <Ionicons
+                        name="arrow-forward"
+                        color="#fff"
+                        size={18}
+                        style={{ marginLeft: 8 }}
+                      />
+                    </TouchableOpacity>
+                  </View>
+                </LinearGradient>
+              </ImageBackground>
+            </Animated.View>
+
+            {/* Header with User Welcome */}
             <Animated.View
               style={{
                 opacity: sections.header,
@@ -348,13 +483,6 @@ const HomeScreen: React.FC = () => {
                       outputRange: [30, 0],
                     }),
                   },
-                  {
-                    translateY: scrollY.interpolate({
-                      inputRange: [0, 200],
-                      outputRange: [0, -30],
-                      extrapolateRight: "clamp",
-                    }),
-                  },
                 ],
               }}
             >
@@ -362,6 +490,23 @@ const HomeScreen: React.FC = () => {
             </Animated.View>
 
             <View style={styles.contentContainer}>
+              {/* Action Cards Section */}
+              <Animated.View
+                style={{
+                  opacity: sections.action,
+                  transform: [
+                    {
+                      translateY: sections.action.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [40, 0],
+                      }),
+                    },
+                  ],
+                }}
+              >
+                <ActionCards navigateToScreen={navigateToScreen} />
+              </Animated.View>
+
               {/* Features Section */}
               <Animated.View
                 style={{
@@ -377,22 +522,6 @@ const HomeScreen: React.FC = () => {
                 }}
               >
                 <FeaturesSection navigateToScreen={navigateToScreen} />
-              </Animated.View>
-              {/* Inspiration Quote Section */}
-              <Animated.View
-                style={{
-                  opacity: sections.inspiration,
-                  transform: [
-                    {
-                      translateY: sections.inspiration.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [40, 0],
-                      }),
-                    },
-                  ],
-                }}
-              >
-                <JourneyInspiration />
               </Animated.View>
 
               {/* Stats Section */}
@@ -427,6 +556,40 @@ const HomeScreen: React.FC = () => {
                 }}
               >
                 <DiscoveredLocationsSection navigateToScreen={navigateToScreen} />
+              </Animated.View>
+
+              {/* Inspiration Quote Section */}
+              <Animated.View
+                style={{
+                  opacity: sections.inspiration,
+                  transform: [
+                    {
+                      translateY: sections.inspiration.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [40, 0],
+                      }),
+                    },
+                  ],
+                }}
+              >
+                <JourneyInspiration />
+              </Animated.View>
+
+              {/* Quick Actions Grid */}
+              <Animated.View
+                style={{
+                  opacity: sections.quickActions,
+                  transform: [
+                    {
+                      translateY: sections.quickActions.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [40, 0],
+                      }),
+                    },
+                  ],
+                }}
+              >
+                <QuickActions navigateToScreen={navigateToScreen} />
               </Animated.View>
 
               {/* Journey Tips Section */}
@@ -470,23 +633,88 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
-    paddingBottom: 90, // Consistent padding at the bottom to account for navbar
+    paddingBottom: 70, // Reduced from 90 to 70
   },
   contentContainer: {
     flex: 1,
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    gap: 24, // Consistent spacing between all sections
+    paddingHorizontal: 12, // Reduced from 16 to 12
+    paddingTop: 12, // Reduced from 16 to 12
+    gap: 16, // Reduced from 24 to 16 for tighter spacing
   },
-  // Card container style shared by all card components
+  // Hero Section Styles - Refined
+  heroSection: {
+    width: width,
+    height: height * 0.38, // Slightly reduced height
+    marginBottom: 10, // Reduced from 16 to 10
+  },
+  heroBg: {
+    width: "100%",
+    height: "100%",
+  },
+  heroGradient: {
+    flex: 1,
+    justifyContent: "flex-end",
+    padding: 16, // Reduced from 20 to 16
+  },
+  heroContent: {
+    alignItems: "center",
+    paddingBottom: 16, // Reduced from 20 to 16
+  },
+  heroTitle: {
+    fontSize: 36,
+    fontWeight: "800",
+    color: "#fff",
+    marginBottom: 6, // Reduced from 8 to 6
+    textAlign: "center",
+  },
+  heroSubtitle: {
+    fontSize: 18,
+    fontWeight: "500",
+    color: "rgba(255,255,255,0.9)",
+    marginBottom: 20, // Reduced from 24 to 20
+    textAlign: "center",
+  },
+  heroButton: {
+    flexDirection: "row",
+    backgroundColor: Colors.primary,
+    paddingVertical: 10, // Reduced from 12 to 10
+    paddingHorizontal: 18, // Reduced from 20 to 18
+    borderRadius: 30,
+    alignItems: "center",
+    justifyContent: "center",
+    elevation: 4,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+  },
+  heroButtonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  // Help button on hero image - Improved positioning
+  heroHelpButton: {
+    position: "absolute",
+    top: Platform.OS === "ios" ? 50 : 35,
+    right: 16, // Reduced from 20 to 16
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(255, 255, 255, 0.25)",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 5,
+  },
+  // Card container style - Refined
   cardContainer: {
     backgroundColor: "#FFFFFF",
     borderRadius: 16,
-    padding: 16,
+    padding: 14, // Reduced from 16 to 14
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
-    shadowRadius: 8,
+    shadowRadius: 6, // Reduced from 8 to 6
     elevation: 2,
   },
   // Loading styles
@@ -500,7 +728,7 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: 30,
-    marginBottom: 20,
+    marginBottom: 16, // Reduced from 20 to 16
     overflow: "hidden",
   },
   loadingGradient: {
@@ -513,24 +741,25 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
 
-  // Section header styles (used in multiple components)
+  // Section header styles - Standardized across all components
   sectionHeader: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 16,
+    marginBottom: 12,
+    paddingLeft: 4,
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: "600",
-    color: "#333",
+    color: Colors.text || "#333",
     marginLeft: 8,
   },
-  // Onboarding Tips Styles
+  // Onboarding Tips Styles - Refined
   tipCardContainer: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 16,
+    marginBottom: 12, // Reduced from 16 to 12
   },
   tipNavButton: {
     width: 36,
@@ -543,23 +772,23 @@ const styles = StyleSheet.create({
   tipCard: {
     flex: 1,
     alignItems: "center",
-    paddingVertical: 20,
-    paddingHorizontal: 16,
+    paddingVertical: 16, // Reduced from 20 to 16
+    paddingHorizontal: 14, // Reduced from 16 to 14
   },
   tipIconContainer: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+    width: 46, // Reduced from 50 to 46
+    height: 46, // Reduced from 50 to 46
+    borderRadius: 23,
     backgroundColor: "rgba(74, 144, 226, 0.1)",
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 12,
+    marginBottom: 10, // Reduced from 12 to 10
   },
   tipTitle: {
     fontSize: 16,
     fontWeight: "600",
     color: "#333",
-    marginBottom: 8,
+    marginBottom: 6, // Reduced from 8 to 6
     textAlign: "center",
   },
   tipDescription: {
@@ -572,6 +801,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
+    marginTop: 2, // Added to create some space above the indicators
   },
   tipIndicator: {
     width: 8,

@@ -1,0 +1,83 @@
+// components/LearnScreen/KnowledgeQuestSection/QuizCategorySection.tsx
+import React from "react";
+import { View, Text, StyleSheet, FlatList } from "react-native";
+import { Quiz } from "../../../types/LearnScreen/KnowledgeQuestTypes";
+import QuizCard from "./QuizCard";
+
+interface QuizCategorySectionProps {
+  category: string;
+  quizzes: Quiz[];
+  onStartQuiz: (quiz: Quiz) => void;
+  showRegion?: boolean;
+}
+
+const QuizCategorySection: React.FC<QuizCategorySectionProps> = ({
+  category,
+  quizzes,
+  onStartQuiz,
+  showRegion = false,
+}) => {
+  // Function to get a cleaned region name from a quiz
+  const getRegionDisplay = (quiz: Quiz): string => {
+    // First check if the quiz has metadata with a clarified region
+    if (quiz.metadata?.clarifiedRegion) {
+      return quiz.metadata.clarifiedRegion;
+    }
+
+    // Next check if we have region type information
+    if (quiz.regionType && quiz.relatedRegions && quiz.relatedRegions.length > 0) {
+      const region = quiz.relatedRegions[0];
+      const country = quiz.metadata?.country ? `, ${quiz.metadata.country}` : "";
+      return `${region}${country}`;
+    }
+
+    // Fallback: Show related regions excluding "World"
+    const regions = quiz.relatedRegions?.filter((r) => r !== "World" && r !== "world") || [];
+    return regions.join(", ");
+  };
+
+  return (
+    <View style={styles.categorySection}>
+      <Text style={styles.categoryTitle}>
+        {category.charAt(0).toUpperCase() + category.slice(1)}
+      </Text>
+
+      {showRegion && quizzes.length > 0 && (
+        <Text style={styles.regionSubtitle}>Based on {getRegionDisplay(quizzes[0])}</Text>
+      )}
+
+      <FlatList
+        data={quizzes}
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        renderItem={({ item }) => <QuizCard quiz={item} onStartQuiz={onStartQuiz} />}
+        keyExtractor={(item) => item.id}
+        contentContainerStyle={styles.quizCardContainer}
+      />
+    </View>
+  );
+};
+
+const styles = StyleSheet.create({
+  categorySection: {
+    marginBottom: 20,
+  },
+  categoryTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#4B5563",
+    marginBottom: 4,
+  },
+  regionSubtitle: {
+    fontSize: 12,
+    color: "#6B7280",
+    marginTop: -2,
+    marginBottom: 8,
+    fontStyle: "italic",
+  },
+  quizCardContainer: {
+    paddingRight: 16,
+  },
+});
+
+export default QuizCategorySection;
