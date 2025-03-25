@@ -1,6 +1,8 @@
-// services/placeAiService.ts
+// services/Gemini/placeAiService.ts
 import { generateContent } from "./geminiService";
 import { Place, VisitedPlaceDetails } from "../../types/MapTypes";
+import { collection, getDocs, doc, setDoc, getDoc, query, where } from "firebase/firestore";
+import { auth, db } from "../../config/firebaseConfig";
 
 export interface AiInsight {
   title: string;
@@ -15,7 +17,57 @@ export interface AiGeneratedContent {
   didYouKnow: string[];
   localTips: string[];
   isGenerating: boolean;
+  serviceError?: AiServiceError;
+  timestamp?: string;
 }
+
+export interface AiServiceError {
+  isError: boolean;
+  message: string;
+}
+
+// Check if place data exists in Firebase
+export const checkExistingPlaceData = async (
+  placeId: string
+): Promise<AiGeneratedContent | null> => {
+  try {
+    const currentUser = auth.currentUser;
+    if (!currentUser) return null;
+
+    const placeDataRef = doc(db, "users", currentUser.uid, "placeData", placeId);
+    const placeDataDoc = await getDoc(placeDataRef);
+
+    if (placeDataDoc.exists()) {
+      console.log("Found existing place data in Firebase");
+      return placeDataDoc.data() as AiGeneratedContent;
+    }
+    return null;
+  } catch (error) {
+    console.error("Error checking existing place data:", error);
+    return null;
+  }
+};
+
+// Store place data in Firebase
+export const storePlaceData = async (
+  placeId: string,
+  content: AiGeneratedContent
+): Promise<void> => {
+  try {
+    const currentUser = auth.currentUser;
+    if (!currentUser) return;
+
+    const placeDataRef = doc(db, "users", currentUser.uid, "placeData", placeId);
+    await setDoc(placeDataRef, {
+      ...content,
+      timestamp: new Date().toISOString(),
+    });
+
+    console.log("Place data stored successfully in Firebase");
+  } catch (error) {
+    console.error("Error storing place data:", error);
+  }
+};
 
 /**
  * Generate a rich description for a place
@@ -354,6 +406,15 @@ export const fetchAllAiContent = async (
   place: Place | VisitedPlaceDetails
 ): Promise<AiGeneratedContent> => {
   try {
+    // First check if we have data for this place in Firebase
+    const existingData = await checkExistingPlaceData(place.place_id);
+    if (existingData) {
+      return {
+        ...existingData,
+        isGenerating: false,
+      };
+    }
+
     // Start all requests in parallel
     const [description, historicalFacts, culturalInsights, didYouKnow, localTips] =
       await Promise.all([
@@ -364,7 +425,7 @@ export const fetchAllAiContent = async (
         generateLocalTips(place),
       ]);
 
-    return {
+    const generatedContent = {
       description,
       historicalFacts,
       culturalInsights,
@@ -372,15 +433,21 @@ export const fetchAllAiContent = async (
       localTips,
       isGenerating: false,
     };
+
+    // Store the generated content in Firebase for future use
+    await storePlaceData(place.place_id, generatedContent);
+
+    return generatedContent;
   } catch (error) {
     console.error("Error fetching all AI content:", error);
-    // Return fallback content
+
+    // Return fallback content when AI services can't be reached
     return {
-      description: `${place.name} is a fascinating destination with unique characteristics.`,
+      description: `${place.name} is a fascinating destination with unique characteristics. Visitors can explore its distinctive features and atmosphere.`,
       historicalFacts: [
-        `${place.name} has an interesting history.`,
-        `The area around ${place.name} has evolved over time.`,
-        `Historical records show ${place.name} has cultural significance.`,
+        `${place.name} has a fascinating history dating back many years.`,
+        `The area around ${place.name} has changed significantly over time.`,
+        `Historical records about ${place.name} reveal interesting insights about local development.`,
       ],
       culturalInsights: [
         {
@@ -403,6 +470,10 @@ export const fetchAllAiContent = async (
         `Consider exploring the area around ${place.name} as well.`,
       ],
       isGenerating: false,
+      serviceError: {
+        isError: true,
+        message: "AI service is currently unavailable. Using generic information instead.",
+      },
     };
   }
 };
@@ -414,6 +485,16 @@ export const fetchAllAiContentWithContext = async (
   place: Place | VisitedPlaceDetails
 ): Promise<AiGeneratedContent> => {
   try {
+    // First check if we have data for this place in Firebase
+    const existingData = await checkExistingPlaceData(place.place_id);
+    if (existingData) {
+      console.log("Using cached place data from Firebase");
+      return {
+        ...existingData,
+        isGenerating: false,
+      };
+    }
+
     // Get additional location context
     const locationContext = await getLocationContext(place);
 
@@ -433,7 +514,7 @@ export const fetchAllAiContentWithContext = async (
         generateLocalTips(enhancedPlace as any),
       ]);
 
-    return {
+    const generatedContent = {
       description,
       historicalFacts,
       culturalInsights,
@@ -441,9 +522,15 @@ export const fetchAllAiContentWithContext = async (
       localTips,
       isGenerating: false,
     };
+
+    // Store the generated content in Firebase for future use
+    await storePlaceData(place.place_id, generatedContent);
+
+    return generatedContent;
   } catch (error) {
     console.error("Error fetching all AI content:", error);
-    // Return fallback content
+
+    // Return fallback content when AI services can't be reached
     return {
       description: `${place.name} is a fascinating destination with unique characteristics.`,
       historicalFacts: [
@@ -472,6 +559,10 @@ export const fetchAllAiContentWithContext = async (
         `Consider exploring the area around ${place.name} as well.`,
       ],
       isGenerating: false,
+      serviceError: {
+        isError: true,
+        message: "AI service is currently unavailable. Using generic information instead.",
+      },
     };
   }
 };

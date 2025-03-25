@@ -1,5 +1,15 @@
-import React from "react";
-import { View, Text, StyleSheet, TouchableOpacity, Image, Modal, Platform } from "react-native";
+// components/PlaceDetails/PreVisitModal.tsx
+import React, { useState } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Image,
+  Modal,
+  Platform,
+  ActivityIndicator,
+} from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Place } from "../../types/MapTypes";
 import { Colors } from "../../constants/colours";
@@ -13,6 +23,7 @@ interface PreVisitModalProps {
   onClose: () => void;
   onStartJourney: () => void;
   onViewDetails: () => void;
+  aiServiceUnavailable?: boolean;
 }
 
 const PreVisitModal: React.FC<PreVisitModalProps> = ({
@@ -20,8 +31,10 @@ const PreVisitModal: React.FC<PreVisitModalProps> = ({
   onClose,
   onStartJourney,
   onViewDetails,
+  aiServiceUnavailable = false,
 }) => {
   const navigation = useNavigation();
+  const [isLoading, setIsLoading] = useState(false);
 
   // Get image for the place if available
   const placeImage =
@@ -34,6 +47,7 @@ const PreVisitModal: React.FC<PreVisitModalProps> = ({
     try {
       // Provide haptic feedback
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      setIsLoading(true);
 
       console.log(`PreVisitModal: Starting journey for place: ${place.name}`);
 
@@ -43,14 +57,23 @@ const PreVisitModal: React.FC<PreVisitModalProps> = ({
       // First call the callback (which may have additional logic)
       onStartJourney();
 
-      // Then use NavigationService to show discover card
-      // Use a slight delay to make sure the modal is dismissed properly
+      // Then use NavigationService with a slight delay
       setTimeout(() => {
+        setIsLoading(false); // Reset loading in case modal stays visible
         NavigationService.showDiscoverCard(navigation, placeToShow);
       }, 100);
     } catch (error) {
+      setIsLoading(false);
       console.error("PreVisitModal: Error starting journey:", error);
     }
+  };
+
+  const handleViewDetails = () => {
+    setIsLoading(true);
+    setTimeout(() => {
+      setIsLoading(false);
+      onViewDetails();
+    }, 100);
   };
 
   return (
@@ -66,7 +89,7 @@ const PreVisitModal: React.FC<PreVisitModalProps> = ({
                 <Ionicons name="image-outline" size={40} color="#ddd" />
               </View>
             )}
-            <TouchableOpacity style={styles.closeButton} onPress={onClose}>
+            <TouchableOpacity style={styles.closeButton} onPress={onClose} disabled={isLoading}>
               <Ionicons name="close" size={28} color="#fff" />
             </TouchableOpacity>
           </View>
@@ -85,6 +108,16 @@ const PreVisitModal: React.FC<PreVisitModalProps> = ({
               details.
             </Text>
 
+            {/* AI Service Unavailable Warning */}
+            {aiServiceUnavailable && (
+              <View style={styles.aiWarningContainer}>
+                <Ionicons name="cloud-offline" size={20} color="#FF9800" />
+                <Text style={styles.aiWarningText}>
+                  AI services are currently unavailable. Some features may use generic information.
+                </Text>
+              </View>
+            )}
+
             <View style={styles.benefitContainer}>
               <View style={styles.benefitItem}>
                 <Ionicons name="trophy" size={24} color={Colors.primary} />
@@ -101,13 +134,31 @@ const PreVisitModal: React.FC<PreVisitModalProps> = ({
             </View>
 
             <View style={styles.buttonsContainer}>
-              <TouchableOpacity style={styles.secondaryButton} onPress={onViewDetails}>
-                <Text style={styles.secondaryButtonText}>View Limited Info</Text>
+              <TouchableOpacity
+                style={styles.secondaryButton}
+                onPress={handleViewDetails}
+                disabled={isLoading}
+              >
+                {isLoading ? (
+                  <ActivityIndicator size="small" color="#666" />
+                ) : (
+                  <Text style={styles.secondaryButtonText}>View Limited Info</Text>
+                )}
               </TouchableOpacity>
 
-              <TouchableOpacity style={styles.primaryButton} onPress={handleStartJourney}>
-                <Ionicons name="navigate" size={18} color="#fff" style={styles.buttonIcon} />
-                <Text style={styles.primaryButtonText}>Start Journey</Text>
+              <TouchableOpacity
+                style={styles.primaryButton}
+                onPress={handleStartJourney}
+                disabled={isLoading}
+              >
+                {isLoading ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <>
+                    <Ionicons name="navigate" size={18} color="#fff" style={styles.buttonIcon} />
+                    <Text style={styles.primaryButtonText}>Start Journey</Text>
+                  </>
+                )}
               </TouchableOpacity>
             </View>
           </View>
@@ -195,7 +246,25 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: "#666",
     lineHeight: 22,
-    marginBottom: 20,
+    marginBottom: 16,
+  },
+  // Styles for AI service warning
+  aiWarningContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255, 152, 0, 0.1)",
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: "rgba(255, 152, 0, 0.3)",
+  },
+  aiWarningText: {
+    flex: 1,
+    fontSize: 13,
+    color: "#975700",
+    marginLeft: 8,
+    lineHeight: 18,
   },
   benefitContainer: {
     flexDirection: "row",
@@ -224,6 +293,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 10,
     marginTop: 12,
+    minHeight: 48, // Add fixed height to prevent layout shift during loading
   },
   primaryButtonText: {
     color: "#fff",
@@ -236,6 +306,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: 12,
     borderRadius: 10,
+    minHeight: 48, // Add fixed height to prevent layout shift during loading
   },
   secondaryButtonText: {
     color: "#666",

@@ -43,6 +43,7 @@ import HistoricalTimeline from "../components/PlaceDetails/HistoricalTimeline";
 import ContactInfoCard from "../components/PlaceDetails/ContactInfoCard";
 import DidYouKnowCards from "../components/PlaceDetails/DidYouKnowCards";
 import PreVisitModal from "../components/PlaceDetails/PreVisitModal";
+import AiUnavailableModal from "../components/Global/AiUnavailableModal";
 
 // Hooks
 import { useAiContent } from "../hooks/AI/useAIContent";
@@ -86,6 +87,7 @@ const PlaceDetailsScreen: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [placeDetails, setPlaceDetails] = useState<Place | VisitedPlaceDetails | null>(null);
   const [showFullAiContent, setShowFullAiContent] = useState(false);
+  const [showServiceUnavailableModal, setShowServiceUnavailableModal] = useState(false);
 
   // NEW: State for handling non-visited places flow
   const [showPreVisitModal, setShowPreVisitModal] = useState(false);
@@ -149,8 +151,22 @@ const PlaceDetailsScreen: React.FC = () => {
   }, [scrollY, heroHeight, translateThreshold, contentOverlap]);
 
   // Custom hooks
-  const { aiContent, aiContentLoading, aiContentError, sectionsVisible, generateAiContent } =
-    useAiContent(placeDetails);
+  const {
+    aiContent,
+    aiContentLoading,
+    aiContentError,
+    sectionsVisible,
+    serviceUnavailable,
+    initialLoading,
+    generateAiContent,
+  } = useAiContent(placeDetails);
+
+  // Show service unavailable modal when detected
+  useEffect(() => {
+    if (serviceUnavailable) {
+      setShowServiceUnavailableModal(true);
+    }
+  }, [serviceUnavailable]);
 
   // Effect for place details loading
   useEffect(() => {
@@ -202,14 +218,14 @@ const PlaceDetailsScreen: React.FC = () => {
 
   // NEW: Check if place is visited and show pre-visit modal if necessary
   useEffect(() => {
-    if (placeDetails && !loading) {
+    if (placeDetails && !loading && !limitedViewMode) {
       const isVisited = "isVisited" in placeDetails && placeDetails.isVisited === true;
 
       if (!isVisited) {
         setShowPreVisitModal(true);
       }
     }
-  }, [placeDetails, loading]);
+  }, [placeDetails, loading, limitedViewMode]);
 
   // Handle back button press
   const handleBackPress = () => {
@@ -221,8 +237,12 @@ const PlaceDetailsScreen: React.FC = () => {
     try {
       // First provide haptic feedback
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
       if (placeDetails) {
         console.log(`PlaceDetailsScreen: Starting journey for ${placeDetails.name}`);
+
+        // Show loading state
+        setLoading(true);
 
         // Create a deep copy of the place to avoid reference issues
         const placeToShow = JSON.parse(JSON.stringify(placeDetails));
@@ -230,18 +250,25 @@ const PlaceDetailsScreen: React.FC = () => {
 
         // Use NavigationService with a slight delay
         setTimeout(() => {
+          // Reset loading state if user stays on this screen
+          setLoading(false);
           NavigationService.showDiscoverCard(navigation, placeToShow);
         }, 100);
       }
     } catch (error) {
+      setLoading(false);
       console.error("PlaceDetailsScreen: Error starting journey:", error);
     }
   };
 
   // NEW: Handle view details in limited mode
   const handleViewLimitedDetails = () => {
-    setShowPreVisitModal(false);
-    setLimitedViewMode(true);
+    setLoading(true);
+    setTimeout(() => {
+      setLoading(false);
+      setShowPreVisitModal(false);
+      setLimitedViewMode(true);
+    }, 100);
   };
 
   // Handle share button press
@@ -272,14 +299,20 @@ const PlaceDetailsScreen: React.FC = () => {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       console.log(`PlaceDetailsScreen: Navigating to ${placeDetails.name}`);
 
+      // Show loading state
+      setLoading(true);
+
       // Create a deep copy of the place
       const placeToShow = JSON.parse(JSON.stringify(placeDetails));
 
       // Use NavigationService with a slight delay
       setTimeout(() => {
+        // Reset loading state if user stays on this screen
+        setLoading(false);
         NavigationService.showDiscoverCard(navigation, placeToShow);
       }, 100);
     } catch (error) {
+      setLoading(false);
       console.error("PlaceDetailsScreen: Error navigating to place:", error);
     }
   };
@@ -377,8 +410,9 @@ const PlaceDetailsScreen: React.FC = () => {
     aiContent.localTips.length > 0 &&
     sectionsVisible;
 
-  if (loading) {
-    return <MapLoading />;
+  // Show loading indicator for initial fetch or when explicitly loading
+  if (loading || initialLoading) {
+    return <MapLoading message="Loading place details..." />;
   }
 
   if (!placeDetails) {
@@ -401,6 +435,7 @@ const PlaceDetailsScreen: React.FC = () => {
         onClose={handleBackPress}
         onStartJourney={handleStartJourney}
         onViewDetails={handleViewLimitedDetails}
+        aiServiceUnavailable={serviceUnavailable}
       />
     );
   }
@@ -683,17 +718,6 @@ const PlaceDetailsScreen: React.FC = () => {
                 </CollapsibleCard>
               )}
 
-              {/* Contact Information Card */}
-              {/* {hasContactInfo && (
-                <View style={{ marginBottom: dynamicStyles.spacing.cardMargin }}>
-                  <ContactInfoCard
-                    placeDetails={placeDetails}
-                    fontSize={dynamicStyles.fontSize}
-                    iconSize={dynamicStyles.iconSize}
-                  />
-                </View>
-              )} */}
-
               {/* Opening Hours Card */}
               {hasOpeningHours && (
                 <View style={{ marginBottom: dynamicStyles.spacing.cardMargin }}>
@@ -719,6 +743,13 @@ const PlaceDetailsScreen: React.FC = () => {
           <View style={styles.bottomPadding} />
         </Animated.ScrollView>
       </Animated.View>
+
+      {/* AI Service Unavailable Modal */}
+      <AiUnavailableModal
+        visible={showServiceUnavailableModal}
+        onClose={() => setShowServiceUnavailableModal(false)}
+        placeName={placeDetails?.name || "this place"}
+      />
     </View>
   );
 };

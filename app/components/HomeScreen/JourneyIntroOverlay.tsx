@@ -311,7 +311,7 @@ const JourneyIntroOverlay: React.FC<JourneyIntroOverlayProps> = ({ visible, onCl
 
             <Text style={styles.stepDescription}>
               Pathwise guides you to both famous landmarks and hidden gems that most travelers miss.
-              Our app transforms any city into a personalized adventure.
+              Our app transforms any region into a personalized adventure.
             </Text>
 
             <View style={styles.featureItemsContainer}>

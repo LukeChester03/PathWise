@@ -82,7 +82,7 @@ export default function Layout() {
     <Stack.Navigator
       initialRouteName={initialRouteName as any}
       id={undefined}
-      screenOptions={{ headerShown: false }}
+      screenOptions={{ headerShown: false, animation: "none" }}
     >
       <Stack.Screen name="Home" component={HomeScreen} />
       <Stack.Screen name="Profile" component={ProfileScreen} />

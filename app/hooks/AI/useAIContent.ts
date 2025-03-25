@@ -1,4 +1,4 @@
-// hooks/useAiContent.ts
+// hooks/AI/useAIContent.ts
 import { useState, useEffect } from "react";
 import { Place, VisitedPlaceDetails } from "../../types/MapTypes";
 import {
@@ -11,10 +11,13 @@ export const useAiContent = (placeDetails: Place | VisitedPlaceDetails | null) =
   const [aiContentLoading, setAiContentLoading] = useState(false);
   const [aiContentError, setAiContentError] = useState<string | null>(null);
   const [sectionsVisible, setSectionsVisible] = useState(false);
+  const [serviceUnavailable, setServiceUnavailable] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(false); // New state for initial loading
 
   // Effect for AI content generation
   useEffect(() => {
     if (placeDetails && !aiContent && !aiContentLoading) {
+      setInitialLoading(true); // Set initial loading to true when first generating content
       generateAiContent();
     }
   }, [placeDetails]);
@@ -24,6 +27,7 @@ export const useAiContent = (placeDetails: Place | VisitedPlaceDetails | null) =
 
     setAiContentLoading(true);
     setAiContentError(null);
+    setServiceUnavailable(false);
 
     try {
       // Mark that AI is generating content
@@ -40,6 +44,11 @@ export const useAiContent = (placeDetails: Place | VisitedPlaceDetails | null) =
       const content = await fetchAllAiContentWithContext(placeDetails);
       setAiContent(content);
 
+      // Check if there was a service error
+      if (content.serviceError?.isError) {
+        setServiceUnavailable(true);
+      }
+
       // Show sections after AI content is loaded
       setTimeout(() => {
         setSectionsVisible(true);
@@ -47,8 +56,10 @@ export const useAiContent = (placeDetails: Place | VisitedPlaceDetails | null) =
     } catch (error) {
       console.error("Error generating AI content:", error);
       setAiContentError("Failed to generate AI content. Tap to retry.");
+      setServiceUnavailable(true);
     } finally {
       setAiContentLoading(false);
+      setInitialLoading(false); // Always set initial loading to false when done
     }
   };
 
@@ -57,6 +68,8 @@ export const useAiContent = (placeDetails: Place | VisitedPlaceDetails | null) =
     aiContentLoading,
     aiContentError,
     sectionsVisible,
+    serviceUnavailable,
+    initialLoading, // Expose initial loading state
     generateAiContent,
   };
 };

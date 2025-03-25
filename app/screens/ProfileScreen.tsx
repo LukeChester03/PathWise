@@ -442,13 +442,6 @@ const ProfileScreen = () => {
         showIcon={true}
         iconName="person-circle"
         iconColor={Colors.primary}
-        rightComponent={
-          <TouchableOpacity style={styles.settingsButton} onPress={toggleSettings}>
-            <Animated.View style={{ transform: [{ rotate: spin }] }}>
-              <Ionicons name="settings-outline" size={22} color={Colors.primary} />
-            </Animated.View>
-          </TouchableOpacity>
-        }
         customStyles={styles.header}
         onHelpPress={function (): void {
           throw new Error("Function not implemented.");
