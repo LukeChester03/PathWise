@@ -1,4 +1,3 @@
-// contexts/XPContext.tsx
 import React, { createContext, useState, useContext, useEffect, ReactNode } from "react";
 import { fetchUserLevelInfo } from "../../services/statsService";
 import { auth } from "../../config/firebaseConfig";
@@ -47,7 +46,6 @@ export const XPProvider: React.FC<XPProviderProps> = ({ children }) => {
   const [progress, setProgress] = useState(0);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
-  // Listen for auth state changes
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setIsAuthenticated(!!user);
@@ -59,7 +57,7 @@ export const XPProvider: React.FC<XPProviderProps> = ({ children }) => {
     return () => unsubscribe();
   }, []);
 
-  // Refresh XP and level info from Firebase
+  // refresh info from Firebase
   const refreshXP = async () => {
     try {
       if (!isAuthenticated) return;
@@ -67,7 +65,7 @@ export const XPProvider: React.FC<XPProviderProps> = ({ children }) => {
       const levelInfo = await fetchUserLevelInfo();
 
       if (levelInfo) {
-        // Check if user leveled up since last check
+        // check if user leveled up since last check
         if (levelInfo.level > currentLevel && currentLevel > 0) {
           setPreviousLevel(currentLevel);
           setShowLevelUp(true);
@@ -89,7 +87,6 @@ export const XPProvider: React.FC<XPProviderProps> = ({ children }) => {
     setShowLevelUp(false);
   };
 
-  // Value object to be provided to consumers
   const value = {
     currentLevel,
     previousLevel,

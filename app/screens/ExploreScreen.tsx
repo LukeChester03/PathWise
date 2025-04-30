@@ -329,7 +329,7 @@ const ExploreScreen: React.FC<ExploreScreenProps> = ({ navigation }) => {
         clearTimeout(loadingSafetyTimeoutRef.current);
       }
 
-      // Set new safety timeout ONLY for initial loading, not refreshes
+      // Set new safety timeout for initial loading
       if (!initialLoadCompletedRef.current) {
         loadingSafetyTimeoutRef.current = setTimeout(() => {
           if (componentVisibleRef.current && loading && !placesLoadedRef.current) {
@@ -344,7 +344,7 @@ const ExploreScreen: React.FC<ExploreScreenProps> = ({ navigation }) => {
 
       const success = await updateNearbyPlaces(currentLocation, forceRefresh);
 
-      // Check global state immediately after update
+      // Check global state after update
       const placesState = getNearbyPlacesState();
 
       if (placesState.places.length > 0) {
@@ -370,7 +370,7 @@ const ExploreScreen: React.FC<ExploreScreenProps> = ({ navigation }) => {
           setNoPlacesFound(true);
         }
       } else {
-        // Success but no update callback, set loading to false after a short delay
+        //set loading to false after a short delay
         setTimeout(() => {
           if (componentVisibleRef.current && loading) {
             setLoading(false);
@@ -447,7 +447,7 @@ const ExploreScreen: React.FC<ExploreScreenProps> = ({ navigation }) => {
             } as Place;
           });
 
-        console.log(`Found ${userPlacesData.length} places in Firestore (excluding init doc)`);
+        console.log(`Found ${userPlacesData.length} places in Firestore`);
 
         if (!componentVisibleRef.current) return;
 

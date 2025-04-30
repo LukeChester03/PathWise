@@ -55,30 +55,19 @@ export const extractRegionFromVicinity = (vicinity: string): string | null => {
   if (parts.length === 1) {
     return formatRegionName(parts[0]);
   }
-
   // Check if we have a proper address with city and country
-  // Most address formats will have the city in parts before the country
-  // Usually 2nd to last or 3rd to last element has the city
-
-  // Handle common patterns:
-
-  // Pattern 1: Full address with postal code: "Street, Number, Postal City, Country"
-  // Example: "Piazza Venezia, 5, 00186 Roma RM, Italy"
-  // The city part typically contains postal code followed by city name
   if (parts.length >= 3) {
     // Check each part from position 2 onwards for city patterns
     for (let i = 2; i < parts.length; i++) {
       const part = parts[i];
-
-      // Look for parts that have postal codes followed by city names
-      // Postal code patterns (digits followed by letters or spaces then letters)
+      // extracting parts that have postal codes followed by city names
       const postalCityMatch = part.match(/^\d+\s*(?:[A-Za-z]+\s+)+([A-Za-z\s]+)/);
       if (postalCityMatch && postalCityMatch[1]) {
         return formatRegionName(postalCityMatch[1]);
       }
 
-      // Check if this part contains letters (likely a city name, not just a number)
-      // Exclude parts that are just numbers or postal codes
+      // Check if contains letters
+      // Exclude parts that are numbers or postal codes
       if (!/^\d+$/.test(part) && /[A-Za-z]/.test(part)) {
         // If we find a part with letters after position 1, it's likely a city or region
         return formatRegionName(part);
@@ -86,8 +75,6 @@ export const extractRegionFromVicinity = (vicinity: string): string | null => {
     }
   }
 
-  // Pattern 2: Basic address: "Street, City, Country"
-  // The city is typically the second-to-last part
   if (parts.length >= 3) {
     const potentialCity = parts[parts.length - 2];
     // Check if it looks like a city name (contains letters, not just numbers)
@@ -96,7 +83,7 @@ export const extractRegionFromVicinity = (vicinity: string): string | null => {
     }
   }
 
-  // Pattern 3: Simple format with just "City, Country"
+  //  Simple format with just "City, Country"
   if (parts.length === 2) {
     // First part could be the city if it's not just a number
     if (/[A-Za-z]/.test(parts[0]) && !/^\d+$/.test(parts[0])) {
@@ -104,8 +91,6 @@ export const extractRegionFromVicinity = (vicinity: string): string | null => {
     }
   }
 
-  // Pattern 4: Complex format with multiple parts, look for the last part with alphabetic characters
-  // before the country
   for (let i = parts.length - 2; i >= 0; i--) {
     const part = parts[i];
     // Find a part that's not just numbers and has letters
@@ -119,19 +104,18 @@ export const extractRegionFromVicinity = (vicinity: string): string | null => {
 };
 
 /**
- * Formats a region name for display by removing unnecessary qualifiers
+ * Formats a region name for display
  */
 export const formatRegionName = (regionName: string): string => {
   if (!regionName) return "Unknown Region";
-
-  // Remove everything after hyphen/dash (including the hyphen)
+  // Remove everything after hyphen/dash including hyphen
   let formatted = regionName.split(/[-–—]/)[0].trim();
 
-  // Remove postal codes and region/state codes
-  formatted = formatted.replace(/\b\d{5}\b/, ""); // Remove 5-digit postal codes
-  formatted = formatted.replace(/\b[A-Z]{2}\b/, ""); // Remove 2-letter state/region codes
+  // Remove postal code
+  formatted = formatted.replace(/\b\d{5}\b/, "");
+  formatted = formatted.replace(/\b[A-Z]{2}\b/, "");
 
-  // Remove qualifiers like "am Main", "an der", etc.
+  // Remove irrelevant qualifiers
   formatted = formatted
     .replace(/ am Main\b/i, "")
     .replace(/ an der [A-Za-z]+\b/i, "")
@@ -145,7 +129,7 @@ export const formatRegionName = (regionName: string): string => {
   // Remove any extra spaces
   formatted = formatted.replace(/\s+/g, " ").trim();
 
-  // If we ended up with an empty string, return Unknown
+  // If end result empty string, return Unknown
   return formatted || "Unknown Region";
 };
 
@@ -430,17 +414,17 @@ export const generateCulturalInsights = async (
  */
 export const getCulturalInsights = async (region: string): Promise<EnhancedCulturalInsight> => {
   try {
-    // Format the region name first
+    // Format the region name
     const formattedRegion = formatRegionName(region);
 
-    // 1. Try memory cache first (fastest)
+    // memory cache
     const memoryInsight = getFromMemoryCache(formattedRegion);
     if (memoryInsight) {
       console.log("Using in-memory cached cultural insights");
       return memoryInsight;
     }
 
-    // 2. Try AsyncStorage next (fast, persistent)
+    // AsyncStorage
     const asyncStorageInsight = await getFromAsyncStorage(formattedRegion);
     if (asyncStorageInsight) {
       // Add to memory cache for future requests
@@ -449,7 +433,7 @@ export const getCulturalInsights = async (region: string): Promise<EnhancedCultu
       return asyncStorageInsight;
     }
 
-    // 3. Try Firebase cache (slower, synced)
+    // Try Firebase cache
     const cachedInsight = await getCachedInsightForRegion(formattedRegion);
     if (cachedInsight) {
       // Convert to enhanced insight
@@ -463,7 +447,7 @@ export const getCulturalInsights = async (region: string): Promise<EnhancedCultu
       return enhancedInsight;
     }
 
-    // 4. Generate new insights (slowest, counts against quota)
+    // else Generate new insights
     const insights = await generateCulturalInsights(region);
 
     // Cache the insights at all levels

@@ -1285,7 +1285,6 @@ const fetchPlaceDetailsFromGoogle = async (
       return detailsFetchPromises.get(placeId)!;
     }
 
-    // Create a new promise for this fetch
     const fetchPromise = (async () => {
       try {
         // Track that we're fetching this place
@@ -1300,7 +1299,7 @@ const fetchPlaceDetailsFromGoogle = async (
           return null;
         }
 
-        // Record this API call in our quota
+        // Record API call in the quota
         await recordApiCall("places");
         console.log(`[placesController] Fetching details from Google API for: ${placeId}`);
 

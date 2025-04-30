@@ -478,8 +478,7 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
   }, [loading]);
 
   /**
-   * NEW FUNCTION: Check if user has reached destination
-   * This is called both by the location update effect and the interval timer
+    Check if user has reached destination
    */
   const checkDestinationReached = useCallback(
     (userLoc: Coordinate) => {
@@ -487,7 +486,7 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
         return false;
       }
 
-      // Get the current time to avoid checking too frequently
+      // Get the current time
       const now = Date.now();
       // Only check if it's been at least 1 second since the last check
       if (now - lastDestinationCheckTimeRef.current < 1000) {
@@ -503,9 +502,9 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
         places.destinationCoordinateRef.current.longitude
       );
 
-      // Log distance to destination (but not too frequently)
+      // Log distance to destination
       if (now % 5000 < 1000) {
-        // Log roughly every 5 seconds
+        // Log every 5 seconds
         console.log(
           `Distance to destination: ${distanceToDestination.toFixed(2)}m, ` +
             `Threshold: ${DESTINATION_REACHED_THRESHOLD}m, ` +
@@ -515,7 +514,7 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
         );
       }
 
-      // Use a more lenient threshold to determine when destination is reached
+      // threshold to determine when destination is reached
       const reachThreshold = Math.min(DESTINATION_REACHED_THRESHOLD, 20);
       const reached = distanceToDestination <= reachThreshold;
 

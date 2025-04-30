@@ -6,7 +6,7 @@ import { auth } from "../../config/firebaseConfig";
 
 /**
  * Synchronizes badge progress with current user statistics.
- * This is the main function that should be called to update badges based on stats.
+ *
  */
 export const syncBadgesWithStats = async (): Promise<{
   updatedBadges: TravelBadge[];
@@ -27,10 +27,9 @@ export const syncBadgesWithStats = async (): Promise<{
       return { updatedBadges: [], completedBadgeIds: [] };
     }
 
-    // Create a map for easier access to stat values
     const statsMap = new Map(
       statItems.map((stat) => {
-        // Convert string values to numbers when possible for comparison
+        // Convert string values to numbers
         let value = stat.value;
         if (typeof value === "string" && !isNaN(Number(value.split(" ")[0]))) {
           value = Number(value.split(" ")[0]);
@@ -39,12 +38,12 @@ export const syncBadgesWithStats = async (): Promise<{
       })
     );
 
-    // Get user's current badges
+    // get users current badges
     const badges = await getAllUserBadges();
     const updatedBadges: TravelBadge[] = [];
     const completedBadgeIds: string[] = [];
 
-    // Process each badge
+    // process each badge
     for (const badge of badges) {
       // Skip already completed badges
       if (badge.completed) continue;
@@ -52,14 +51,12 @@ export const syncBadgesWithStats = async (): Promise<{
       let requirementsUpdated = false;
       let allRequirementsMet = true;
 
-      // Update each requirement
+      // update each requirement
       const updatedRequirements = badge.requirements.map((req) => {
         let current = req.current;
 
-        // Update current progress based on user stats
         switch (req.type) {
           case "visitCount":
-            // Maps to "Places Discovered" in statsMap
             const placesValue = statsMap.get("placesdiscovered");
             if (placesValue !== undefined && typeof placesValue === "number") {
               current = placesValue;
@@ -67,12 +64,9 @@ export const syncBadgesWithStats = async (): Promise<{
             break;
 
           case "categoryVisit":
-            // For category visits, we need more granular data that might not be in the statItems
-            // We'll keep the current value for now, but note the limitation
             break;
 
           case "streak":
-            // Maps to "Day Streak" in statsMap
             const streakValue = statsMap.get("daystreak");
             if (streakValue !== undefined && typeof streakValue === "number") {
               current = streakValue;
@@ -80,7 +74,6 @@ export const syncBadgesWithStats = async (): Promise<{
             break;
 
           case "distance":
-            // Maps to "Distance Traveled" in statsMap
             const distanceValue = statsMap.get("distancetraveled");
             if (distanceValue !== undefined && typeof distanceValue === "number") {
               current = distanceValue;
@@ -88,7 +81,6 @@ export const syncBadgesWithStats = async (): Promise<{
             break;
 
           case "countries":
-            // Maps to "Countries Visited" in statsMap
             const countriesValue = statsMap.get("countriesvisited");
             if (countriesValue !== undefined && typeof countriesValue === "number") {
               current = countriesValue;
@@ -96,7 +88,6 @@ export const syncBadgesWithStats = async (): Promise<{
             break;
 
           case "continents":
-            // Maps to "Continents Visited" in statsMap
             const continentsValue = statsMap.get("continentsvisited");
             if (continentsValue !== undefined && typeof continentsValue === "number") {
               current = continentsValue;
@@ -104,7 +95,6 @@ export const syncBadgesWithStats = async (): Promise<{
             break;
 
           case "explorationscore":
-            // Maps to "Explorer Score" in statsMap
             const scoreValue = statsMap.get("explorerscore");
             if (scoreValue !== undefined && typeof scoreValue === "number") {
               current = scoreValue;
@@ -128,7 +118,7 @@ export const syncBadgesWithStats = async (): Promise<{
         };
       });
 
-      // If requirements updated or met, process badge updates
+      // If requirements updated or met process badge updates
       if (requirementsUpdated || allRequirementsMet) {
         if (allRequirementsMet) {
           // Complete the badge
@@ -143,7 +133,7 @@ export const syncBadgesWithStats = async (): Promise<{
             requirements: updatedRequirements,
           });
         } else if (requirementsUpdated) {
-          // Just update requirements
+          // update requirements
           await updateBadgeRequirements(badge.id, updatedRequirements);
 
           // Add to updated badges
@@ -167,7 +157,7 @@ export const syncBadgesWithStats = async (): Promise<{
 
 /**
  * Helper function to refresh badges in the profile
- * This can be called from the profile screen to ensure badges are up-to-date
+ *
  */
 export const refreshBadgesInProfile = async (
   currentBadges: TravelBadge[]
@@ -176,7 +166,7 @@ export const refreshBadgesInProfile = async (
     const { updatedBadges } = await syncBadgesWithStats();
 
     if (updatedBadges.length === 0) {
-      return currentBadges; // No changes
+      return currentBadges;
     }
 
     // Create a map of updated badges by ID
@@ -191,6 +181,6 @@ export const refreshBadgesInProfile = async (
     return refreshedBadges;
   } catch (error) {
     console.error("Error refreshing badges in profile:", error);
-    return currentBadges; // Return original badges in case of error
+    return currentBadges;
   }
 };

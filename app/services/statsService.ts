@@ -162,22 +162,20 @@ function countContinents(countries: string[]): number {
 }
 
 /**
- * Calculate exploration score based on various factors
+ * Calculate exploration score
  */
 function calculateExplorationScore(statsData: UserStatsData): number {
-  // If we already have an exploration score, use that as the base
+  // If already an exploration score, use that
   if (statsData.explorationScore) {
     return statsData.explorationScore;
   }
-
-  // Otherwise, calculate from scratch for backward compatibility
   let score = 0;
 
   // Base points from places and countries
   score += statsData.placesDiscovered * 10;
   score += statsData.countriesVisited * 50;
 
-  // Points from distance traveled (1 point per km, capped at 1000)
+  // Points from distance traveled- 1 point per km
   score += Math.min(statsData.distanceTraveled, 1000);
 
   // Points from streak
@@ -186,14 +184,14 @@ function calculateExplorationScore(statsData: UserStatsData): number {
   // Points from achievements
   score += statsData.achievementsEarned * 25;
 
-  // Points from diversity (categories and cities)
+  // Points from categories and cities
   const uniqueCategories = Object.keys(statsData.visitedCategories || {}).length;
   const uniqueCities = Object.keys(statsData.visitedCities || {}).length;
 
   score += uniqueCategories * 15;
   score += uniqueCities * 20;
 
-  // Points from continent diversity
+  // Points from continents
   score += (statsData.continentsVisited || 0) * 100;
 
   return Math.floor(score);

@@ -585,14 +585,14 @@ const PlaceDetailsScreen: React.FC = () => {
                 </View>
               </CollapsibleCard>
 
-              {/* 4. Historical Facts Timeline */}
+              {/* Historical Facts Timeline */}
               {hasHistoricalFacts && (
                 <View style={{ marginBottom: dynamicStyles.spacing.cardMargin }}>
                   <HistoricalTimeline aiContent={aiContent} fontSize={dynamicStyles.fontSize} />
                 </View>
               )}
 
-              {/* 5. Did You Know Cards */}
+              {/* Did You Know Cards */}
               {hasDidYouKnow && (
                 <View style={{ marginBottom: dynamicStyles.spacing.cardMargin }}>
                   <DidYouKnowCards

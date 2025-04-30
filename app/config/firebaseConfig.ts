@@ -18,7 +18,7 @@ const firebaseConfig = {
 // Initialize Firebase App
 const app = initializeApp(firebaseConfig);
 
-// Initialize Firebase Analytics (with support check)
+// Initialize Firebase Analytics
 let analytics: any;
 isSupported().then((supported) => {
   if (supported) {
@@ -29,7 +29,7 @@ isSupported().then((supported) => {
   }
 });
 
-// Initialize Firebase Auth with AsyncStorage persistence
+// Initialize Firebase Auth with AsyncStorage
 const auth = initializeAuth(app, {
   persistence: getReactNativePersistence(AsyncStorage),
 });

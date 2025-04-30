@@ -204,6 +204,7 @@ const AiTravelSnapshot: React.FC<AiTravelSnapshotProps> = ({
   // Normal profile rendering
   return (
     <Animated.View
+      testID="travel-snapshot-card"
       style={[
         styles.aiSummaryCard,
         {

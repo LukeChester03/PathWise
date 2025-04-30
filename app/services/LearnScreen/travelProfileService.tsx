@@ -25,7 +25,7 @@ import {
   TravelerTrait,
 } from "../../types/LearnScreen/TravelProfileTypes";
 import { getAllUserBadges, updateBadgeRequirements, completeBadge } from "./badgeService";
-import { AccentColors, Colors, NeutralColors } from "@/app/constants/colours";
+import { AccentColors, Colors, NeutralColors } from "../../constants/colours";
 
 // services/LearnScreen/travelProfileService.ts
 // ... imports remain the same

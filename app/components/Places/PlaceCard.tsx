@@ -137,13 +137,23 @@ const PlaceCard: React.FC<PlaceCardComponentProps> = ({
     visitDate = null;
   }
 
-  // Get photo URL
-  const photo =
-    place.photos && place.photos.length > 0 && place.photos[0]?.photo_reference
-      ? `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photoreference=${place.photos[0].photo_reference}&key=AIzaSyDAGq_6eJGQpR3RcO0NrVOowel9-DxZkvA`
-      : `https://via.placeholder.com/400x200/f0f0f0/666666?text=${encodeURIComponent(
-          name.substring(0, 15)
-        )}`;
+  // Simplified photo URL extraction - works with Google Places API format
+  let photo = "";
+
+  if (place.photos && place.photos.length > 0 && place.photos[0].photo_reference) {
+    // Use the photo reference from Google Places API
+    const photoReference = place.photos[0].photo_reference;
+    photo = `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photoreference=${photoReference}&key=AIzaSyDAGq_6eJGQpR3RcO0NrVOowel9-DxZkvA`;
+    console.log(
+      `[PlaceCard] Using photo reference for ${name}: ${photoReference.substring(0, 15)}...`
+    );
+  } else {
+    // Fallback to placeholder
+    photo = `https://via.placeholder.com/400x200/f0f0f0/666666?text=${encodeURIComponent(
+      name.substring(0, 15)
+    )}`;
+    console.log(`[PlaceCard] No photo reference found for ${name}, using placeholder`);
+  }
 
   const placeTags = getPlaceTags(place);
   const formattedDate = visitDate ? formatVisitDate(visitDate) : "";

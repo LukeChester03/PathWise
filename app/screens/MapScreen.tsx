@@ -347,7 +347,10 @@ const MapScreen = () => {
 
   return (
     <ScreenWithNavBar>
-      <View style={globalStyles.container}>
+      <View
+        style={globalStyles.container}
+        testID={placeToShow ? `place-card-${placeToShow.place_id}` : undefined}
+      >
         <Header
           title="Discover"
           subtitle="Plot your journey to a new Place"

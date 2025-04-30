@@ -26,7 +26,6 @@ export const generateContent = async ({
     // If JSON was requested, try to parse the response
     if (responseFormat === "json") {
       try {
-        // Sometimes the model might include markdown code blocks, try to extract JSON
         const jsonMatch = responseText.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
         const jsonStr = jsonMatch ? jsonMatch[1].trim() : responseText.trim();
         return JSON.parse(jsonStr);

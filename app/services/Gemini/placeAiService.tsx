@@ -70,7 +70,7 @@ export const storePlaceData = async (
 };
 
 /**
- * Generate a rich description for a place
+ * Generate a description for a place
  */
 export const generatePlaceDescription = async (
   place: Place | VisitedPlaceDetails
@@ -231,7 +231,7 @@ export const generateDidYouKnow = async (place: Place | VisitedPlaceDetails): Pr
     ${(place as any).locationContext || ""}
     
     This is a REAL place that exists at the specified location. Look for accurate but lesser-known information.
-    These should be surprising, lesser-known, or interesting tidbits that would fascinate visitors.
+    These should be surprising, lesser-known, or interesting facts that would fascinate visitors.
     Consider unique features, little-known history, interesting statistics, or unexpected connections.
     Each fact should be 1-2 sentences long.
     Don't start each fact with "Did you know" - just provide the facts directly.
@@ -406,7 +406,7 @@ export const fetchAllAiContent = async (
   place: Place | VisitedPlaceDetails
 ): Promise<AiGeneratedContent> => {
   try {
-    // First check if we have data for this place in Firebase
+    // First check if data exists
     const existingData = await checkExistingPlaceData(place.place_id);
     if (existingData) {
       return {
@@ -479,13 +479,13 @@ export const fetchAllAiContent = async (
 };
 
 /**
- * Enhanced version of fetchAllAiContent that includes location context
+ * Fetch all AI content for a place
  */
 export const fetchAllAiContentWithContext = async (
   place: Place | VisitedPlaceDetails
 ): Promise<AiGeneratedContent> => {
   try {
-    // First check if we have data for this place in Firebase
+    // First check if data exists for place in Firebase
     const existingData = await checkExistingPlaceData(place.place_id);
     if (existingData) {
       console.log("Using cached place data from Firebase");
