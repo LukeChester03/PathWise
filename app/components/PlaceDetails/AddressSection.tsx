@@ -1,4 +1,3 @@
-// components/AddressSection.tsx
 import React from "react";
 import { View, Text, StyleSheet } from "react-native";
 import { Place, VisitedPlaceDetails } from "../../types/MapTypes";
@@ -11,7 +10,6 @@ interface AddressSectionProps {
 }
 
 const AddressSection: React.FC<AddressSectionProps> = ({ placeDetails, fontSize }) => {
-  // Format the address for display
   const getAddress = () => {
     if (!placeDetails) return "No address available";
     return placeDetails.formatted_address || placeDetails.vicinity || "No address available";

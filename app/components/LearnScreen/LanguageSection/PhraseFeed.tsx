@@ -1,4 +1,3 @@
-// components/Learn/PhraseFeed.tsx
 import React from "react";
 import { ScrollView, StyleSheet } from "react-native";
 import { Phrase } from "../../../types/LearnScreen/LanguageTypes";

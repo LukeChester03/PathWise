@@ -1,4 +1,3 @@
-// components/AdvancedAnalysis/TabContainer.tsx
 import React, { ReactNode } from "react";
 import { View, StyleSheet } from "react-native";
 

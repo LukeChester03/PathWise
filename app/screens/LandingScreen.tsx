@@ -1,4 +1,3 @@
-// app/screens/LandingScreen.tsx
 import React, { useState, useEffect, useRef } from "react";
 import {
   View,
@@ -24,17 +23,14 @@ const LandingScreen = ({ navigation }: { navigation: any }) => {
   const [isRegisterModalVisible, setIsRegisterModalVisible] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
 
-  // Animation values for content
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(20)).current;
   const buttonsAnim = useRef(new Animated.Value(0)).current;
 
-  // Animation values for floating circles
   const circle1Anim = useRef(new Animated.Value(0)).current;
   const circle2Anim = useRef(new Animated.Value(0)).current;
   const circle3Anim = useRef(new Animated.Value(0)).current;
 
-  // Carousel data
   const carouselData = [
     {
       title: "Discover hidden gems",
@@ -51,9 +47,7 @@ const LandingScreen = ({ navigation }: { navigation: any }) => {
     { title: "Learn with AI", icon: "analytics-outline" },
   ];
 
-  // Animate the background circles
   const animateBackgroundCircles = () => {
-    // Circle 1 animation - slow floating movement
     Animated.loop(
       Animated.sequence([
         Animated.timing(circle1Anim, {
@@ -71,7 +65,6 @@ const LandingScreen = ({ navigation }: { navigation: any }) => {
       ])
     ).start();
 
-    // Circle 2 animation - different direction and timing
     Animated.loop(
       Animated.sequence([
         Animated.timing(circle2Anim, {
@@ -89,7 +82,6 @@ const LandingScreen = ({ navigation }: { navigation: any }) => {
       ])
     ).start();
 
-    // Circle 3 animation - third pattern
     Animated.loop(
       Animated.sequence([
         Animated.timing(circle3Anim, {
@@ -108,9 +100,7 @@ const LandingScreen = ({ navigation }: { navigation: any }) => {
     ).start();
   };
 
-  // Setup animations
   useEffect(() => {
-    // Staggered entry animations for content
     Animated.sequence([
       Animated.timing(fadeAnim, {
         toValue: 1,
@@ -129,10 +119,8 @@ const LandingScreen = ({ navigation }: { navigation: any }) => {
       }),
     ]).start();
 
-    // Start background circle animations
     animateBackgroundCircles();
 
-    // Auto scroll the carousel
     const carouselInterval = setInterval(() => {
       setActiveIndex((prev) => (prev + 1) % carouselData.length);
     }, 3000);
@@ -140,7 +128,6 @@ const LandingScreen = ({ navigation }: { navigation: any }) => {
     return () => clearInterval(carouselInterval);
   }, []);
 
-  // Circle movement interpolations
   const circle1TranslateX = circle1Anim.interpolate({
     inputRange: [0, 1],
     outputRange: [0, width * 0.05],
@@ -197,19 +184,13 @@ const LandingScreen = ({ navigation }: { navigation: any }) => {
     <View style={styles.container}>
       <StatusBar translucent backgroundColor="transparent" barStyle="light-content" />
 
-      {/* Enhanced Background with more Primary Color */}
       <LinearGradient
-        colors={[
-          "#1a1a2e",
-          "#16213e",
-          Colors.primary + "25", // Increased primary color presence
-        ]}
+        colors={["#1a1a2e", "#16213e", Colors.primary + "25"]}
         style={styles.backgroundGradient}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
       />
 
-      {/* Animated Circles in Background */}
       <View style={styles.backgroundElements}>
         <Animated.View
           style={[
@@ -260,9 +241,7 @@ const LandingScreen = ({ navigation }: { navigation: any }) => {
         </Animated.View>
       </View>
 
-      {/* Main Content Container */}
       <View style={styles.contentContainer}>
-        {/* Logo and Title Section */}
         <Animated.View
           style={[
             styles.headerContainer,
@@ -284,7 +263,6 @@ const LandingScreen = ({ navigation }: { navigation: any }) => {
           <Text style={styles.tagline}>Discover the Past, Unlock the City</Text>
         </Animated.View>
 
-        {/* Feature Carousel */}
         <View style={styles.carouselContainer}>
           {carouselData.map((item, index) => (
             <Animated.View
@@ -311,7 +289,6 @@ const LandingScreen = ({ navigation }: { navigation: any }) => {
             </Animated.View>
           ))}
 
-          {/* Indicator dots */}
           <View style={styles.indicatorContainer}>
             {carouselData.map((_, index) => (
               <View
@@ -322,7 +299,6 @@ const LandingScreen = ({ navigation }: { navigation: any }) => {
           </View>
         </View>
 
-        {/* Action Buttons */}
         <Animated.View
           style={[
             styles.actionContainer,
@@ -382,7 +358,6 @@ const LandingScreen = ({ navigation }: { navigation: any }) => {
 
 export default LandingScreen;
 
-// Styles
 const styles = StyleSheet.create({
   container: {
     flex: 1,

@@ -5,7 +5,6 @@ import { TravelProfile } from "../../../types/LearnScreen/TravelProfileTypes";
 import { Colors, NeutralColors, AccentColors } from "../../../constants/colours";
 import SectionHeader from "../SectionHeader";
 
-// Comprehensive type definitions
 interface PreferenceCategory {
   category?: string;
   name?: string;
@@ -19,7 +18,6 @@ interface PreferencesSectionProps {
   toggleExpanded: () => void;
 }
 
-// Utility function for consistent percentage formatting
 const formatPercentage = (percentage: number | string | undefined): string => {
   if (percentage === undefined) return "0%";
 
@@ -29,10 +27,8 @@ const formatPercentage = (percentage: number | string | undefined): string => {
   return `${Math.round(numPercentage)}%`;
 };
 
-// Comprehensive icon mapping for different preference categories
 const getCategoryIcon = (category: string | undefined): string => {
   const iconMap: { [key: string]: string } = {
-    // Travel Categories
     "Historical Sites": "book-outline",
     "Natural Landscapes": "leaf",
     "Urban Exploration": "business",
@@ -44,28 +40,24 @@ const getCategoryIcon = (category: string | undefined): string => {
     "Art and Museums": "art",
     "Architecture Tours": "build",
 
-    // Architectural Styles
     Classical: "book",
     Modern: "logo-react",
     Gothic: "document",
     Renaissance: "easel",
     Baroque: "flower",
 
-    // Activities
     "Guided Tours": "people",
     Photography: "camera",
     Hiking: "walk",
     "Culinary Experiences": "restaurant",
     "Historical Walks": "time",
 
-    // Fallback
     default: "globe",
   };
 
   return category ? iconMap[category] || iconMap["default"] : iconMap["default"];
 };
 
-// Color generation for progress bars
 const getProgressBarColor = (index: number): string => {
   const colorOptions = [
     Colors.primary,
@@ -83,20 +75,17 @@ const PreferencesSection: React.FC<PreferencesSectionProps> = ({
   expanded,
   toggleExpanded,
 }) => {
-  // Defensive programming: Ensure preferences exist with safe defaults
   const safePreferences = {
     categories: profile.preferences?.categories || [],
     architecturalStyles: profile.preferences?.architecturalStyles || [],
     activities: profile.preferences?.activities || [],
   };
 
-  // Determine if any preferences exist
   const hasPreferences =
     safePreferences.categories.length > 0 ||
     safePreferences.architecturalStyles.length > 0 ||
     safePreferences.activities.length > 0;
 
-  // If no preferences exist, return null or a placeholder
   if (!hasPreferences) {
     return (
       <TouchableOpacity style={styles.section} onPress={toggleExpanded} activeOpacity={0.7}>
@@ -140,7 +129,6 @@ const PreferencesSection: React.FC<PreferencesSectionProps> = ({
 
       {expanded && (
         <View style={styles.preferencesContainer}>
-          {/* Place Categories Section */}
           {safePreferences.categories.length > 0 && (
             <PreferencesSubsection
               title="Place Categories"
@@ -148,7 +136,6 @@ const PreferencesSection: React.FC<PreferencesSectionProps> = ({
             />
           )}
 
-          {/* Architectural Styles Section */}
           {safePreferences.architecturalStyles.length > 0 && (
             <PreferencesSubsection
               title="Architectural Styles"
@@ -157,7 +144,6 @@ const PreferencesSection: React.FC<PreferencesSectionProps> = ({
             />
           )}
 
-          {/* Activities Section */}
           {safePreferences.activities.length > 0 && (
             <PreferencesSubsection
               title="Activities"
@@ -171,7 +157,6 @@ const PreferencesSection: React.FC<PreferencesSectionProps> = ({
   );
 };
 
-// Reusable Subsection Component
 const PreferencesSubsection: React.FC<{
   title: string;
   preferences: PreferenceCategory[];
@@ -183,7 +168,6 @@ const PreferencesSubsection: React.FC<{
       {preferences.map((preference, index) => (
         <View key={index} style={styles.preferenceItem}>
           <View style={styles.preferenceHeader}>
-            {/* Icon Container (optional) */}
             {(preference.category || preference.icon) && (
               <View style={styles.preferenceIconContainer}>
                 <Ionicons

@@ -47,10 +47,8 @@ const DiscoveredCard: React.FC<DiscoveredCardProps> = ({
   visible = false,
   initialSavedState = false,
 }) => {
-  // State for save functionality
   const [isSaved, setIsSaved] = useState(initialSavedState);
 
-  // Format the discovery date - Fixed to handle undefined values
   const formattedDate = discoveryDate
     ? new Date(discoveryDate).toLocaleDateString("en-US", {
         year: "numeric",
@@ -59,7 +57,6 @@ const DiscoveredCard: React.FC<DiscoveredCardProps> = ({
       })
     : "Recently";
 
-  // Helper function for safe rating display - Fixed to handle all types
   const getFormattedRating = (rating: number | string | undefined): string => {
     if (rating === undefined) return "0.0";
 
@@ -71,7 +68,6 @@ const DiscoveredCard: React.FC<DiscoveredCardProps> = ({
     return rating.toFixed(1);
   };
 
-  // Animation values
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.9)).current;
   const contentAnim = useRef(new Animated.Value(0)).current;
@@ -84,10 +80,8 @@ const DiscoveredCard: React.FC<DiscoveredCardProps> = ({
   const saveButtonAnim = useRef(new Animated.Value(0)).current;
   const saveScaleAnim = useRef(new Animated.Value(1)).current;
 
-  // Animate in when component becomes visible
   useEffect(() => {
     if (visible) {
-      // Reset animations
       fadeAnim.setValue(0);
       scaleAnim.setValue(0.9);
       contentAnim.setValue(0);
@@ -97,42 +91,31 @@ const DiscoveredCard: React.FC<DiscoveredCardProps> = ({
       saveButtonAnim.setValue(0);
       primaryButtonScale.setValue(1);
       secondaryButtonScale.setValue(1);
-
-      // Animation sequence - all completed in under a second
       Animated.sequence([
-        // Fade in backdrop - 150ms
         Animated.timing(fadeAnim, {
           toValue: 1,
           duration: 150,
           useNativeDriver: true,
           easing: Easing.out(Easing.ease),
         }),
-
-        // Animate card in with a slight bounce - 200ms
         Animated.spring(scaleAnim, {
           toValue: 1,
           friction: 10,
           tension: 100,
           useNativeDriver: true,
         }),
-
-        // Animate image fade in - 150ms
         Animated.timing(imageOpacity, {
           toValue: 1,
           duration: 150,
           useNativeDriver: true,
           easing: Easing.out(Easing.ease),
         }),
-
-        // Animate save button with other UI elements
         Animated.timing(saveButtonAnim, {
           toValue: 1,
           duration: 200,
           useNativeDriver: true,
           easing: Easing.out(Easing.back(1.5)),
         }),
-
-        // Animate content with staggered timing - 450ms total (150ms each with 50ms stagger)
         Animated.stagger(50, [
           Animated.timing(contentAnim, {
             toValue: 1,
@@ -154,8 +137,6 @@ const DiscoveredCard: React.FC<DiscoveredCardProps> = ({
           }),
         ]),
       ]).start();
-
-      // Start badge pulse animation - independent of main sequence
       Animated.loop(
         Animated.sequence([
           Animated.timing(badgePulse, {
@@ -175,9 +156,7 @@ const DiscoveredCard: React.FC<DiscoveredCardProps> = ({
     }
   }, [visible]);
 
-  // Handle save button press
   const handleSavePress = () => {
-    // Create a nice animation for the save button
     Animated.sequence([
       Animated.spring(saveScaleAnim, {
         toValue: 0.8,
@@ -195,14 +174,9 @@ const DiscoveredCard: React.FC<DiscoveredCardProps> = ({
         useNativeDriver: true,
       }),
     ]).start();
-
-    // Toggle saved state
     setIsSaved(!isSaved);
-
-    // Feedback is provided through the icon change and animation
   };
 
-  // Handle primary button press animations
   const handlePrimaryPressIn = () => {
     Animated.spring(primaryButtonScale, {
       toValue: 0.95,
@@ -221,7 +195,6 @@ const DiscoveredCard: React.FC<DiscoveredCardProps> = ({
     }).start();
   };
 
-  // Handle secondary button press animations
   const handleSecondaryPressIn = () => {
     Animated.spring(secondaryButtonScale, {
       toValue: 0.95,
@@ -240,45 +213,36 @@ const DiscoveredCard: React.FC<DiscoveredCardProps> = ({
     }).start();
   };
 
-  // Handle view details
   const handleViewDetails = () => {
     if (onViewDetails) {
       animateOut(() => onViewDetails());
     }
   };
 
-  // Handle visit again
   const handleVisitAgain = () => {
     if (onVisitAgain) {
       animateOut(() => onVisitAgain());
     }
   };
 
-  // Handle dismiss
   const handleDismiss = () => {
     animateOut(() => onDismiss());
   };
 
-  // Animate out and call callback when complete
   const animateOut = (callback: () => void) => {
     Animated.sequence([
-      // First shrink description - 100ms
       Animated.timing(descriptionAnim, {
         toValue: 0,
         duration: 100,
         useNativeDriver: true,
         easing: Easing.in(Easing.ease),
       }),
-
-      // Then fade out content - 100ms
       Animated.timing(contentAnim, {
         toValue: 0,
         duration: 100,
         useNativeDriver: true,
         easing: Easing.in(Easing.ease),
       }),
-
-      // Finally fade and scale out the card - 150ms
       Animated.parallel([
         Animated.timing(fadeAnim, {
           toValue: 0,
@@ -321,12 +285,9 @@ const DiscoveredCard: React.FC<DiscoveredCardProps> = ({
             },
           ]}
         >
-          {/* Close button */}
           <TouchableOpacity style={styles.closeButton} onPress={handleDismiss} activeOpacity={0.7}>
             <Ionicons name="close" size={24} color="white" />
           </TouchableOpacity>
-
-          {/* Save button with feedback animation */}
           <Animated.View
             style={[
               styles.saveButtonContainer,
@@ -347,16 +308,12 @@ const DiscoveredCard: React.FC<DiscoveredCardProps> = ({
                 color={isSaved ? Colors.primary : "white"}
               />
             </TouchableOpacity>
-
-            {/* Visual feedback indicator - appears briefly when status changes */}
             {isSaved && (
               <Animated.View style={styles.savedIndicator}>
                 <View style={styles.savedIndicatorDot} />
               </Animated.View>
             )}
           </Animated.View>
-
-          {/* Header Image */}
           <View style={styles.imageContainer}>
             <Animated.Image
               source={{ uri: placeImage }}
@@ -379,8 +336,6 @@ const DiscoveredCard: React.FC<DiscoveredCardProps> = ({
               colors={["transparent", "rgba(0,0,0,0.8)"]}
               style={styles.imageGradient}
             />
-
-            {/* Badge and Rating on image */}
             <View style={styles.imageOverlayContent}>
               <Animated.View
                 style={[
@@ -402,8 +357,6 @@ const DiscoveredCard: React.FC<DiscoveredCardProps> = ({
                 <Text style={styles.badgeText}>Discovered</Text>
               </Animated.View>
             </View>
-
-            {/* Title on image */}
             <Animated.View
               style={[
                 styles.titleContainer,
@@ -436,8 +389,6 @@ const DiscoveredCard: React.FC<DiscoveredCardProps> = ({
               </View>
             </Animated.View>
           </View>
-
-          {/* Content */}
           <Animated.View
             style={[
               styles.contentContainer,
@@ -454,7 +405,6 @@ const DiscoveredCard: React.FC<DiscoveredCardProps> = ({
               },
             ]}
           >
-            {/* Description */}
             {description && (
               <Animated.View
                 style={[
@@ -485,10 +435,8 @@ const DiscoveredCard: React.FC<DiscoveredCardProps> = ({
               </Animated.View>
             )}
 
-            {/* Action Buttons */}
             {onViewDetails && (
               <View style={styles.buttonGroup}>
-                {/* Learn More Button */}
                 <Animated.View
                   style={{
                     transform: [
@@ -521,7 +469,6 @@ const DiscoveredCard: React.FC<DiscoveredCardProps> = ({
                   </TouchableOpacity>
                 </Animated.View>
 
-                {/* Visit Again Button */}
                 <Animated.View
                   style={{
                     transform: [
@@ -605,7 +552,7 @@ const styles = StyleSheet.create({
   saveButtonContainer: {
     position: "absolute",
     top: 12,
-    right: 56, // Position next to the close button
+    right: 56,
     zIndex: 10,
   },
   saveButton: {

@@ -1,4 +1,3 @@
-// components/PlaceHeroHeader.tsx
 import React, { useMemo } from "react";
 import {
   View,
@@ -34,7 +33,6 @@ const PlaceHeroHeader: React.FC<PlaceHeroHeaderProps> = ({
   onBackPress,
   onShare,
 }) => {
-  // Get photo URL - memoize to prevent recalculation on re-renders
   const photoUrl = useMemo(() => {
     if (!placeDetails) return "";
 
@@ -52,47 +50,38 @@ const PlaceHeroHeader: React.FC<PlaceHeroHeaderProps> = ({
 
   return (
     <>
-      {/* Hero Image Container */}
       <View style={[styles.heroContainer, { height: dynamicStyles.heroHeight }]}>
         <Image
           source={{ uri: photoUrl }}
           style={styles.heroImage}
           resizeMode="cover"
-          // These properties improve image loading performance
           fadeDuration={300}
           progressiveRenderingEnabled={true}
         />
 
-        {/* Darker gradient overlay for better text readability */}
         <LinearGradient
           colors={["rgba(0,0,0,0.5)", "rgba(0,0,0,0.3)", "rgba(0,0,0,0.1)", "rgba(0,0,0,0.4)"]}
           locations={[0, 0.3, 0.7, 1]}
           style={styles.fullGradient}
-          // Added for performance
           shouldRasterizeIOS={true}
         />
       </View>
 
-      {/* Header navigation buttons */}
       <View style={styles.headerContainer}>
         <View style={styles.headerContent}>
-          {/* Back Button */}
           <TouchableOpacity
             style={styles.headerButton}
             onPress={onBackPress}
             activeOpacity={0.7}
-            // Improved touch handling
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
             <Ionicons name="arrow-back" size={dynamicStyles.iconSize.header} color="#fff" />
           </TouchableOpacity>
 
-          {/* Share Button */}
           <TouchableOpacity
             style={styles.headerButton}
             onPress={onShare}
             activeOpacity={0.7}
-            // Improved touch handling
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
             <Ionicons name="share-outline" size={dynamicStyles.iconSize.header} color="#fff" />
@@ -106,7 +95,7 @@ const PlaceHeroHeader: React.FC<PlaceHeroHeaderProps> = ({
 const styles = StyleSheet.create({
   heroContainer: {
     width: "100%",
-    overflow: "hidden", // Prevent image from overflowing during animations
+    overflow: "hidden",
   },
   heroImage: {
     width: "100%",
@@ -145,4 +134,5 @@ const styles = StyleSheet.create({
   },
 });
 
-export default React.memo(PlaceHeroHeader); // Use memo to prevent unnecessary re-renders
+// to stop re renders
+export default React.memo(PlaceHeroHeader);

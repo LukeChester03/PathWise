@@ -3,10 +3,6 @@ import { fetchRoute } from "../../controllers/Map/routesController";
 import { Region, Place } from "../../types/MapTypes";
 import MapView from "react-native-maps";
 
-/**
- * Handles the marker press event.
- * Fetches the route and updates the state to show the ExploreCard.
- */
 export const handleMarkerPress = async (
   place: Place,
   region: Region | null,
@@ -29,10 +25,6 @@ export const handleMarkerPress = async (
   }
 };
 
-/**
- * Handles the start journey event.
- * Requests location permissions and starts tracking the user's location.
- */
 export const handleStartJourney = async (
   requestLocationPermission: () => Promise<boolean>,
   setShowCard: (show: boolean) => void,
@@ -51,19 +43,15 @@ export const handleStartJourney = async (
     setShowArrow(false);
     setShowDiscoveredCard(false);
     setJourneyStarted(true);
-    setIsMapFocused(true); // Focus on user location when journey starts
+    setIsMapFocused(true);
     if (mapRef.current && userLocation) {
-      mapRef.current.animateToRegion(userLocation, 1000); // Animate to user location
+      mapRef.current.animateToRegion(userLocation, 1000);
     }
   } else {
     Alert.alert("Permission Denied", "Location permission is required to start the journey.");
   }
 };
 
-/**
- * Handles the cancel journey event.
- * Resets all journey-related state.
- */
 export const handleCancel = (
   setConfirmEndJourney: (confirm: boolean) => void,
   setSelectedPlace: (place: Place | null) => void,
@@ -85,24 +73,3 @@ export const handleCancel = (
   setShowArrow(false);
   setJourneyStarted(false);
 };
-
-/**
- * Handles the region change event.
- * Re-centers the map on the user's location after a delay.
- */
-// export const handleRegionChangeComplete = (
-//   journeyStarted: boolean,
-//   setIsMapFocused: (focused: boolean) => void,
-//   mapRef: React.RefObject<MapView>,
-//   userLocation: Region | null
-// ) => {
-//   if (journeyStarted) {
-//     setIsMapFocused(false);
-//     setTimeout(() => {
-//       setIsMapFocused(true);
-//       if (mapRef.current && userLocation) {
-//         mapRef.current.animateToRegion(userLocation, 500);
-//       }
-//     }, 3000);
-//   }
-// };

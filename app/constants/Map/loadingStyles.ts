@@ -67,7 +67,7 @@ export const loadingStyles = StyleSheet.create({
     width: 0,
     height: 0,
     borderRadius: 30,
-    backgroundColor: Colors.primary + "15", // More transparent pulse
+    backgroundColor: Colors.primary + "15",
     zIndex: 2,
   },
   messageContainer: {

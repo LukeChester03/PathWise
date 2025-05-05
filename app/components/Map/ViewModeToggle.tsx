@@ -1,4 +1,3 @@
-// ViewModeToggle.tsx
 import React, { useState, useEffect } from "react";
 import { TouchableOpacity, StyleSheet, Animated, Easing } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
@@ -18,7 +17,6 @@ export const ViewModeToggle: React.FC<ViewModeToggleProps> = ({
   const [isDisabled, setIsDisabled] = useState(false);
   const rotation = new Animated.Value(viewMode === "follow" ? 0 : 1);
 
-  // Animate rotation when viewMode changes
   useEffect(() => {
     Animated.timing(rotation, {
       toValue: viewMode === "follow" ? 0 : 1,
@@ -36,14 +34,12 @@ export const ViewModeToggle: React.FC<ViewModeToggleProps> = ({
   const handlePress = () => {
     if (isDisabled || isTransitioning) return;
 
-    // Disable button temporarily to prevent multiple clicks
     setIsDisabled(true);
     onToggle();
 
-    // Re-enable after transition (use a slightly longer timeout than the camera animation)
     setTimeout(() => {
       setIsDisabled(false);
-    }, 1200); // This should be longer than your camera animation duration
+    }, 1200);
   };
 
   return (
@@ -68,7 +64,7 @@ const styles = StyleSheet.create({
     position: "absolute",
     bottom: 30,
     right: 16,
-    backgroundColor: Colors.primary, // Changed to white as requested
+    backgroundColor: Colors.primary,
     width: 50,
     height: 50,
     borderRadius: 25,

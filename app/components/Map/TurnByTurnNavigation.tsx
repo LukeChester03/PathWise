@@ -29,7 +29,6 @@ const TurnByTurnNavigation: React.FC<TurnByTurnNavigationProps> = ({
   setNavigationVisible,
   getManeuverIcon,
 }) => {
-  // Navigation Panel Component
   const NavigationPanel = useMemo(() => {
     if (!navigationVisible || !currentStep || !journeyStarted) return null;
 
@@ -91,7 +90,6 @@ const TurnByTurnNavigation: React.FC<TurnByTurnNavigationProps> = ({
     navigationSteps,
   ]);
 
-  // Minimized Navigation Button Component
   const MinimizedNavigation = useMemo(() => {
     if (navigationVisible || !journeyStarted || !currentStep) return null;
 
@@ -117,7 +115,6 @@ const TurnByTurnNavigation: React.FC<TurnByTurnNavigationProps> = ({
 };
 
 const styles = StyleSheet.create({
-  // Navigation styles
   navigationPanelContainer: {
     position: "absolute",
     top: Platform.OS === "ios" ? 45 : 15,

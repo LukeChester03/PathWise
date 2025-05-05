@@ -1,4 +1,3 @@
-// types/StatTypes.ts
 import { Timestamp } from "firebase/firestore";
 
 export type StatIcon =
@@ -23,18 +22,15 @@ export interface StatItem {
   icon: StatIcon;
   value: number | string;
   label: string;
-  gradientColors: [string, string]; // Tuple of two colors
+  gradientColors: [string, string];
 }
 
 export interface UserStatsData {
-  // Core stats
   placesDiscovered: number;
   countriesVisited: number;
   dayStreak: number;
   achievementsEarned: number;
-
-  // Additional stats
-  distanceTraveled: number; // In kilometers
+  distanceTraveled: number;
   topCity: string;
   topCityCount: number;
   explorationScore: number;
@@ -46,13 +42,11 @@ export interface UserStatsData {
   favoriteCategoryCount: number;
   peakExplorationHour: number;
   explorationLevel: number;
-  totalTime: number; // In minutes
+  totalTime: number;
   weekendExplorerScore: number;
-  longestJourney: number; // In kilometers
+  longestJourney: number;
   continentsVisited: number;
   firstVisitTime?: Date | Timestamp;
-
-  // Metadata
   lastUpdated: Date | Timestamp;
   lastLogin?: Date | Timestamp;
   visitedCountries?: string[];
@@ -75,7 +69,7 @@ export interface VisitedPlace {
   };
   category?: string;
   visitedAt: Date | Timestamp;
-  stayDuration?: number; // In minutes
+  stayDuration?: number;
   photosTaken?: number;
 }
 
@@ -99,7 +93,6 @@ export const EXPLORATION_LEVELS: ExplorationLevel[] = [
   { level: 10, title: "Ultimate Explorer", requiredScore: 10000, icon: "🌟" },
 ];
 
-// Fix color definitions as tuples with explicit type
 export const STAT_COLORS: { [key: string]: [string, string] } = {
   blue: ["#4A90E2", "#5DA9FF"],
   orange: ["#FF7043", "#FF8A65"],

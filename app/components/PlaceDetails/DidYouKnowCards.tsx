@@ -35,20 +35,14 @@ interface DidYouKnowProps {
 }
 
 const DidYouKnow: React.FC<DidYouKnowProps> = ({ aiContent, fontSize, iconSize, onFactPress }) => {
-  // Animation value for entrance
   const fadeAnim = useRef(new Animated.Value(0)).current;
-
-  // State
   const [expandedFact, setExpandedFact] = useState<number | null>(null);
   const [revealedFacts, setRevealedFacts] = useState<number[]>([]);
 
-  // Initialize component
   useEffect(() => {
-    // Reset state when content changes
     setExpandedFact(null);
     setRevealedFacts([]);
 
-    // Simple entrance animation
     Animated.timing(fadeAnim, {
       toValue: 1,
       duration: 400,
@@ -56,20 +50,16 @@ const DidYouKnow: React.FC<DidYouKnowProps> = ({ aiContent, fontSize, iconSize, 
       useNativeDriver: true,
     }).start();
 
-    // Auto-reveal the first fact
     if (aiContent?.didYouKnow?.length) {
       setRevealedFacts([0]);
     }
   }, [aiContent?.didYouKnow]);
 
-  // Toggle fact expansion
   const toggleFact = (index: number) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
-    // Toggle expansion
     setExpandedFact(expandedFact === index ? null : index);
 
-    // Mark as revealed if it wasn't already
     if (!revealedFacts.includes(index)) {
       setRevealedFacts([...revealedFacts, index]);
     }
@@ -79,7 +69,6 @@ const DidYouKnow: React.FC<DidYouKnowProps> = ({ aiContent, fontSize, iconSize, 
     }
   };
 
-  // Reveal next fact
   const revealNextFact = () => {
     if (!aiContent?.didYouKnow?.length) return;
 
@@ -90,7 +79,6 @@ const DidYouKnow: React.FC<DidYouKnowProps> = ({ aiContent, fontSize, iconSize, 
     }
   };
 
-  // Loading state component
   const renderLoading = () => (
     <View style={styles.loadingContainer}>
       <View style={styles.loadingIndicator}>
@@ -102,7 +90,6 @@ const DidYouKnow: React.FC<DidYouKnowProps> = ({ aiContent, fontSize, iconSize, 
     </View>
   );
 
-  // No content state
   if (!aiContent?.didYouKnow || aiContent.didYouKnow.length === 0) {
     return aiContent?.isGenerating ? renderLoading() : null;
   }
@@ -150,7 +137,6 @@ const DidYouKnow: React.FC<DidYouKnowProps> = ({ aiContent, fontSize, iconSize, 
                   style={[styles.factCard, isExpanded && styles.factCardExpanded]}
                   onPress={() => toggleFact(index)}
                 >
-                  {/* Static gradient background */}
                   <LinearGradient
                     colors={[Colors.background, `${NeutralColors.gray100}30`]}
                     start={{ x: 0, y: 0 }}
@@ -158,7 +144,6 @@ const DidYouKnow: React.FC<DidYouKnowProps> = ({ aiContent, fontSize, iconSize, 
                     style={StyleSheet.absoluteFill}
                   />
 
-                  {/* Simple decorative circles - no animation */}
                   <View style={styles.circlesContainer}>
                     <View style={[styles.decorCircle, styles.decorCircle1]}>
                       <LinearGradient
@@ -213,7 +198,6 @@ const DidYouKnow: React.FC<DidYouKnowProps> = ({ aiContent, fontSize, iconSize, 
                     </Text>
                   </View>
 
-                  {/* Simple fade gradient for collapsed state */}
                   {!isExpanded && (
                     <LinearGradient
                       colors={["rgba(255,255,255,0)", "rgba(255,255,255,1)"]}

@@ -1,4 +1,3 @@
-// components/PlaceBadges.tsx
 import React, { useMemo } from "react";
 import { View, Text, StyleSheet, Animated } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
@@ -12,7 +11,7 @@ interface PlaceBadgesProps {
   iconSize: {
     smaller: number;
   };
-  maxTags?: number; // Maximum number of type tags to display
+  maxTags?: number;
 }
 
 interface PlaceTypeInfo {
@@ -25,9 +24,8 @@ const PlaceBadges: React.FC<PlaceBadgesProps> = ({
   fadeAnim,
   translateY,
   iconSize,
-  maxTags = 5, // Default to 5 tags maximum
+  maxTags = 5,
 }) => {
-  // Define the mapping of place types to labels and icons
   const TYPE_MAPPING: { [key: string]: PlaceTypeInfo } = useMemo(
     () => ({
       restaurant: { label: "Restaurant", icon: "restaurant" },
@@ -67,7 +65,6 @@ const PlaceBadges: React.FC<PlaceBadgesProps> = ({
     []
   );
 
-  // Get up to maxTags place type badges
   const getPlaceTypes = useMemo(() => {
     if (
       !placeDetails ||
@@ -80,10 +77,8 @@ const PlaceBadges: React.FC<PlaceBadgesProps> = ({
 
     const foundTypes: PlaceTypeInfo[] = [];
 
-    // First pass: add types that have a direct mapping
     for (const type of placeDetails.types) {
       if (TYPE_MAPPING[type] && foundTypes.length < maxTags) {
-        // Check if this type is already in the list (avoid duplicates like "food" and "restaurant")
         const isDuplicate = foundTypes.some((item) => item.label === TYPE_MAPPING[type].label);
 
         if (!isDuplicate) {
@@ -94,11 +89,9 @@ const PlaceBadges: React.FC<PlaceBadgesProps> = ({
       if (foundTypes.length >= maxTags) break;
     }
 
-    // Second pass: if we haven't reached maxTags, add custom types for anything not mapped
     if (foundTypes.length < maxTags) {
       for (const type of placeDetails.types) {
         if (!TYPE_MAPPING[type] && foundTypes.length < maxTags) {
-          // Format the type name (remove underscores, capitalize words)
           const formattedLabel = type
             .split("_")
             .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
@@ -119,7 +112,6 @@ const PlaceBadges: React.FC<PlaceBadgesProps> = ({
     return foundTypes;
   }, [placeDetails, TYPE_MAPPING, maxTags]);
 
-  // Check if the place is visited (either by isVisited flag or by having visitedAt property)
   const isPlaceVisited = placeDetails.isVisited || "visitedAt" in placeDetails;
 
   return (

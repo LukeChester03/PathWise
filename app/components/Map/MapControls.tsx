@@ -1,4 +1,3 @@
-// MapControls.tsx - UI components for map controls
 import React from "react";
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import FeatherIcon from "react-native-vector-icons/Feather";
@@ -10,9 +9,6 @@ import {
   EndJourneyButtonProps,
 } from "../../types/MapTypes";
 
-/**
- * Card toggle arrow
- */
 export const CardToggleArrow: React.FC<CardToggleArrowProps> = ({ onPress }) => {
   return (
     <TouchableOpacity style={styles.arrowContainer} onPress={onPress}>
@@ -21,9 +17,6 @@ export const CardToggleArrow: React.FC<CardToggleArrowProps> = ({ onPress }) => 
   );
 };
 
-/**
- * End journey button
- */
 export const EndJourneyButton: React.FC<EndJourneyButtonProps> = ({ onPress }) => {
   return (
     <View style={styles.buttonContainer}>
@@ -34,9 +27,6 @@ export const EndJourneyButton: React.FC<EndJourneyButtonProps> = ({ onPress }) =
   );
 };
 
-/**
- * User direction indicator for the map
- */
 export const DirectionIndicator: React.FC = () => {
   return (
     <View style={styles.directionIndicator}>

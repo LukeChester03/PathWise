@@ -1,4 +1,3 @@
-// components/AdvancedAnalysis/RequestLimitsBadge.tsx
 import React from "react";
 import { View, Text, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
@@ -31,14 +30,14 @@ const styles = StyleSheet.create({
   requestLimitBadge: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: `${NeutralColors.white}33`, // 20% opacity
+    backgroundColor: `${NeutralColors.white}33`,
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 12,
     marginRight: 10,
   },
   requestLimitBadgeWarning: {
-    backgroundColor: `${Colors.warning}4D`, // 30% opacity
+    backgroundColor: `${Colors.warning}4D`,
   },
   requestLimitText: {
     fontSize: 12,

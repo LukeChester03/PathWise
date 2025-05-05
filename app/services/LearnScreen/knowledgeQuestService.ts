@@ -1,4 +1,3 @@
-// services/LearnScreen/knowledgeQuestService.ts
 import { generateContent } from "../Gemini/geminiService";
 import {
   collection,
@@ -29,7 +28,6 @@ import { VisitedPlaceDetails } from "../../types/MapTypes";
 import { fetchUserVisitedPlaces } from "./travelProfileService";
 import { getAllUserBadges, updateBadgeRequirements, completeBadge } from "./badgeService";
 
-// Constants
 const CACHE_EXPIRY_DAYS = 30;
 const QUIZ_CACHE_PREFIX = "@knowledge_quest:quiz:";
 const QUIZ_RESULTS_CACHE_PREFIX = "@knowledge_quest:results:";
@@ -39,31 +37,22 @@ const MAX_QUIZZES_PER_REGION = 3;
 const DEFAULT_QUESTIONS_PER_QUIZ = 5;
 const QUIZZES_TO_CACHE = 10;
 const REFRESH_INTERVAL_DAYS = 3;
+const quizCache = new Map();
+const quizResultsCache = new Map();
+let statsCache = null;
+let settingsCache = null;
 
-// In-memory cache
-const quizCache: Map<string, Quiz> = new Map();
-const quizResultsCache: Map<string, QuizResult[]> = new Map();
-let statsCache: KnowledgeQuestStats | null = null;
-let settingsCache: KnowledgeQuestSettings | null = null;
-
-/**
- * Interface for region context to improve disambiguation
- */
 interface RegionContext {
-  name: string; // The region name
-  country?: string; // Country where the region is located, if available
-  placeType?: string; // Type of place: city, state, landmark, etc.
+  name: string;
+  country?: string;
+  placeType?: string;
   coordinates?: {
-    // Geographical coordinates if available
     lat: number;
     lng: number;
   };
-  formattedAddress?: string; // Full formatted address if available
+  formattedAddress?: string;
 }
 
-/**
- * Initialize Knowledge Quest service with required settings and cache
- */
 export const initializeKnowledgeQuest = async (): Promise<void> => {
   try {
     const currentUser = auth.currentUser;
@@ -71,20 +60,14 @@ export const initializeKnowledgeQuest = async (): Promise<void> => {
       console.warn("Cannot initialize Knowledge Quest: No authenticated user");
       return;
     }
-
-    // Get settings - this will create default settings if none exist
     await getKnowledgeQuestSettings();
-
-    // Get stats - this will create default stats if none exist
     await getKnowledgeQuestStats();
 
-    // Check if we need to refresh quizzes
     const settings = await getKnowledgeQuestSettings();
     const lastRefreshed = settings.lastRefreshedAt;
     const now = Date.now();
     const daysSinceRefresh = (now - lastRefreshed) / (1000 * 60 * 60 * 24);
 
-    // Refresh if more than 1 day has passed (daily refresh)
     if (daysSinceRefresh >= REFRESH_INTERVAL_DAYS) {
       console.log(
         `Knowledge Quest quizzes need refreshing (${daysSinceRefresh.toFixed(
@@ -104,17 +87,12 @@ export const initializeKnowledgeQuest = async (): Promise<void> => {
   }
 };
 
-/**
- * Get Knowledge Quest settings with multi-level caching
- */
 export const getKnowledgeQuestSettings = async (): Promise<KnowledgeQuestSettings> => {
   try {
-    // Check memory cache first
     if (settingsCache) {
       return { ...settingsCache };
     }
 
-    // Try AsyncStorage next
     try {
       const cachedSettings = await AsyncStorage.getItem(QUEST_SETTINGS_CACHE_KEY);
       if (cachedSettings) {
@@ -126,7 +104,6 @@ export const getKnowledgeQuestSettings = async (): Promise<KnowledgeQuestSetting
       console.warn("Error reading Knowledge Quest settings from AsyncStorage:", asyncError);
     }
 
-    // Finally try Firebase
     const currentUser = auth.currentUser;
     if (!currentUser) {
       const defaultSettings = getDefaultSettings();
@@ -140,17 +117,14 @@ export const getKnowledgeQuestSettings = async (): Promise<KnowledgeQuestSetting
     if (settingsDoc.exists()) {
       const settings = settingsDoc.data() as KnowledgeQuestSettings;
 
-      // Cache in memory and AsyncStorage
       settingsCache = settings;
       await AsyncStorage.setItem(QUEST_SETTINGS_CACHE_KEY, JSON.stringify(settings));
 
       return { ...settings };
     } else {
-      // Create default settings
       const defaultSettings = getDefaultSettings();
       await setDoc(settingsRef, defaultSettings);
 
-      // Cache in memory and AsyncStorage
       settingsCache = defaultSettings;
       await AsyncStorage.setItem(QUEST_SETTINGS_CACHE_KEY, JSON.stringify(defaultSettings));
 
@@ -163,9 +137,6 @@ export const getKnowledgeQuestSettings = async (): Promise<KnowledgeQuestSetting
   }
 };
 
-/**
- * Update Knowledge Quest settings with multi-level caching
- */
 export const updateKnowledgeQuestSettings = async (
   settings: Partial<KnowledgeQuestSettings>
 ): Promise<void> => {
@@ -176,18 +147,14 @@ export const updateKnowledgeQuestSettings = async (
       return;
     }
 
-    // Update Firebase
     const settingsRef = doc(db, "users", currentUser.uid, "settings", "knowledgeQuest");
     await setDoc(settingsRef, settings, { merge: true });
 
-    // Get current settings to update memory and AsyncStorage caches
     const currentSettings = await getKnowledgeQuestSettings();
     const updatedSettings = { ...currentSettings, ...settings };
 
-    // Update memory cache
     settingsCache = updatedSettings;
 
-    // Update AsyncStorage
     await AsyncStorage.setItem(QUEST_SETTINGS_CACHE_KEY, JSON.stringify(updatedSettings));
 
     console.log("Knowledge Quest settings updated successfully");
@@ -196,17 +163,12 @@ export const updateKnowledgeQuestSettings = async (
   }
 };
 
-/**
- * Get Knowledge Quest statistics with multi-level caching
- */
 export const getKnowledgeQuestStats = async (): Promise<KnowledgeQuestStats> => {
   try {
-    // Check memory cache first
     if (statsCache) {
       return { ...statsCache };
     }
 
-    // Try AsyncStorage next
     try {
       const cachedStats = await AsyncStorage.getItem(QUEST_STATS_CACHE_KEY);
       if (cachedStats) {
@@ -218,7 +180,6 @@ export const getKnowledgeQuestStats = async (): Promise<KnowledgeQuestStats> => 
       console.warn("Error reading Knowledge Quest stats from AsyncStorage:", asyncError);
     }
 
-    // Finally try Firebase
     const currentUser = auth.currentUser;
     if (!currentUser) {
       const defaultStats = getDefaultStats();
@@ -232,17 +193,14 @@ export const getKnowledgeQuestStats = async (): Promise<KnowledgeQuestStats> => 
     if (statsDoc.exists()) {
       const stats = statsDoc.data() as KnowledgeQuestStats;
 
-      // Cache in memory and AsyncStorage
       statsCache = stats;
       await AsyncStorage.setItem(QUEST_STATS_CACHE_KEY, JSON.stringify(stats));
 
       return { ...stats };
     } else {
-      // Create default stats
       const defaultStats = getDefaultStats();
       await setDoc(statsRef, defaultStats);
 
-      // Cache in memory and AsyncStorage
       statsCache = defaultStats;
       await AsyncStorage.setItem(QUEST_STATS_CACHE_KEY, JSON.stringify(defaultStats));
 
@@ -255,9 +213,6 @@ export const getKnowledgeQuestStats = async (): Promise<KnowledgeQuestStats> => 
   }
 };
 
-/**
- * Update Knowledge Quest statistics with multi-level caching
- */
 export const updateKnowledgeQuestStats = async (
   stats: Partial<KnowledgeQuestStats>
 ): Promise<void> => {
@@ -268,18 +223,14 @@ export const updateKnowledgeQuestStats = async (
       return;
     }
 
-    // Update Firebase
     const statsRef = doc(db, "users", currentUser.uid, "stats", "knowledgeQuest");
     await setDoc(statsRef, stats, { merge: true });
 
-    // Get current stats to update memory and AsyncStorage caches
     const currentStats = await getKnowledgeQuestStats();
     const updatedStats = { ...currentStats, ...stats };
 
-    // Update memory cache
     statsCache = updatedStats;
 
-    // Update AsyncStorage
     await AsyncStorage.setItem(QUEST_STATS_CACHE_KEY, JSON.stringify(updatedStats));
 
     console.log("Knowledge Quest stats updated successfully");
@@ -288,10 +239,6 @@ export const updateKnowledgeQuestStats = async (
   }
 };
 
-/**
- * Get available quizzes for a user with multi-level caching
- * IMPROVED: Better error handling, validation, and caching
- */
 export const getAvailableQuizzes = async (limitCount = 10): Promise<Quiz[]> => {
   try {
     const currentUser = auth.currentUser;
@@ -300,7 +247,6 @@ export const getAvailableQuizzes = async (limitCount = 10): Promise<Quiz[]> => {
       return [];
     }
 
-    // Check if we should refresh quizzes based on last refresh date
     const settings = await getKnowledgeQuestSettings();
     const now = Date.now();
     const daysSinceRefresh = (now - settings.lastRefreshedAt) / (1000 * 60 * 60 * 24);
@@ -311,16 +257,13 @@ export const getAvailableQuizzes = async (limitCount = 10): Promise<Quiz[]> => {
       );
       await refreshQuizzes();
 
-      // Update settings with new refresh time
       await updateKnowledgeQuestSettings({
         lastRefreshedAt: now,
       });
     }
 
-    // Check if we have any in memory cache first
     if (quizCache.size > 0) {
       console.log(`Using memory cache for quizzes (${quizCache.size} quizzes available)`);
-      // Filter out expired quizzes
       const validQuizzes = Array.from(quizCache.values()).filter((quiz) => {
         const expiryDate = new Date(quiz.expiresAt);
         return expiryDate.getTime() > Date.now();
@@ -332,27 +275,24 @@ export const getAvailableQuizzes = async (limitCount = 10): Promise<Quiz[]> => {
       }
     }
 
-    // Try AsyncStorage next
     try {
       const keys = await AsyncStorage.getAllKeys();
       const quizKeys = keys.filter((key) => key.startsWith(QUIZ_CACHE_PREFIX));
 
       if (quizKeys.length > 0) {
         const quizData = await AsyncStorage.multiGet(quizKeys);
-        const quizzes: Quiz[] = [];
+        const quizzes = [];
 
         for (const [key, value] of quizData) {
           if (value) {
             try {
               const quiz = JSON.parse(value) as Quiz;
 
-              // Check if the quiz has expired
               const expiryDate = new Date(quiz.expiresAt);
               if (expiryDate.getTime() > Date.now()) {
                 quizCache.set(quiz.id, quiz);
                 quizzes.push(quiz);
               } else {
-                // Remove expired quiz from cache
                 await AsyncStorage.removeItem(key);
               }
             } catch (parseError) {
@@ -371,10 +311,9 @@ export const getAvailableQuizzes = async (limitCount = 10): Promise<Quiz[]> => {
       console.warn("Error reading quizzes from AsyncStorage:", asyncError);
     }
 
-    // Finally try Firebase
     console.log("Fetching quizzes from Firebase");
     const quizzesCollection = collection(db, "users", currentUser.uid, "quizzes");
-    const q = query(quizzesCollection, orderBy("createdAt", "desc"), limit(limitCount * 2)); // Get more to ensure we have enough valid ones
+    const q = query(quizzesCollection, orderBy("createdAt", "desc"), limit(limitCount * 2));
     const quizzesSnapshot = await getDocs(q);
 
     if (quizzesSnapshot.empty) {
@@ -382,8 +321,7 @@ export const getAvailableQuizzes = async (limitCount = 10): Promise<Quiz[]> => {
       return await refreshQuizzes();
     }
 
-    // Process and cache quizzes
-    const quizzes: Quiz[] = [];
+    const quizzes = [];
     let invalidQuizCount = 0;
 
     for (const docSnapshot of quizzesSnapshot.docs) {
@@ -391,14 +329,12 @@ export const getAvailableQuizzes = async (limitCount = 10): Promise<Quiz[]> => {
         const quizData = docSnapshot.data() as Quiz;
         quizData.id = docSnapshot.id;
 
-        // Check if the quiz has expired
         const expiryDate = new Date(quizData.expiresAt);
         if (expiryDate.getTime() <= Date.now()) {
           invalidQuizCount++;
           continue;
         }
 
-        // Validate quiz structure to prevent errors
         if (
           !quizData.questions ||
           !Array.isArray(quizData.questions) ||
@@ -408,10 +344,8 @@ export const getAvailableQuizzes = async (limitCount = 10): Promise<Quiz[]> => {
           continue;
         }
 
-        // Cache in memory
         quizCache.set(quizData.id, quizData);
 
-        // Cache in AsyncStorage
         try {
           await AsyncStorage.setItem(
             `${QUIZ_CACHE_PREFIX}${quizData.id}`,
@@ -432,7 +366,6 @@ export const getAvailableQuizzes = async (limitCount = 10): Promise<Quiz[]> => {
       `Retrieved ${quizzes.length} valid quizzes from Firebase (skipped ${invalidQuizCount} invalid/expired quizzes)`
     );
 
-    // If we found less than half the requested quizzes, generate new ones
     if (quizzes.length < limitCount / 2) {
       console.log(
         `Found only ${quizzes.length} quizzes, which is less than ${
@@ -441,7 +374,6 @@ export const getAvailableQuizzes = async (limitCount = 10): Promise<Quiz[]> => {
       );
       const newQuizzes = await refreshQuizzes();
 
-      // Combine existing and new quizzes, removing duplicates
       const allQuizIds = new Set(quizzes.map((q) => q.id));
       const additionalQuizzes = newQuizzes.filter((q) => !allQuizIds.has(q.id));
 
@@ -449,8 +381,7 @@ export const getAvailableQuizzes = async (limitCount = 10): Promise<Quiz[]> => {
       console.log(`Added ${additionalQuizzes.length} newly generated quizzes to the list`);
     }
 
-    // Deduplicate and sort quizzes
-    const uniqueQuizMap = new Map<string, Quiz>();
+    const uniqueQuizMap = new Map();
     quizzes.forEach((quiz) => {
       if (!uniqueQuizMap.has(quiz.id)) {
         uniqueQuizMap.set(quiz.id, quiz);
@@ -458,8 +389,6 @@ export const getAvailableQuizzes = async (limitCount = 10): Promise<Quiz[]> => {
     });
 
     const uniqueQuizzes = Array.from(uniqueQuizMap.values());
-
-    // Sort quizzes by number of completions (incomplete quizzes first)
     uniqueQuizzes.sort((a, b) => (a.completions || 0) - (b.completions || 0));
 
     console.log(
@@ -475,9 +404,6 @@ export const getAvailableQuizzes = async (limitCount = 10): Promise<Quiz[]> => {
   }
 };
 
-/**
- * Get a specific quiz by ID with multi-level caching
- */
 export const getQuizById = async (quizId: string): Promise<Quiz | null> => {
   try {
     if (!quizId) {
@@ -487,15 +413,12 @@ export const getQuizById = async (quizId: string): Promise<Quiz | null> => {
 
     console.log(`[QUIZ DEBUG] Getting quiz with ID: ${quizId}`);
 
-    // Check memory cache first
     if (quizCache.has(quizId)) {
-      const cachedQuiz = quizCache.get(quizId)!;
+      const cachedQuiz = quizCache.get(quizId);
       console.log(`[QUIZ DEBUG] Found quiz in memory cache: ${quizId}`);
 
-      // Verify the quiz hasn't expired
       const expiryDate = new Date(cachedQuiz.expiresAt);
       if (expiryDate.getTime() > Date.now()) {
-        // Additional validation to ensure quiz has all required properties
         if (
           cachedQuiz.title &&
           cachedQuiz.questions &&
@@ -510,13 +433,11 @@ export const getQuizById = async (quizId: string): Promise<Quiz | null> => {
           quizCache.delete(quizId);
         }
       } else {
-        // Remove expired quiz from cache
         console.log(`[QUIZ DEBUG] Removing expired quiz from memory cache: ${quizId}`);
         quizCache.delete(quizId);
       }
     }
 
-    // Try AsyncStorage next
     try {
       const cachedQuiz = await AsyncStorage.getItem(`${QUIZ_CACHE_PREFIX}${quizId}`);
       if (cachedQuiz) {
@@ -524,10 +445,8 @@ export const getQuizById = async (quizId: string): Promise<Quiz | null> => {
         try {
           const quiz = JSON.parse(cachedQuiz) as Quiz;
 
-          // Verify the quiz hasn't expired
           const expiryDate = new Date(quiz.expiresAt);
           if (expiryDate.getTime() > Date.now()) {
-            // Additional validation to ensure quiz has all required properties
             if (
               quiz.title &&
               quiz.questions &&
@@ -543,7 +462,6 @@ export const getQuizById = async (quizId: string): Promise<Quiz | null> => {
               await AsyncStorage.removeItem(`${QUIZ_CACHE_PREFIX}${quizId}`);
             }
           } else {
-            // Remove expired quiz from AsyncStorage
             console.log(`[QUIZ DEBUG] Removing expired quiz from AsyncStorage: ${quizId}`);
             await AsyncStorage.removeItem(`${QUIZ_CACHE_PREFIX}${quizId}`);
           }
@@ -556,7 +474,6 @@ export const getQuizById = async (quizId: string): Promise<Quiz | null> => {
       console.warn("[QUIZ DEBUG] Error reading quiz from AsyncStorage:", asyncError);
     }
 
-    // Finally try Firebase
     const currentUser = auth.currentUser;
     if (!currentUser) {
       console.warn("[QUIZ DEBUG] Cannot get quiz: No authenticated user");
@@ -571,7 +488,6 @@ export const getQuizById = async (quizId: string): Promise<Quiz | null> => {
       if (!quizDoc.exists()) {
         console.warn(`[QUIZ DEBUG] Quiz with ID ${quizId} not found in Firebase.`);
 
-        // Try to find the quiz in the available quizzes (might be in memory but not saved yet)
         const availableQuizzes = await getAvailableQuizzes(50);
         const matchingQuiz = availableQuizzes.find((q) => q.id === quizId);
 
@@ -580,12 +496,10 @@ export const getQuizById = async (quizId: string): Promise<Quiz | null> => {
             `[QUIZ DEBUG] Found quiz ${quizId} in available quizzes but not in Firestore. Creating it now.`
           );
 
-          // Create the quiz document in Firestore
           try {
             await setDoc(quizRef, matchingQuiz);
             console.log(`[QUIZ DEBUG] Successfully created quiz document: ${quizId}`);
 
-            // Cache the quiz
             quizCache.set(quizId, matchingQuiz);
             await AsyncStorage.setItem(
               `${QUIZ_CACHE_PREFIX}${quizId}`,
@@ -595,11 +509,10 @@ export const getQuizById = async (quizId: string): Promise<Quiz | null> => {
             return { ...matchingQuiz };
           } catch (createError) {
             console.error(`[QUIZ DEBUG] Error creating quiz document: ${quizId}`, createError);
-            return matchingQuiz; // Return the quiz even if we couldn't save it
+            return matchingQuiz;
           }
         }
 
-        // Remove from caches if not found
         quizCache.delete(quizId);
         try {
           await AsyncStorage.removeItem(`${QUIZ_CACHE_PREFIX}${quizId}`);
@@ -612,22 +525,18 @@ export const getQuizById = async (quizId: string): Promise<Quiz | null> => {
       const quizData = quizDoc.data() as Quiz;
       quizData.id = quizDoc.id;
 
-      // Verify the quiz hasn't expired
       const expiryDate = new Date(quizData.expiresAt);
       if (expiryDate.getTime() <= Date.now()) {
         console.warn(`[QUIZ DEBUG] Quiz with ID ${quizId} has expired.`);
 
-        // Update the expiry date instead of returning null
         console.log(`[QUIZ DEBUG] Extending expiry date for quiz: ${quizId}`);
         const newExpiryDate = new Date();
         newExpiryDate.setDate(newExpiryDate.getDate() + CACHE_EXPIRY_DAYS);
         quizData.expiresAt = newExpiryDate.toISOString();
 
-        // Update the document with the new expiry date
         await setDoc(quizRef, { expiresAt: quizData.expiresAt }, { merge: true });
       }
 
-      // Verify and fix the quiz structure if needed
       if (
         !quizData.questions ||
         !Array.isArray(quizData.questions) ||
@@ -635,14 +544,11 @@ export const getQuizById = async (quizId: string): Promise<Quiz | null> => {
       ) {
         console.warn(`[QUIZ DEBUG] Quiz with ID ${quizId} has invalid questions structure.`);
 
-        // If it doesn't have required fields, we might need to refresh quizzes
-        // but still return the quiz object with at least some minimal data
         if (!quizData.title) quizData.title = "Quiz";
         if (!quizData.difficulty) quizData.difficulty = "medium";
         if (!quizData.category) quizData.category = "general";
         if (!quizData.relatedRegions) quizData.relatedRegions = ["Unknown"];
 
-        // Add a default question if none exist
         if (
           !quizData.questions ||
           !Array.isArray(quizData.questions) ||
@@ -666,10 +572,8 @@ export const getQuizById = async (quizId: string): Promise<Quiz | null> => {
         }
       }
 
-      // Cache in memory
       quizCache.set(quizId, quizData);
 
-      // Cache in AsyncStorage
       try {
         await AsyncStorage.setItem(`${QUIZ_CACHE_PREFIX}${quizId}`, JSON.stringify(quizData));
       } catch (asyncError) {
@@ -687,10 +591,6 @@ export const getQuizById = async (quizId: string): Promise<Quiz | null> => {
   }
 };
 
-/**
- * Refresh quizzes by generating new ones based on visited places
- * IMPROVED: Better error handling, logging, and fallback to generic quizzes
- */
 export const refreshQuizzes = async (): Promise<Quiz[]> => {
   try {
     const currentUser = auth.currentUser;
@@ -701,10 +601,8 @@ export const refreshQuizzes = async (): Promise<Quiz[]> => {
 
     console.log("Starting quiz refresh process");
 
-    // Clear existing cache to avoid stale data
     await clearQuizCaches();
 
-    // Get user's visited places
     const visitedPlaces = await fetchUserVisitedPlaces();
     console.log(`Found ${visitedPlaces.length} visited places`);
 
@@ -713,7 +611,6 @@ export const refreshQuizzes = async (): Promise<Quiz[]> => {
       return await generateGenericQuizzes();
     }
 
-    // Extract regions from visited places with improved context data
     const regionContexts = extractRegionsFromPlaces(visitedPlaces);
     console.log(`Extracted ${regionContexts.length} region contexts from places`);
 
@@ -722,7 +619,6 @@ export const refreshQuizzes = async (): Promise<Quiz[]> => {
       return await generateGenericQuizzes();
     }
 
-    // Generate quizzes for regions using the improved context
     const quizzes = await generateQuizzesForRegions(regionContexts);
     console.log(`Generated ${quizzes.length} region-specific quizzes`);
 
@@ -731,7 +627,6 @@ export const refreshQuizzes = async (): Promise<Quiz[]> => {
       return await generateGenericQuizzes();
     }
 
-    // Update settings with latest refresh time
     await updateKnowledgeQuestSettings({
       lastRefreshedAt: Date.now(),
     });
@@ -739,7 +634,6 @@ export const refreshQuizzes = async (): Promise<Quiz[]> => {
     return quizzes;
   } catch (error) {
     console.error("Error refreshing quizzes:", error);
-    // If there's an error, try to generate generic quizzes as a fallback
     try {
       console.log("Attempting to generate generic quizzes as fallback");
       return await generateGenericQuizzes();
@@ -750,17 +644,11 @@ export const refreshQuizzes = async (): Promise<Quiz[]> => {
   }
 };
 
-/**
- * Clear quiz caches to ensure fresh data
- * NEW: Added to support daily refresh
- */
 export const clearQuizCaches = async (): Promise<void> => {
   try {
-    // Clear memory cache
     quizCache.clear();
     console.log("Cleared quiz memory cache");
 
-    // Clear AsyncStorage cache for quizzes
     const keys = await AsyncStorage.getAllKeys();
     const quizKeys = keys.filter((key) => key.startsWith(QUIZ_CACHE_PREFIX));
 
@@ -773,8 +661,6 @@ export const clearQuizCaches = async (): Promise<void> => {
   }
 };
 
-/**
- * Record a completed quiz session and update stats*/
 export const recordQuizCompletion = async (
   quiz: Quiz,
   answers: {
@@ -792,19 +678,16 @@ export const recordQuizCompletion = async (
 
     console.log(`[QUIZ DEBUG] Recording completion for quiz ID: ${quiz.id}`);
 
-    // Validate quiz object
     if (!quiz || !quiz.id || !quiz.title || !quiz.questions || !quiz.difficulty || !quiz.category) {
       console.error("[QUIZ DEBUG] Invalid quiz object:", JSON.stringify(quiz, null, 2));
       throw new Error("Invalid quiz object provided");
     }
 
-    // Calculate result statistics
     const correctAnswers = answers.filter((a) => a.isCorrect).length;
     const score = Math.round((correctAnswers / quiz.questions.length) * 100);
     const totalTimeSpent = answers.reduce((total, answer) => total + answer.timeSpent, 0);
     const now = new Date();
 
-    // Create a result object
     const result: QuizResult = {
       id: `result_${Date.now()}`,
       quizId: quiz.id,
@@ -818,7 +701,6 @@ export const recordQuizCompletion = async (
       category: quiz.category,
     };
 
-    // Create a full session object
     const session: QuizSession = {
       id: `session_${Date.now()}`,
       quizId: quiz.id,
@@ -831,14 +713,12 @@ export const recordQuizCompletion = async (
       totalTimeSpent,
     };
 
-    // Create a complete quiz object to save/update
     const quizToSave = {
       ...quiz,
       completions: (quiz.completions || 0) + 1,
       lastCompletedAt: now.toISOString(),
     };
 
-    // Ensure expiryDate is set in the future if it doesn't exist or is invalid
     if (!quiz.expiresAt || new Date(quiz.expiresAt).getTime() <= now.getTime()) {
       const expiryDate = new Date();
       expiryDate.setDate(expiryDate.getDate() + CACHE_EXPIRY_DAYS);
@@ -846,68 +726,54 @@ export const recordQuizCompletion = async (
     }
 
     try {
-      // CRITICAL FIX: Instead of checking if exists and then updating, ALWAYS use setDoc
-      // This avoids race conditions and ensures the document will be created or updated
       const quizRef = doc(db, "users", currentUser.uid, "quizzes", quiz.id);
       console.log(`[QUIZ DEBUG] Setting quiz document: ${quiz.id}`);
       await setDoc(quizRef, quizToSave, { merge: true });
       console.log(`[QUIZ DEBUG] Successfully saved quiz document: ${quiz.id}`);
     } catch (quizError) {
       console.error(`[QUIZ DEBUG] Error saving quiz document: ${quiz.id}`, quizError);
-      // Continue with other operations even if quiz document save fails
     }
 
     try {
-      // Save the session to Firebase
       const sessionsCollection = collection(db, "users", currentUser.uid, "quizSessions");
       await addDoc(sessionsCollection, session);
       console.log("[QUIZ DEBUG] Saved quiz session to Firebase");
     } catch (sessionError) {
       console.error("[QUIZ DEBUG] Error saving quiz session:", sessionError);
-      // Continue with other operations even if session save fails
     }
 
     try {
-      // Save the result to Firebase
       const resultsCollection = collection(db, "users", currentUser.uid, "quizResults");
       const resultRef = await addDoc(resultsCollection, result);
       result.id = resultRef.id;
       console.log("[QUIZ DEBUG] Saved quiz result to Firebase");
     } catch (resultError) {
       console.error("[QUIZ DEBUG] Error saving quiz result:", resultError);
-      // Continue with other operations even if result save fails
     }
 
     try {
-      // Update the user's stats
       await updateUserStatsAfterQuiz(result, quiz.category);
     } catch (statsError) {
       console.error("[QUIZ DEBUG] Error updating user stats:", statsError);
-      // Continue with other operations even if stats update fails
     }
 
     try {
-      // Check and award badges
       await checkAndAwardQuizBadges(result);
     } catch (badgesError) {
       console.error("[QUIZ DEBUG] Error checking badges:", badgesError);
-      // Continue with other operations even if badge check fails
     }
 
     try {
-      // Update local result cache
       const cachedResults = quizResultsCache.get(quiz.id) || [];
       cachedResults.push(result);
       quizResultsCache.set(quiz.id, cachedResults);
 
-      // Update AsyncStorage cache
       await AsyncStorage.setItem(
         `${QUIZ_RESULTS_CACHE_PREFIX}${quiz.id}`,
         JSON.stringify(cachedResults)
       );
     } catch (cacheError) {
       console.error("[QUIZ DEBUG] Error updating cache:", cacheError);
-      // Continue even if cache update fails
     }
 
     console.log(`[QUIZ DEBUG] Quiz ${quiz.id} completed with score ${score}%`);
@@ -915,8 +781,6 @@ export const recordQuizCompletion = async (
   } catch (error) {
     console.error("[QUIZ DEBUG] Error in recordQuizCompletion:", error);
 
-    // If there's an error, still try to return a valid result object
-    // This helps prevent cascading errors in the UI
     if (quiz && answers) {
       const correctAnswers = answers.filter((a) => a.isCorrect).length;
       const score = Math.round((correctAnswers / quiz.questions.length) * 100);
@@ -942,18 +806,12 @@ export const recordQuizCompletion = async (
   }
 };
 
-/**
- * Extract regions with context from visited places
- * Returns a more detailed structure with disambiguated region information
- */
 const extractRegionsFromPlaces = (places: VisitedPlaceDetails[]): RegionContext[] => {
   const regionsMap = new Map<string, RegionContext>();
 
   places.forEach((place) => {
-    // Skip places without valid location data
     if (!place.geometry?.location) return;
 
-    // Initialize region context with coordinates
     const regionContext: RegionContext = {
       name: "",
       coordinates: {
@@ -962,9 +820,7 @@ const extractRegionsFromPlaces = (places: VisitedPlaceDetails[]): RegionContext[
       },
     };
 
-    // Try to extract place type
     if (place.types && place.types.length > 0) {
-      // Prioritize more specific place types
       const priorityTypes = [
         "locality",
         "administrative_area_level_1",
@@ -975,23 +831,17 @@ const extractRegionsFromPlaces = (places: VisitedPlaceDetails[]): RegionContext[
       regionContext.placeType = foundType || place.types[0];
     }
 
-    // First try to use the formatted address
     if (place.formatted_address) {
-      // Parse the formatted address to extract useful location info
       const addressParts = place.formatted_address.split(",").map((part) => part.trim());
 
       if (addressParts.length >= 2) {
-        // The first part is usually the most specific (street, POI, etc.)
-        // The last part is usually the country
         regionContext.name = addressParts[0];
         regionContext.country = addressParts[addressParts.length - 1];
         regionContext.formattedAddress = place.formatted_address;
       } else {
         regionContext.name = place.formatted_address;
       }
-    }
-    // If formatted address is not available, use name and vicinity
-    else if (place.name) {
+    } else if (place.name) {
       regionContext.name = place.name;
 
       if (place.vicinity) {
@@ -1002,12 +852,9 @@ const extractRegionsFromPlaces = (places: VisitedPlaceDetails[]): RegionContext[
       }
     }
 
-    // Skip if we couldn't determine a name
     if (!regionContext.name) return;
 
-    // Handle specific disambiguation cases
     if (regionContext.name.toLowerCase() === "roma") {
-      // If the coordinates are close to Rome, Italy
       if (
         regionContext.coordinates &&
         regionContext.coordinates.lat > 41 &&
@@ -1020,10 +867,8 @@ const extractRegionsFromPlaces = (places: VisitedPlaceDetails[]): RegionContext[
       }
     }
 
-    // Use a composite key for the map to prevent duplicates
     const key = `${regionContext.name}${regionContext.country ? "-" + regionContext.country : ""}`;
 
-    // Only add if we don't already have this region
     if (!regionsMap.has(key)) {
       regionsMap.set(key, regionContext);
     }
@@ -1032,9 +877,6 @@ const extractRegionsFromPlaces = (places: VisitedPlaceDetails[]): RegionContext[
   return Array.from(regionsMap.values());
 };
 
-/**
- * Generate quizzes for specific regions using AI with improved disambiguation
- */
 const generateQuizzesForRegions = async (regions: RegionContext[]): Promise<Quiz[]> => {
   try {
     const currentUser = auth.currentUser;
@@ -1043,11 +885,10 @@ const generateQuizzesForRegions = async (regions: RegionContext[]): Promise<Quiz
       return [];
     }
 
-    const quizzes: Quiz[] = [];
+    const quizzes = [];
     const categories = ["history", "culture", "geography", "art", "food", "general"];
     const difficulties = ["easy", "medium", "hard"];
 
-    // Limit to a reasonable number of regions to avoid excessive API calls
     const regionsToProcess = regions.slice(0, 5);
 
     console.log(
@@ -1055,13 +896,11 @@ const generateQuizzesForRegions = async (regions: RegionContext[]): Promise<Quiz
     );
 
     for (const region of regionsToProcess) {
-      // Create a balanced mix of categories and difficulties
       for (let i = 0; i < MAX_QUIZZES_PER_REGION; i++) {
         const category = categories[i % categories.length];
         const difficulty = difficulties[Math.floor(i / 2) % difficulties.length];
 
         try {
-          // Pass the full context data to the quiz generation function
           const contextData = {
             country: region.country,
             placeType: region.placeType,
@@ -1073,12 +912,10 @@ const generateQuizzesForRegions = async (regions: RegionContext[]): Promise<Quiz
           if (newQuiz) {
             quizzes.push(newQuiz);
 
-            // Save to Firebase
             const quizzesCollection = collection(db, "users", currentUser.uid, "quizzes");
             const docRef = await addDoc(quizzesCollection, newQuiz);
             newQuiz.id = docRef.id;
 
-            // Cache the quiz
             quizCache.set(newQuiz.id, newQuiz);
             await AsyncStorage.setItem(
               `${QUIZ_CACHE_PREFIX}${newQuiz.id}`,
@@ -1110,9 +947,6 @@ const generateQuizzesForRegions = async (regions: RegionContext[]): Promise<Quiz
   }
 };
 
-/**
- * Generate a single quiz for a region using AI with improved region disambiguation
- */
 const generateQuizWithAI = async (
   region: string,
   category: string,
@@ -1120,7 +954,6 @@ const generateQuizWithAI = async (
   contextData?: { country?: string; placeType?: string; coordinates?: { lat: number; lng: number } }
 ): Promise<Quiz | null> => {
   try {
-    // Create a more specific prompt that helps disambiguate regions
     const prompt = `
   Create a quiz with ${DEFAULT_QUESTIONS_PER_QUIZ} educational questions about ${region} focusing on ${category}.
   
@@ -1188,16 +1021,13 @@ const generateQuizWithAI = async (
       throw new Error("Invalid AI response format");
     }
 
-    // Validate the structure of the response
     if (!response.title || !response.description || !Array.isArray(response.questions)) {
       throw new Error("Missing required fields in AI response");
     }
 
-    // Store the region context for better display
     const regionContext = response.regionContext || region;
     const regionType = response.regionType || "unknown";
 
-    // Validate and format questions
     const validatedQuestions = response.questions.map((q, index) => {
       if (
         !q.question ||
@@ -1216,7 +1046,7 @@ const generateQuizWithAI = async (
         correctAnswerIndex: q.correctAnswerIndex,
         explanation: q.explanation,
         difficulty: q.difficulty || difficulty,
-        relatedRegion: regionContext, // Use the disambiguated region context
+        relatedRegion: regionContext,
       } as QuizQuestion;
     });
 
@@ -1224,7 +1054,6 @@ const generateQuizWithAI = async (
       throw new Error("Not enough valid questions generated");
     }
 
-    // Create quiz object with improved metadata
     const now = new Date();
     const expiryDate = new Date();
     expiryDate.setDate(now.getDate() + CACHE_EXPIRY_DAYS);
@@ -1236,8 +1065,8 @@ const generateQuizWithAI = async (
       questions: validatedQuestions,
       difficulty: difficulty as "easy" | "medium" | "hard",
       category: category as "history" | "culture" | "geography" | "art" | "food" | "general",
-      relatedRegions: [regionContext], // Use the disambiguated region context
-      regionType: regionType, // Store the type of region for better filtering
+      relatedRegions: [regionContext],
+      regionType: regionType,
       createdAt: now.toISOString(),
       expiresAt: expiryDate.toISOString(),
       completions: 0,
@@ -1257,9 +1086,6 @@ const generateQuizWithAI = async (
   }
 };
 
-/**
- * Generate generic quizzes when no regions are available
- */
 const generateGenericQuizzes = async (): Promise<Quiz[]> => {
   try {
     const currentUser = auth.currentUser;
@@ -1268,7 +1094,7 @@ const generateGenericQuizzes = async (): Promise<Quiz[]> => {
       return [];
     }
 
-    const quizzes: Quiz[] = [];
+    const quizzes = [];
     const topics = [
       "World Famous Landmarks",
       "UNESCO World Heritage Sites",
@@ -1321,12 +1147,10 @@ const generateGenericQuizzes = async (): Promise<Quiz[]> => {
           throw new Error("Invalid AI response format");
         }
 
-        // Validate the structure of the response
         if (!response.title || !response.description || !Array.isArray(response.questions)) {
           throw new Error("Missing required fields in AI response");
         }
 
-        // Validate and format questions
         const validatedQuestions = response.questions.map((q, index) => {
           if (
             !q.question ||
@@ -1352,7 +1176,6 @@ const generateGenericQuizzes = async (): Promise<Quiz[]> => {
           throw new Error("Not enough valid questions generated");
         }
 
-        // Create quiz object
         const now = new Date();
         const expiryDate = new Date();
         expiryDate.setDate(now.getDate() + CACHE_EXPIRY_DAYS);
@@ -1364,7 +1187,7 @@ const generateGenericQuizzes = async (): Promise<Quiz[]> => {
           questions: validatedQuestions,
           difficulty: difficulty as "easy" | "medium" | "hard",
           category: category as "history" | "culture" | "geography" | "art" | "food" | "general",
-          relatedRegions: ["World"], // Generic applies worldwide
+          relatedRegions: ["World"],
           regionType: "global",
           createdAt: now.toISOString(),
           expiresAt: expiryDate.toISOString(),
@@ -1377,12 +1200,10 @@ const generateGenericQuizzes = async (): Promise<Quiz[]> => {
           },
         };
 
-        // Save to Firebase
         const quizzesCollection = collection(db, "users", currentUser.uid, "quizzes");
         const docRef = await addDoc(quizzesCollection, quiz);
         quiz.id = docRef.id;
 
-        // Cache the quiz
         quizCache.set(quiz.id, quiz);
         await AsyncStorage.setItem(`${QUIZ_CACHE_PREFIX}${quiz.id}`, JSON.stringify(quiz));
 
@@ -1393,7 +1214,6 @@ const generateGenericQuizzes = async (): Promise<Quiz[]> => {
       }
     }
 
-    // Update settings with latest refresh time
     await updateKnowledgeQuestSettings({
       lastRefreshedAt: Date.now(),
     });
@@ -1406,22 +1226,16 @@ const generateGenericQuizzes = async (): Promise<Quiz[]> => {
   }
 };
 
-/**
- * Update user statistics after completing a quiz
- */
 const updateUserStatsAfterQuiz = async (result: QuizResult, category: string): Promise<void> => {
   try {
-    // Get current stats
     const currentStats = await getKnowledgeQuestStats();
 
-    // Calculate new stats
     const lastQuizDate = new Date().toISOString();
     const totalQuizzesTaken = currentStats.totalQuizzesTaken + 1;
     const totalQuestionsAnswered = currentStats.totalQuestionsAnswered + result.totalQuestions;
     const totalCorrectAnswers = currentStats.totalCorrectAnswers + result.correctAnswers;
     const accuracy = Math.round((totalCorrectAnswers / totalQuestionsAnswered) * 100);
 
-    // Update streak
     let streakDays = currentStats.streakDays;
     const yesterday = new Date();
     yesterday.setDate(yesterday.getDate() - 1);
@@ -1432,23 +1246,17 @@ const updateUserStatsAfterQuiz = async (result: QuizResult, category: string): P
     const todayString = new Date().toISOString().split("T")[0];
 
     if (lastQuizDateString === yesterdayString || lastQuizDateString === todayString) {
-      // If last quiz was yesterday or today, increase streak
       streakDays++;
     } else if (lastQuizDateString !== todayString) {
-      // If last quiz was before yesterday, reset streak
       streakDays = 1;
     }
-    // If last quiz was today already, keep streak the same
 
-    // Update category counts
     const quizzesByCategory = { ...currentStats.quizzesByCategory };
     quizzesByCategory[category] = (quizzesByCategory[category] || 0) + 1;
 
-    // Update difficulty counts
     const quizzesByDifficulty = { ...currentStats.quizzesByDifficulty };
     quizzesByDifficulty[result.difficulty] = (quizzesByDifficulty[result.difficulty] || 0) + 1;
 
-    // Find favorite category (most completed)
     let favoriteCategory = currentStats.favoriteCategory;
     const categoryEntries = Object.entries(quizzesByCategory);
     if (categoryEntries.length > 0) {
@@ -1456,19 +1264,15 @@ const updateUserStatsAfterQuiz = async (result: QuizResult, category: string): P
       favoriteCategory = sortedCategories[0][0];
     }
 
-    // Calculate average time per question
     const totalTime = currentStats.averageTimePerQuestion * currentStats.totalQuestionsAnswered;
     const newTotalTime = totalTime + result.timeSpent;
     const averageTimePerQuestion = Math.round(newTotalTime / totalQuestionsAnswered);
 
-    // Calculate points
     const pointsEarned = calculateQuizPoints(result);
     const totalPoints = currentStats.totalPoints + pointsEarned;
 
-    // Calculate level
     const { level, pointsToNextLevel } = calculateLevel(totalPoints);
 
-    // Update the stats
     const updatedStats: KnowledgeQuestStats = {
       ...currentStats,
       totalQuizzesTaken,
@@ -1486,7 +1290,6 @@ const updateUserStatsAfterQuiz = async (result: QuizResult, category: string): P
       totalPoints,
     };
 
-    // Save updated stats
     await updateKnowledgeQuestStats(updatedStats);
 
     console.log(`Updated user stats after quiz: Level ${level}, Points ${totalPoints}`);
@@ -1495,16 +1298,12 @@ const updateUserStatsAfterQuiz = async (result: QuizResult, category: string): P
   }
 };
 
-/**
- * Check if the user should earn badges based on quiz performance
- */
 const checkAndAwardQuizBadges = async (result: QuizResult): Promise<string[]> => {
   try {
     const stats = await getKnowledgeQuestStats();
     const badges = await getAllUserBadges();
-    const earnedBadgeIds: string[] = [];
+    const earnedBadgeIds = [];
 
-    // Filter for quiz-related badges that aren't completed yet
     const quizBadges = badges.filter(
       (badge) =>
         !badge.completed &&
@@ -1533,7 +1332,6 @@ const checkAndAwardQuizBadges = async (result: QuizResult): Promise<string[]> =>
             break;
 
           case "quizScore":
-            // Check if the current quiz score meets the requirement
             current = Math.max(current, result.score);
             requirementMet = current >= req.value;
             break;
@@ -1572,7 +1370,6 @@ const checkAndAwardQuizBadges = async (result: QuizResult): Promise<string[]> =>
       }
     }
 
-    // Update stats with new badges
     if (earnedBadgeIds.length > 0) {
       const updatedBadges = [...stats.badges, ...earnedBadgeIds];
       await updateKnowledgeQuestStats({
@@ -1587,17 +1384,12 @@ const checkAndAwardQuizBadges = async (result: QuizResult): Promise<string[]> =>
   }
 };
 
-/**
- * Get quiz results for a specific quiz with multi-level caching
- */
 export const getQuizResults = async (quizId: string): Promise<QuizResult[]> => {
   try {
-    // Check memory cache first
     if (quizResultsCache.has(quizId)) {
-      return [...quizResultsCache.get(quizId)!];
+      return [...quizResultsCache.get(quizId)];
     }
 
-    // Try AsyncStorage next
     try {
       const cachedResults = await AsyncStorage.getItem(`${QUIZ_RESULTS_CACHE_PREFIX}${quizId}`);
       if (cachedResults) {
@@ -1609,7 +1401,6 @@ export const getQuizResults = async (quizId: string): Promise<QuizResult[]> => {
       console.warn("Error reading quiz results from AsyncStorage:", asyncError);
     }
 
-    // Finally try Firebase
     const currentUser = auth.currentUser;
     if (!currentUser) {
       console.warn("Cannot get quiz results: No authenticated user");
@@ -1628,13 +1419,12 @@ export const getQuizResults = async (quizId: string): Promise<QuizResult[]> => {
       return [];
     }
 
-    const results: QuizResult[] = resultsSnapshot.docs.map((doc) => {
+    const results = resultsSnapshot.docs.map((doc) => {
       const data = doc.data() as QuizResult;
       data.id = doc.id;
       return data;
     });
 
-    // Cache results
     quizResultsCache.set(quizId, results);
     await AsyncStorage.setItem(`${QUIZ_RESULTS_CACHE_PREFIX}${quizId}`, JSON.stringify(results));
 
@@ -1645,9 +1435,6 @@ export const getQuizResults = async (quizId: string): Promise<QuizResult[]> => {
   }
 };
 
-/**
- * Get all user's quiz results with multi-level caching
- */
 export const getAllQuizResults = async (limitCount = 10): Promise<QuizResult[]> => {
   try {
     const currentUser = auth.currentUser;
@@ -1656,7 +1443,6 @@ export const getAllQuizResults = async (limitCount = 10): Promise<QuizResult[]> 
       return [];
     }
 
-    // Check if we have any in memory cache first
     if (quizResultsCache.size > 0) {
       const allResults = Array.from(quizResultsCache.values()).flat();
       const sortedResults = allResults.sort(
@@ -1666,12 +1452,10 @@ export const getAllQuizResults = async (limitCount = 10): Promise<QuizResult[]> 
     }
 
     const resultsCollection = collection(db, "users", currentUser.uid, "quizResults");
-
-    // Create the query correctly, using limit as a function
     const resultsQuery = query(
       resultsCollection,
       orderBy("completedAt", "desc"),
-      limit(limitCount) // Pass the number to the limit function
+      limit(limitCount)
     );
 
     const resultsSnapshot = await getDocs(resultsQuery);
@@ -1680,13 +1464,12 @@ export const getAllQuizResults = async (limitCount = 10): Promise<QuizResult[]> 
       return [];
     }
 
-    const results: QuizResult[] = resultsSnapshot.docs.map((doc) => {
+    const results = resultsSnapshot.docs.map((doc) => {
       const data = doc.data() as QuizResult;
       data.id = doc.id;
       return data;
     });
 
-    // Group results by quiz ID for caching
     const resultsByQuiz = new Map<string, QuizResult[]>();
     for (const result of results) {
       const quizResults = resultsByQuiz.get(result.quizId) || [];
@@ -1694,7 +1477,6 @@ export const getAllQuizResults = async (limitCount = 10): Promise<QuizResult[]> 
       resultsByQuiz.set(result.quizId, quizResults);
     }
 
-    // Cache results by quiz
     for (const [quizId, quizResults] of resultsByQuiz.entries()) {
       quizResultsCache.set(quizId, quizResults);
       try {
@@ -1714,9 +1496,6 @@ export const getAllQuizResults = async (limitCount = 10): Promise<QuizResult[]> 
   }
 };
 
-/**
- * Calculate points earned from a quiz result
- */
 const calculateQuizPoints = (result: QuizResult): number => {
   const basePoints = 10;
   const correctAnswerPoints = 5;
@@ -1726,7 +1505,6 @@ const calculateQuizPoints = (result: QuizResult): number => {
     hard: 2,
   };
 
-  // Calculate time bonus (faster = more points, up to 10)
   const averageSecondsPerQuestion = result.timeSpent / (result.totalQuestions * 1000);
   let timeBonus = 0;
   if (averageSecondsPerQuestion < 10) {
@@ -1747,16 +1525,7 @@ const calculateQuizPoints = (result: QuizResult): number => {
   return points;
 };
 
-/**
- * Calculate user level based on total points
- */
 const calculateLevel = (totalPoints: number): { level: number; pointsToNextLevel: number } => {
-  // Level progression formula (more points required for each level)
-  // Level 1: 0-100 points
-  // Level 2: 101-250 points
-  // Level 3: 251-450 points
-  // Each level requires 50 more points than the previous level
-
   let level = 1;
   let pointsRequired = 100;
   let pointsAccumulated = 0;
@@ -1772,18 +1541,13 @@ const calculateLevel = (totalPoints: number): { level: number; pointsToNextLevel
   return { level, pointsToNextLevel };
 };
 
-/**
- * Clear all caches (memory and AsyncStorage)
- */
 export const clearKnowledgeQuestCaches = async (): Promise<void> => {
   try {
-    // Clear memory caches
     quizCache.clear();
     quizResultsCache.clear();
     statsCache = null;
     settingsCache = null;
 
-    // Clear AsyncStorage caches
     const keys = await AsyncStorage.getAllKeys();
     const questKeys = keys.filter(
       (key) =>
@@ -1803,9 +1567,6 @@ export const clearKnowledgeQuestCaches = async (): Promise<void> => {
   }
 };
 
-/**
- * Get default stats
- */
 const getDefaultStats = (): KnowledgeQuestStats => {
   return {
     totalQuizzesTaken: 0,
@@ -1825,9 +1586,6 @@ const getDefaultStats = (): KnowledgeQuestStats => {
   };
 };
 
-/**
- * Get default settings
- */
 const getDefaultSettings = (): KnowledgeQuestSettings => {
   return {
     lastRefreshedAt: 0,

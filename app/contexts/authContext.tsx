@@ -1,4 +1,3 @@
-// contexts/authContext.tsx
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { User } from "firebase/auth";
 import { subscribeToAuthState } from "../services/authService";
@@ -9,17 +8,14 @@ interface AuthContextType {
   isAuthenticated: boolean;
 }
 
-// Create the context with default values
 const AuthContext = createContext<AuthContextType>({
   user: null,
   isLoading: true,
   isAuthenticated: false,
 });
 
-// Custom hook to use the auth context
 export const useAuth = () => useContext(AuthContext);
 
-// Provider component to wrap the app
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -27,7 +23,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     console.log("🔐 Setting up auth context subscription");
 
-    // Subscribe to auth state changes
     const unsubscribe = subscribeToAuthState((currentUser) => {
       console.log(
         `👤 Auth context received state update: User ${currentUser ? "signed in" : "signed out"}`
@@ -36,7 +31,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setIsLoading(false);
     });
 
-    // Cleanup subscription
     return unsubscribe;
   }, []);
 

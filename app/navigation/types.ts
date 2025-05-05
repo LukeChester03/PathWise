@@ -1,4 +1,3 @@
-// navigation/types.ts
 import { StatItem } from "../types/StatTypes";
 import { Place, VisitedPlaceDetails } from "../types/MapTypes";
 

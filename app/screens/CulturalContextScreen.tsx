@@ -1,4 +1,3 @@
-// screens/CulturalContextScreen.tsx
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   View,
@@ -37,14 +36,14 @@ import GradientCard from "../components/Global/GradientCard";
 const { width } = Dimensions.get("window");
 
 const THEME = {
-  primary: "#7E22CE", // Deep purple
-  primaryDark: "#6B21A8", // Darker purple
-  primaryLight: "#F5F3FF", // Light purple background
-  primaryMedium: "#E9D5FF", // Medium purple
-  accent: "#9333EA", // Accent purple
-  accent2: "#F472B6", // Pink accent
-  accent3: "#60A5FA", // Blue accent
-  accent4: "#34D399", // Green accent
+  primary: "#7E22CE",
+  primaryDark: "#6B21A8",
+  primaryLight: "#F5F3FF",
+  primaryMedium: "#E9D5FF",
+  accent: "#9333EA",
+  accent2: "#F472B6",
+  accent3: "#60A5FA",
+  accent4: "#34D399",
   background: "#FFFFFF",
   surface: "#F9FAFB",
   cardBackground: "#FFFFFF",
@@ -74,14 +73,12 @@ const CulturalContextScreen = ({ route, navigation }: CulturalContextScreenProps
   const scrollY = new Animated.Value(0);
   const flatListRef = useRef<FlatList>(null);
 
-  // State for UI components
   const [activeView, setActiveView] = useState<"visited" | "explore">("visited");
   const [selectedRegion, setSelectedRegion] = useState<string | null>(region || null);
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [showSearch, setShowSearch] = useState<boolean>(false);
   const [activeSection, setActiveSection] = useState<string>("overview");
 
-  // Data states
   const [visitedInsights, setVisitedInsights] = useState<EnhancedCulturalInsight[]>([]);
   const [suggestedRegions, setSuggestedRegions] = useState<string[]>([]);
   const [filteredRegions, setFilteredRegions] = useState<string[]>([]);
@@ -92,13 +89,11 @@ const CulturalContextScreen = ({ route, navigation }: CulturalContextScreenProps
     nextAvailableTime?: string;
   }>({ canRequest: true, requestsRemaining: 5 });
 
-  // Loading and error states
   const [loading, setLoading] = useState<boolean>(true);
   const [loadingInsight, setLoadingInsight] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState<boolean>(false);
 
-  // Sections for journey navigation - removed the places section
   const sections = [
     { id: "overview", title: "Overview", icon: "globe-outline" },
     { id: "customs", title: "Customs", icon: "book-outline" },
@@ -107,20 +102,17 @@ const CulturalContextScreen = ({ route, navigation }: CulturalContextScreenProps
     { id: "tips", title: "Tips", icon: "bulb-outline" },
   ];
 
-  // Animation values
   const headerOpacity = scrollY.interpolate({
     inputRange: [0, 120],
     outputRange: [0, 1],
     extrapolate: "clamp",
   });
 
-  // Initial data loading
   useEffect(() => {
     loadInitialData();
     checkUserRequestLimits();
   }, []);
 
-  // Filter regions based on search query
   useEffect(() => {
     if (searchQuery.trim() === "") {
       setFilteredRegions(suggestedRegions);
@@ -132,7 +124,6 @@ const CulturalContextScreen = ({ route, navigation }: CulturalContextScreenProps
     }
   }, [searchQuery, suggestedRegions]);
 
-  // Check user request limits
   const checkUserRequestLimits = async () => {
     try {
       const limits = await checkRequestLimit();
@@ -142,7 +133,6 @@ const CulturalContextScreen = ({ route, navigation }: CulturalContextScreenProps
     }
   };
 
-  // Pull-to-refresh handler
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await loadInitialData();
@@ -150,36 +140,27 @@ const CulturalContextScreen = ({ route, navigation }: CulturalContextScreenProps
     setRefreshing(false);
   }, []);
 
-  // Main data loading function
   const loadInitialData = async () => {
     try {
       setLoading(true);
       setError(null);
 
-      // Load insights for visited places
       const insightsFromVisited = await loadVisitedPlacesInsights();
 
-      // Load suggested regions
       await loadSuggestedRegions();
 
-      // Load all cached insights
       const cachedInsights = await getAllCachedInsights();
 
-      // Set initial region selection
       if (region) {
-        // If region specified in params, use that
         setSelectedRegion(region);
         await loadInsightForRegion(region);
       } else if (activeView === "visited" && insightsFromVisited.length > 0) {
-        // For "visited" tab, only set data if there are visited places
         setSelectedRegion(insightsFromVisited[0].region);
         setCurrentInsight(insightsFromVisited[0]);
       } else if (activeView === "explore" && cachedInsights.length > 0) {
-        // For "explore" tab, use cached insights
         setSelectedRegion(cachedInsights[0].region);
         setCurrentInsight(cachedInsights[0]);
       } else {
-        // Clear current insight if no applicable data
         setSelectedRegion(null);
         setCurrentInsight(null);
       }
@@ -192,7 +173,6 @@ const CulturalContextScreen = ({ route, navigation }: CulturalContextScreenProps
     }
   };
 
-  // Load cultural insights for visited places
   const loadVisitedPlacesInsights = async (): Promise<EnhancedCulturalInsight[]> => {
     try {
       if (!visitedPlaces || visitedPlaces.length === 0) {
@@ -209,7 +189,6 @@ const CulturalContextScreen = ({ route, navigation }: CulturalContextScreenProps
     }
   };
 
-  // Load suggested regions
   const loadSuggestedRegions = async () => {
     try {
       const regions = await getSuggestedRegions(visitedPlaces);
@@ -222,10 +201,8 @@ const CulturalContextScreen = ({ route, navigation }: CulturalContextScreenProps
     }
   };
 
-  // Load cultural insight for a specific region
   const loadInsightForRegion = async (region: string) => {
     try {
-      // Check if already in visited insights
       const existingVisitedInsight = visitedInsights.find(
         (insight) => insight.region.toLowerCase() === region.toLowerCase()
       );
@@ -235,26 +212,21 @@ const CulturalContextScreen = ({ route, navigation }: CulturalContextScreenProps
         return;
       }
 
-      // Otherwise fetch new data
       setLoadingInsight(true);
       setError(null);
 
-      // Generate insights for this region
       const insight = await getCulturalInsights(region);
       setCurrentInsight(insight);
       setLoadingInsight(false);
 
-      // Reset active section to overview
       setActiveSection("overview");
 
-      // Scroll to top
       if (flatListRef.current) {
         flatListRef.current.scrollToOffset({ offset: 0, animated: true });
       }
     } catch (err: any) {
       console.error(`Error loading insight for ${region}:`, err);
 
-      // Check if error is due to request limit
       if (err.message && err.message.includes("Daily request limit reached")) {
         setError("You've reached your daily limit for AI-generated insights. Try again tomorrow.");
       } else {
@@ -265,24 +237,19 @@ const CulturalContextScreen = ({ route, navigation }: CulturalContextScreenProps
     }
   };
 
-  // Handler for region selection
   const handleRegionSelect = (region: string) => {
     setSelectedRegion(region);
     loadInsightForRegion(region);
   };
 
-  // Handler for section navigation
   const handleSectionChange = (sectionId: string) => {
     setActiveSection(sectionId);
   };
 
-  // Show help modal
   const handleHelpPress = () => {
-    // Show help modal or guide about cultural context
     console.log("Show help about Cultural Context");
   };
 
-  // Unified card renderer function that can be reused for different types of content
   const renderGradientCard = ({
     title,
     description,
@@ -315,7 +282,6 @@ const CulturalContextScreen = ({ route, navigation }: CulturalContextScreenProps
     );
   };
 
-  // Render custom card (traditions/customs)
   const renderCustomCard = (custom: Custom, index: number) => {
     return renderGradientCard({
       title: custom.title,
@@ -327,7 +293,6 @@ const CulturalContextScreen = ({ route, navigation }: CulturalContextScreenProps
     });
   };
 
-  // Render tip card using GradientCard
   const renderTipCard = (tip: string, index: number) => {
     return renderGradientCard({
       title: "Traveler Tip",
@@ -339,7 +304,6 @@ const CulturalContextScreen = ({ route, navigation }: CulturalContextScreenProps
     });
   };
 
-  // Render search bar
   const renderSearchBar = () => {
     if (!showSearch) return null;
 
@@ -363,7 +327,6 @@ const CulturalContextScreen = ({ route, navigation }: CulturalContextScreenProps
     );
   };
 
-  // Render region selector
   const renderRegionSelector = () => {
     const regions =
       activeView === "visited" ? visitedInsights.map((insight) => insight.region) : filteredRegions;
@@ -402,7 +365,6 @@ const CulturalContextScreen = ({ route, navigation }: CulturalContextScreenProps
     );
   };
 
-  // Render section navigation
   const renderSectionNavigation = () => {
     return (
       <View style={styles.sectionNavContainer}>
@@ -440,7 +402,6 @@ const CulturalContextScreen = ({ route, navigation }: CulturalContextScreenProps
     );
   };
 
-  // Render content based on active section
   const renderSectionContent = () => {
     if (!currentInsight) return null;
 
@@ -476,7 +437,6 @@ const CulturalContextScreen = ({ route, navigation }: CulturalContextScreenProps
             </View>
 
             <View style={styles.overviewCards}>
-              {/* Using GradientCard for Etiquette Snapshot */}
               {renderGradientCard({
                 title: "Etiquette Snapshot",
                 description: currentInsight.etiquette.substring(0, 300) + "...",
@@ -485,7 +445,6 @@ const CulturalContextScreen = ({ route, navigation }: CulturalContextScreenProps
                 iconColor: THEME.primary,
               })}
 
-              {/* Using GradientCard for Dining Overview */}
               {renderGradientCard({
                 title: "Dining Overview",
                 description: currentInsight.diningTips.substring(0, 300) + "...",
@@ -494,7 +453,6 @@ const CulturalContextScreen = ({ route, navigation }: CulturalContextScreenProps
                 iconColor: THEME.accent3,
               })}
 
-              {/* Keep the featured custom card as is */}
               {currentInsight.customs.length > 0 && (
                 <View style={styles.featuredCustomCard}>
                   <Text style={styles.featuredCustomTitle}>Featured Custom</Text>
@@ -604,7 +562,6 @@ const CulturalContextScreen = ({ route, navigation }: CulturalContextScreenProps
     }
   };
 
-  // Render footer with attribution
   const renderFooter = () => {
     return (
       <View style={styles.footer}>
@@ -624,7 +581,6 @@ const CulturalContextScreen = ({ route, navigation }: CulturalContextScreenProps
     );
   };
 
-  // Render view toggle buttons
   const renderViewToggle = () => (
     <View style={styles.viewToggleContainer}>
       <TouchableOpacity
@@ -661,7 +617,6 @@ const CulturalContextScreen = ({ route, navigation }: CulturalContextScreenProps
     </View>
   );
 
-  // Render request limit indicator
   const renderRequestLimitIndicator = () => (
     <View style={styles.requestLimitContainer}>
       <Ionicons
@@ -677,7 +632,6 @@ const CulturalContextScreen = ({ route, navigation }: CulturalContextScreenProps
     </View>
   );
 
-  // Loading state
   const renderLoading = () => (
     <View style={styles.loadingContainer}>
       <ActivityIndicator size="large" color={THEME.primary} />
@@ -685,7 +639,6 @@ const CulturalContextScreen = ({ route, navigation }: CulturalContextScreenProps
     </View>
   );
 
-  // Error state
   const renderError = () => (
     <View style={styles.errorContainer}>
       <Ionicons name="alert-circle-outline" size={56} color={THEME.error} />
@@ -697,7 +650,6 @@ const CulturalContextScreen = ({ route, navigation }: CulturalContextScreenProps
     </View>
   );
 
-  // Main render
   if (loading) {
     return (
       <View style={styles.container}>
@@ -738,7 +690,6 @@ const CulturalContextScreen = ({ route, navigation }: CulturalContextScreenProps
     );
   }
 
-  // ADDED MAIN RENDER for normal state (when not loading and no error)
   return (
     <View style={styles.container}>
       <StatusBar style="dark" />
@@ -805,7 +756,6 @@ const CulturalContextScreen = ({ route, navigation }: CulturalContextScreenProps
   );
 };
 
-// MOVED STYLES OUTSIDE THE COMPONENT FUNCTION
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -826,7 +776,7 @@ const styles = StyleSheet.create({
     color: THEME.textSecondary,
   },
   cardIconContainer: {
-    backgroundColor: "rgba(126, 34, 206, 0.15)", // Lighter version of the purple primary
+    backgroundColor: "rgba(126, 34, 206, 0.15)",
   },
   emptyStateTitle: {
     fontSize: 20,
@@ -870,7 +820,7 @@ const styles = StyleSheet.create({
     color: THEME.textSecondary,
   },
   customCardIconContainer: {
-    backgroundColor: "rgba(126, 34, 206, 0.15)", // Lighter version of the purple primary
+    backgroundColor: "rgba(126, 34, 206, 0.15)",
   },
   searchContainer: {
     flexDirection: "row",
@@ -1004,7 +954,6 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
   },
 
-  // Overview section styles
   overviewContainer: {
     padding: 16,
   },
@@ -1114,7 +1063,6 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
 
-  // Section common styles
   sectionContainer: {
     padding: 16,
   },
@@ -1136,7 +1084,6 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
 
-  // Customs section styles
   customsContainer: {
     gap: 16,
   },
@@ -1170,7 +1117,6 @@ const styles = StyleSheet.create({
     color: THEME.textSecondary,
   },
 
-  // Etiquette section styles
   etiquetteCard: {
     backgroundColor: THEME.surface,
     borderRadius: 12,
@@ -1182,7 +1128,6 @@ const styles = StyleSheet.create({
     color: THEME.textSecondary,
   },
 
-  // Dining section styles
   diningCard: {
     backgroundColor: THEME.surface,
     borderRadius: 12,
@@ -1194,7 +1139,6 @@ const styles = StyleSheet.create({
     color: THEME.textSecondary,
   },
 
-  // Tips section styles
   tipsContainer: {
     gap: 12,
   },
@@ -1216,7 +1160,6 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 
-  // Footer styles
   footer: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -1252,7 +1195,6 @@ const styles = StyleSheet.create({
     marginLeft: 4,
   },
 
-  // Error & empty states
   loadingContainer: {
     flex: 1,
     justifyContent: "center",

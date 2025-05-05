@@ -1,4 +1,3 @@
-// components/Learn/PhraseCard.tsx
 import React from "react";
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
@@ -19,7 +18,6 @@ const PhraseCard: React.FC<PhraseCardProps> = ({
   onPlayPhrase,
   onToggleExpand,
 }) => {
-  // Get category icon based on context
   const getCategoryIcon = (context: string) => {
     const contextLower = context.toLowerCase();
     if (contextLower.includes("greeting")) return "hand-left-outline";
@@ -35,7 +33,6 @@ const PhraseCard: React.FC<PhraseCardProps> = ({
 
   return (
     <View style={styles.phraseCard}>
-      {/* Header with language and save button */}
       <View style={styles.cardHeader}>
         <View style={styles.languageContainer}>
           <Text style={styles.phraseLanguage}>{phrase.language}</Text>
@@ -50,11 +47,9 @@ const PhraseCard: React.FC<PhraseCardProps> = ({
         </TouchableOpacity>
       </View>
 
-      {/* Phrase and translation */}
       <Text style={styles.phraseText}>{phrase.phrase}</Text>
       <Text style={styles.phraseTranslation}>{phrase.translation}</Text>
 
-      {/* Action row */}
       <View style={styles.actionRow}>
         <TouchableOpacity
           style={styles.pronunciationButton}
@@ -73,8 +68,6 @@ const PhraseCard: React.FC<PhraseCardProps> = ({
           <Ionicons name="volume-high" size={16} color="#FFFFFF" />
         </TouchableOpacity>
       </View>
-
-      {/* Expandable pronunciation section */}
       {isExpanded && (
         <View style={styles.pronunciationContainer}>
           <Text style={styles.pronunciationText}>{phrase.pronunciation}</Text>

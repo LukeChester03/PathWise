@@ -28,32 +28,22 @@ export default function Layout() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Function to determine the initial route
     const checkAuthAndSetRoute = async () => {
       try {
-        console.log("🧭 Determining initial route based on authentication state");
-
-        // Add a small delay for stability in Expo Go environment
+        console.log("Determining initial route based on authentication state");
         await new Promise((resolve) => setTimeout(resolve, 500));
-
-        // Check both Firebase and AsyncStorage for auth state
         const userAuthenticated = await isAuthenticated();
-
-        // Extra check for Expo Go specific issues
         const storedUser = await AsyncStorage.getItem("@pathwise_auth_user");
-
         if (userAuthenticated || storedUser) {
-          console.log("🧭 User is authenticated, setting initial route to Home");
+          console.log(" User is authenticated, setting initial route to Home");
           setInitialRouteName("Home");
         } else {
-          console.log("🧭 User is not authenticated, setting initial route to Landing");
+          console.log(" User is not authenticated, setting initial route to Landing");
           setInitialRouteName("Landing");
         }
-
         setIsLoading(false);
       } catch (error) {
         console.error("Error checking authentication status:", error);
-        // Default to Landing in case of error
         setInitialRouteName("Landing");
         setIsLoading(false);
       }
@@ -62,7 +52,6 @@ export default function Layout() {
     checkAuthAndSetRoute();
   }, []);
 
-  // Show loading indicator while determining the initial route
   if (isLoading || initialRouteName === null) {
     return (
       <View

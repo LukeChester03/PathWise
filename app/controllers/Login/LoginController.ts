@@ -1,4 +1,3 @@
-// controllers/Login/LoginController.ts
 import { signInWithEmailAndPassword, setPersistence } from "firebase/auth";
 import { auth } from "../../config/firebaseConfig";
 import { initializeMap } from "../Map/mapController";
@@ -15,21 +14,20 @@ export const handleLogin = async (
   }
 
   try {
-    // Sign in the user
-    // Note: Persistence is already set up in firebaseConfig.ts
+    // sign in the user
     const userCredential = await signInWithEmailAndPassword(auth, email, password);
     console.log(email, "email");
     console.log(`🔐 User logged in successfully: ${userCredential.user.uid}`);
 
-    // Initialize map as needed
+    // Initialise map
     initializeMap();
 
-    // Call success callback
+    // success callback
     onSuccess();
   } catch (error: any) {
-    console.error("❌ Login error:", error);
+    console.error("Login error:", error);
 
-    // Provide user-friendly error messages
+    // error messages
     let errorMessage = "Something went wrong";
 
     if (
@@ -47,7 +45,6 @@ export const handleLogin = async (
     } else if (error.code === "auth/network-request-failed") {
       errorMessage = "Network error. Please check your connection";
     }
-
     onError(errorMessage);
   }
 };

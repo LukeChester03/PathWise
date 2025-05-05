@@ -1,4 +1,3 @@
-// components/LearnScreen/KnowledgeQuestSection/ResultsTabContent.tsx
 import React from "react";
 import { View, Text, StyleSheet, ScrollView, RefreshControl } from "react-native";
 import { QuizResult } from "../../../types/LearnScreen/KnowledgeQuestTypes";
@@ -43,7 +42,6 @@ const ResultsTabContent: React.FC<ResultsTabContentProps> = ({
         <ResultCard key={result.id} result={result} />
       ))}
 
-      {/* Add padding at bottom for better scrolling experience */}
       <View style={{ height: 20 }} />
     </ScrollView>
   );

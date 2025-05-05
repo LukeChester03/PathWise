@@ -1,4 +1,3 @@
-// components/DiscoveryDetailsSection.tsx
 import React from "react";
 import { View, Text, StyleSheet } from "react-native";
 import { VisitedPlaceDetails } from "../../types/MapTypes";
@@ -14,7 +13,6 @@ const DiscoveryDetailsSection: React.FC<DiscoveryDetailsSectionProps> = ({
   placeDetails,
   fontSize,
 }) => {
-  // Format the visit date in a readable way
   const formatVisitDate = () => {
     if (!placeDetails) return null;
 

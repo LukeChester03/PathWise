@@ -1,11 +1,9 @@
-// hooks/useDynamicStyles.ts
 import { useWindowDimensions } from "react-native";
 
 export const useDynamicStyles = () => {
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
-  const isSmallScreen = screenWidth < 375; // Check for smaller devices like iPhone SE
+  const isSmallScreen = screenWidth < 375;
 
-  // Calculate dynamic styles based on screen size
   return {
     heroHeight: screenHeight < 700 ? 220 : 260,
     contentMarginTop: screenHeight < 700 ? 180 : 220,

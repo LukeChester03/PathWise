@@ -1,4 +1,3 @@
-// components/LearnScreen/KnowledgeQuestSection/BadgesTabContent.tsx
 import React from "react";
 import { View, Text, StyleSheet, ScrollView, RefreshControl } from "react-native";
 import { TravelBadge } from "../../../types/LearnScreen/TravelProfileTypes";
@@ -18,7 +17,6 @@ const BadgesTabContent: React.FC<BadgesTabContentProps> = ({
   onRefresh,
   onStartQuiz,
 }) => {
-  // Filter quiz-related badges
   const quizBadges = badges.filter((badge) =>
     badge.requirements.some((req) =>
       ["quizCount", "quizStreak", "quizScore", "quizCorrect", "quizAccuracy"].includes(req.type)
@@ -51,8 +49,6 @@ const BadgesTabContent: React.FC<BadgesTabContentProps> = ({
           <BadgeItem key={badge.id} badge={badge} />
         ))}
       </View>
-
-      {/* Add padding at bottom for better scrolling */}
       <View style={{ height: 20 }} />
     </ScrollView>
   );

@@ -1,4 +1,3 @@
-// components/AdvancedAnalysis/ProgressIndicator.tsx
 import React from "react";
 import { View, Text, StyleSheet } from "react-native";
 import { Colors, NeutralColors } from "../../../constants/colours";

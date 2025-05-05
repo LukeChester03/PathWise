@@ -1,4 +1,3 @@
-// components/AdvancedAnalysis/SectionCard.tsx
 import React, { ReactNode } from "react";
 import { View, Text, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";

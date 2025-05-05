@@ -1,4 +1,3 @@
-// components/AdvancedAnalysis/tabs/TemporalTab.tsx
 import React from "react";
 import { View, Text, StyleSheet, Dimensions } from "react-native";
 import { Colors, NeutralColors } from "../../../../constants/colours";
@@ -6,10 +5,9 @@ import SectionCard, { NoDataText } from "../SectionCard";
 import TabContainer from "../TabContainer";
 
 type TemporalTabProps = {
-  temporalAnalysis: any; // Use proper type from your TravelAnalysisTypes
+  temporalAnalysis: any;
 };
 
-// Define month order to ensure consistent display
 const MONTH_ORDER = [
   "January",
   "February",
@@ -25,13 +23,11 @@ const MONTH_ORDER = [
   "December",
 ];
 
-// Get screen width for responsive calculations
 const screenWidth = Dimensions.get("window").width;
 
 const TemporalTab: React.FC<TemporalTabProps> = ({ temporalAnalysis }) => {
   if (!temporalAnalysis) return null;
 
-  // Helper function to format category names (tourist_attraction → Tourist Attraction)
   const formatCategoryName = (category: string): string => {
     return category
       .split("_")
@@ -50,15 +46,14 @@ const TemporalTab: React.FC<TemporalTabProps> = ({ temporalAnalysis }) => {
         Object.keys(temporalAnalysis.yearlyProgression).length > 0 ? (
           <View style={styles.yearlyProgressionChart}>
             {Object.entries(temporalAnalysis.yearlyProgression)
-              .sort((a, b) => a[0].localeCompare(b[0])) // Sort by year
+              .sort((a, b) => a[0].localeCompare(b[0]))
               .map(([year, yearData]: [string, any]) => {
                 if (!yearData) return null;
 
-                // Find the maximum value for scaling
                 const allVisits = Object.values(temporalAnalysis.yearlyProgression || {}).map(
                   (data: any) => data?.totalVisits || 0
                 );
-                const maxVisits = Math.max(...allVisits, 1); // Avoid division by zero
+                const maxVisits = Math.max(...allVisits, 1);
 
                 const barHeight = (yearData.totalVisits / maxVisits) * 100;
 
@@ -149,16 +144,12 @@ const TemporalTab: React.FC<TemporalTabProps> = ({ temporalAnalysis }) => {
             <View style={styles.monthlyDistributionContainer}>
               {MONTH_ORDER.map((month) => {
                 const percentage = temporalAnalysis.monthlyDistribution[month] || 0;
-                // Find the maximum percentage for better scaling
                 const maxPercentage = Math.max(
                   ...Object.values(temporalAnalysis.monthlyDistribution).map((val: any) =>
                     typeof val === "number" ? val : 0
                   ),
                   1
                 );
-
-                // Scale the bar height based on the maximum percentage
-                // This ensures the tallest bar is at 100% and others are proportional
                 const heightPercentage = Math.max((percentage / maxPercentage) * 100, 5);
 
                 return (
@@ -190,8 +181,6 @@ const TemporalTab: React.FC<TemporalTabProps> = ({ temporalAnalysis }) => {
           <NoDataText text="No monthly distribution data available" />
         )}
       </SectionCard>
-
-      {/* Add dominant category formatting in yearly progression insights if needed */}
       {temporalAnalysis.yearlyProgression &&
         Object.entries(temporalAnalysis.yearlyProgression).length > 0 && (
           <SectionCard
@@ -201,7 +190,7 @@ const TemporalTab: React.FC<TemporalTabProps> = ({ temporalAnalysis }) => {
           >
             <View style={styles.yearlyInsightsContainer}>
               {Object.entries(temporalAnalysis.yearlyProgression)
-                .sort((a, b) => a[0].localeCompare(b[0])) // Sort by year
+                .sort((a, b) => a[0].localeCompare(b[0]))
                 .map(([year, yearData]: [string, any]) => {
                   if (!yearData || !yearData.dominantCategory) return null;
 
@@ -229,7 +218,6 @@ const TemporalTab: React.FC<TemporalTabProps> = ({ temporalAnalysis }) => {
 };
 
 const styles = StyleSheet.create({
-  // Yearly Progression Styles
   yearlyProgressionChart: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -271,7 +259,6 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
 
-  // Seasonal Patterns Styles
   seasonalPatternsContainer: {
     marginTop: 20,
   },
@@ -327,7 +314,6 @@ const styles = StyleSheet.create({
     color: NeutralColors.gray700,
   },
 
-  // Monthly Distribution Styles
   monthlyDistributionWrapper: {
     marginTop: 16,
     marginBottom: 10,
@@ -346,7 +332,7 @@ const styles = StyleSheet.create({
   },
   monthItem: {
     alignItems: "center",
-    width: (screenWidth - 60) / 12, // Responsive width based on screen size
+    width: (screenWidth - 60) / 12,
   },
   monthName: {
     fontSize: 12,
@@ -376,7 +362,6 @@ const styles = StyleSheet.create({
     backgroundColor: NeutralColors.gray300,
   },
 
-  // Yearly Insights Styles
   yearlyInsightsContainer: {
     marginTop: 16,
     marginBottom: 10,
@@ -408,7 +393,6 @@ const styles = StyleSheet.create({
     color: NeutralColors.gray600,
   },
 
-  // Common Styles
   barShadow: {
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },

@@ -1,4 +1,3 @@
-// components/LearnScreen/KnowledgeQuestSection/StatsHeader.tsx
 import React from "react";
 import { View, Text, ActivityIndicator, StyleSheet } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";

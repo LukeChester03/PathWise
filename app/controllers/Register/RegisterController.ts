@@ -1,4 +1,3 @@
-// app/controllers/Register/RegisterController.ts
 import { createUserWithEmailAndPassword } from "firebase/auth";
 import { auth, db } from "../../config/firebaseConfig";
 import { doc, setDoc, collection } from "firebase/firestore";
@@ -12,7 +11,7 @@ export const handleRegister = async (
   onSuccess: () => void,
   onError: (errorMessage: string) => void
 ) => {
-  // Validate inputs
+  // validate inputs
   if (!name || !email || !password || !confirmPassword) {
     onError("Please fill in all fields");
     return;
@@ -23,21 +22,21 @@ export const handleRegister = async (
   }
 
   try {
-    // Create user with Firebase Authentication
+    // create user
     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
     const user = userCredential.user;
 
     if (user) {
       const createdAt = new Date();
 
-      // Initialize comprehensive user profile data
+      // initialise user profile
       const userData = {
         name,
         email,
         isNewUser: true,
         createdAt,
 
-        // Initialize stats for tracking visited places properly
+        // initialise stats
         stats: {
           placesDiscovered: 0,
           countriesVisited: 0,
@@ -68,7 +67,7 @@ export const handleRegister = async (
           hourVisits: Array(24).fill(0),
         },
 
-        // User preferences
+        // preferences
         settings: {
           notificationsEnabled: true,
           darkMode: false,
@@ -77,7 +76,7 @@ export const handleRegister = async (
           autoCheckIn: true,
         },
 
-        // Profile data
+        // data
         profile: {
           displayName: name,
           photoURL: null,
@@ -86,11 +85,9 @@ export const handleRegister = async (
         },
       };
 
-      // Save user data to Firestore
+      // save user to Firestore
       await setDoc(doc(db, "users", user.uid), userData);
 
-      // Create an initialization document in the visitedPlaces subcollection
-      // This ensures the collection path exists even before adding actual places
       const visitedPlacesRef = doc(collection(db, "users", user.uid, "visitedPlaces"), "_init");
       await setDoc(visitedPlacesRef, {
         _isInitDocument: true,
@@ -98,14 +95,13 @@ export const handleRegister = async (
         note: "Initialization document for visitedPlaces collection",
       });
 
-      // Wait for Firestore operations to complete
+      // wait for Firestore
       await new Promise((resolve) => setTimeout(resolve, 800));
 
       // Log in the user after registration
       handleLogin(email, password, onSuccess, onError);
     }
   } catch (error: any) {
-    // Handle specific Firebase errors
     if (error.code === "auth/email-already-in-use") {
       onError("Email already in use. Please login.");
     } else if (error.code === "auth/weak-password") {

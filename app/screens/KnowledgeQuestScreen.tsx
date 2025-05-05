@@ -1,4 +1,3 @@
-// screens/KnowledgeQuestScreen.tsx
 import React, { useState, useEffect } from "react";
 import { View, StyleSheet, ActivityIndicator, StatusBar, Text } from "react-native";
 import { Colors } from "../constants/colours";
@@ -14,7 +13,6 @@ import { getAllUserBadges } from "../services/LearnScreen/badgeService";
 import Header from "../components/Global/Header";
 import ScreenWithNavBar from "../components/Global/ScreenWithNavbar";
 
-// Import custom components
 import StatsHeader from "../components/LearnScreen/KnowledgeQuestSection/StatsHeader";
 import TabBar, { TabType } from "../components/LearnScreen/KnowledgeQuestSection/TabBar";
 import QuizzesTabContent from "../components/LearnScreen/KnowledgeQuestSection/QuizzesTabContent";
@@ -35,7 +33,6 @@ const KnowledgeQuestScreen = ({ navigation }) => {
   }, []);
 
   useEffect(() => {
-    // Check if route.params exists and contains activeTab
     if (navigation.route && navigation.route.params && navigation.route.params.activeTab) {
       setActiveTab(navigation.route.params.activeTab as TabType);
     }
@@ -45,7 +42,6 @@ const KnowledgeQuestScreen = ({ navigation }) => {
     try {
       setLoading(true);
 
-      // Make separate calls instead of Promise.all for better error handling
       let userStats;
       let availableQuizzes;
       let results;
@@ -59,15 +55,12 @@ const KnowledgeQuestScreen = ({ navigation }) => {
       }
 
       try {
-        availableQuizzes = await getAvailableQuizzes(30); // Get a bit more to ensure variety
-
-        // Deduplicate quizzes before setting state
+        availableQuizzes = await getAvailableQuizzes(30);
         const uniqueQuizMap = new Map<string, Quiz>();
         availableQuizzes.forEach((quiz) => {
           if (!uniqueQuizMap.has(quiz.id)) {
             uniqueQuizMap.set(quiz.id, quiz);
           } else {
-            // If there's a duplicate, keep the one with more completions (likely more recent)
             const existingQuiz = uniqueQuizMap.get(quiz.id)!;
             if ((quiz.completions || 0) > (existingQuiz.completions || 0)) {
               uniqueQuizMap.set(quiz.id, quiz);
@@ -77,10 +70,8 @@ const KnowledgeQuestScreen = ({ navigation }) => {
 
         const uniqueQuizzes = Array.from(uniqueQuizMap.values());
 
-        // Sort quizzes by number of completions (incomplete quizzes first)
         uniqueQuizzes.sort((a, b) => (a.completions || 0) - (b.completions || 0));
 
-        // Limit to 20 quizzes max
         const finalQuizzes = uniqueQuizzes.slice(0, 20);
 
         console.log(
@@ -92,16 +83,14 @@ const KnowledgeQuestScreen = ({ navigation }) => {
       }
 
       try {
-        results = await getAllQuizResults(5); // Pass number directly
+        results = await getAllQuizResults(5);
         setRecentResults(results);
       } catch (resultsError) {
         console.error("Error loading quiz results:", resultsError);
       }
 
-      // Get user badges
       try {
         userBadges = await getAllUserBadges();
-        // Filter to only include quiz related badges
         const quizBadges = userBadges.filter((badge) =>
           badge.requirements.some((req) =>
             ["quizCount", "quizStreak", "quizScore", "quizCorrect", "quizAccuracy"].includes(

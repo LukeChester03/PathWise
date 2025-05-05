@@ -1,4 +1,3 @@
-// components/AdvancedAnalysis/tabs/SpatialTab.tsx
 import React from "react";
 import { View, Text, StyleSheet } from "react-native";
 import { Colors, NeutralColors } from "../../../../constants/colours";
@@ -6,13 +5,11 @@ import SectionCard, { NoDataText } from "../SectionCard";
 import TabContainer from "../TabContainer";
 
 type SpatialTabProps = {
-  spatialAnalysis: any; // Use proper type from your TravelAnalysisTypes
+  spatialAnalysis: any;
 };
 
 const SpatialTab: React.FC<SpatialTabProps> = ({ spatialAnalysis }) => {
   if (!spatialAnalysis) return null;
-
-  // Helper function to format category names (tourist_attraction → Tourist Attraction)
   const formatCategoryName = (category: string): string => {
     return category
       .split("_")
@@ -253,7 +250,7 @@ const styles = StyleSheet.create({
     color: Colors.text,
   },
   clusterVisits: {
-    backgroundColor: `${Colors.primary}33`, // 20% opacity
+    backgroundColor: `${Colors.primary}33`,
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 12,
@@ -281,7 +278,7 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
   },
   categoryTag: {
-    backgroundColor: `${Colors.primary}26`, // 15% opacity
+    backgroundColor: `${Colors.primary}26`,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 12,
@@ -308,7 +305,7 @@ const styles = StyleSheet.create({
     height: 60,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: `${Colors.primary}1A`, // 10% opacity
+    backgroundColor: `${Colors.primary}1A`,
     borderRadius: 8,
   },
   northSegment: {
@@ -344,10 +341,10 @@ const styles = StyleSheet.create({
     left: 15,
   },
   primaryDirectionSegment: {
-    backgroundColor: `${Colors.primary}66`, // 40% opacity
+    backgroundColor: `${Colors.primary}66`,
   },
   secondaryDirectionSegment: {
-    backgroundColor: `${Colors.primary}40`, // 25% opacity
+    backgroundColor: `${Colors.primary}40`,
   },
   compassCenter: {
     position: "absolute",

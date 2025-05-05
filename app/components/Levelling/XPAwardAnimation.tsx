@@ -1,4 +1,3 @@
-// components/Notifications/XPAwardAnimation.tsx
 import React, { useEffect, useRef } from "react";
 import { Animated, StyleSheet, Text, View, Dimensions } from "react-native";
 
@@ -17,9 +16,7 @@ const XPAwardAnimation: React.FC<XPAwardAnimationProps> = ({ amount, activity, o
   const scale = useRef(new Animated.Value(0.5)).current;
 
   useEffect(() => {
-    // Run the animation sequence
     Animated.sequence([
-      // Start with a pop-in effect
       Animated.timing(scale, {
         toValue: 1.2,
         duration: 300,
@@ -30,9 +27,7 @@ const XPAwardAnimation: React.FC<XPAwardAnimationProps> = ({ amount, activity, o
         duration: 150,
         useNativeDriver: true,
       }),
-      // Hold for a moment
       Animated.delay(1000),
-      // Float upward while fading out
       Animated.parallel([
         Animated.timing(translateY, {
           toValue: -100,
@@ -46,7 +41,6 @@ const XPAwardAnimation: React.FC<XPAwardAnimationProps> = ({ amount, activity, o
         }),
       ]),
     ]).start(() => {
-      // Call the onComplete callback when animation is done
       onComplete();
     });
   }, []);
@@ -87,7 +81,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   xpText: {
-    color: "#FFD700", // Gold color for XP
+    color: "#FFD700",
     fontWeight: "bold",
     fontSize: 24,
     marginBottom: 5,

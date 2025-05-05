@@ -76,7 +76,7 @@ export default function LoginComponent({
         }),
       ]).start();
     }
-  }, [visible]); // Add `visible` to the dependency array
+  }, [visible]);
 
   const performLogin = async () => {
     if (!email.trim()) {
@@ -128,12 +128,9 @@ export default function LoginComponent({
     <>
       <Modal animationType="none" transparent={true} visible={visible} onRequestClose={closeModal}>
         <Animated.View style={[styles.modalOverlay, { opacity: fadeAnim }]}>
-          {/* Overlay for closing modal */}
           <TouchableWithoutFeedback onPress={closeModal}>
             <View style={styles.overlayBackground} />
           </TouchableWithoutFeedback>
-
-          {/* Modal Content */}
           <KeyboardAvoidingView
             behavior={Platform.OS === "ios" ? "padding" : "height"}
             style={styles.keyboardAvoidingView}
@@ -172,7 +169,6 @@ export default function LoginComponent({
                   </View>
                 </View>
 
-                {/* Password Input */}
                 <View style={styles.inputContainer}>
                   <Text style={styles.inputLabel}>Password</Text>
                   <View
@@ -205,7 +201,6 @@ export default function LoginComponent({
                   </View>
                 </View>
 
-                {/* Forgot Password */}
                 <TouchableOpacity
                   onPress={toggleForgotPasswordModal}
                   style={styles.forgotPasswordContainer}
@@ -213,7 +208,6 @@ export default function LoginComponent({
                   <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
                 </TouchableOpacity>
 
-                {/* Login Button */}
                 <TouchableOpacity
                   style={styles.loginButton}
                   onPress={performLogin}
@@ -247,7 +241,7 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
   },
   overlayBackground: {
-    ...StyleSheet.absoluteFillObject, // Covers the entire screen behind the modal
+    ...StyleSheet.absoluteFillObject,
   },
   keyboardAvoidingView: {
     flex: 1,

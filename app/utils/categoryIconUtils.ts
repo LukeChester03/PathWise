@@ -1,10 +1,3 @@
-// utils/categoryIconUtils.ts
-
-/**
- * Returns the appropriate Ionicons icon name based on the phrase context
- * @param context The phrase context category
- * @returns Ionicons icon name
- */
 export const getCategoryIcon = (context: string): string => {
   const contextLower = context.toLowerCase();
 

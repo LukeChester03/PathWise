@@ -1,4 +1,3 @@
-// components/CollapsibleCard.tsx
 import React, { useState, useEffect, useRef } from "react";
 import {
   View,
@@ -14,17 +13,14 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { Colors } from "../../constants/colours";
 
-// Animation timing constants
 const STAGGER_DELAY = 80;
 
-// Custom spring animation preset
 const springConfig = {
   tension: 50,
   friction: 7,
   useNativeDriver: true,
 };
 
-// Card shadow preset for consistent styling
 const cardShadow = Platform.select({
   ios: {
     shadowColor: "#000",

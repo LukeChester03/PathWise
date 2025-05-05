@@ -1,4 +1,3 @@
-// components/HistoricalFactsSection.tsx
 import React from "react";
 import { View, Text, StyleSheet, ActivityIndicator } from "react-native";
 import { Colors } from "../../constants/colours";

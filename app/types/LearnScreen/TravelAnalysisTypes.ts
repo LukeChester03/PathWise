@@ -1,11 +1,4 @@
-// types/LearnScreen/TravelAnalysisTypes.ts
-import { VisitedPlaceDetails } from "../MapTypes";
-
-/**
- * Time-based progression analysis for visits
- */
 export interface TemporalAnalysis {
-  // Travel evolution over time
   yearlyProgression?: {
     [year: string]: {
       totalVisits: number;
@@ -16,7 +9,6 @@ export interface TemporalAnalysis {
     };
   };
 
-  // Seasonality patterns
   seasonalPatterns?: {
     winter?: {
       visitPercentage: number;
@@ -40,7 +32,6 @@ export interface TemporalAnalysis {
     };
   };
 
-  // Monthly visit distribution
   monthlyDistribution?: {
     [month: string]: number;
   };
@@ -201,7 +192,7 @@ export interface AnalyticalInsights {
 }
 
 /**
- * Comparative analytics against benchmarks
+ * Comparative analytics
  */
 export interface ComparativeAnalysis {
   // Persona comparison
@@ -239,7 +230,7 @@ export interface ComparativeAnalysis {
 }
 
 /**
- * Main Advanced Travel Analysis object
+ *  Advanced Travel Analysis object
  */
 export interface AdvancedTravelAnalysis {
   id?: string;
@@ -248,16 +239,12 @@ export interface AdvancedTravelAnalysis {
   updatedAt: string;
   isGenerating: boolean;
   basedOnPlaces: number;
-
-  // Primary analysis sections
   temporalAnalysis: TemporalAnalysis;
   spatialAnalysis: SpatialAnalysis;
   behavioralAnalysis: BehavioralAnalysis;
   predictiveAnalysis: PredictiveAnalysis;
   analyticalInsights: AnalyticalInsights;
   comparativeAnalysis: ComparativeAnalysis;
-
-  // Meta information
   analysisQuality: number;
   confidenceScore: number;
   lastRefreshed: string;
@@ -265,7 +252,7 @@ export interface AdvancedTravelAnalysis {
 }
 
 /**
- * Settings for advanced travel analysis service
+ * Settings
  */
 export interface AdvancedAnalysisSettings {
   lastUpdatedAt: number;
@@ -278,7 +265,7 @@ export interface AdvancedAnalysisSettings {
 }
 
 /**
- * Analysis request limits information
+ * Analysis request limits
  */
 export interface AnalysisRequestLimitInfo {
   canRequest: boolean;
@@ -287,7 +274,7 @@ export interface AnalysisRequestLimitInfo {
 }
 
 /**
- * Progress information for analysis generation
+ * Progress information
  */
 export interface AnalysisGenerationProgress {
   isGenerating: boolean;

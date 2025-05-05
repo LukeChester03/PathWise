@@ -1,4 +1,3 @@
-// components/HomeScreen/QuickActions.tsx
 import React, { useEffect, useRef } from "react";
 import {
   View,
@@ -29,7 +28,6 @@ interface ActionItem {
 }
 
 const QuickActions: React.FC<QuickActionsProps> = ({ navigateToScreen }) => {
-  // Animation references for staggered entrance
   const containerAnim = useRef(new Animated.Value(0)).current;
   const itemAnims = useRef(
     Array(6)
@@ -37,7 +35,6 @@ const QuickActions: React.FC<QuickActionsProps> = ({ navigateToScreen }) => {
       .map(() => new Animated.Value(0))
   ).current;
 
-  // Define quick action items - Updated as per the requirements
   const quickActionItems: ActionItem[] = [
     {
       id: "profile",
@@ -53,8 +50,8 @@ const QuickActions: React.FC<QuickActionsProps> = ({ navigateToScreen }) => {
       icon: "trophy-outline",
       iconType: "ionicons",
       color: "#4CAF50",
-      screen: "Profile", // Same screen, will just show achievements tab
-      params: { tab: "achievements" }, // Optional param to show specific tab
+      screen: "Profile", 
+      params: { tab: "achievements" }, 
     },
     {
       id: "phrasebook",
@@ -62,9 +59,8 @@ const QuickActions: React.FC<QuickActionsProps> = ({ navigateToScreen }) => {
       icon: "book-alphabet",
       iconType: "material",
       color: "#2196F3",
-      screen: "Phrasebook", // Updated to Phrasebook screen
-      params: { visitedPlaces: [] }, // Empty array as default
-    },
+      screen: "Phrasebook", 
+      params: { visitedPlaces: [] }, 
     {
       id: "nearbyPlaces",
       name: "Nearby Places",
@@ -72,7 +68,7 @@ const QuickActions: React.FC<QuickActionsProps> = ({ navigateToScreen }) => {
       iconType: "ionicons",
       color: "#9C27B0",
       screen: "ViewAll",
-      params: { viewType: "nearbyPlaces" }, // Pass the correct params
+      params: { viewType: "nearbyPlaces" }, 
     },
     {
       id: "culturalContext",
@@ -92,9 +88,7 @@ const QuickActions: React.FC<QuickActionsProps> = ({ navigateToScreen }) => {
     },
   ];
 
-  // Start entrance animations
   useEffect(() => {
-    // Animate container first
     Animated.timing(containerAnim, {
       toValue: 1,
       duration: 400,
@@ -102,7 +96,6 @@ const QuickActions: React.FC<QuickActionsProps> = ({ navigateToScreen }) => {
       easing: Easing.out(Easing.cubic),
     }).start();
 
-    // Then animate each item with stagger
     Animated.stagger(
       50,
       itemAnims.map((anim) =>
@@ -116,9 +109,8 @@ const QuickActions: React.FC<QuickActionsProps> = ({ navigateToScreen }) => {
     ).start();
   }, []);
 
-  // Render each quick action item
+  // render each quick action item
   const renderQuickActionItem = (item: ActionItem, index: number) => {
-    // Handle icon rendering based on type
     const renderIcon = () => {
       if (item.iconType === "ionicons") {
         return <Ionicons name={item.icon} size={24} color="#fff" />;
@@ -204,13 +196,13 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 8,
     elevation: 2,
-    marginBottom: 8, // Add some bottom margin
-    marginTop: 4, // Reduced top margin to clean up whitespace
+    marginBottom: 8, 
+    marginTop: 4, 
   },
   header: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 12, // Reduced from 16 to clean up whitespace
+    marginBottom: 12, 
   },
   headerTitle: {
     fontSize: 18,
@@ -227,7 +219,7 @@ const styles = StyleSheet.create({
   itemContainer: {
     width: "33%",
     paddingHorizontal: 4,
-    marginBottom: 14, // Adjusted from 16 to clean up whitespace
+    marginBottom: 14, 
   },
   actionButton: {
     alignItems: "center",
@@ -238,7 +230,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 6, // Reduced from 8 to clean up whitespace
+    marginBottom: 6, 
     elevation: 2,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },

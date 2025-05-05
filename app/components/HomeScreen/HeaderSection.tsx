@@ -1,4 +1,3 @@
-// components/HomeScreen/HeaderSection.tsx
 import React, { useEffect, useRef } from "react";
 import {
   View,
@@ -29,14 +28,12 @@ const HeaderSection: React.FC<HeaderSectionProps> = ({ userName, profileImage })
   const profileAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    // Animate container first
     Animated.timing(containerAnim, {
       toValue: 1,
       duration: 500,
       useNativeDriver: true,
     }).start();
 
-    // Then animate children with stagger
     Animated.stagger(150, [
       Animated.spring(nameAnim, {
         toValue: 1,
@@ -86,7 +83,6 @@ const HeaderSection: React.FC<HeaderSectionProps> = ({ userName, profileImage })
         </View>
 
         <View style={styles.actionsContainer}>
-          {/* Profile button */}
           <Animated.View
             style={{
               opacity: profileAnim,
@@ -123,8 +119,8 @@ const HeaderSection: React.FC<HeaderSectionProps> = ({ userName, profileImage })
 const styles = StyleSheet.create({
   container: {
     paddingHorizontal: 16,
-    paddingVertical: 6, // Reduced padding to clean up whitespace
-    marginBottom: 4, // Reduced margin to clean up whitespace
+    paddingVertical: 6,
+    marginBottom: 4,
   },
   headerContent: {
     flexDirection: "row",
@@ -135,7 +131,6 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   welcomeTextContainer: {
-    // Added a container with styling for more beautiful welcome text
     borderLeftWidth: 3,
     borderLeftColor: Colors.primary,
     paddingLeft: 10,
@@ -144,7 +139,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#666",
     marginBottom: 2,
-    fontWeight: "500", // Increased weight for better appearance
+    fontWeight: "500",
   },
   userName: {
     fontSize: 24,

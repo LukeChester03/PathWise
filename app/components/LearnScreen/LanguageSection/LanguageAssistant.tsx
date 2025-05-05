@@ -25,7 +25,6 @@ import {
 } from "../../../services/LearnScreen/aiLanguageService";
 import useTextToSpeech from "../../../hooks/AI/useTextToSpeech";
 
-// A sample phrase to show in the basic state
 const SAMPLE_PHRASE = {
   language: "French",
   phrase: "Bonjour, comment allez-vous?",
@@ -48,82 +47,61 @@ const LanguageAssistant: React.FC<LanguageAssistantProps> = ({ visitedPlaces, ca
   const [error, setError] = useState<string | null>(null);
   const { speakPhrase } = useTextToSpeech();
 
-  // Check if user has visited at least one place
   const hasVisitedPlaces = visitedPlaces?.length > 0;
 
-  // Function to calculate language and phrase counts
   const calculateCounts = useCallback((allPhrases: Phrase[]) => {
-    // Count unique languages
     const uniqueLanguages = new Set(allPhrases.map((p) => p.language)).size;
-    // Total phrases count
     const totalPhrases = allPhrases.length;
-
-    // Set state with the counts
     setTotalLanguageCount(uniqueLanguages);
     setTotalPhraseCount(totalPhrases);
-
     return { languageCount: uniqueLanguages, phraseCount: totalPhrases };
   }, []);
 
-  // Updated function to check Firebase for cached phrases first
+  //check firebase
   const checkFirebaseCache = useCallback(async () => {
     console.log("Checking Firebase for cached phrases...");
     try {
-      // Get phrases from the cache
       const { phrases: cachedPhrases, needsRefresh } = await getCachedPhrases();
 
       if (cachedPhrases.length > 0) {
         console.log(
           `Found ${cachedPhrases.length} cached phrases in Firebase, needsRefresh: ${needsRefresh}`
         );
-
-        // Get favorite phrases to mark them appropriately
         const favoritePhrases = await getFavoritePhrases();
         const savedPhrases = await getSavedPhrases();
-
-        // Create a set of favorite phrase IDs for quick lookup
         const favoriteIds = new Set(favoritePhrases.map((p) => p.id));
         const savedIds = new Set(savedPhrases.map((p) => p.id));
-
-        // Mark phrases as favorites if they're in the favorites collection
         const markedPhrases = cachedPhrases.map((phrase) => ({
           ...phrase,
           isFavorite: favoriteIds.has(phrase.id) || savedIds.has(phrase.id),
         }));
-
-        // Calculate total counts from all phrases
         const { languageCount, phraseCount } = calculateCounts(markedPhrases);
         console.log(`Total languages: ${languageCount}, Total phrases: ${phraseCount}`);
-
-        // Store all phrases but only display a subset
         setPhrases(markedPhrases);
-        setDisplayPhrases(markedPhrases.slice(0, 3)); // Display only first 3 for preview
+        setDisplayPhrases(markedPhrases.slice(0, 3));
         setLoading(false);
-
-        // If cache needs refresh, check request limits before attempting background refresh
+        //check request limit if refresh necessary
         if (needsRefresh && hasVisitedPlaces) {
           const limitInfo = await checkRequestLimit();
           if (limitInfo.canRequest) {
             console.log(
               "Cache needs refresh and we have requests available - refreshing in background"
             );
-            fetchLanguagePhrases(true); // true = background refresh
+            fetchLanguagePhrases(true);
           } else {
             console.log("Cache needs refresh but we're at request limit - using cached data");
           }
         }
 
-        return true; // Successfully loaded from cache
+        return true;
       }
-
-      return false; // No cache data found
+      return false;
     } catch (err) {
       console.error("Error checking Firebase cache:", err);
-      return false; // Error, proceed to regular fetch
+      return false;
     }
   }, [hasVisitedPlaces, calculateCounts]);
 
-  // Updated fetchLanguagePhrases function
   const fetchLanguagePhrases = useCallback(
     async (backgroundRefresh = false) => {
       if (!backgroundRefresh) {
@@ -136,12 +114,10 @@ const LanguageAssistant: React.FC<LanguageAssistantProps> = ({ visitedPlaces, ca
           `Fetching language phrases from API (backgroundRefresh: ${backgroundRefresh})...`
         );
 
-        // Check request limits before proceeding
         const limitInfo = await checkRequestLimit();
         if (!limitInfo.canRequest) {
           if (!backgroundRefresh) {
             setError("Daily request limit reached. Try again tomorrow.");
-            // Use mock data as fallback for foreground refresh when at limit
             const mockPhrases = createMockPhrases();
             calculateCounts(mockPhrases);
             setPhrases(mockPhrases);
@@ -150,22 +126,18 @@ const LanguageAssistant: React.FC<LanguageAssistantProps> = ({ visitedPlaces, ca
           return;
         }
 
-        // Get comprehensive phrasebook
+        // Get phrasebook
         const comprehensivePhrases = await getComprehensivePhrasebook(visitedPlaces);
 
         if (comprehensivePhrases.length > 0) {
-          // Calculate counts from all comprehensive phrases
+          // Calculate number of phrases
           calculateCounts(comprehensivePhrases);
-
-          // Store all phrases but only display a preview
           setPhrases(comprehensivePhrases);
-
-          // If this is not a background refresh or we don't have any phrases yet, update display
           if (!backgroundRefresh || displayPhrases.length === 0) {
-            setDisplayPhrases(comprehensivePhrases.slice(0, 3)); // Display only first 3 for preview
+            setDisplayPhrases(comprehensivePhrases.slice(0, 3));
           }
         } else {
-          // If no comprehensive phrases and we're not doing a background refresh, use mock data
+          // If no phrases use mock data
           if (!backgroundRefresh) {
             const mockPhrases = createMockPhrases();
             calculateCounts(mockPhrases);
@@ -191,18 +163,14 @@ const LanguageAssistant: React.FC<LanguageAssistantProps> = ({ visitedPlaces, ca
     [visitedPlaces, calculateCounts, displayPhrases.length]
   );
 
-  // Updated useEffect for better initialization
   useEffect(() => {
     if (hasVisitedPlaces) {
-      // Always check Firebase first, then fallback to API if needed
       checkFirebaseCache().then((foundInCache) => {
         if (!foundInCache) {
-          // If not found in cache, do a regular fetch (which will cache the results)
           fetchLanguagePhrases();
         }
       });
     } else {
-      // Clear loading state if no places visited
       setLoading(false);
       setError(null);
       setPhrases([]);
@@ -211,34 +179,6 @@ const LanguageAssistant: React.FC<LanguageAssistantProps> = ({ visitedPlaces, ca
       setTotalPhraseCount(0);
     }
   }, [visitedPlaces, checkFirebaseCache, fetchLanguagePhrases]);
-
-  const handleToggleFavorite = async (phrase: Phrase) => {
-    try {
-      // Update both the display phrases and full phrases lists
-      setDisplayPhrases(
-        displayPhrases.map((p) => (p.id === phrase.id ? { ...p, isFavorite: !p.isFavorite } : p))
-      );
-
-      setPhrases(
-        phrases.map((p) => (p.id === phrase.id ? { ...p, isFavorite: !p.isFavorite } : p))
-      );
-
-      await toggleFavoritePhrase(phrase.id!, phrase.isFavorite || false, phrase);
-    } catch (err) {
-      console.error("Error toggling favorite:", err);
-
-      // Revert both display and full phrases on error
-      setDisplayPhrases(
-        displayPhrases.map((p) =>
-          p.id === phrase.id ? { ...p, isFavorite: phrase.isFavorite } : p
-        )
-      );
-
-      setPhrases(
-        phrases.map((p) => (p.id === phrase.id ? { ...p, isFavorite: phrase.isFavorite } : p))
-      );
-    }
-  };
 
   const handlePlayPhrase = (phrase: string, language: string) => {
     speakPhrase(phrase, language);
@@ -250,7 +190,6 @@ const LanguageAssistant: React.FC<LanguageAssistantProps> = ({ visitedPlaces, ca
     });
   };
 
-  // Render loading state
   const renderLoading = () => (
     <View style={styles.contentContainer}>
       <ActivityIndicator size="large" color="#FFFFFF" />
@@ -258,7 +197,6 @@ const LanguageAssistant: React.FC<LanguageAssistantProps> = ({ visitedPlaces, ca
     </View>
   );
 
-  // Render error state
   const renderError = () => (
     <View style={styles.contentContainer}>
       <Ionicons name="alert-circle-outline" size={36} color="#FFFFFF" />
@@ -269,12 +207,10 @@ const LanguageAssistant: React.FC<LanguageAssistantProps> = ({ visitedPlaces, ca
     </View>
   );
 
-  // Render basic state (no visited places)
   const renderBasicState = () => (
     <View style={styles.contentContainer}>
       <Text style={styles.sectionTitle}>Language Assistant</Text>
 
-      {/* Sample phrase preview */}
       <View style={styles.samplePhraseContainer}>
         <Text style={styles.languageLabel}>{SAMPLE_PHRASE.language}</Text>
         <Text style={styles.phraseText}>{SAMPLE_PHRASE.phrase}</Text>
@@ -290,7 +226,6 @@ const LanguageAssistant: React.FC<LanguageAssistantProps> = ({ visitedPlaces, ca
     </View>
   );
 
-  // Render content state (has visited places)
   const renderContent = () => {
     return (
       <View style={styles.contentContainer}>
@@ -309,7 +244,6 @@ const LanguageAssistant: React.FC<LanguageAssistantProps> = ({ visitedPlaces, ca
           </View>
         </View>
 
-        {/* Featured phrase */}
         {displayPhrases.length > 0 && (
           <View style={styles.featuredPhraseContainer}>
             <View style={styles.featuredPhraseHeader}>
@@ -413,14 +347,12 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "flex-start",
   },
-  // Section title
   sectionTitle: {
     fontSize: 24,
     fontWeight: "700",
     color: "#FFFFFF",
     marginBottom: 20,
   },
-  // Basic state
   samplePhraseContainer: {
     backgroundColor: "rgba(255, 255, 255, 0.15)",
     borderRadius: 12,
@@ -460,7 +392,6 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     flex: 1,
   },
-  // Stats
   statsContainer: {
     flexDirection: "row",
     marginBottom: 16,
@@ -477,7 +408,6 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#FFFFFF",
   },
-  // Featured phrase
   featuredPhraseContainer: {
     backgroundColor: "rgba(255, 255, 255, 0.15)",
     borderRadius: 12,
@@ -514,7 +444,6 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     opacity: 0.9,
   },
-  // AI badge
   aiPoweredContainer: {
     flexDirection: "row",
     alignItems: "center",
@@ -529,7 +458,6 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     marginLeft: 4,
   },
-  // Footer
   footer: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -551,14 +479,12 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  // Loading state
   loadingText: {
     fontSize: 16,
     fontWeight: "600",
     color: "#FFFFFF",
     marginTop: 12,
   },
-  // Error state
   errorText: {
     fontSize: 14,
     color: "#FFFFFF",

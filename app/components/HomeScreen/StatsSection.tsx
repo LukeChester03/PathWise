@@ -1,4 +1,3 @@
-// components/HomeScreen/StatsSection.tsx
 import React, { useState, useEffect, useRef } from "react";
 import {
   View,
@@ -22,7 +21,6 @@ const STATS_CARD_HEIGHT = 155;
 const SPACING = 16;
 const MAX_CAROUSEL_ITEMS = 5;
 
-// Define interface for stat item data
 interface StatItem {
   id: string;
   value: string;
@@ -31,14 +29,11 @@ interface StatItem {
   gradientColors: [string, string];
 }
 
-// Animated background circles component with increased visibility
 const AnimatedBackgroundCircles = ({ colors }: { colors: [string, string] }) => {
-  // Create multiple animated values for different circles
   const circle1Position = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
   const circle2Position = useRef(new Animated.ValueXY({ x: 30, y: 30 })).current;
   const circle3Position = useRef(new Animated.ValueXY({ x: -20, y: 10 })).current;
 
-  // Animation for opacity and size - increased opacity values
   const opacity1 = useRef(new Animated.Value(0.45)).current;
   const opacity2 = useRef(new Animated.Value(0.4)).current;
   const opacity3 = useRef(new Animated.Value(0.5)).current;
@@ -48,18 +43,14 @@ const AnimatedBackgroundCircles = ({ colors }: { colors: [string, string] }) => 
   const scale3 = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
-    // Function to animate circles with more dynamic movement
     const animateCircle = (
       position: Animated.ValueXY,
       opacityValue: Animated.Value,
       scaleValue: Animated.Value
     ) => {
-      // Generate random destinations within boundaries
-      const randomX = Math.random() * 40 - 20; // Moderate range of motion
+      const randomX = Math.random() * 40 - 20;
       const randomY = Math.random() * 40 - 20;
       const randomDuration = 4000 + Math.random() * 2500;
-
-      // Position animation
       Animated.timing(position, {
         toValue: { x: randomX, y: randomY },
         duration: randomDuration,
@@ -67,23 +58,21 @@ const AnimatedBackgroundCircles = ({ colors }: { colors: [string, string] }) => 
         useNativeDriver: true,
       }).start(() => animateCircle(position, opacityValue, scaleValue));
 
-      // More visible opacity animation (higher min value)
       Animated.sequence([
         Animated.timing(opacityValue, {
-          toValue: 0.35 + Math.random() * 0.3, // Higher min opacity (0.35-0.65)
+          toValue: 0.35 + Math.random() * 0.3,
           duration: randomDuration / 2,
           easing: Easing.inOut(Easing.ease),
           useNativeDriver: true,
         }),
         Animated.timing(opacityValue, {
-          toValue: 0.4 + Math.random() * 0.3, // Higher min opacity (0.4-0.7)
+          toValue: 0.4 + Math.random() * 0.3,
           duration: randomDuration / 2,
           easing: Easing.inOut(Easing.ease),
           useNativeDriver: true,
         }),
       ]).start();
 
-      // Add subtle size pulsing effect
       Animated.sequence([
         Animated.timing(scaleValue, {
           toValue: 0.9 + Math.random() * 0.2,
@@ -100,7 +89,6 @@ const AnimatedBackgroundCircles = ({ colors }: { colors: [string, string] }) => 
       ]).start();
     };
 
-    // Start all animations
     animateCircle(circle1Position, opacity1, scale1);
     animateCircle(circle2Position, opacity2, scale2);
     animateCircle(circle3Position, opacity3, scale3);
@@ -157,7 +145,6 @@ const AnimatedBackgroundCircles = ({ colors }: { colors: [string, string] }) => 
   );
 };
 
-// Shine effect component for cards
 const ShineEffect = () => {
   const shinePosition = useRef(new Animated.Value(-200)).current;
 
@@ -168,7 +155,7 @@ const ShineEffect = () => {
         duration: 2000,
         easing: Easing.ease,
         useNativeDriver: true,
-        delay: Math.random() * 5000 + 2000, // Random delay between 2-7 seconds
+        delay: Math.random() * 5000 + 2000,
       }).start(() => {
         shinePosition.setValue(-200);
         animateShine();
@@ -194,14 +181,11 @@ const StatsSection: React.FC = () => {
   const [userStats, setUserStats] = useState<StatItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const navigation = useNavigation();
-
-  // Animation references
   const sectionAnimatedValue = useRef(new Animated.Value(0)).current;
   const loadingAnimatedValue = useRef(new Animated.Value(0.5)).current;
   const journeyArrowAnim = useRef(new Animated.Value(0)).current;
   const headerAnimation = useRef(new Animated.Value(0)).current;
 
-  // Create refs for card animations
   const cardAnimations = useRef(
     Array(MAX_CAROUSEL_ITEMS + 1)
       .fill(0)
@@ -212,9 +196,7 @@ const StatsSection: React.FC = () => {
       }))
   ).current;
 
-  // Function to animate card entrance with improved effects
   const animateCardsEntrance = () => {
-    // Start section animation with spring effect for bounce
     Animated.spring(sectionAnimatedValue, {
       toValue: 1,
       tension: 30,
@@ -222,7 +204,6 @@ const StatsSection: React.FC = () => {
       useNativeDriver: true,
     }).start();
 
-    // Header animation
     Animated.timing(headerAnimation, {
       toValue: 1,
       duration: 600,
@@ -230,7 +211,6 @@ const StatsSection: React.FC = () => {
       easing: Easing.out(Easing.cubic),
     }).start();
 
-    // Staggered animation for each card with better timing
     cardAnimations.forEach((anim, index) => {
       Animated.parallel([
         Animated.timing(anim.opacity, {
@@ -256,11 +236,9 @@ const StatsSection: React.FC = () => {
       ]).start();
     });
 
-    // Start journey card arrow animation
     animateJourneyArrow();
   };
 
-  // Animate the arrow in the journey card
   const animateJourneyArrow = () => {
     Animated.loop(
       Animated.sequence([
@@ -280,7 +258,6 @@ const StatsSection: React.FC = () => {
     ).start();
   };
 
-  // Start loading animation with improved pulse
   const startLoadingAnimation = () => {
     Animated.loop(
       Animated.sequence([
@@ -291,7 +268,7 @@ const StatsSection: React.FC = () => {
           easing: Easing.inOut(Easing.ease),
         }),
         Animated.timing(loadingAnimatedValue, {
-          toValue: 0.6, // Higher min value for better visibility
+          toValue: 0.6,
           duration: 800,
           useNativeDriver: true,
           easing: Easing.inOut(Easing.ease),
@@ -301,7 +278,6 @@ const StatsSection: React.FC = () => {
   };
 
   useEffect(() => {
-    // Start loading animation
     startLoadingAnimation();
 
     const loadUserStats = async () => {
@@ -309,14 +285,13 @@ const StatsSection: React.FC = () => {
         setIsLoading(true);
         const stats = await fetchUserStats();
         setUserStats(stats);
-        // After data is loaded, trigger card animations
         setTimeout(() => {
           animateCardsEntrance();
         }, 150);
       } catch (error) {
         console.error("Error fetching user stats:", error);
 
-        // Fallback mock data in case of error
+        // Fallback
         const mockStats: StatItem[] = [
           {
             id: "1",
@@ -361,19 +336,16 @@ const StatsSection: React.FC = () => {
     loadUserStats();
   }, []);
 
-  // Navigate to the full journey screen
   const navigateToJourneyScreen = () => {
-    // @ts-ignore
     navigation.navigate("MyJourney", { stats: userStats });
   };
 
-  // Get top 5 stats for carousel
+  // Get top 5 stats
   const getCarouselData = () => {
     if (userStats.length === 0) return [];
     return userStats.slice(0, MAX_CAROUSEL_ITEMS);
   };
 
-  // Function to create an enhanced press animation for a card
   const createPressAnimation = (scale: Animated.Value) => {
     return Animated.sequence([
       Animated.timing(scale, {
@@ -390,7 +362,6 @@ const StatsSection: React.FC = () => {
     ]);
   };
 
-  // Render stat card with improved animations
   const renderStatCard = ({ item, index }: { item: StatItem; index: number }) => {
     const { opacity, translateY, scale } = cardAnimations[index];
 
@@ -408,7 +379,6 @@ const StatsSection: React.FC = () => {
           activeOpacity={0.88}
           style={styles.statCard}
           onPress={() => {
-            // Add a subtle scale animation on press
             createPressAnimation(scale).start();
           }}
         >
@@ -437,15 +407,13 @@ const StatsSection: React.FC = () => {
     );
   };
 
-  // Redesigned "View My Journey" card with cleaner styling
   const renderViewJourneyCard = () => {
     const carouselLength = getCarouselData().length;
     const { opacity, translateY, scale } = cardAnimations[carouselLength];
 
-    // Arrow animation translation
     const arrowTranslate = journeyArrowAnim.interpolate({
       inputRange: [0, 1],
-      outputRange: [0, 5], // Subtle 5px movement
+      outputRange: [0, 5],
     });
 
     return (
@@ -475,7 +443,6 @@ const StatsSection: React.FC = () => {
             <AnimatedBackgroundCircles colors={["#667eea", "#764ba2"]} />
             <ShineEffect />
 
-            {/* Cleaned up journey card layout */}
             <View style={styles.journeyContent}>
               <View style={styles.journeyMainContent}>
                 <View style={styles.journeyIconContainer}>
@@ -487,7 +454,6 @@ const StatsSection: React.FC = () => {
                 </View>
               </View>
 
-              {/* Animated arrow with pulsing effect */}
               <Animated.View
                 style={[
                   styles.arrowContainer,
@@ -505,7 +471,6 @@ const StatsSection: React.FC = () => {
     );
   };
 
-  // Enhanced loading state with animation
   if (isLoading) {
     return (
       <View style={styles.loadingContainer}>
@@ -531,14 +496,13 @@ const StatsSection: React.FC = () => {
             {
               scale: sectionAnimatedValue.interpolate({
                 inputRange: [0, 1],
-                outputRange: [0.92, 1], // More dramatic initial scale
+                outputRange: [0.92, 1],
               }),
             },
           ],
         },
       ]}
     >
-      {/* Updated section header to match other components */}
       <Animated.View
         style={[
           styles.sectionHeader,
@@ -578,9 +542,8 @@ const StatsSection: React.FC = () => {
 const styles = StyleSheet.create({
   statsContainer: {
     width: "100%",
-    marginVertical: 10, // Added consistent margin
+    marginVertical: 10,
   },
-  // Updated section header styling to match other components
   sectionHeader: {
     flexDirection: "row",
     alignItems: "center",
@@ -588,8 +551,8 @@ const styles = StyleSheet.create({
     paddingLeft: 4,
   },
   sectionTitle: {
-    fontSize: 18, // Updated from 22 to 18
-    fontWeight: "600", // Updated from bold to 600
+    fontSize: 18,
+    fontWeight: "600",
     color: Colors.text || "#333",
     marginLeft: 8,
   },
@@ -641,7 +604,6 @@ const styles = StyleSheet.create({
     height: "100%",
     overflow: "hidden",
   },
-  // Circles with moderate size increase for better visibility
   circle: {
     position: "absolute",
     borderRadius: 100,
@@ -706,7 +668,6 @@ const styles = StyleSheet.create({
     color: "#fff",
     opacity: 0.9,
   },
-  // Cleaned up journey card styles
   journeyContent: {
     flexDirection: "row",
     alignItems: "center",

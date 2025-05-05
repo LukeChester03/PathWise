@@ -1,8 +1,11 @@
 import { initializeApp } from "firebase/app";
 import { getAnalytics, isSupported } from "firebase/analytics";
-import { initializeAuth, getReactNativePersistence } from "firebase/auth";
+import { initializeAuth } from "firebase/auth";
+import * as firebaseAuth from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+
+const reactNativePersistence = (firebaseAuth as any).getReactNativePersistence;
 
 // Firebase configuration
 const firebaseConfig = {
@@ -18,7 +21,7 @@ const firebaseConfig = {
 // Initialize Firebase App
 const app = initializeApp(firebaseConfig);
 
-// Initialize Firebase Analytics (with support check)
+// Initialize Firebase Analytics
 let analytics: any;
 isSupported().then((supported) => {
   if (supported) {
@@ -29,13 +32,12 @@ isSupported().then((supported) => {
   }
 });
 
-// Initialize Firebase Auth with AsyncStorage persistence
+// Initialize Firebase Auth persistence
 const auth = initializeAuth(app, {
-  persistence: getReactNativePersistence(AsyncStorage),
+  persistence: reactNativePersistence(AsyncStorage),
 });
 
 // Initialize Firestore
 const db = getFirestore(app);
 
-// Export Firebase services
 export { app, auth, analytics, db };

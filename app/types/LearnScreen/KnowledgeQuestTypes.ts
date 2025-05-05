@@ -1,6 +1,3 @@
-// types/LearnScreen/KnowledgeQuestTypes.ts
-import { Timestamp } from "firebase/firestore";
-
 export interface QuizQuestion {
   id: string;
   question: string;
@@ -26,9 +23,8 @@ export interface Quiz {
   createdAt: string;
   expiresAt: string;
   completions: number;
-  regionType?: string; // New: type of region (city, country, etc.)
+  regionType?: string;
   metadata?: {
-    // New: additional metadata for disambiguation
     disambiguated?: boolean;
     originalRegion?: string;
     clarifiedRegion?: string;
@@ -46,12 +42,12 @@ export interface QuizSession {
     questionId: string;
     selectedAnswerIndex: number;
     isCorrect: boolean;
-    timeSpent: number; // in milliseconds
+    timeSpent: number;
   }[];
   score: number;
   totalQuestions: number;
   correctAnswers: number;
-  totalTimeSpent: number; // in milliseconds
+  totalTimeSpent: number;
 }
 
 export interface QuizResult {
@@ -62,7 +58,7 @@ export interface QuizResult {
   correctAnswers: number;
   totalQuestions: number;
   completedAt: string;
-  timeSpent: number; // in milliseconds
+  timeSpent: number;
   difficulty: "easy" | "medium" | "hard";
   category: "history" | "culture" | "geography" | "art" | "food" | "general";
 }
@@ -71,26 +67,26 @@ export interface KnowledgeQuestStats {
   totalQuizzesTaken: number;
   totalQuestionsAnswered: number;
   totalCorrectAnswers: number;
-  streakDays: number; // consecutive days with at least one quiz
+  streakDays: number;
   lastQuizDate: string;
-  accuracy: number; // percentage
-  averageTimePerQuestion: number; // in milliseconds
+  accuracy: number;
+  averageTimePerQuestion: number;
   quizzesByCategory: Record<string, number>;
   quizzesByDifficulty: Record<string, number>;
   favoriteCategory?: string;
-  masteredRegions: string[]; // regions with >90% accuracy
-  badges: string[]; // IDs of badges earned through quizzes
-  level: number; // knowledge level based on performance
+  masteredRegions: string[];
+  badges: string[];
+  level: number;
   pointsToNextLevel: number;
   totalPoints: number;
 }
 
 export interface KnowledgeQuestSettings {
-  lastRefreshedAt: number; // timestamp when quizzes were last refreshed
+  lastRefreshedAt: number;
   preferredDifficulty?: "easy" | "medium" | "hard";
   preferredCategories?: string[];
-  dailyReminderTime?: string; // time of day for reminders
+  dailyReminderTime?: string;
   dailyReminderEnabled?: boolean;
-  dailyGoal?: number; // number of quizzes to complete per day
-  cacheExpiryDays: number; // days until cache expires (default 30)
+  dailyGoal?: number;
+  cacheExpiryDays: number;
 }

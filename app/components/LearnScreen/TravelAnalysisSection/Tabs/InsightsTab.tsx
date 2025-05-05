@@ -1,4 +1,3 @@
-// components/AdvancedAnalysis/tabs/InsightsTab.tsx
 import React from "react";
 import { View, Text, StyleSheet } from "react-native";
 import { Colors, NeutralColors } from "../../../../constants/colours";
@@ -6,7 +5,7 @@ import SectionCard, { NoDataText } from "../SectionCard";
 import TabContainer from "../TabContainer";
 
 type InsightsTabProps = {
-  analyticalInsights: any; // Use proper type from your TravelAnalysisTypes
+  analyticalInsights: any;
 };
 
 const InsightsTab: React.FC<InsightsTabProps> = ({ analyticalInsights }) => {
@@ -51,9 +50,6 @@ const InsightsTab: React.FC<InsightsTabProps> = ({ analyticalInsights }) => {
           <NoDataText text="No key insights available" />
         )}
       </SectionCard>
-
-      {/* Note: You can add additional insights tab sections here if needed,
-          such as patterns, anomalies, correlations, etc. */}
     </TabContainer>
   );
 };
@@ -82,7 +78,7 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   insightConfidence: {
-    backgroundColor: `${Colors.primary}33`, // 20% opacity
+    backgroundColor: `${Colors.primary}33`,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 12,
@@ -119,7 +115,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   insightTag: {
-    backgroundColor: `${Colors.primary}26`, // 15% opacity
+    backgroundColor: `${Colors.primary}26`,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 12,

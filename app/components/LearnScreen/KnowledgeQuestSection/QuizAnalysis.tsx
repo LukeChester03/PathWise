@@ -1,4 +1,3 @@
-// components/LearnScreen/KnowledgeQuestSection/QuizAnalysis.tsx
 import React, { useState } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, FlatList } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
@@ -17,11 +16,11 @@ interface QuizAnalysisProps {
   result: QuizResult;
 }
 
+//Gets all relevant data for quiz results
 const QuizAnalysis = ({ quiz, answers, result }: QuizAnalysisProps) => {
   const [activeTab, setActiveTab] = useState("overview");
   const navigation = useNavigation();
 
-  // Calculate category performance if available
   const categoryPerformance = React.useMemo(() => {
     if (quiz.category) {
       return {
@@ -34,7 +33,6 @@ const QuizAnalysis = ({ quiz, answers, result }: QuizAnalysisProps) => {
     return null;
   }, [quiz, result]);
 
-  // Calculate time metrics
   const timeMetrics = React.useMemo(() => {
     const totalTime = result.timeSpent;
     const avgTimePerQuestion = Math.round(totalTime / result.totalQuestions);
@@ -53,26 +51,18 @@ const QuizAnalysis = ({ quiz, answers, result }: QuizAnalysisProps) => {
     };
   }, [answers, result]);
 
-  // Identify strength and weakness areas
   const performanceAnalysis = React.useMemo(() => {
-    // Sort questions by correctness and time spent
     const sortedQuestions = [...answers].sort((a, b) => {
-      // First sort by correctness
       if (a.isCorrect && !b.isCorrect) return 1;
       if (!a.isCorrect && b.isCorrect) return -1;
-
-      // Then by time spent (ascending for incorrect, descending for correct)
       if (!a.isCorrect) return a.timeSpent - b.timeSpent;
       return b.timeSpent - a.timeSpent;
     });
 
-    // Get questions that were answered incorrectly or took too long
     const incorrectAnswers = sortedQuestions.filter((a) => !a.isCorrect);
     const slowCorrectAnswers = sortedQuestions.filter(
       (a) => a.isCorrect && a.timeSpent > timeMetrics.avgTimePerQuestion * 1.5
     );
-
-    // Find corresponding questions
     const weaknessQuestions = incorrectAnswers.map((a) => {
       const q = quiz.questions.find((q) => q.id === a.questionId);
       return {
@@ -88,7 +78,7 @@ const QuizAnalysis = ({ quiz, answers, result }: QuizAnalysisProps) => {
       return {
         ...a,
         question: q?.question || "",
-        timeSpent: Math.round(a.timeSpent / 1000), // Convert to seconds
+        timeSpent: Math.round(a.timeSpent / 1000),
       };
     });
 
@@ -98,29 +88,24 @@ const QuizAnalysis = ({ quiz, answers, result }: QuizAnalysisProps) => {
     };
   }, [answers, quiz, timeMetrics]);
 
-  // Generate improvement suggestions
+  // Generate suggestions
   const improvementSuggestions = React.useMemo(() => {
     const suggestions = [];
 
-    // Add accuracy-based suggestions
     if (result.score < 60) {
       suggestions.push("Review the topic material before attempting more quizzes");
     } else if (result.score < 80) {
       suggestions.push("Focus on understanding explanations for questions you missed");
     }
 
-    // Add time-based suggestions
     if (timeMetrics.avgTimePerQuestion > 20000) {
-      // If avg > 20 seconds
       suggestions.push("Work on improving your response time");
     }
 
-    // Add category-specific suggestions
     if (categoryPerformance && categoryPerformance.percentage < 70) {
       suggestions.push(`Spend more time learning about ${categoryPerformance.category}`);
     }
 
-    // Add general suggestions
     suggestions.push("Take more quizzes to reinforce your knowledge");
 
     return suggestions;
@@ -206,6 +191,8 @@ const QuizAnalysis = ({ quiz, answers, result }: QuizAnalysisProps) => {
 
       {performanceAnalysis.weaknessQuestions.length > 0 ? (
         <FlatList
+          scrollEnabled={false}
+          nestedScrollEnabled
           data={performanceAnalysis.weaknessQuestions}
           renderItem={({ item }) => (
             <View style={styles.weaknessItem}>
@@ -329,15 +316,11 @@ const QuizAnalysis = ({ quiz, answers, result }: QuizAnalysisProps) => {
         </TouchableOpacity>
       </View>
 
-      <ScrollView
-        style={styles.content}
-        contentContainerStyle={styles.contentContainer}
-        showsVerticalScrollIndicator={false}
-      >
+      <View style={styles.content}>
         {activeTab === "overview" && renderOverviewTab()}
         {activeTab === "weaknesses" && renderWeaknessesTab()}
         {activeTab === "suggestions" && renderSuggestionsTab()}
-      </ScrollView>
+      </View>
     </View>
   );
 };

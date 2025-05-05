@@ -1,4 +1,3 @@
-// services/LearnScreen/aiTravelAnalysisService.ts
 import { generateContent } from "../Gemini/geminiService";
 import {
   collection,
@@ -23,22 +22,17 @@ import {
 } from "../../types/LearnScreen/TravelAnalysisTypes";
 import { VisitedPlaceDetails } from "../../types/MapTypes";
 
-// Constants
-const ANALYSIS_REFRESH_INTERVAL = 24 * 60 * 60 * 1000; // 24 hours (changed from 7 days)
-const MAX_DAILY_REQUESTS = 5; // More limited than standard profile generation
+const ANALYSIS_REFRESH_INTERVAL = 24 * 60 * 60 * 1000;
+const MAX_DAILY_REQUESTS = 5;
 const ASYNC_STORAGE_KEY = "@advanced_travel_analysis";
 const ASYNC_STORAGE_SETTINGS_KEY = "@advanced_analysis_settings";
 const ASYNC_STORAGE_PROGRESS_KEY = "@advanced_analysis_progress";
 const LAST_AUTO_UPDATE_CHECK_KEY = "@last_auto_update_check";
 
-// In-memory cache for faster repeated access
 let memoryCache: AdvancedTravelAnalysis | null = null;
 let memoryCacheTimestamp = 0;
 let memoryCacheSettings: AdvancedAnalysisSettings | null = null;
 
-/**
- * Check if user has reached their daily request limit
- */
 export const checkAdvancedAnalysisRequestLimit = async (): Promise<AnalysisRequestLimitInfo> => {
   try {
     const settings = await getAdvancedAnalysisSettings();
@@ -46,8 +40,6 @@ export const checkAdvancedAnalysisRequestLimit = async (): Promise<AnalysisReque
       requestCount: 0,
       lastRequestDate: new Date(0).toISOString(),
     };
-
-    // Check if we're on a new day (reset counter)
     const lastDate = new Date(requestLimits.lastRequestDate);
     const today = new Date();
     const isNewDay =
@@ -56,14 +48,11 @@ export const checkAdvancedAnalysisRequestLimit = async (): Promise<AnalysisReque
       lastDate.getFullYear() !== today.getFullYear();
 
     if (isNewDay) {
-      // Reset count for new day
       return {
         canRequest: true,
         requestsRemaining: MAX_DAILY_REQUESTS,
       };
     }
-
-    // Check if limit reached
     const requestsRemaining = MAX_DAILY_REQUESTS - requestLimits.requestCount;
     return {
       canRequest: requestsRemaining > 0,
@@ -72,7 +61,6 @@ export const checkAdvancedAnalysisRequestLimit = async (): Promise<AnalysisReque
     };
   } catch (error) {
     console.error("Error checking advanced analysis request limit:", error);
-    // Default to allowing requests on error
     return {
       canRequest: true,
       requestsRemaining: MAX_DAILY_REQUESTS,
@@ -80,9 +68,6 @@ export const checkAdvancedAnalysisRequestLimit = async (): Promise<AnalysisReque
   }
 };
 
-/**
- * Update request counter after making a request
- */
 export const updateAdvancedAnalysisRequestCounter = async (): Promise<void> => {
   try {
     const currentUser = auth.currentUser;
@@ -95,8 +80,6 @@ export const updateAdvancedAnalysisRequestCounter = async (): Promise<void> => {
       requestCount: 0,
       lastRequestDate: new Date(0).toISOString(),
     };
-
-    // Check if we're on a new day (reset counter)
     const lastDate = new Date(requestLimits.lastRequestDate);
     const today = new Date();
     const isNewDay =
@@ -105,20 +88,15 @@ export const updateAdvancedAnalysisRequestCounter = async (): Promise<void> => {
       lastDate.getFullYear() !== today.getFullYear();
 
     let newCount = isNewDay ? 1 : requestLimits.requestCount + 1;
-
-    // Create base request limits object without the optional field
     let updatedRequestLimits: any = {
       requestCount: newCount,
       lastRequestDate: today.toISOString(),
     };
 
     if (newCount >= MAX_DAILY_REQUESTS) {
-      // Calculate when next request will be available (tomorrow)
       const tomorrow = new Date();
       tomorrow.setDate(tomorrow.getDate() + 1);
       tomorrow.setHours(0, 0, 0, 0);
-
-      // Only add nextAvailableTime field when it has a value
       updatedRequestLimits.nextAvailableTime = tomorrow.toISOString();
     }
 
@@ -130,10 +108,6 @@ export const updateAdvancedAnalysisRequestCounter = async (): Promise<void> => {
   }
 };
 
-/**
- * NEW FUNCTION: Checks if automatic update is needed and performs it if necessary
- * Should be called when app starts or when user accesses travel analysis
- */
 export const checkAndPerformAutomaticUpdate = async (
   visitedPlaces: VisitedPlaceDetails[]
 ): Promise<void> => {
@@ -141,39 +115,25 @@ export const checkAndPerformAutomaticUpdate = async (
     if (!auth.currentUser || visitedPlaces.length === 0) {
       return;
     }
-
-    // Check when we last performed an update check to avoid unnecessary checks
     const lastCheckStr = await AsyncStorage.getItem(LAST_AUTO_UPDATE_CHECK_KEY);
     const lastCheck = lastCheckStr ? parseInt(lastCheckStr, 10) : 0;
     const now = Date.now();
-
-    // Only check once per hour at most to prevent excessive checks
     if (now - lastCheck < 60 * 60 * 1000) {
       return;
     }
-
-    // Update the last check timestamp
     await AsyncStorage.setItem(LAST_AUTO_UPDATE_CHECK_KEY, now.toString());
-
-    // Get current analysis and settings
     const currentAnalysis = await getAdvancedTravelAnalysis(false);
     const settings = await getAdvancedAnalysisSettings();
-
-    // If no analysis exists or it's older than refresh interval, generate a new one
     if (
       !currentAnalysis ||
       now - new Date(currentAnalysis.updatedAt).getTime() > settings.refreshInterval
     ) {
       console.log("Automatic update triggered for travel analysis");
-
-      // Check if we can make a request
       const limitInfo = await checkAdvancedAnalysisRequestLimit();
       if (!limitInfo.canRequest) {
         console.log("Cannot perform automatic update: daily limit reached");
         return;
       }
-
-      // Generate new analysis in the background
       try {
         await generateAdvancedTravelAnalysis(visitedPlaces);
         console.log("Automatic update completed successfully");
@@ -186,17 +146,11 @@ export const checkAndPerformAutomaticUpdate = async (
   }
 };
 
-/**
- * Set the progress status for analysis generation
- */
 export const setAdvancedAnalysisProgress = async (
   progressInfo: AnalysisGenerationProgress
 ): Promise<void> => {
   try {
-    // Save to AsyncStorage
     await AsyncStorage.setItem(ASYNC_STORAGE_PROGRESS_KEY, JSON.stringify(progressInfo));
-
-    // If user is authenticated, save to Firestore
     const currentUser = auth.currentUser;
     if (currentUser) {
       const progressRef = doc(db, "users", currentUser.uid, "settings", "advancedAnalysisProgress");
@@ -210,18 +164,12 @@ export const setAdvancedAnalysisProgress = async (
   }
 };
 
-/**
- * Get the current progress status for analysis generation
- */
 export const getAdvancedAnalysisProgress = async (): Promise<AnalysisGenerationProgress | null> => {
   try {
-    // Try AsyncStorage first
     const jsonValue = await AsyncStorage.getItem(ASYNC_STORAGE_PROGRESS_KEY);
     if (jsonValue) {
       return JSON.parse(jsonValue) as AnalysisGenerationProgress;
     }
-
-    // If not in AsyncStorage, try Firestore if user is authenticated
     const currentUser = auth.currentUser;
     if (currentUser) {
       const progressRef = doc(db, "users", currentUser.uid, "settings", "advancedAnalysisProgress");
@@ -229,10 +177,7 @@ export const getAdvancedAnalysisProgress = async (): Promise<AnalysisGenerationP
 
       if (progressDoc.exists()) {
         const progress = progressDoc.data() as AnalysisGenerationProgress;
-
-        // Cache in AsyncStorage
         await AsyncStorage.setItem(ASYNC_STORAGE_PROGRESS_KEY, JSON.stringify(progress));
-
         return progress;
       }
     }
@@ -244,14 +189,10 @@ export const getAdvancedAnalysisProgress = async (): Promise<AnalysisGenerationP
   }
 };
 
-/**
- * Generate comprehensive advanced travel analysis using Gemini AI
- */
 export const generateAdvancedTravelAnalysis = async (
   visitedPlaces: VisitedPlaceDetails[]
 ): Promise<AdvancedTravelAnalysis> => {
   try {
-    // Check request limit
     const limitInfo = await checkAdvancedAnalysisRequestLimit();
     if (!limitInfo.canRequest) {
       throw new Error(
@@ -267,14 +208,12 @@ export const generateAdvancedTravelAnalysis = async (
       throw new Error("No visited places provided to generate analysis");
     }
 
-    // Set progress to starting
     await setAdvancedAnalysisProgress({
       isGenerating: true,
       progress: 5,
       stage: "Preparing visit data for advanced analysis",
     });
 
-    // Extract and enrich data from visited places
     const placesData = visitedPlaces.map((place) => ({
       name: place.name || "Unknown",
       location: place.vicinity || place.location || "Unknown",
@@ -282,7 +221,7 @@ export const generateAdvancedTravelAnalysis = async (
         place.placeType || (place.types && place.types.length > 0 ? place.types[0] : "unknown"),
       categories: place.types || [],
       visitDate: place.visitDate || new Date(place.visitedAt).toLocaleDateString(),
-      visitedAt: place.visitedAt, // Raw ISO date string
+      visitedAt: place.visitedAt,
       coordinates: place.geometry?.location || { lat: 0, lng: 0 },
       tags: place.tags || place.types || [],
       rating: place.rating || 0,
@@ -299,7 +238,7 @@ export const generateAdvancedTravelAnalysis = async (
       stage: "Analyzing temporal travel patterns",
     });
 
-    // Generate temporal analysis - UPDATED FOR SECOND PERSON
+    // Generate temporal analysis
     const temporalPrompt = `
       Analyze this chronologically ordered travel history for temporal patterns:
       ${JSON.stringify(chronologicalPlaces)}
@@ -362,7 +301,7 @@ export const generateAdvancedTravelAnalysis = async (
       stage: "Analyzing spatial relationships",
     });
 
-    // Generate spatial analysis - UPDATED FOR SECOND PERSON
+    // Generate spatial analysis
     const spatialPrompt = `
       Analyze the spatial relationships and geographical patterns in your travel history:
       ${JSON.stringify(placesData)}
@@ -437,7 +376,7 @@ export const generateAdvancedTravelAnalysis = async (
       stage: "Analyzing behavioral patterns",
     });
 
-    // Generate behavioral analysis - UPDATED FOR SECOND PERSON
+    // Generate behavioral analysis
     const behavioralPrompt = `
         Analyze the psychological and behavioral patterns in your travel history:
         ${JSON.stringify(placesData)}
@@ -504,7 +443,7 @@ export const generateAdvancedTravelAnalysis = async (
       stage: "Generating predictive analysis",
     });
 
-    // Generate predictive analysis - UPDATED FOR SECOND PERSON
+    // Generate predictive analysis
     const predictivePrompt = `
         Based on your travel history, let's predict your future travel patterns and interests:
         ${JSON.stringify(placesData)}
@@ -573,7 +512,7 @@ export const generateAdvancedTravelAnalysis = async (
       stage: "Deriving analytical insights",
     });
 
-    // Generate analytical insights - UPDATED FOR SECOND PERSON
+    // Generate analytical insights
     const insightsPrompt = `
         Extract profound analytical insights from your travel history:
         ${JSON.stringify(placesData)}
@@ -648,7 +587,7 @@ export const generateAdvancedTravelAnalysis = async (
       stage: "Creating comparative analysis",
     });
 
-    // Generate comparative analysis - UPDATED FOR SECOND PERSON AND PERCENTAGES
+    // Generate comparative analysis
     const comparativePrompt = `
         Compare your travel profile against general traveler archetypes and benchmarks:
         ${JSON.stringify(placesData)}
@@ -715,22 +654,20 @@ export const generateAdvancedTravelAnalysis = async (
       responseFormat: "json",
     });
 
-    // Calculate confidence and quality scores based on data richness
+    // Calculate confidence and quality scores based on data
     const dataQualityScore = Math.min(
       100,
-      20 + // Base score
-        Math.min(40, visitedPlaces.length * 2) + // Score based on number of places (max 40)
-        Math.min(20, Object.keys(getYearsFromVisits(visitedPlaces)).length * 5) + // Score based on time span (max 20)
-        Math.min(20, getUniqueCategories(visitedPlaces).length * 2) // Score based on variety (max 20)
+      20 +
+        Math.min(40, visitedPlaces.length * 2) +
+        Math.min(20, Object.keys(getYearsFromVisits(visitedPlaces)).length * 5) +
+        Math.min(20, getUniqueCategories(visitedPlaces).length * 2)
     );
 
-    const confidenceScore = Math.max(50, dataQualityScore); // Minimum 50% confidence
+    const confidenceScore = Math.max(50, dataQualityScore);
 
-    // Calculate next refresh date (24 hours from now)
     const nextRefreshDate = new Date();
     nextRefreshDate.setDate(nextRefreshDate.getDate() + 1);
 
-    // Combine all the generated data
     const analysisData: AdvancedTravelAnalysis = {
       userId: auth.currentUser?.uid || "anonymous",
       createdAt: new Date().toISOString(),
@@ -749,10 +686,7 @@ export const generateAdvancedTravelAnalysis = async (
       nextRefreshDue: nextRefreshDate.toISOString(),
     };
 
-    // Save the analysis
     await saveAdvancedTravelAnalysis(analysisData);
-
-    // Set progress to complete
     await setAdvancedAnalysisProgress({
       isGenerating: false,
       progress: 100,
@@ -763,7 +697,6 @@ export const generateAdvancedTravelAnalysis = async (
   } catch (error) {
     console.error("Error generating advanced travel analysis:", error);
 
-    // Set progress to failed
     await setAdvancedAnalysisProgress({
       isGenerating: false,
       progress: 0,
@@ -774,9 +707,6 @@ export const generateAdvancedTravelAnalysis = async (
   }
 };
 
-/**
- * Save advanced travel analysis directly to Firestore and local cache
- */
 export const saveAdvancedTravelAnalysis = async (
   analysis: AdvancedTravelAnalysis
 ): Promise<void> => {
@@ -785,27 +715,18 @@ export const saveAdvancedTravelAnalysis = async (
     if (!currentUser) {
       throw new Error("User not authenticated");
     }
-
-    // Update timestamp
     const updatedAnalysis = {
       ...analysis,
       updatedAt: new Date().toISOString(),
     };
-
-    // Save to Firestore directly
     const analysisRef = collection(db, "users", currentUser.uid, "advancedTravelAnalysis");
     await addDoc(analysisRef, updatedAnalysis);
-
-    // Update settings with last updated timestamp
     await updateAdvancedAnalysisSettings({
       lastUpdatedAt: Date.now(),
     });
-
-    // Update caches
     memoryCache = updatedAnalysis;
     memoryCacheTimestamp = Date.now();
     await saveToAsyncStorage(updatedAnalysis);
-
     console.log("Advanced travel analysis saved successfully");
   } catch (error) {
     console.error("Error saving advanced travel analysis:", error);
@@ -813,17 +734,12 @@ export const saveAdvancedTravelAnalysis = async (
   }
 };
 
-/**
- * Get advanced travel analysis with multi-level caching
- */
 export const getAdvancedTravelAnalysis = async (
   forceRefresh = false
 ): Promise<AdvancedTravelAnalysis | null> => {
   try {
-    // Check for ongoing generation
     const progress = await getAdvancedAnalysisProgress();
     if (progress?.isGenerating) {
-      // Return a loading state with progress information
       return {
         userId: auth.currentUser?.uid || "anonymous",
         createdAt: new Date().toISOString(),
@@ -844,40 +760,28 @@ export const getAdvancedTravelAnalysis = async (
     }
 
     if (forceRefresh) {
-      // Skip cache if force refresh requested
       clearMemoryCache();
       await clearAsyncStorageCache();
     } else {
-      // Try memory cache first (fastest)
       if (memoryCache && Date.now() - memoryCacheTimestamp < 5 * 60 * 1000) {
-        // 5 minutes
         return memoryCache;
       }
-
-      // Try AsyncStorage next
       const cachedAnalysis = await getFromAsyncStorage();
       if (cachedAnalysis) {
-        // Update memory cache
         memoryCache = cachedAnalysis;
         memoryCacheTimestamp = Date.now();
         return cachedAnalysis;
       }
     }
-
-    // Try Firestore if user is authenticated
     const currentUser = auth.currentUser;
     if (currentUser) {
-      // Check if we need to refresh based on settings
       const settings = await getAdvancedAnalysisSettings();
       const now = Date.now();
       const needsRefresh = now - settings.lastUpdatedAt > settings.refreshInterval;
-
       if (!forceRefresh && !needsRefresh) {
-        // Try to get latest analysis from Firestore
         const analysisData = await getLatestAnalysisFromFirestore();
 
         if (analysisData) {
-          // Cache in memory and AsyncStorage
           memoryCache = analysisData;
           memoryCacheTimestamp = Date.now();
           await saveToAsyncStorage(analysisData);
@@ -894,9 +798,6 @@ export const getAdvancedTravelAnalysis = async (
   }
 };
 
-/**
- * Get latest analysis from Firestore
- */
 export const getLatestAnalysisFromFirestore = async (): Promise<AdvancedTravelAnalysis | null> => {
   try {
     const currentUser = auth.currentUser;
@@ -924,25 +825,17 @@ export const getLatestAnalysisFromFirestore = async (): Promise<AdvancedTravelAn
   }
 };
 
-/**
- * Get advanced travel analysis settings
- */
 export const getAdvancedAnalysisSettings = async (): Promise<AdvancedAnalysisSettings> => {
   try {
-    // Check memory cache first
     if (memoryCacheSettings) {
       return memoryCacheSettings;
     }
-
-    // Try AsyncStorage
     const jsonValue = await AsyncStorage.getItem(ASYNC_STORAGE_SETTINGS_KEY);
     if (jsonValue) {
       const settings = JSON.parse(jsonValue) as AdvancedAnalysisSettings;
       memoryCacheSettings = settings;
       return settings;
     }
-
-    // Try Firestore if user is authenticated
     const currentUser = auth.currentUser;
     if (currentUser) {
       const settingsRef = doc(db, "users", currentUser.uid, "settings", "advancedTravelAnalysis");
@@ -950,36 +843,27 @@ export const getAdvancedAnalysisSettings = async (): Promise<AdvancedAnalysisSet
 
       if (settingsDoc.exists()) {
         const settings = settingsDoc.data() as AdvancedAnalysisSettings;
-
-        // Cache settings
         memoryCacheSettings = settings;
         await AsyncStorage.setItem(ASYNC_STORAGE_SETTINGS_KEY, JSON.stringify(settings));
 
         return settings;
       }
     }
-
-    // Create default settings if none exist
     const defaultSettings: AdvancedAnalysisSettings = {
       lastUpdatedAt: 0,
       refreshInterval: ANALYSIS_REFRESH_INTERVAL,
     };
 
-    // Save default settings
     if (currentUser) {
       const settingsRef = doc(db, "users", currentUser.uid, "settings", "advancedTravelAnalysis");
       await setDoc(settingsRef, defaultSettings);
     }
-
-    // Cache settings
     memoryCacheSettings = defaultSettings;
     await AsyncStorage.setItem(ASYNC_STORAGE_SETTINGS_KEY, JSON.stringify(defaultSettings));
 
     return defaultSettings;
   } catch (error) {
     console.error("Error getting advanced analysis settings:", error);
-
-    // Return default settings on error
     return {
       lastUpdatedAt: 0,
       refreshInterval: ANALYSIS_REFRESH_INTERVAL,
@@ -987,9 +871,6 @@ export const getAdvancedAnalysisSettings = async (): Promise<AdvancedAnalysisSet
   }
 };
 
-/**
- * Update advanced travel analysis settings
- */
 export const updateAdvancedAnalysisSettings = async (
   settings: Partial<AdvancedAnalysisSettings>
 ): Promise<void> => {
@@ -998,21 +879,14 @@ export const updateAdvancedAnalysisSettings = async (
     if (!currentUser) {
       return;
     }
-
-    // Get current settings
     const currentSettings = await getAdvancedAnalysisSettings();
-
-    // Merge with new settings
     const updatedSettings = {
       ...currentSettings,
       ...settings,
     };
-
-    // Update Firestore
     const settingsRef = doc(db, "users", currentUser.uid, "settings", "advancedTravelAnalysis");
     await setDoc(settingsRef, updatedSettings, { merge: true });
 
-    // Update caches
     memoryCacheSettings = updatedSettings;
     await AsyncStorage.setItem(ASYNC_STORAGE_SETTINGS_KEY, JSON.stringify(updatedSettings));
 
@@ -1022,18 +896,12 @@ export const updateAdvancedAnalysisSettings = async (
   }
 };
 
-/**
- * Clear memory cache
- */
 export const clearMemoryCache = (): void => {
   memoryCache = null;
   memoryCacheTimestamp = 0;
   memoryCacheSettings = null;
 };
 
-/**
- * Clear AsyncStorage cache
- */
 export const clearAsyncStorageCache = async (): Promise<void> => {
   try {
     await AsyncStorage.removeItem(ASYNC_STORAGE_KEY);
@@ -1044,9 +912,6 @@ export const clearAsyncStorageCache = async (): Promise<void> => {
   }
 };
 
-/**
- * Get analysis from AsyncStorage
- */
 const getFromAsyncStorage = async (): Promise<AdvancedTravelAnalysis | null> => {
   try {
     const jsonValue = await AsyncStorage.getItem(ASYNC_STORAGE_KEY);
@@ -1060,9 +925,6 @@ const getFromAsyncStorage = async (): Promise<AdvancedTravelAnalysis | null> => 
   }
 };
 
-/**
- * Save analysis to AsyncStorage
- */
 const saveToAsyncStorage = async (analysis: AdvancedTravelAnalysis): Promise<void> => {
   try {
     await AsyncStorage.setItem(ASYNC_STORAGE_KEY, JSON.stringify(analysis));
@@ -1071,7 +933,6 @@ const saveToAsyncStorage = async (analysis: AdvancedTravelAnalysis): Promise<voi
   }
 };
 
-// Helper functions to extract metadata from visited places
 const getYearsFromVisits = (visitedPlaces: VisitedPlaceDetails[]): Record<string, boolean> => {
   const years: Record<string, boolean> = {};
   visitedPlaces.forEach((place) => {

@@ -16,8 +16,6 @@ import { TravelProfile, TravelBadge, TravelerTrait } from "../types/LearnScreen/
 import { getTravelProfile } from "../services/LearnScreen/travelProfileService";
 import { getAllUserBadges } from "../services/LearnScreen/badgeService";
 import { Colors, NeutralColors, AccentColors } from "../constants/colours";
-
-// Import components
 import TravelerTraitsComponent from "../components/LearnScreen/TravelSnapshotSection/TravelerTraitsComponent";
 import TravelMilestonesComponent from "../components/LearnScreen/TravelSnapshotSection/TravelMilestonesComponent";
 import TravelTimelineComponent from "../components/LearnScreen/TravelSnapshotSection/TravelTimelineComponent";
@@ -30,7 +28,6 @@ import PreferencesSection from "../components/LearnScreen/TravelSnapshotSection/
 import InsightsSection from "../components/LearnScreen/TravelSnapshotSection/InsightsSection";
 import Header from "../components/Global/Header";
 
-// Define navigation types
 type RootStackParamList = {
   Home: undefined;
   TravelProfile: { profile?: TravelProfile };
@@ -45,7 +42,6 @@ interface TravelProfileScreenProps {
 }
 
 const TravelProfileScreen: React.FC<TravelProfileScreenProps> = ({ route, navigation }) => {
-  // State management
   const [profile, setProfile] = useState<TravelProfile | null>(route.params?.profile || null);
   const [loading, setLoading] = useState<boolean>(!route.params?.profile);
   const [error, setError] = useState<string | null>(null);
@@ -54,11 +50,9 @@ const TravelProfileScreen: React.FC<TravelProfileScreenProps> = ({ route, naviga
   const [badgesView, setBadgesView] = useState<"earned" | "progress">("earned");
   const [badges, setBadges] = useState<TravelBadge[]>([]);
 
-  // Animation values
   const [fadeAnim] = useState(new Animated.Value(0));
   const [slideAnim] = useState(new Animated.Value(-20));
 
-  // Helper function to generate default traveler traits
   const generateDefaultTraits = (): TravelerTrait[] => {
     return [
       {
@@ -89,19 +83,13 @@ const TravelProfileScreen: React.FC<TravelProfileScreenProps> = ({ route, naviga
     if (!profile) {
       fetchProfile();
     } else {
-      // Process profile data
       processProfileData();
-
-      // Fetch badges for this user
       fetchAllBadges();
-
-      // Start animations
       startAnimations();
     }
   }, [profile]);
 
   const processProfileData = () => {
-    // Generate default traits if they don't exist
     if (!profile?.travelerTraits) {
       setProfile((prevProfile) => ({
         ...prevProfile!,
@@ -109,7 +97,6 @@ const TravelProfileScreen: React.FC<TravelProfileScreenProps> = ({ route, naviga
       }));
     }
 
-    // Format the last updated timestamp
     if (profile?.hasOwnProperty("lastGeneratedAt")) {
       const timestamp = (profile as any).lastGeneratedAt;
       if (timestamp) {
@@ -136,7 +123,6 @@ const TravelProfileScreen: React.FC<TravelProfileScreenProps> = ({ route, naviga
 
   const fetchAllBadges = async () => {
     try {
-      // Get all badges from the service
       const allBadges = await getAllUserBadges();
       setBadges(allBadges);
     } catch (err) {
@@ -151,14 +137,12 @@ const TravelProfileScreen: React.FC<TravelProfileScreenProps> = ({ route, naviga
 
       const { profile: fetchedProfile } = await getTravelProfile();
 
-      // Ensure traveler traits exist
       if (!fetchedProfile.travelerTraits || fetchedProfile.travelerTraits.length === 0) {
         fetchedProfile.travelerTraits = generateDefaultTraits();
       }
 
       setProfile(fetchedProfile);
 
-      // Set last updated time if available
       if (fetchedProfile.hasOwnProperty("lastGeneratedAt")) {
         const timestamp = (fetchedProfile as any).lastGeneratedAt;
         if (timestamp) {
@@ -178,20 +162,16 @@ const TravelProfileScreen: React.FC<TravelProfileScreenProps> = ({ route, naviga
     setExpandedSection(expandedSection === section ? null : section);
   };
 
-  // Helper functions for badge handling
   const getCompletedBadges = (): TravelBadge[] => {
     return badges.filter((badge) => badge.completed);
   };
 
   const getInProgressBadges = (): TravelBadge[] => {
-    // Get badges in progress
     const inProgressBadges = badges.filter((badge) => !badge.completed);
 
-    // Limit in-progress badges to prevent overwhelming display
     return inProgressBadges.slice(0, 4);
   };
 
-  // Format visitation data
   const formatVisitationData = () => {
     return {
       averageDuration:
@@ -210,7 +190,6 @@ const TravelProfileScreen: React.FC<TravelProfileScreenProps> = ({ route, naviga
     };
   };
 
-  // Render loading state
   if (loading) {
     return (
       <SafeAreaView style={styles.loadingContainer}>
@@ -220,7 +199,6 @@ const TravelProfileScreen: React.FC<TravelProfileScreenProps> = ({ route, naviga
     );
   }
 
-  // Render error state
   if (error || !profile) {
     return (
       <SafeAreaView style={styles.errorContainer}>
@@ -234,13 +212,10 @@ const TravelProfileScreen: React.FC<TravelProfileScreenProps> = ({ route, naviga
     );
   }
 
-  // Ensure traveler traits exist
   const travelerTraits = profile.travelerTraits || generateDefaultTraits();
 
-  // Badge counts
   const completedBadgesCount = getCompletedBadges().length;
 
-  // Format visitation data
   const formattedVisitation = formatVisitationData();
 
   return (
@@ -257,7 +232,6 @@ const TravelProfileScreen: React.FC<TravelProfileScreenProps> = ({ route, naviga
       />
 
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        {/* Profile Header Component */}
         <ProfileHeader
           profileType={profile.type}
           profileLevel={profile.level}
@@ -266,7 +240,6 @@ const TravelProfileScreen: React.FC<TravelProfileScreenProps> = ({ route, naviga
           streak={profile.streak}
         />
 
-        {/* Traveler Traits Section */}
         <Animated.View
           style={[
             styles.section,
@@ -280,18 +253,14 @@ const TravelProfileScreen: React.FC<TravelProfileScreenProps> = ({ route, naviga
           <TravelerTraitsComponent traits={travelerTraits} />
         </Animated.View>
 
-        {/* Enhanced Visit Statistics section */}
         <Animated.View style={[styles.section, { opacity: fadeAnim }]}>
-          {/* Travel Milestones */}
           <TravelMilestonesComponent profile={profile} />
         </Animated.View>
 
-        {/* Travel Timeline */}
         <View style={styles.section}>
           <TravelTimelineComponent profile={profile} />
         </View>
 
-        {/* Badges Section */}
         <BadgesSection
           completedBadges={getCompletedBadges()}
           inProgressBadges={getInProgressBadges()}
@@ -300,24 +269,20 @@ const TravelProfileScreen: React.FC<TravelProfileScreenProps> = ({ route, naviga
           profile={profile}
         />
 
-        {/* Travel Patterns Section */}
         <TravelPatternsSection
           profile={profile}
           expanded={expandedSection === "patterns"}
           toggleExpanded={() => toggleSection("patterns")}
         />
 
-        {/* Preferences Section */}
         <PreferencesSection
           profile={profile}
           expanded={expandedSection === "preferences"}
           toggleExpanded={() => toggleSection("preferences")}
         />
 
-        {/* Insights Section */}
         <InsightsSection recentInsights={profile.recentInsights} />
 
-        {/* Profile Update Information */}
         <View style={styles.profileUpdateInfoContainer}>
           <Ionicons
             name="time-outline"
@@ -383,7 +348,6 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 2,
   },
-  // Loading and error states
   loadingContainer: {
     flex: 1,
     justifyContent: "center",

@@ -1,16 +1,12 @@
-// constants/styles.js
 import { StyleSheet } from "react-native";
 import { Colors } from "./colours";
 
-// Common styles shared across components
 export const CommonStyles = StyleSheet.create({
-  // Section container with consistent spacing
   sectionContainer: {
     marginVertical: 10,
     width: "100%",
   },
 
-  // Section header with consistent styling
   sectionHeader: {
     flexDirection: "row",
     alignItems: "center",
@@ -18,7 +14,6 @@ export const CommonStyles = StyleSheet.create({
     paddingLeft: 4,
   },
 
-  // Section title with standardized typography
   sectionTitle: {
     fontSize: 18,
     fontWeight: "600",
@@ -26,7 +21,6 @@ export const CommonStyles = StyleSheet.create({
     marginLeft: 8,
   },
 
-  // Card container style
   card: {
     backgroundColor: "#FFFFFF",
     borderRadius: 16,
@@ -38,12 +32,10 @@ export const CommonStyles = StyleSheet.create({
     elevation: 2,
   },
 
-  // Standard content padding
   contentPadding: {
     paddingHorizontal: 12,
   },
 
-  // Consistent spacing between components
   componentGap: {
     gap: 16,
   },

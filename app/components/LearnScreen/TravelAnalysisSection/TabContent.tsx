@@ -1,4 +1,3 @@
-// components/AdvancedAnalysis/TabContent.tsx
 import React from "react";
 import { View } from "react-native";
 import { TabSection } from "../../../screens/AdvancedTravelAnalysisScreen";
@@ -18,7 +17,6 @@ type TabContentProps = {
 const TabContent: React.FC<TabContentProps> = ({ activeTab, analysis }) => {
   if (!analysis) return null;
 
-  // Render different tab content based on activeTab
   switch (activeTab) {
     case "temporal":
       return <TemporalTab temporalAnalysis={analysis.temporalAnalysis} />;

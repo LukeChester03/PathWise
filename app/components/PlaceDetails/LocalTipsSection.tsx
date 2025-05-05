@@ -1,12 +1,10 @@
-// components/LocalTipsSection.tsx
 import React from "react";
 import { View, Text, StyleSheet } from "react-native";
 import { Colors, NeutralColors } from "../../constants/colours";
 import { AiGeneratedContent } from "../../services/Gemini/placeAiService";
 import TruncatedText from "./TruncatedText";
 
-// Constants for truncation
-const MAX_INSIGHT_CHARS = 120; // Increased for better readability
+const MAX_INSIGHT_CHARS = 120;
 
 interface LocalTipsSectionProps {
   aiContent: AiGeneratedContent | null;
@@ -25,11 +23,7 @@ const LocalTipsSection: React.FC<LocalTipsSectionProps> = ({ aiContent, fontSize
       {aiContent.localTips.map((tip, index) => (
         <View
           key={index}
-          style={[
-            styles.localTipItem,
-            // Remove bottom border from last item
-            index === aiContent.localTips.length - 1 && styles.lastItem,
-          ]}
+          style={[styles.localTipItem, index === aiContent.localTips.length - 1 && styles.lastItem]}
         >
           <View style={styles.tipNumberContainer}>
             <Text style={styles.tipNumberText}>{index + 1}</Text>

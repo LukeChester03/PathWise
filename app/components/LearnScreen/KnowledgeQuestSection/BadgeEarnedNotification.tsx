@@ -1,4 +1,3 @@
-// components/LearnScreen/KnowledgeQuestSection/BadgeEarnedNotification.tsx
 import React, { useEffect, useRef } from "react";
 import { View, Text, StyleSheet, Animated, Easing, TouchableOpacity } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
@@ -18,21 +17,18 @@ const BadgeEarnedNotification = ({
   onDismiss,
   onViewAllBadges,
 }: BadgeEarnedNotificationProps) => {
-  // Animation values
   const scaleAnim = useRef(new Animated.Value(0.8)).current;
   const opacityAnim = useRef(new Animated.Value(0)).current;
   const translateYAnim = useRef(new Animated.Value(-20)).current;
   const glowAnim = useRef(new Animated.Value(0)).current;
   const rotateAnim = useRef(new Animated.Value(0)).current;
 
-  // Create interpolation for rotation
   const spin = rotateAnim.interpolate({
     inputRange: [0, 1],
     outputRange: ["0deg", "360deg"],
   });
 
   useEffect(() => {
-    // Entrance animation
     Animated.parallel([
       Animated.timing(opacityAnim, {
         toValue: 1,
@@ -53,7 +49,6 @@ const BadgeEarnedNotification = ({
       }),
     ]).start();
 
-    // Start glow animation
     Animated.loop(
       Animated.sequence([
         Animated.timing(glowAnim, {
@@ -69,7 +64,6 @@ const BadgeEarnedNotification = ({
       ])
     ).start();
 
-    // Start rotation animation
     Animated.timing(rotateAnim, {
       toValue: 1,
       duration: 1000,
@@ -79,7 +73,6 @@ const BadgeEarnedNotification = ({
   }, []);
 
   const getIconName = () => {
-    // Convert badge icon to Ionicons name
     switch (badge.icon) {
       case "ribbon":
         return "ribbon";

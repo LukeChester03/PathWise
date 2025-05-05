@@ -1,4 +1,3 @@
-// app/components/ResetPasswordModal.tsx
 import React, { useState } from "react";
 import {
   View,
@@ -11,11 +10,11 @@ import {
   Alert,
 } from "react-native";
 import { Colors, NeutralColors } from "../../constants/colours";
-import { handleResetPassword } from "../../controllers/ForgotPassword/ResetPasswordController"; // Import reset password handler
+import { handleResetPassword } from "../../controllers/ForgotPassword/ResetPasswordController";
 
 interface ResetPasswordModalProps {
-  visible: boolean; // Controls modal visibility
-  onRequestClose: () => void; // Function to close the modal
+  visible: boolean;
+  onRequestClose: () => void;
 }
 
 export default function ForgotPasswordModal({ visible, onRequestClose }: ResetPasswordModalProps) {
@@ -32,13 +31,11 @@ export default function ForgotPasswordModal({ visible, onRequestClose }: ResetPa
     handleResetPassword(
       email,
       () => {
-        // Success callback
         setLoading(false);
         Alert.alert("Success", "Password reset link sent to your email!");
-        onRequestClose(); // Close the modal after success
+        onRequestClose();
       },
       (errorMessage: string) => {
-        // Error callback
         setLoading(false);
         Alert.alert("Error", errorMessage);
       }
@@ -52,18 +49,14 @@ export default function ForgotPasswordModal({ visible, onRequestClose }: ResetPa
       animationType="none"
       onRequestClose={onRequestClose}
     >
-      {/* Overlay */}
       <View style={styles.modalOverlay}>
         <View style={styles.modalContent}>
-          {/* Close Button (X) */}
           <TouchableOpacity style={styles.closeButton} onPress={onRequestClose}>
             <Text style={styles.closeButtonText}>×</Text>
           </TouchableOpacity>
 
-          {/* Title */}
           <Text style={styles.title}>Reset Password</Text>
 
-          {/* Email Input */}
           <TextInput
             style={styles.input}
             placeholder="Email"
@@ -73,14 +66,11 @@ export default function ForgotPasswordModal({ visible, onRequestClose }: ResetPa
             placeholderTextColor={NeutralColors.gray600}
           />
 
-          {/* Buttons Container */}
           <View style={styles.buttonsContainer}>
-            {/* Cancel Button */}
             <TouchableOpacity style={[styles.button, styles.cancelButton]} onPress={onRequestClose}>
               <Text style={styles.cancelButtonText}>Cancel</Text>
             </TouchableOpacity>
 
-            {/* Send Button */}
             <TouchableOpacity
               style={[styles.button, styles.sendButton]}
               onPress={performResetPassword}
@@ -99,27 +89,26 @@ export default function ForgotPasswordModal({ visible, onRequestClose }: ResetPa
   );
 }
 
-// Styles
 const styles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
-    justifyContent: "center", // Center the modal vertically
-    alignItems: "center", // Center the modal horizontally
-    backgroundColor: "rgba(0, 0, 0, 0.5)", // Semi-transparent background
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
   },
   modalContent: {
-    width: "90%", // Adjust width as needed
-    maxWidth: 400, // Limit maximum width
-    backgroundColor: Colors.background, // White background for modal content
-    borderRadius: 10, // Rounded corners
-    padding: 20, // Padding inside the modal
-    alignItems: "center", // Center content horizontally
+    width: "90%",
+    maxWidth: 400,
+    backgroundColor: Colors.background,
+    borderRadius: 10,
+    padding: 20,
+    alignItems: "center",
   },
   closeButton: {
     position: "absolute",
     top: 10,
     right: 10,
-    zIndex: 1, // Ensure it stays on top
+    zIndex: 1,
     padding: 10,
     borderRadius: 15,
   },
@@ -159,11 +148,11 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   cancelButton: {
-    backgroundColor: Colors.secondary, // Use a secondary color for cancel
+    backgroundColor: Colors.secondary,
     marginRight: 8,
   },
   sendButton: {
-    backgroundColor: Colors.primary, // Primary color for send
+    backgroundColor: Colors.primary,
   },
   cancelButtonText: {
     color: NeutralColors.white,

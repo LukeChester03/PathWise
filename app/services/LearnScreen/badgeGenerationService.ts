@@ -1,4 +1,3 @@
-// services/LearnScreen/badgeGenerationService.ts
 import { generateContent } from "../Gemini/geminiService";
 import {
   collection,
@@ -17,7 +16,6 @@ import { TravelBadge, BadgeTask } from "../../types/LearnScreen/TravelProfileTyp
 import { VisitedPlaceDetails } from "../../types/MapTypes";
 import { fetchUserVisitedPlaces } from "./travelProfileService";
 
-// Interface for AI-generated badge response
 interface GeminiGeneratedBadge {
   id?: string;
   name?: string;
@@ -28,7 +26,6 @@ interface GeminiGeneratedBadge {
   category?: string;
 }
 
-// Valid icon names for validation
 const VALID_ICONS = [
   "map",
   "compass",
@@ -50,7 +47,6 @@ const VALID_ICONS = [
   "color-palette",
 ];
 
-// Valid requirement types for validation
 const VALID_REQUIREMENT_TYPES = [
   "visitCount",
   "categoryVisit",
@@ -61,9 +57,8 @@ const VALID_REQUIREMENT_TYPES = [
   "explorationscore",
 ];
 
-// Constants
-const BADGE_GENERATION_INTERVAL = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
-const BADGES_TO_GENERATE = 5; // Number of badges to generate per day
+const BADGE_GENERATION_INTERVAL = 24 * 60 * 60 * 1000;
+const BADGES_TO_GENERATE = 5;
 
 /**
  * Check if new badges should be generated
@@ -76,12 +71,10 @@ export const checkBadgeGeneration = async (): Promise<boolean> => {
       return false;
     }
 
-    // Get user's badge settings
     const badgeSettingsRef = doc(db, "users", currentUser.uid, "settings", "badges");
     const badgeSettingsDoc = await getDoc(badgeSettingsRef);
 
     if (!badgeSettingsDoc.exists()) {
-      // If settings don't exist, create them and trigger generation
       await setDoc(badgeSettingsRef, {
         lastGeneratedAt: Timestamp.now(),
         badgesGenerated: 0,
@@ -94,8 +87,6 @@ export const checkBadgeGeneration = async (): Promise<boolean> => {
       ? settings.lastGeneratedAt.toDate().getTime()
       : 0;
     const now = Date.now();
-
-    // Check if it's been more than 24 hours since last generation
     if (now - lastGeneratedAt > BADGE_GENERATION_INTERVAL) {
       return true;
     }
@@ -108,7 +99,7 @@ export const checkBadgeGeneration = async (): Promise<boolean> => {
 };
 
 /**
- * Generate new badges using AI based on user's travel patterns
+ * Generate new badges using AI based on users travel patterns
  */
 export const generateBadgesWithAI = async (): Promise<void> => {
   try {
@@ -117,47 +108,35 @@ export const generateBadgesWithAI = async (): Promise<void> => {
       console.warn("Cannot generate badges: No authenticated user");
       return;
     }
-
-    // 1. Get user's visited places for context
     const visitedPlaces = await fetchUserVisitedPlaces();
     if (visitedPlaces.length === 0) {
       console.log("No visited places to generate badges from, using default values");
-      // If no places, create some default badges instead of returning
       await createDefaultBadges();
       return;
     }
-
-    // 2. Get existing badges to avoid duplicates
     const badgesCollection = collection(db, "users", currentUser.uid, "badges");
     const badgesSnapshot = await getDocs(badgesCollection);
     const existingBadges = badgesSnapshot.docs.map((doc) => doc.data());
     const existingBadgeIds = new Set(existingBadges.map((badge) => badge.id));
     const existingBadgeNames = new Set(existingBadges.map((badge) => badge.name?.toLowerCase()));
-
-    // 3. Prepare data for AI prompt
     const placeTypes = new Set<string>();
     const cities = new Set<string>();
     const categories = new Map<string, number>();
 
     visitedPlaces.forEach((place) => {
-      // Track place types
       if (place.types && place.types.length > 0) {
         place.types.forEach((type) => placeTypes.add(type));
-
-        // Count categories
         place.types.forEach((type) => {
           categories.set(type, (categories.get(type) || 0) + 1);
         });
       }
 
-      // Track cities
       if (place.vicinity) {
         const city = place.vicinity.split(",").pop()?.trim() || "";
         if (city) cities.add(city);
       }
     });
 
-    // 4. Generate badges with AI
     const prompt = `
       I need you to generate ${BADGES_TO_GENERATE} unique achievement badges for a travel app.
       These badges should be attainable goals based on the user's travel patterns.
@@ -191,14 +170,11 @@ export const generateBadgesWithAI = async (): Promise<void> => {
       console.log("AI generated badges:", JSON.stringify(generatedBadges));
     } catch (aiError) {
       console.error("Error in AI badge generation:", aiError);
-      // Fall back to default badges if AI fails
       await createDefaultBadges();
       return;
     }
 
-    // Validate and filter badges
     const validBadges = generatedBadges.filter((badge) => {
-      // Skip if required fields are missing
       if (
         !badge.id ||
         !badge.name ||
@@ -210,31 +186,23 @@ export const generateBadgesWithAI = async (): Promise<void> => {
         return false;
       }
 
-      // Skip if badge with this ID already exists
       if (existingBadgeIds.has(badge.id)) {
         return false;
       }
 
-      // Skip if badge with this name already exists (case insensitive)
       if (existingBadgeNames.has(badge.name.toLowerCase())) {
         return false;
       }
 
-      // Validate icon name
       if (!VALID_ICONS.includes(badge.icon)) {
-        badge.icon = "ribbon"; // Default icon if invalid
+        badge.icon = "ribbon";
       }
-
-      // Validate requirement type
       if (!VALID_REQUIREMENT_TYPES.includes(badge.requirementType)) {
         return false;
       }
-
-      // Validate requirement value
       if (typeof badge.requirementValue !== "number" || badge.requirementValue <= 0) {
         return false;
       }
-
       return true;
     });
 
@@ -246,27 +214,21 @@ export const generateBadgesWithAI = async (): Promise<void> => {
 
     // Limit to required number of badges
     const badgesToCreate = validBadges.slice(0, BADGES_TO_GENERATE);
-
-    // 5. Save generated badges to Firestore
     const batch = writeBatch(db);
-
     for (const badge of badgesToCreate) {
       const badgeDoc = doc(badgesCollection, badge.id);
-
-      // Prepare badge document with safe default values where needed
       const badgeData = {
         id: badge.id,
         name: badge.name,
         description: badge.description,
         icon: badge.icon,
         completed: false,
-        dateEarned: new Date(0).toISOString(), // Use ISO string for Firestore compatibility
+        dateEarned: new Date(0).toISOString(),
         requirements: [
           {
             type: badge.requirementType,
             value: badge.requirementValue,
             current: 0,
-            // Only include category if it's defined and requirementType is categoryVisit
             ...(badge.requirementType === "categoryVisit" && badge.category
               ? { category: badge.category }
               : {}),
@@ -292,7 +254,6 @@ export const generateBadgesWithAI = async (): Promise<void> => {
     console.log(`${badgesToCreate.length} new badges generated and saved to Firestore`);
   } catch (error) {
     console.error("Error generating badges with AI:", error);
-    // Fall back to default badges if there's an error
     await createDefaultBadges();
   }
 };
@@ -309,12 +270,8 @@ const createDefaultBadges = async (): Promise<void> => {
     }
 
     const badgesCollection = collection(db, "users", currentUser.uid, "badges");
-
-    // Get existing badges to avoid duplicates
     const badgesSnapshot = await getDocs(badgesCollection);
     const existingBadgeIds = new Set(badgesSnapshot.docs.map((doc) => doc.id));
-
-    // Define default badges
     const defaultBadges = [
       {
         id: "first-visit",
@@ -368,7 +325,6 @@ const createDefaultBadges = async (): Promise<void> => {
       return;
     }
 
-    // Save badges to Firestore
     const batch = writeBatch(db);
 
     for (const badge of badgesToCreate) {
@@ -431,7 +387,6 @@ export const initializeBadgeSubcollection = async (): Promise<void> => {
       console.log("Badge subcollection doesn't exist, generating initial badges");
       await generateBadgesWithAI();
     } else {
-      // Check if we should generate new badges today
       const shouldGenerate = await checkBadgeGeneration();
       if (shouldGenerate) {
         console.log("Time to generate new badges");

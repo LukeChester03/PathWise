@@ -1,4 +1,3 @@
-// components/AdvancedAnalysis/ScrollableContainer.tsx
 import React, { ReactNode } from "react";
 import { Animated, RefreshControl, StyleSheet } from "react-native";
 import { Colors } from "../../../constants/colours";

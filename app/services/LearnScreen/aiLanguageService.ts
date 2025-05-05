@@ -1,4 +1,3 @@
-// services/LearnScreen/aiLanguageService.ts
 import { generateContent } from "../Gemini/geminiService";
 import {
   collection,
@@ -16,21 +15,16 @@ import { auth, db } from "../../config/firebaseConfig";
 import { Phrase, PhrasebookSettings } from "../../types/LearnScreen/LanguageTypes";
 import { VisitedPlaceDetails } from "../../types/MapTypes";
 
-// Constants
-const PHRASEBOOK_REFRESH_INTERVAL = 24 * 60 * 60 * 1000; // 24 hours
-const MAX_DAILY_REQUESTS = 5; // Maximum requests per day
-const MAX_PHRASES_PER_REQUEST = 10; // Maximum phrases returned per request
+const PHRASEBOOK_REFRESH_INTERVAL = 24 * 60 * 60 * 1000;
+const MAX_DAILY_REQUESTS = 5;
+const MAX_PHRASES_PER_REQUEST = 10;
 
-// Add to PhrasebookSettings interface in LanguageTypes.ts
 interface RequestLimitInfo {
-  requestCount: number; // Number of requests made today
-  lastRequestDate: string; // Date of last request (ISO string)
-  nextAvailableTime?: string; // When user can make another request if at limit
+  requestCount: number;
+  lastRequestDate: string;
+  nextAvailableTime?: string;
 }
 
-/**
- * Check if user has reached their daily request limit
- */
 export const checkRequestLimit = async (): Promise<{
   canRequest: boolean;
   requestsRemaining: number;
@@ -43,7 +37,6 @@ export const checkRequestLimit = async (): Promise<{
       lastRequestDate: new Date(0).toISOString(),
     };
 
-    // Check if we're on a new day (reset counter)
     const lastDate = new Date(requestLimits.lastRequestDate);
     const today = new Date();
     const isNewDay =
@@ -52,14 +45,11 @@ export const checkRequestLimit = async (): Promise<{
       lastDate.getFullYear() !== today.getFullYear();
 
     if (isNewDay) {
-      // Reset count for new day
       return {
         canRequest: true,
         requestsRemaining: MAX_DAILY_REQUESTS,
       };
     }
-
-    // Check if limit reached
     const requestsRemaining = MAX_DAILY_REQUESTS - requestLimits.requestCount;
     return {
       canRequest: requestsRemaining > 0,
@@ -68,7 +58,6 @@ export const checkRequestLimit = async (): Promise<{
     };
   } catch (error) {
     console.error("Error checking request limit:", error);
-    // Default to allowing requests on error
     return {
       canRequest: true,
       requestsRemaining: MAX_DAILY_REQUESTS,
@@ -76,9 +65,6 @@ export const checkRequestLimit = async (): Promise<{
   }
 };
 
-/**
- * Update request counter after making a request
- */
 export const updateRequestCounter = async (): Promise<void> => {
   try {
     const currentUser = auth.currentUser;
@@ -92,7 +78,6 @@ export const updateRequestCounter = async (): Promise<void> => {
       lastRequestDate: new Date(0).toISOString(),
     };
 
-    // Check if we're on a new day (reset counter)
     const lastDate = new Date(requestLimits.lastRequestDate);
     const today = new Date();
     const isNewDay =
@@ -102,19 +87,15 @@ export const updateRequestCounter = async (): Promise<void> => {
 
     let newCount = isNewDay ? 1 : requestLimits.requestCount + 1;
 
-    // Create base request limits object without the optional field
     let updatedRequestLimits: any = {
       requestCount: newCount,
       lastRequestDate: today.toISOString(),
     };
 
     if (newCount >= MAX_DAILY_REQUESTS) {
-      // Calculate when next request will be available (tomorrow)
       const tomorrow = new Date();
       tomorrow.setDate(tomorrow.getDate() + 1);
       tomorrow.setHours(0, 0, 0, 0);
-
-      // Only add nextAvailableTime field when it has a value
       updatedRequestLimits.nextAvailableTime = tomorrow.toISOString();
     }
 
@@ -126,9 +107,6 @@ export const updateRequestCounter = async (): Promise<void> => {
   }
 };
 
-/**
- * Generate language phrases using Gemini AI with request limiting
- */
 export const generateLanguagePhrases = async (
   visitedPlaces: VisitedPlaceDetails[]
 ): Promise<Phrase[]> => {
@@ -136,8 +114,6 @@ export const generateLanguagePhrases = async (
     if (visitedPlaces.length === 0) {
       return [];
     }
-
-    // Check request limit
     const limitInfo = await checkRequestLimit();
     if (!limitInfo.canRequest) {
       throw new Error(
@@ -148,8 +124,6 @@ export const generateLanguagePhrases = async (
         }`
       );
     }
-
-    // Extract locations from visited places
     const locations = visitedPlaces.map((place) => place.vicinity || "").filter(Boolean);
 
     if (locations.length === 0) {
@@ -185,11 +159,9 @@ export const generateLanguagePhrases = async (
       responseFormat: "json",
     });
 
-    // Update request counter after successful request
     await updateRequestCounter();
 
     if (Array.isArray(generatedPhrases)) {
-      // Limit to MAX_PHRASES_PER_REQUEST and add unique IDs and timestamps
       const limitedPhrases = generatedPhrases.slice(0, MAX_PHRASES_PER_REQUEST);
       return limitedPhrases.map((phrase, index) => ({
         ...phrase,
@@ -203,11 +175,10 @@ export const generateLanguagePhrases = async (
     return [];
   } catch (error) {
     console.error("Error generating language phrases:", error);
-    throw error; // Re-throw to handle in UI
+    throw error;
   }
 };
 
-// Fix the toggleFavoritePhrase function to handle missing phrases in phrases collection
 export const toggleFavoritePhrase = async (
   phraseId: string,
   isFavorite: boolean,
@@ -219,7 +190,6 @@ export const toggleFavoritePhrase = async (
       return;
     }
 
-    // Update the phrase in phrases collection if it exists
     const phraseRef = doc(db, "users", currentUser.uid, "phrases", phraseId);
     const phraseDoc = await getDoc(phraseRef);
 
@@ -233,21 +203,15 @@ export const toggleFavoritePhrase = async (
         { merge: true }
       );
     } else {
-      // If the phrase doesn't exist in phrases collection,
-      // don't try to update it and don't log a warning
-      // This happens with phrases from the savedPhrases collection
       console.log(`Phrase ${phraseId} not in phrases collection, skipping update`);
     }
 
-    // Handle savedPhrases collection
     if (isFavorite) {
-      // Add to saved phrases
       await savePhrase({
         ...phrase,
         isFavorite: true,
       });
     } else {
-      // Remove from saved phrases
       const savedPhrasesRef = collection(db, "users", currentUser.uid, "savedPhrases");
       const q = query(
         savedPhrasesRef,
@@ -266,9 +230,6 @@ export const toggleFavoritePhrase = async (
   }
 };
 
-/**
- * Save a phrase to the user's savedPhrases collection
- */
 export const savePhrase = async (phrase: Phrase): Promise<string | null> => {
   try {
     const currentUser = auth.currentUser;
@@ -277,8 +238,6 @@ export const savePhrase = async (phrase: Phrase): Promise<string | null> => {
     }
 
     const savedPhrasesRef = collection(db, "users", currentUser.uid, "savedPhrases");
-
-    // Check if this phrase is already saved (to avoid duplicates)
     const q = query(
       savedPhrasesRef,
       where("phrase", "==", phrase.phrase),
@@ -287,11 +246,8 @@ export const savePhrase = async (phrase: Phrase): Promise<string | null> => {
     const querySnapshot = await getDocs(q);
 
     if (!querySnapshot.empty) {
-      // Phrase already exists, return its ID
       return querySnapshot.docs[0].id;
     }
-
-    // Add new phrase
     const newPhraseDoc = await addDoc(savedPhrasesRef, {
       ...phrase,
       savedAt: new Date().toISOString(),
@@ -305,9 +261,6 @@ export const savePhrase = async (phrase: Phrase): Promise<string | null> => {
   }
 };
 
-/**
- * Remove a phrase from the user's savedPhrases collection
- */
 export const removeSavedPhrase = async (phraseId: string): Promise<boolean> => {
   try {
     const currentUser = auth.currentUser;
@@ -324,9 +277,6 @@ export const removeSavedPhrase = async (phraseId: string): Promise<boolean> => {
   }
 };
 
-/**
- * Get all saved phrases for the current user
- */
 export const getSavedPhrases = async (): Promise<Phrase[]> => {
   try {
     const currentUser = auth.currentUser;
@@ -340,7 +290,7 @@ export const getSavedPhrases = async (): Promise<Phrase[]> => {
     return querySnapshot.docs.map((doc) => ({
       ...doc.data(),
       id: doc.id,
-      isFavorite: true, // All saved phrases are favorites
+      isFavorite: true,
     })) as Phrase[];
   } catch (error) {
     console.error("Error getting saved phrases:", error);
@@ -348,50 +298,33 @@ export const getSavedPhrases = async (): Promise<Phrase[]> => {
   }
 };
 
-/**
- * Get language phrases for visited places
- */
 export const getLanguagePhrases = async (
   visitedPlaces: VisitedPlaceDetails[]
 ): Promise<Phrase[]> => {
   try {
-    // First, check if we have cached phrases
     const cachedPhrases = await getCachedPhrases();
-
-    // Return cached phrases if they exist, regardless of whether they need refresh
-    // Let the caller decide whether to refresh based on needsRefresh value
     if (cachedPhrases.phrases.length > 0) {
       console.log("Using cached phrases from Firebase");
       return cachedPhrases.phrases;
     }
-
-    // No cached phrases, check request limit
     const limitInfo = await checkRequestLimit();
     if (!limitInfo.canRequest) {
       console.log("Request limit reached and no cache available");
-      return createMockPhrases(); // Return mock phrases if at limit with no cache
+      return createMockPhrases();
     }
-
-    // Generate new phrases
     console.log("Generating new phrases via API");
     const phrases = await generateLanguagePhrases(visitedPlaces);
-
-    // Cache the phrases for future use
     await cachePhrases(phrases);
 
     return phrases;
   } catch (error) {
     console.error("Error getting language phrases:", error);
-    return createMockPhrases(); // Return mock phrases on error
+    return createMockPhrases();
   }
 };
 
-/**
- * Get phrases for a specific country/region
- */
 export const getPhrasesForCountry = async (country: string): Promise<Phrase[]> => {
   try {
-    // Check request limit before generating phrases
     const limitInfo = await checkRequestLimit();
     if (!limitInfo.canRequest) {
       throw new Error(
@@ -434,12 +367,9 @@ export const getPhrasesForCountry = async (country: string): Promise<Phrase[]> =
       prompt,
       responseFormat: "json",
     });
-
-    // Update request counter after successful request
     await updateRequestCounter();
 
     if (Array.isArray(generatedPhrases)) {
-      // Add unique IDs and timestamps
       return generatedPhrases.map((phrase, index) => ({
         ...phrase,
         id: `phrase-${Date.now()}-${index}`,
@@ -452,42 +382,28 @@ export const getPhrasesForCountry = async (country: string): Promise<Phrase[]> =
     return [];
   } catch (error) {
     console.error(`Error generating phrases for ${country}:`, error);
-    throw error; // Re-throw to handle in UI
+    throw error;
   }
 };
 
-/**
- * Get a comprehensive phrasebook with more phrases for visited places
- */
 export const getComprehensivePhrasebook = async (
   visitedPlaces: VisitedPlaceDetails[]
 ): Promise<Phrase[]> => {
   try {
-    // If no places visited, return empty array early
     if (visitedPlaces.length === 0) {
       return [];
     }
-
-    // Extract locations from visited places for later use if needed
     const locations = visitedPlaces.map((place) => place.vicinity || "").filter(Boolean);
     if (locations.length === 0) {
       return [];
     }
-
-    // Check if we have cached phrases first - but DON'T auto-fetch based on needsRefresh
-    // Let the calling component decide what to do based on needsRefresh and requestLimits
     const cachedPhrases = await getCachedPhrases();
     if (cachedPhrases.phrases.length > 0) {
       console.log(
         `Found ${cachedPhrases.phrases.length} cached phrases, needsRefresh: ${cachedPhrases.needsRefresh}`
       );
-
-      // We're changing this function to ALWAYS return cached phrases if they exist
-      // The calling component will decide whether to make a new request based on needsRefresh
       return cachedPhrases.phrases;
     }
-
-    // No cached phrases - check request limit before generating new ones
     const limitInfo = await checkRequestLimit();
     if (!limitInfo.canRequest) {
       throw new Error(
@@ -534,12 +450,9 @@ export const getComprehensivePhrasebook = async (
       prompt,
       responseFormat: "json",
     });
-
-    // Update request counter after successful request
     await updateRequestCounter();
 
     if (Array.isArray(generatedPhrases)) {
-      // Add unique IDs and timestamps
       const phrasesWithIds = generatedPhrases.map((phrase, index) => ({
         ...phrase,
         id: `phrase-${Date.now()}-${index}`,
@@ -547,8 +460,6 @@ export const getComprehensivePhrasebook = async (
         updatedAt: new Date().toISOString(),
         isFavorite: false,
       }));
-
-      // Cache the newly generated phrases
       await cachePhrases(phrasesWithIds);
 
       return phrasesWithIds;
@@ -561,31 +472,21 @@ export const getComprehensivePhrasebook = async (
   }
 };
 
-/**
- * Get suggested countries to explore
- */
 export const getSuggestedCountries = async (
   visitedPlaces: VisitedPlaceDetails[]
 ): Promise<string[]> => {
   try {
-    // Extract locations from visited places
     const locations = visitedPlaces.map((place) => place.vicinity || "").filter(Boolean);
 
     if (locations.length === 0) {
-      // Return default countries if no places visited
       return ["France", "Italy", "Spain", "Japan", "Thailand"];
     }
-
-    // Check for saved suggested countries first to avoid unnecessary API calls
     const settings = await getPhrasebookSettings();
     if (settings.explorableCountries && settings.explorableCountries.length > 0) {
       return settings.explorableCountries;
     }
-
-    // Check request limit - suggestions count as a request too
     const limitInfo = await checkRequestLimit();
     if (!limitInfo.canRequest) {
-      // If limit reached, return default countries instead of throwing an error
       return ["France", "Italy", "Spain", "Japan", "Thailand"];
     }
 
@@ -600,12 +501,9 @@ export const getSuggestedCountries = async (
       prompt,
       responseFormat: "json",
     });
-
-    // Update request counter after successful request
     await updateRequestCounter();
 
     if (Array.isArray(generatedCountries)) {
-      // Save the suggested countries to avoid future API calls
       await updatePhrasebookSettings({
         explorableCountries: generatedCountries,
       });
@@ -620,28 +518,19 @@ export const getSuggestedCountries = async (
   }
 };
 
-/**
- * Get cached phrases from Firebase
- */
 export const getCachedPhrases = async (): Promise<{ phrases: Phrase[]; needsRefresh: boolean }> => {
   try {
     const currentUser = auth.currentUser;
     if (!currentUser) {
       return { phrases: [], needsRefresh: true };
     }
-
-    // Get phrasebook settings
     const settingsRef = doc(db, "users", currentUser.uid, "settings", "phrasebook");
     const settingsDoc = await getDoc(settingsRef);
-
-    // Check if settings exist and if refresh is needed
     let needsRefresh = true;
     if (settingsDoc.exists()) {
       const settings = settingsDoc.data() as PhrasebookSettings;
       const now = Date.now();
       const age = now - settings.lastUpdatedAt;
-
-      // Log when the data was last updated
       const lastUpdateDate = new Date(settings.lastUpdatedAt).toLocaleString();
       console.log(
         `Last phrases update: ${lastUpdateDate}, age: ${(age / (60 * 60 * 1000)).toFixed(1)} hours`
@@ -651,8 +540,6 @@ export const getCachedPhrases = async (): Promise<{ phrases: Phrase[]; needsRefr
         needsRefresh = false;
       }
     }
-
-    // Get phrases from subcollection
     const phrasesRef = collection(db, "users", currentUser.uid, "phrases");
     const querySnapshot = await getDocs(phrasesRef);
 
@@ -677,9 +564,6 @@ export const getCachedPhrases = async (): Promise<{ phrases: Phrase[]; needsRefr
   }
 };
 
-/**
- * Cache phrases to Firebase
- */
 export const cachePhrases = async (phrases: Phrase[]): Promise<void> => {
   try {
     const currentUser = auth.currentUser;
@@ -688,17 +572,12 @@ export const cachePhrases = async (phrases: Phrase[]): Promise<void> => {
       return;
     }
 
-    // First, clear existing phrases that aren't favorites
     console.log("Clearing non-favorite phrases before caching new ones");
     await clearNonFavoritePhrases();
-
-    // Add new phrases to subcollection
     const phrasesRef = collection(db, "users", currentUser.uid, "phrases");
 
     console.log(`Caching ${phrases.length} new phrases to Firebase`);
     for (const phrase of phrases) {
-      // Check if this phrase is already in favorites
-      // We don't want to overwrite favorite status
       const q = query(
         phrasesRef,
         where("phrase", "==", phrase.phrase),
@@ -709,7 +588,6 @@ export const cachePhrases = async (phrases: Phrase[]): Promise<void> => {
       const querySnapshot = await getDocs(q);
 
       if (!querySnapshot.empty) {
-        // Skip this phrase as it's already a favorite
         console.log(`Skipping phrase "${phrase.phrase}" as it's already a favorite`);
         continue;
       }
@@ -719,8 +597,6 @@ export const cachePhrases = async (phrases: Phrase[]): Promise<void> => {
         updatedAt: new Date().toISOString(),
       });
     }
-
-    // Update settings with last updated timestamp
     const settingsRef = doc(db, "users", currentUser.uid, "settings", "phrasebook");
     const now = Date.now();
     await setDoc(
@@ -738,9 +614,6 @@ export const cachePhrases = async (phrases: Phrase[]): Promise<void> => {
   }
 };
 
-/**
- * Clear non-favorite phrases from Firebase
- */
 export const clearNonFavoritePhrases = async (): Promise<void> => {
   try {
     const currentUser = auth.currentUser;
@@ -762,9 +635,6 @@ export const clearNonFavoritePhrases = async (): Promise<void> => {
   }
 };
 
-/**
- * Add a phrase from another country to the user's phrasebook
- */
 export const addPhraseToPhrasebook = async (phrase: Phrase): Promise<string | null> => {
   try {
     const currentUser = auth.currentUser;
@@ -778,7 +648,7 @@ export const addPhraseToPhrasebook = async (phrase: Phrase): Promise<string | nu
       ...phrase,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-      isFavorite: true, // Default to favorite when manually added
+      isFavorite: true,
     });
 
     return newPhraseDoc.id;
@@ -788,9 +658,6 @@ export const addPhraseToPhrasebook = async (phrase: Phrase): Promise<string | nu
   }
 };
 
-/**
- * Get all favorite phrases
- */
 export const getFavoritePhrases = async (): Promise<Phrase[]> => {
   try {
     const currentUser = auth.currentUser;
@@ -815,9 +682,6 @@ export const getFavoritePhrases = async (): Promise<Phrase[]> => {
   }
 };
 
-/**
- * Get phrasebook settings
- */
 export const getPhrasebookSettings = async (): Promise<PhrasebookSettings> => {
   try {
     const currentUser = auth.currentUser;
@@ -835,7 +699,6 @@ export const getPhrasebookSettings = async (): Promise<PhrasebookSettings> => {
     if (settingsDoc.exists()) {
       return settingsDoc.data() as PhrasebookSettings;
     } else {
-      // Create default settings
       const defaultSettings = {
         lastUpdatedAt: 0,
         favoriteLanguages: [],
@@ -855,9 +718,6 @@ export const getPhrasebookSettings = async (): Promise<PhrasebookSettings> => {
   }
 };
 
-/**
- * Update phrasebook settings
- */
 export const updatePhrasebookSettings = async (
   settings: Partial<PhrasebookSettings>
 ): Promise<void> => {
@@ -874,9 +734,6 @@ export const updatePhrasebookSettings = async (
   }
 };
 
-/**
- * Create mock phrases for fallback
- */
 export const createMockPhrases = (): Phrase[] => {
   return [
     {

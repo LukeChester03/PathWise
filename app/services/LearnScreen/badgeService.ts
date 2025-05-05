@@ -1,4 +1,3 @@
-// services/LearnScreen/badgeService.ts
 import {
   collection,
   getDocs,
@@ -12,7 +11,6 @@ import {
 import { auth, db } from "../../config/firebaseConfig";
 import { TravelBadge, BadgeTask } from "../../types/LearnScreen/TravelProfileTypes";
 
-// Valid icon names for validation
 const VALID_ICONS = [
   "map",
   "compass",
@@ -35,7 +33,6 @@ const VALID_ICONS = [
   "restaurant",
 ];
 
-// Define badge tasks with proper types
 const DEFAULT_BADGES: {
   id: string;
   name: string;
@@ -131,14 +128,13 @@ export const createBadgesSubcollection = async (): Promise<boolean> => {
 
     console.log("Creating badges subcollection with default badges");
 
-    // Create the badges using a batch write
+    // Create the badges
     const batch = writeBatch(db);
 
     for (const badge of DEFAULT_BADGES) {
-      // Ensure the icon is valid
       const icon = VALID_ICONS.includes(badge.icon) ? badge.icon : "ribbon";
 
-      // Create badge document with properly structured data
+      // Create badge document
       const badgeDoc = doc(db, "users", currentUser.uid, "badges", badge.id);
       const badgeData = {
         id: badge.id,
@@ -146,7 +142,7 @@ export const createBadgesSubcollection = async (): Promise<boolean> => {
         description: badge.description,
         icon: icon,
         completed: false,
-        dateEarned: new Date(0).toISOString(), // Use ISO string for Firestore compatibility
+        dateEarned: new Date(0).toISOString(),
         requirements: [
           {
             type: badge.type,
@@ -160,7 +156,6 @@ export const createBadgesSubcollection = async (): Promise<boolean> => {
       batch.set(badgeDoc, badgeData);
     }
 
-    // Create a settings document to track badge generation
     const settingsRef = doc(db, "users", currentUser.uid, "settings", "badges");
     batch.set(settingsRef, {
       lastGeneratedAt: Timestamp.now(),
@@ -177,12 +172,10 @@ export const createBadgesSubcollection = async (): Promise<boolean> => {
 };
 
 /**
- * Map Firestore document to TravelBadge object with proper handling of all fields
+ * Map Firestore document to TravelBadge object
  */
 export const mapDocToBadge = (doc: DocumentData): TravelBadge => {
   const data = doc.data();
-
-  // Handle date conversion safely
   let dateEarned: Date;
   try {
     dateEarned = data.dateEarned ? new Date(data.dateEarned) : new Date(0);
@@ -190,7 +183,6 @@ export const mapDocToBadge = (doc: DocumentData): TravelBadge => {
     dateEarned = new Date(0);
   }
 
-  // Ensure requirements are properly structured
   const requirements = Array.isArray(data.requirements)
     ? data.requirements.map((req) => ({
         type: req.type || "visitCount",
@@ -222,8 +214,6 @@ export const getAllUserBadges = async (): Promise<TravelBadge[]> => {
       console.warn("Cannot get user badges: No authenticated user");
       return [];
     }
-
-    // Check if badges subcollection exists and create if needed
     const exists = await checkBadgesSubcollection();
     if (!exists) {
       const created = await createBadgesSubcollection();
@@ -233,7 +223,6 @@ export const getAllUserBadges = async (): Promise<TravelBadge[]> => {
       }
     }
 
-    // Get all badges
     const badgesCollection = collection(db, "users", currentUser.uid, "badges");
     const badgesSnapshot = await getDocs(badgesCollection);
 
@@ -245,18 +234,12 @@ export const getAllUserBadges = async (): Promise<TravelBadge[]> => {
     // Map documents to badge objects
     const badges = badgesSnapshot.docs.map(mapDocToBadge);
 
-    // Sort badges: completed first, then by date
     return badges.sort((a, b) => {
-      // First sort by completion status
       if (a.completed && !b.completed) return -1;
       if (!a.completed && b.completed) return 1;
-
-      // If both have the same completion status, sort by date (newest first)
       if (a.completed && b.completed) {
         return b.dateEarned.getTime() - a.dateEarned.getTime();
       }
-
-      // If neither is completed, sort by ID
       return a.id.localeCompare(b.id);
     });
   } catch (error) {

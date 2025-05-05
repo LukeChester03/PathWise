@@ -1,4 +1,3 @@
-// components/HomeScreen/JourneyInspiration.tsx
 import React, { useState, useEffect, useRef } from "react";
 import {
   View,
@@ -12,13 +11,10 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { Colors } from "../../constants/colours";
-
-// Import the quotes data
 import travelQuotes from "../../constants/inspirationalQuotes.json";
 
 const { width } = Dimensions.get("window");
 
-// Default quote to use if none is available
 const DEFAULT_QUOTE = {
   text: "Travel opens your heart, broadens your mind, and fills your life with stories to tell.",
   author: "Anonymous",
@@ -29,35 +25,20 @@ interface InspirationQuote {
   author: string;
 }
 
-/**
- * JourneyInspiration component displays randomized travel and exploration quotes
- * with smooth transitions to inspire users on their journey of discovery.
- */
 const JourneyInspiration: React.FC = () => {
-  // State to track the current quote - initialize with default
   const [quote, setQuote] = useState<InspirationQuote>(DEFAULT_QUOTE);
-  // State to track if user has favorited this quote
   const [isFavorited, setIsFavorited] = useState(false);
-
-  // Refs for interval management and quote tracking
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const shownQuotesRef = useRef<number[]>([]);
   const availableQuotesRef = useRef<number[]>([]);
-
-  // Animation values
   const fadeAnim = useRef(new Animated.Value(1)).current;
   const translateYAnim = useRef(new Animated.Value(0)).current;
   const containerAnim = useRef(new Animated.Value(0)).current;
   const heartScale = useRef(new Animated.Value(1)).current;
-
-  // Circle animations
   const circle1Anim = useRef(new Animated.Value(0)).current;
   const circle2Anim = useRef(new Animated.Value(0)).current;
-
-  // Function to shuffle an array (Fisher-Yates algorithm)
   const shuffleArray = (array: number[]): number[] => {
     const newArray = [...array];
-    // Fix: use length-1 and include 0 (i >= 0)
     for (let i = newArray.length - 1; i >= 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [newArray[i], newArray[j]] = [newArray[j], newArray[i]];
@@ -65,9 +46,7 @@ const JourneyInspiration: React.FC = () => {
     return newArray;
   };
 
-  // Start entrance animations
   useEffect(() => {
-    // Container fade in
     Animated.timing(containerAnim, {
       toValue: 1,
       duration: 800,
@@ -75,7 +54,6 @@ const JourneyInspiration: React.FC = () => {
       easing: Easing.out(Easing.cubic),
     }).start();
 
-    // Animate background circles
     Animated.loop(
       Animated.sequence([
         Animated.timing(circle1Anim, {
@@ -111,48 +89,34 @@ const JourneyInspiration: React.FC = () => {
     ).start();
   }, []);
 
-  // Function to get the next random quote
   const getNextRandomQuote = (): number | null => {
-    // Check if travelQuotes is available and valid
     if (!Array.isArray(travelQuotes) || travelQuotes.length === 0) {
       console.warn("Travel quotes data is not available or empty");
       return null;
     }
 
-    // If we've shown all quotes, reshuffle and start again
     if (availableQuotesRef.current.length === 0) {
-      // Create an array of indices from 0 to quotes length-1
       const indices = Array.from({ length: travelQuotes.length }, (_, i) => i);
-      // Shuffle the indices
       availableQuotesRef.current = shuffleArray(indices);
-      // Clear the shown quotes
       shownQuotesRef.current = [];
     }
 
-    // Get the next quote index from the available quotes
     const nextQuoteIndex = availableQuotesRef.current.pop();
     if (nextQuoteIndex === undefined) {
-      // Should never happen if our logic is correct, but just in case
       return null;
     }
 
-    // Add to shown quotes
     shownQuotesRef.current.push(nextQuoteIndex);
 
     return nextQuoteIndex;
   };
 
-  // Function to animate quote transition
   const animateQuoteTransition = () => {
-    // Reset favorite state for new quote
     setIsFavorited(false);
 
-    // Get next random quote index
     const newIndex = getNextRandomQuote();
 
-    // Create animation sequence
     Animated.sequence([
-      // 1. Fade out and slide up current quote
       Animated.parallel([
         Animated.timing(fadeAnim, {
           toValue: 0,
@@ -167,13 +131,11 @@ const JourneyInspiration: React.FC = () => {
           easing: Easing.out(Easing.cubic),
         }),
       ]),
-      // 2. Reset position for next quote (not visible due to opacity 0)
       Animated.timing(translateYAnim, {
         toValue: 15,
         duration: 0,
         useNativeDriver: true,
       }),
-      // 3. Fade in and slide down to normal position for new quote
       Animated.parallel([
         Animated.timing(fadeAnim, {
           toValue: 1,
@@ -190,58 +152,28 @@ const JourneyInspiration: React.FC = () => {
       ]),
     ]).start();
 
-    // Update the quote after the fade out animation
     setTimeout(() => {
       if (newIndex !== null && travelQuotes[newIndex]) {
         setQuote(travelQuotes[newIndex]);
       } else {
-        // Use default quote if we couldn't get a valid one
         setQuote(DEFAULT_QUOTE);
       }
-    }, 500); // This should match the duration of the first fade-out animation
+    }, 500);
   };
 
-  // Handle favoriting a quote
-  const handleFavorite = () => {
-    setIsFavorited(!isFavorited);
-
-    // Heart animation
-    Animated.sequence([
-      Animated.timing(heartScale, {
-        toValue: 1.3,
-        duration: 200,
-        useNativeDriver: true,
-        easing: Easing.out(Easing.cubic),
-      }),
-      Animated.timing(heartScale, {
-        toValue: 1,
-        duration: 200,
-        useNativeDriver: true,
-        easing: Easing.out(Easing.elastic(2)),
-      }),
-    ]).start();
-  };
-
-  // Initialize component and set up quote cycling
   useEffect(() => {
     try {
-      // Check if travelQuotes is valid and has items
       if (Array.isArray(travelQuotes) && travelQuotes.length > 0) {
-        // Initialize available quotes array
         availableQuotesRef.current = [];
-
-        // Initialize with a random quote
         const firstQuoteIndex = getNextRandomQuote();
         if (firstQuoteIndex !== null && travelQuotes[firstQuoteIndex]) {
           setQuote(travelQuotes[firstQuoteIndex]);
         }
-
-        // Set up the interval to cycle through random quotes
         intervalRef.current = setInterval(() => {
           animateQuoteTransition();
         }, 10000);
       } else {
-        // Fallback quote if the JSON import failed
+        //fallback
         setQuote(DEFAULT_QUOTE);
         console.warn("Travel quotes data not loaded properly. Check your import path.");
       }
@@ -250,7 +182,7 @@ const JourneyInspiration: React.FC = () => {
       setQuote(DEFAULT_QUOTE);
     }
 
-    // Clean up interval on component unmount
+    // Clean up on component unmount
     return () => {
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
@@ -281,7 +213,6 @@ const JourneyInspiration: React.FC = () => {
         end={{ x: 1, y: 1 }}
         style={styles.inspirationGradient}
       >
-        {/* Animated background circles */}
         <Animated.View
           style={[
             styles.backgroundCircle1,
@@ -353,7 +284,7 @@ const styles = StyleSheet.create({
     padding: 20,
     borderRadius: 16,
     position: "relative",
-    minHeight: 180, // Add minimum height to avoid layout shifts during animation
+    minHeight: 180,
     overflow: "hidden",
   },
   backgroundCircle1: {

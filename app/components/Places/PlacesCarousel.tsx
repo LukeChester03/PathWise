@@ -1,4 +1,3 @@
-// components/Places/PlacesCarousel.tsx
 import React from "react";
 import { View, Text, StyleSheet, FlatList, Dimensions, Platform } from "react-native";
 import { Colors, NeutralColors } from "../../constants/colours";
@@ -32,16 +31,12 @@ const PlacesCarousel: React.FC<PlacesCarouselProps> = ({
 }) => {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
 
-  // Filter places based on criteria
   const validPlaces = Array.isArray(places)
     ? places.filter((place) => {
-        // Skip if place is null/undefined
         if (!place) return false;
 
-        // Always ensure we have a valid ID
         if (!place.place_id && !place.id) return false;
 
-        // For visited/saved sections, strictly enforce visit status
         if (
           (sectionType === "visited" || sectionType === "saved") &&
           !(place.isVisited === true || (place.visitedAt !== undefined && place.visitedAt !== null))
@@ -49,27 +44,22 @@ const PlacesCarousel: React.FC<PlacesCarouselProps> = ({
           return false;
         }
 
-        // For nearby locations with showOnlyVisited, filter by visit status
         if (sectionType === "nearby" && showOnlyVisited) {
           return (
             place.isVisited === true || (place.visitedAt !== undefined && place.visitedAt !== null)
           );
         }
 
-        // Otherwise include the place
         return true;
       })
     : [];
 
-  // Handle place press - either use the custom handler or navigate directly
   const handlePlacePress = (placeId: string, place: Place) => {
-    // If a custom onPress handler is provided, use it
     if (onPlacePress) {
       onPlacePress(placeId, place);
       return;
     }
 
-    // Otherwise, navigate directly to place details with the original place object
     navigation.navigate("PlaceDetails", {
       placeId,
       place,
@@ -89,12 +79,9 @@ const PlacesCarousel: React.FC<PlacesCarouselProps> = ({
   }
 
   const renderItem = ({ item }: { item: Place }) => {
-    // Ensure item has the necessary required properties
     const safePlace: Place = {
       ...item,
-      // Ensure place_id exists - use id or generate one if missing
       place_id: item.place_id || item.id || `place-${Math.random().toString(36).substring(2, 9)}`,
-      // Ensure geometry exists with location
       geometry: item.geometry || {
         location: {
           lat: 0,

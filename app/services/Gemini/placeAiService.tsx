@@ -1,4 +1,3 @@
-// services/placeAiService.ts
 import { generateContent } from "./geminiService";
 import { Place, VisitedPlaceDetails } from "../../types/MapTypes";
 
@@ -17,9 +16,6 @@ export interface AiGeneratedContent {
   isGenerating: boolean;
 }
 
-/**
- * Generate a rich description for a place
- */
 export const generatePlaceDescription = async (
   place: Place | VisitedPlaceDetails
 ): Promise<string> => {
@@ -56,9 +52,6 @@ export const generatePlaceDescription = async (
   }
 };
 
-/**
- * Generate historical facts about a place
- */
 export const generateHistoricalFacts = async (
   place: Place | VisitedPlaceDetails
 ): Promise<string[]> => {
@@ -107,9 +100,6 @@ export const generateHistoricalFacts = async (
   }
 };
 
-/**
- * Generate cultural insights about a place
- */
 export const generateCulturalInsights = async (
   place: Place | VisitedPlaceDetails
 ): Promise<AiInsight[]> => {
@@ -162,9 +152,6 @@ export const generateCulturalInsights = async (
   }
 };
 
-/**
- * Generate "Did You Know" facts about a place
- */
 export const generateDidYouKnow = async (place: Place | VisitedPlaceDetails): Promise<string[]> => {
   const prompt = `
     Generate up to 5 interesting "Did You Know" facts about "${place.name}".
@@ -209,9 +196,6 @@ export const generateDidYouKnow = async (place: Place | VisitedPlaceDetails): Pr
   }
 };
 
-/**
- * Generate local tips about a place
- */
 export const generateLocalTips = async (place: Place | VisitedPlaceDetails): Promise<string[]> => {
   const prompt = `
     Generate up to 3 practical tips for visitors to "${place.name}".
@@ -263,9 +247,6 @@ export const generateLocalTips = async (place: Place | VisitedPlaceDetails): Pro
   }
 };
 
-/**
- * Generate an answer to a specific question about a place
- */
 export const askAboutPlace = async (
   place: Place | VisitedPlaceDetails,
   question: string
@@ -321,10 +302,6 @@ export const askAboutPlace = async (
   }
 };
 
-/**
- * Fetch additional geographical context for a place to enhance AI responses
- * This helps the AI understand the broader context of where the place is located
- */
 export const getLocationContext = async (place: Place | VisitedPlaceDetails): Promise<string> => {
   if (!place.geometry?.location) {
     return "";
@@ -333,11 +310,9 @@ export const getLocationContext = async (place: Place | VisitedPlaceDetails): Pr
   const { lat, lng } = place.geometry.location;
   let context = "";
 
-  // Extract city, region, country from available address information
   if (place.formatted_address) {
     const addressParts = place.formatted_address.split(",").map((part) => part.trim());
     if (addressParts.length >= 2) {
-      // Assume last parts are country, region, etc.
       context += `The place is located in ${addressParts.slice(-3).join(", ")}.`;
     }
   } else if (place.vicinity) {
@@ -347,14 +322,10 @@ export const getLocationContext = async (place: Place | VisitedPlaceDetails): Pr
   return context;
 };
 
-/**
- * Fetch all AI content for a place in parallel
- */
 export const fetchAllAiContent = async (
   place: Place | VisitedPlaceDetails
 ): Promise<AiGeneratedContent> => {
   try {
-    // Start all requests in parallel
     const [description, historicalFacts, culturalInsights, didYouKnow, localTips] =
       await Promise.all([
         generatePlaceDescription(place),
@@ -374,7 +345,6 @@ export const fetchAllAiContent = async (
     };
   } catch (error) {
     console.error("Error fetching all AI content:", error);
-    // Return fallback content
     return {
       description: `${place.name} is a fascinating destination with unique characteristics.`,
       historicalFacts: [
@@ -407,23 +377,16 @@ export const fetchAllAiContent = async (
   }
 };
 
-/**
- * Enhanced version of fetchAllAiContent that includes location context
- */
 export const fetchAllAiContentWithContext = async (
   place: Place | VisitedPlaceDetails
 ): Promise<AiGeneratedContent> => {
   try {
-    // Get additional location context
     const locationContext = await getLocationContext(place);
-
-    // Add the location context to the place object for AI prompts
     const enhancedPlace = {
       ...place,
       locationContext,
     };
 
-    // Start all requests in parallel
     const [description, historicalFacts, culturalInsights, didYouKnow, localTips] =
       await Promise.all([
         generatePlaceDescription(enhancedPlace as any),
@@ -443,7 +406,6 @@ export const fetchAllAiContentWithContext = async (
     };
   } catch (error) {
     console.error("Error fetching all AI content:", error);
-    // Return fallback content
     return {
       description: `${place.name} is a fascinating destination with unique characteristics.`,
       historicalFacts: [

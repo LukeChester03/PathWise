@@ -1,10 +1,6 @@
-// utils/placeUtils.ts
 import { GOOGLE_MAPS_APIKEY } from "../constants/Map/mapConstants";
 import { Place, VisitedPlaceDetails } from "../types/MapTypes";
 
-/**
- * Get a photo URL for a place
- */
 export const getPlacePhotoUrl = (placeDetails: Place | VisitedPlaceDetails | null): string => {
   if (!placeDetails) return "";
 
@@ -20,17 +16,11 @@ export const getPlacePhotoUrl = (placeDetails: Place | VisitedPlaceDetails | nul
   )}`;
 };
 
-/**
- * Format place address for display
- */
 export const getFormattedAddress = (placeDetails: Place | VisitedPlaceDetails | null): string => {
   if (!placeDetails) return "No address available";
   return placeDetails.formatted_address || placeDetails.vicinity || "No address available";
 };
 
-/**
- * Format visit date in a readable way
- */
 export const formatVisitDate = (placeDetails: VisitedPlaceDetails | null): string | null => {
   if (!placeDetails) return null;
 
@@ -46,9 +36,6 @@ export const formatVisitDate = (placeDetails: VisitedPlaceDetails | null): strin
   return null;
 };
 
-/**
- * Get category/type of place with icon
- */
 export const getPlaceType = (placeDetails: Place | VisitedPlaceDetails | null) => {
   if (
     !placeDetails ||
@@ -81,7 +68,6 @@ export const getPlaceType = (placeDetails: Place | VisitedPlaceDetails | null) =
     }
   }
 
-  // If no direct match found, use the first type as a fallback
   return {
     label: placeDetails.types[0].replace(/_/g, " "),
     icon: "location",

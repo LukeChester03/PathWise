@@ -26,8 +26,8 @@ interface HistoricalJourneyProps {
 }
 
 const { width } = Dimensions.get("window");
-const CARD_WIDTH = width * 0.85; // Slightly reduced width
-const SPACING = 12; // Space between cards
+const CARD_WIDTH = width * 0.85;
+const SPACING = 12;
 
 const HistoricalJourney: React.FC<HistoricalJourneyProps> = ({ aiContent, fontSize }) => {
   const [activeIndex, setActiveIndex] = useState(0);
@@ -39,7 +39,6 @@ const HistoricalJourney: React.FC<HistoricalJourneyProps> = ({ aiContent, fontSi
       if (newIndex !== undefined && newIndex !== activeIndex) {
         setActiveIndex(newIndex);
 
-        // Add to discovered indices if not already revealed
         if (!discoveredIndices.includes(newIndex)) {
           setDiscoveredIndices((prev) => [...prev, newIndex]);
         }
@@ -47,15 +46,12 @@ const HistoricalJourney: React.FC<HistoricalJourneyProps> = ({ aiContent, fontSi
     }
   }).current;
 
-  // For tracking seen cards
   useEffect(() => {
-    // When active index changes, ensure it's marked as discovered
     if (!discoveredIndices.includes(activeIndex)) {
       setDiscoveredIndices((prev) => [...prev, activeIndex]);
     }
   }, [activeIndex, discoveredIndices]);
 
-  // If content is being generated, show the immersive loading state
   if (aiContent?.isGenerating) {
     return (
       <View style={styles.loadingContainer}>
@@ -76,27 +72,23 @@ const HistoricalJourney: React.FC<HistoricalJourneyProps> = ({ aiContent, fontSi
     );
   }
 
-  // If no historical facts, don't render anything
   if (!aiContent?.historicalFacts || aiContent.historicalFacts.length === 0) {
     return null;
   }
 
   const facts = aiContent.historicalFacts;
 
-  // Configure viewability config for FlatList
   const viewConfig = useRef({
     viewAreaCoveragePercentThreshold: 50,
     minimumViewTime: 150,
   }).current;
 
-  // Helper function to determine era label
   const getEraLabel = (index: number) => {
     if (index === 0) return "EARLIEST RECORDS";
     if (index === facts.length - 1) return "RECENT HISTORY";
     return "HISTORICAL MOMENT";
   };
 
-  // Function to scroll to a specific index
   const scrollToIndex = (index: number) => {
     if (flatListRef.current) {
       flatListRef.current.scrollToIndex({
@@ -107,12 +99,10 @@ const HistoricalJourney: React.FC<HistoricalJourneyProps> = ({ aiContent, fontSi
     }
   };
 
-  // Reset journey function
   const resetJourney = () => {
     scrollToIndex(0);
   };
 
-  // Timeline component to replace the progress text
   const Timeline = () => {
     return (
       <View style={styles.timelineContainer}>
@@ -147,7 +137,6 @@ const HistoricalJourney: React.FC<HistoricalJourneyProps> = ({ aiContent, fontSi
     );
   };
 
-  // Render a card for the FlatList
   const renderCard = ({ item, index }: { item: string; index: number }) => {
     const isDiscovered = discoveredIndices.includes(index);
     const isLocked = !isDiscovered;
@@ -179,7 +168,6 @@ const HistoricalJourney: React.FC<HistoricalJourneyProps> = ({ aiContent, fontSi
               <Text style={[styles.factText, { fontSize: fontSize.body }]}>{item}</Text>
             </View>
 
-            {/* Decorative vintage corner elements */}
             <View style={[styles.vintageCorner, styles.topLeftCorner]} />
             <View style={[styles.vintageCorner, styles.topRightCorner]} />
             <View style={[styles.vintageCorner, styles.bottomLeftCorner]} />
@@ -200,7 +188,6 @@ const HistoricalJourney: React.FC<HistoricalJourneyProps> = ({ aiContent, fontSi
           <Text style={[styles.title, { fontSize: fontSize.title }]}>Historical Journey</Text>
         </View>
 
-        {/* Timeline replaces the progress text */}
         <Timeline />
       </View>
 
@@ -226,10 +213,6 @@ const HistoricalJourney: React.FC<HistoricalJourneyProps> = ({ aiContent, fontSi
           })}
         />
       </View>
-
-      {/* Reset button only shows when on the last card */}
-
-      {/* Instructions for swiping */}
       <View style={styles.swipeInstructionContainer}>
         <Text style={styles.swipeInstructionText}>
           <Ionicons name="hand-right-outline" size={14} color={NeutralColors.gray500} /> Swipe to
@@ -241,7 +224,6 @@ const HistoricalJourney: React.FC<HistoricalJourneyProps> = ({ aiContent, fontSi
 };
 
 const styles = StyleSheet.create({
-  // ===== Container Styles =====
   container: {
     backgroundColor: "white",
     borderRadius: 24,
@@ -257,7 +239,6 @@ const styles = StyleSheet.create({
     borderColor: NeutralColors.gray200,
   },
 
-  // ===== Header Styles =====
   header: {
     padding: 16,
     paddingBottom: 12,
@@ -290,7 +271,6 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
 
-  // ===== Timeline Styles =====
   timelineContainer: {
     flexDirection: "row",
     alignItems: "center",
@@ -339,7 +319,6 @@ const styles = StyleSheet.create({
     backgroundColor: NeutralColors.gray300,
   },
 
-  // ===== Swipe Instruction Styles =====
   swipeInstructionContainer: {
     alignItems: "center",
     paddingBottom: 10,
@@ -351,7 +330,6 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
 
-  // ===== Loading State Styles =====
   loadingContainer: {
     padding: 28,
   },
@@ -400,16 +378,14 @@ const styles = StyleSheet.create({
     marginVertical: 24,
   },
 
-  // ===== Carousel Container =====
   carouselContainer: {
     paddingVertical: 16,
-    minHeight: 260, // Ensure consistent height
+    minHeight: 260,
   },
   flatListContent: {
     paddingHorizontal: (width - CARD_WIDTH) * 0.1,
   },
 
-  // ===== Card Styles =====
   card: {
     width: CARD_WIDTH,
     backgroundColor: "white",
@@ -429,10 +405,9 @@ const styles = StyleSheet.create({
     padding: 20,
     height: "100%",
     position: "relative",
-    backgroundColor: "rgba(252, 250, 245, 0.7)", // Subtle vintage paper color
+    backgroundColor: "rgba(252, 250, 245, 0.7)",
   },
 
-  // ===== Moment Badge Styles =====
   momentBadge: {
     position: "absolute",
     top: 14,
@@ -459,7 +434,6 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
 
-  // ===== Fact Content Styles =====
   factContentContainer: {
     flex: 1,
     justifyContent: "center",
@@ -481,7 +455,6 @@ const styles = StyleSheet.create({
     width: "100%",
   },
 
-  // ===== Vintage Corner Styles =====
   vintageCorner: {
     position: "absolute",
     width: 20,
@@ -513,7 +486,6 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
   },
 
-  // ===== Locked Card Styles =====
   lockedCard: {
     backgroundColor: NeutralColors.gray100,
   },
@@ -545,7 +517,6 @@ const styles = StyleSheet.create({
     maxWidth: "90%",
   },
 
-  // ===== Reset Button Styles =====
   resetButtonContainer: {
     justifyContent: "center",
     alignItems: "center",

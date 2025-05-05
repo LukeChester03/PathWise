@@ -1,4 +1,3 @@
-// components/LearnScreen/AdvancedTravelAnalysisCard.tsx
 import React, { useState, useEffect } from "react";
 import {
   View,
@@ -27,7 +26,6 @@ import {
 } from "../../../types/LearnScreen/TravelAnalysisTypes";
 import { VisitedPlaceDetails } from "../../../types/MapTypes";
 
-// Required number of places to unlock the feature
 const REQUIRED_PLACES = 5;
 
 interface AdvancedTravelAnalysisCardProps {
@@ -50,23 +48,17 @@ const AdvancedTravelAnalysisCard: React.FC<AdvancedTravelAnalysisCardProps> = ({
   });
   const [firebaseDataExists, setFirebaseDataExists] = useState<boolean | null>(null);
   const [progress, setProgress] = useState<AnalysisGenerationProgress | null>(null);
-
-  // Check if the feature is unlocked based on number of visited places
   const isUnlocked = visitedPlaces.length >= REQUIRED_PLACES;
-
-  // Number of places still needed to unlock
   const placesNeeded = REQUIRED_PLACES - visitedPlaces.length;
 
-  // Initial data loading - check Firebase and initialize
   useEffect(() => {
     if (isUnlocked) {
       checkFirebaseDataAndInitialize();
     } else {
-      setLoading(false); // No need to show loading if feature is locked
+      setLoading(false);
     }
   }, [isUnlocked]);
 
-  // Set up polling for progress during generation
   useEffect(() => {
     if (generating) {
       const progressInterval = setInterval(checkGenerationProgress, 2000);
@@ -74,14 +66,12 @@ const AdvancedTravelAnalysisCard: React.FC<AdvancedTravelAnalysisCardProps> = ({
     }
   }, [generating]);
 
-  // Check generation progress
   const checkGenerationProgress = async () => {
     try {
       const progressInfo = await getAdvancedAnalysisProgress();
       if (progressInfo) {
         setProgress(progressInfo);
 
-        // If generation is complete, refresh the analysis data
         if (!progressInfo.isGenerating && progressInfo.progress === 100) {
           await loadAnalysisData();
           setGenerating(false);
@@ -92,20 +82,16 @@ const AdvancedTravelAnalysisCard: React.FC<AdvancedTravelAnalysisCardProps> = ({
     }
   };
 
-  // Load analysis data
   const loadAnalysisData = async () => {
     try {
-      // First, directly check Firebase for existing analysis data
       const firebaseData = await getLatestAnalysisFromFirestore();
       setFirebaseDataExists(!!firebaseData);
 
-      // Load analysis from cache/Firebase
       const analysisData = await getAdvancedTravelAnalysis();
       if (analysisData) {
         setAnalysis(analysisData);
       }
 
-      // Load request limits (for generate button)
       const limits = await checkAdvancedAnalysisRequestLimit();
       setRequestLimits(limits);
     } catch (err) {
@@ -114,22 +100,18 @@ const AdvancedTravelAnalysisCard: React.FC<AdvancedTravelAnalysisCardProps> = ({
     }
   };
 
-  // Check if data exists in Firebase and initialize the component
   const checkFirebaseDataAndInitialize = async () => {
     try {
       setLoading(true);
       setError(null);
 
       await loadAnalysisData();
-
-      // Check if generation is in progress
       const progressInfo = await getAdvancedAnalysisProgress();
       if (progressInfo && progressInfo.isGenerating) {
         setGenerating(true);
         setProgress(progressInfo);
       }
 
-      // Check if we should trigger an automatic update
       if (isUnlocked && visitedPlaces.length > 0 && firebaseDataExists) {
         checkAndPerformAutomaticUpdate(visitedPlaces);
       }
@@ -141,7 +123,6 @@ const AdvancedTravelAnalysisCard: React.FC<AdvancedTravelAnalysisCardProps> = ({
     }
   };
 
-  // Generate new analysis
   const handleGenerateAnalysis = async () => {
     if (!isUnlocked) return;
 
@@ -160,20 +141,14 @@ const AdvancedTravelAnalysisCard: React.FC<AdvancedTravelAnalysisCardProps> = ({
       setGenerating(true);
       setError(null);
 
-      // Reset progress
       setProgress({
         isGenerating: true,
         progress: 0,
         stage: "Starting analysis generation",
       });
-
-      // Start the generation process
       await generateAdvancedTravelAnalysis(visitedPlaces);
-
-      // The actual analysis data will be loaded when progress polling detects completion
       setFirebaseDataExists(true);
 
-      // Update request limits
       const limits = await checkAdvancedAnalysisRequestLimit();
       setRequestLimits(limits);
     } catch (err: any) {
@@ -183,15 +158,12 @@ const AdvancedTravelAnalysisCard: React.FC<AdvancedTravelAnalysisCardProps> = ({
     }
   };
 
-  // Navigate to full analysis screen - only allowed if analysis exists
   const navigateToAdvancedAnalysis = () => {
     if (!isUnlocked || !analysis || !firebaseDataExists || generating) return;
 
-    // @ts-ignore - Type will be fixed when navigation types are updated
     navigation.navigate("AdvancedTravelAnalysis");
   };
 
-  // Render locked state
   const renderLockedState = () => (
     <View style={styles.contentContainer}>
       <View style={styles.lockIconContainer}>
@@ -205,7 +177,6 @@ const AdvancedTravelAnalysisCard: React.FC<AdvancedTravelAnalysisCardProps> = ({
     </View>
   );
 
-  // Render unlocked but no analysis state or generating state
   const renderUnlockedNoAnalysisState = () => (
     <View style={styles.contentContainer}>
       <Ionicons name="analytics-outline" size={40} color="#FFFFFF" />
@@ -218,7 +189,6 @@ const AdvancedTravelAnalysisCard: React.FC<AdvancedTravelAnalysisCardProps> = ({
             moments.
           </Text>
 
-          {/* Progress indicator */}
           <View style={styles.progressContainer}>
             <View style={styles.progressBar}>
               <View style={[styles.progressFill, { width: `${progress?.progress || 0}%` }]} />
@@ -249,7 +219,6 @@ const AdvancedTravelAnalysisCard: React.FC<AdvancedTravelAnalysisCardProps> = ({
     </View>
   );
 
-  // Render loading state
   const renderLoading = () => (
     <View style={styles.contentContainer}>
       <ActivityIndicator size="large" color="#FFFFFF" />
@@ -257,7 +226,6 @@ const AdvancedTravelAnalysisCard: React.FC<AdvancedTravelAnalysisCardProps> = ({
     </View>
   );
 
-  // Render error state
   const renderError = () => (
     <View style={styles.contentContainer}>
       <Ionicons name="analytics-outline" size={36} color="#FFFFFF" />
@@ -271,15 +239,11 @@ const AdvancedTravelAnalysisCard: React.FC<AdvancedTravelAnalysisCardProps> = ({
     </View>
   );
 
-  // Render preview content
   const renderContent = () => {
     if (!analysis || generating) return renderUnlockedNoAnalysisState();
 
-    // Check if we have personality data to show
     const hasPersonalityData = analysis.behavioralAnalysis?.travelPersonality;
-    // Get primary archetype if available
     const primaryArchetype = analysis.comparativeAnalysis?.archetypeAnalysis?.primaryArchetype;
-    // Get top recommendation if available
     const topRecommendation = analysis.predictiveAnalysis?.recommendedDestinations?.[0];
 
     return (
@@ -372,7 +336,6 @@ const AdvancedTravelAnalysisCard: React.FC<AdvancedTravelAnalysisCardProps> = ({
     );
   };
 
-  // Determine which content to show based on state
   const renderCardContent = () => {
     if (!isUnlocked) {
       return renderLockedState();
@@ -387,7 +350,6 @@ const AdvancedTravelAnalysisCard: React.FC<AdvancedTravelAnalysisCardProps> = ({
     }
   };
 
-  // Determine the appropriate footer text based on state
   const getFooterText = () => {
     if (!isUnlocked) {
       return "Keep exploring to unlock";
@@ -404,7 +366,6 @@ const AdvancedTravelAnalysisCard: React.FC<AdvancedTravelAnalysisCardProps> = ({
     }
   };
 
-  // Determine if the card should be clickable (only after analysis is generated)
   const isCardClickable = isUnlocked && analysis && firebaseDataExists && !generating;
 
   return (
@@ -481,10 +442,10 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
   },
   lockedCardContainer: {
-    opacity: 0.85, // Slightly dimmed to indicate locked
+    opacity: 0.85,
   },
   disabledCardContainer: {
-    opacity: 0.95, // Slightly dimmed to indicate not clickable
+    opacity: 0.95,
   },
   lockIconContainer: {
     width: 80,
@@ -516,16 +477,16 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   qualityExcellent: {
-    backgroundColor: "rgba(34, 197, 94, 0.3)", // success with opacity
+    backgroundColor: "rgba(34, 197, 94, 0.3)",
   },
   qualityGood: {
-    backgroundColor: "rgba(6, 182, 212, 0.3)", // info with opacity
+    backgroundColor: "rgba(6, 182, 212, 0.3)",
   },
   qualityAverage: {
-    backgroundColor: "rgba(245, 158, 11, 0.3)", // warning with opacity
+    backgroundColor: "rgba(245, 158, 11, 0.3)",
   },
   qualityLimited: {
-    backgroundColor: "rgba(239, 68, 68, 0.3)", // danger with opacity
+    backgroundColor: "rgba(239, 68, 68, 0.3)",
   },
   qualityText: {
     fontSize: 12,
@@ -652,14 +613,12 @@ const styles = StyleSheet.create({
   disabledArrowContainer: {
     backgroundColor: "rgba(255, 255, 255, 0.1)",
   },
-  // Loading state styles
   loadingText: {
     fontSize: 16,
     fontWeight: "600",
     color: "#FFFFFF",
     marginTop: 12,
   },
-  // Error state styles
   errorTitle: {
     fontSize: 18,
     fontWeight: "700",
@@ -685,7 +644,6 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#FFFFFF",
   },
-  // Locked state styles
   lockedTitle: {
     fontSize: 20,
     fontWeight: "700",
@@ -700,7 +658,6 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     paddingHorizontal: 20,
   },
-  // Empty state styles
   emptyTitle: {
     fontSize: 20,
     fontWeight: "700",
@@ -716,7 +673,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     marginBottom: 20,
   },
-  // Generate button styles
   generateButton: {
     flexDirection: "row",
     alignItems: "center",
@@ -733,7 +689,6 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     marginRight: 8,
   },
-  // Progress indicator styles
   progressContainer: {
     width: "100%",
     marginTop: 16,

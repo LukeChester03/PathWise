@@ -20,31 +20,22 @@ const BadgesSection: React.FC<BadgesSectionProps> = ({
   setBadgesView,
   profile,
 }) => {
-  // Function to get the progress percentage for a badge
   const getBadgeProgress = (badge: TravelBadge): number => {
     if (!badge.requirements || badge.requirements.length === 0) return 0;
     const requirement = badge.requirements[0];
-
-    // Handle case where current or value might be undefined/null
     const current = requirement.current || 0;
-    const value = requirement.value || 1; // Avoid division by zero
-
+    const value = requirement.value || 1;
     return Math.min(100, (current / value) * 100);
   };
 
-  // Function to get the formatted progress text for a badge
   const getBadgeProgressText = (badge: TravelBadge): string => {
     if (!badge.requirements || badge.requirements.length === 0) return "0/0";
     const requirement = badge.requirements[0];
-
-    // Handle case where current or value might be undefined/null
     const current = requirement.current || 0;
     const value = requirement.value || 0;
-
     return `${current}/${value}`;
   };
 
-  // Helper function to format requirement type for display
   const formatRequirementType = (type: string): string => {
     switch (type) {
       case "visitCount":
@@ -101,9 +92,7 @@ const BadgesSection: React.FC<BadgesSectionProps> = ({
         <Text style={styles.badgeUpdateText}>Badges update automatically every 24 hours</Text>
       </View>
 
-      {/* Display either earned or in-progress badges based on selected tab */}
       {badgesView === "earned" ? (
-        // EARNED BADGES
         completedBadges.length > 0 ? (
           <View style={styles.badgesContainer}>
             {completedBadges.map((badge, index) => (
@@ -136,8 +125,7 @@ const BadgesSection: React.FC<BadgesSectionProps> = ({
             </Text>
           </View>
         )
-      ) : // IN PROGRESS BADGES
-      inProgressBadges.length > 0 ? (
+      ) : inProgressBadges.length > 0 ? (
         <View style={styles.badgesContainer}>
           {inProgressBadges.map((badge, index) => {
             const progress = getBadgeProgress(badge);

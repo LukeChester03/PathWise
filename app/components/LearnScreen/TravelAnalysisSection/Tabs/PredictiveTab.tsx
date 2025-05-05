@@ -1,4 +1,3 @@
-// components/AdvancedAnalysis/tabs/PredictiveTab.tsx
 import React from "react";
 import { View, Text, StyleSheet } from "react-native";
 import { Colors, NeutralColors } from "../../../../constants/colours";
@@ -6,7 +5,7 @@ import SectionCard, { NoDataText } from "../SectionCard";
 import TabContainer from "../TabContainer";
 
 type PredictiveTabProps = {
-  predictiveAnalysis: any; // Use proper type from your TravelAnalysisTypes
+  predictiveAnalysis: any;
 };
 
 const PredictiveTab: React.FC<PredictiveTabProps> = ({ predictiveAnalysis }) => {
@@ -79,9 +78,6 @@ const PredictiveTab: React.FC<PredictiveTabProps> = ({ predictiveAnalysis }) => 
           <NoDataText text="No recommended destinations available" />
         )}
       </SectionCard>
-
-      {/* Note: You can add additional predictive tab sections here if needed,
-          such as trends, interest evolution, etc. */}
     </TabContainer>
   );
 };
@@ -115,13 +111,13 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   highConfidence: {
-    backgroundColor: `${Colors.success}33`, // 20% opacity
+    backgroundColor: `${Colors.success}33`,
   },
   mediumConfidence: {
-    backgroundColor: `${Colors.info}33`, // 20% opacity
+    backgroundColor: `${Colors.info}33`,
   },
   lowConfidence: {
-    backgroundColor: `${Colors.danger}33`, // 20% opacity
+    backgroundColor: `${Colors.danger}33`,
   },
   recommendationConfidenceText: {
     fontSize: 12,

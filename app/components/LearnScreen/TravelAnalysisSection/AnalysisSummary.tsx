@@ -1,4 +1,3 @@
-// components/AdvancedAnalysis/AnalysisSummary.tsx
 import React from "react";
 import { View, Text, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
@@ -95,7 +94,7 @@ const styles = StyleSheet.create({
   },
   qualityLabel: {
     fontSize: 12,
-    color: `${NeutralColors.white}CC`, // 80% opacity
+    color: `${NeutralColors.white}CC`,
     marginBottom: 6,
   },
   qualityBadge: {
@@ -103,19 +102,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 12,
-    backgroundColor: `${NeutralColors.white}33`, // 20% opacity
+    backgroundColor: `${NeutralColors.white}33`,
   },
   qualityExcellent: {
-    backgroundColor: `${Colors.success}80`, // 50% opacity
+    backgroundColor: `${Colors.success}80`,
   },
   qualityGood: {
-    backgroundColor: `${Colors.info}80`, // 50% opacity
+    backgroundColor: `${Colors.info}80`,
   },
   qualityAverage: {
-    backgroundColor: `${Colors.warning}80`, // 50% opacity
+    backgroundColor: `${Colors.warning}80`,
   },
   qualityLimited: {
-    backgroundColor: `${Colors.danger}80`, // 50% opacity
+    backgroundColor: `${Colors.danger}80`,
   },
   qualityText: {
     fontSize: 12,
@@ -127,12 +126,12 @@ const styles = StyleSheet.create({
   },
   confidenceLabel: {
     fontSize: 12,
-    color: `${NeutralColors.white}CC`, // 80% opacity
+    color: `${NeutralColors.white}CC`,
     marginBottom: 6,
   },
   confidenceBar: {
     height: 8,
-    backgroundColor: `${NeutralColors.white}33`, // 20% opacity
+    backgroundColor: `${NeutralColors.white}33`,
     borderRadius: 4,
     overflow: "hidden",
     marginBottom: 4,

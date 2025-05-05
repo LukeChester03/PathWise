@@ -1,4 +1,3 @@
-// components/AdvancedAnalysis/AnalysisTabs.tsx
 import React from "react";
 import { ScrollView, TouchableOpacity, Text, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";

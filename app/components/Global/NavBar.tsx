@@ -21,11 +21,9 @@ const NavBar = () => {
     return route.name;
   });
 
-  // State to store dynamic screen height
   const [screenHeight, setScreenHeight] = useState(Dimensions.get("window").height);
 
   useEffect(() => {
-    // Update screen height on window size change (handles rotation)
     const updateDimensions = () => {
       setScreenHeight(Dimensions.get("window").height);
     };
@@ -37,8 +35,7 @@ const NavBar = () => {
     };
   }, []);
 
-  // Calculate dynamic navbar height based on screen height
-  const dynamicNavBarHeight = screenHeight > 800 ? 90 : 80; // Adjust for large/small screens
+  const dynamicNavBarHeight = screenHeight > 800 ? 90 : 80;
 
   const navItems = [
     { id: "home", icon: "home", screen: "Home", label: "Home" },
@@ -109,7 +106,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   activeIconContainer: {
-    backgroundColor: `${Colors.primary}10`, // 10% opacity of primary color
+    backgroundColor: `${Colors.primary}10`,
   },
   label: {
     fontSize: 12,

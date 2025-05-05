@@ -23,7 +23,7 @@ interface ExploreCardProps {
   travelTime: string | null;
   onStartJourney: () => void;
   onCancel: () => void;
-  onViewMoreInfo?: () => void; // New prop for navigation to PlaceDetails
+  onViewMoreInfo?: () => void;
   visible?: boolean;
   travelMode?: TravelMode;
   rating?: number | string;
@@ -42,10 +42,9 @@ const ExploreCard: React.FC<ExploreCardProps> = ({
   onCancel,
   onViewMoreInfo,
   visible = false,
-  travelMode = "walking", // Default to walking if not provided
+  travelMode = "walking",
   rating = 0,
 }) => {
-  // Helper function for safe rating display
   const getFormattedRating = (rating: number | string | undefined): string => {
     if (rating === undefined) return "0.0";
 
@@ -57,22 +56,19 @@ const ExploreCard: React.FC<ExploreCardProps> = ({
     return rating.toFixed(1);
   };
 
-  // Animation values
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.9)).current;
   const contentAnim = useRef(new Animated.Value(0)).current;
   const primaryButtonScale = useRef(new Animated.Value(1)).current;
   const secondaryButtonScale = useRef(new Animated.Value(1)).current;
-  const infoButtonScale = useRef(new Animated.Value(1)).current; // New animation for info button
+  const infoButtonScale = useRef(new Animated.Value(1)).current;
   const badgePulse = useRef(new Animated.Value(1)).current;
   const descriptionAnim = useRef(new Animated.Value(0)).current;
   const rotateAnim = useRef(new Animated.Value(0)).current;
   const imageOpacity = useRef(new Animated.Value(0)).current;
 
-  // Animate in when component becomes visible
   useEffect(() => {
     if (visible) {
-      // Reset animations
       fadeAnim.setValue(0);
       scaleAnim.setValue(0.9);
       contentAnim.setValue(0);
@@ -81,35 +77,27 @@ const ExploreCard: React.FC<ExploreCardProps> = ({
       imageOpacity.setValue(0);
       primaryButtonScale.setValue(1);
       secondaryButtonScale.setValue(1);
-      infoButtonScale.setValue(1); // Reset info button scale
+      infoButtonScale.setValue(1);
 
-      // Animation sequence - all completed in under a second
       Animated.sequence([
-        // Fade in backdrop - 150ms
         Animated.timing(fadeAnim, {
           toValue: 1,
           duration: 150,
           useNativeDriver: true,
           easing: Easing.out(Easing.ease),
         }),
-
-        // Animate card in with a slight bounce - 200ms
         Animated.spring(scaleAnim, {
           toValue: 1,
           friction: 10,
           tension: 100,
           useNativeDriver: true,
         }),
-
-        // Animate image fade in - 150ms
         Animated.timing(imageOpacity, {
           toValue: 1,
           duration: 150,
           useNativeDriver: true,
           easing: Easing.out(Easing.ease),
         }),
-
-        // Animate content with staggered timing - 450ms total (150ms each with 50ms stagger)
         Animated.stagger(50, [
           Animated.timing(contentAnim, {
             toValue: 1,
@@ -131,8 +119,6 @@ const ExploreCard: React.FC<ExploreCardProps> = ({
           }),
         ]),
       ]).start();
-
-      // Start badge pulse animation - independent of main sequence
       Animated.loop(
         Animated.sequence([
           Animated.timing(badgePulse, {
@@ -152,7 +138,6 @@ const ExploreCard: React.FC<ExploreCardProps> = ({
     }
   }, [visible]);
 
-  // Handle primary button press animations
   const handlePrimaryPressIn = () => {
     Animated.spring(primaryButtonScale, {
       toValue: 0.95,
@@ -171,26 +156,6 @@ const ExploreCard: React.FC<ExploreCardProps> = ({
     }).start();
   };
 
-  // Handle secondary button press animations
-  const handleSecondaryPressIn = () => {
-    Animated.spring(secondaryButtonScale, {
-      toValue: 0.95,
-      friction: 8,
-      tension: 100,
-      useNativeDriver: true,
-    }).start();
-  };
-
-  const handleSecondaryPressOut = () => {
-    Animated.spring(secondaryButtonScale, {
-      toValue: 1,
-      friction: 8,
-      tension: 100,
-      useNativeDriver: true,
-    }).start();
-  };
-
-  // Handle info button press animations
   const handleInfoPressIn = () => {
     Animated.spring(infoButtonScale, {
       toValue: 0.95,
@@ -209,27 +174,22 @@ const ExploreCard: React.FC<ExploreCardProps> = ({
     }).start();
   };
 
-  // Handle start journey
   const handleStartJourney = () => {
     animateOut(() => onStartJourney());
   };
 
-  // Handle view more info
   const handleViewMoreInfo = () => {
     if (onViewMoreInfo) {
       animateOut(() => onViewMoreInfo());
     }
   };
 
-  // Handle dismiss
   const handleDismiss = () => {
     animateOut(() => onCancel());
   };
 
-  // Animate out and call callback when complete
   const animateOut = (callback: () => void) => {
     Animated.sequence([
-      // First shrink description - 100ms
       Animated.timing(descriptionAnim, {
         toValue: 0,
         duration: 100,
@@ -237,7 +197,6 @@ const ExploreCard: React.FC<ExploreCardProps> = ({
         easing: Easing.in(Easing.ease),
       }),
 
-      // Then fade out content - 100ms
       Animated.timing(contentAnim, {
         toValue: 0,
         duration: 100,
@@ -245,7 +204,6 @@ const ExploreCard: React.FC<ExploreCardProps> = ({
         easing: Easing.in(Easing.ease),
       }),
 
-      // Finally fade and scale out the card - 150ms
       Animated.parallel([
         Animated.timing(fadeAnim, {
           toValue: 0,
@@ -263,7 +221,6 @@ const ExploreCard: React.FC<ExploreCardProps> = ({
     ]).start(callback);
   };
 
-  // Travel mode icon and label
   const getTravelModeIcon = () => {
     return travelMode === "driving" ? "car-outline" : "walk-outline";
   };
@@ -284,12 +241,10 @@ const ExploreCard: React.FC<ExploreCardProps> = ({
         },
       ]}
     >
-      {/* Close button */}
       <TouchableOpacity style={styles.closeButton} onPress={handleDismiss} activeOpacity={0.7}>
         <Ionicons name="close" size={24} color="white" />
       </TouchableOpacity>
 
-      {/* Header Image */}
       <View style={styles.imageContainer}>
         <Animated.Image
           source={{ uri: placeImage }}
@@ -310,7 +265,6 @@ const ExploreCard: React.FC<ExploreCardProps> = ({
         />
         <LinearGradient colors={["transparent", "rgba(0,0,0,0.8)"]} style={styles.imageGradient} />
 
-        {/* Badge on image */}
         <View style={styles.imageOverlayContent}>
           <Animated.View
             style={[
@@ -333,7 +287,6 @@ const ExploreCard: React.FC<ExploreCardProps> = ({
           </Animated.View>
         </View>
 
-        {/* Title on image */}
         <Animated.View
           style={[
             styles.titleContainer,
@@ -361,7 +314,6 @@ const ExploreCard: React.FC<ExploreCardProps> = ({
         </Animated.View>
       </View>
 
-      {/* Content */}
       <Animated.View
         style={[
           styles.contentContainer,
@@ -378,7 +330,6 @@ const ExploreCard: React.FC<ExploreCardProps> = ({
           },
         ]}
       >
-        {/* Place Description */}
         {placeDescription && (
           <Animated.View
             style={[
@@ -409,7 +360,6 @@ const ExploreCard: React.FC<ExploreCardProps> = ({
           </Animated.View>
         )}
 
-        {/* Travel Info Card */}
         <Animated.View
           style={[
             styles.travelInfoCard,
@@ -438,10 +388,7 @@ const ExploreCard: React.FC<ExploreCardProps> = ({
             </View>
           </View>
         </Animated.View>
-
-        {/* Action Buttons */}
         <View style={styles.buttonGroup}>
-          {/* Start Journey Button */}
           <Animated.View
             style={{
               transform: [
@@ -468,8 +415,6 @@ const ExploreCard: React.FC<ExploreCardProps> = ({
               <Text style={styles.primaryButtonText}>Start Journey</Text>
             </TouchableOpacity>
           </Animated.View>
-
-          {/* View More Info Button */}
           {onViewMoreInfo && (
             <Animated.View
               style={{

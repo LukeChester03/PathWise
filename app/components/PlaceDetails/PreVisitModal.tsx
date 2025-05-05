@@ -23,28 +23,22 @@ const PreVisitModal: React.FC<PreVisitModalProps> = ({
 }) => {
   const navigation = useNavigation();
 
-  // Get image for the place if available
+  // get image for the place if available
   const placeImage =
     place.photos && place.photos.length > 0
       ? `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photoreference=${place.photos[0].photo_reference}&key=${GOOGLE_MAPS_APIKEY}`
       : null;
 
-  // Use navigation service to show discover card for this place
   const handleStartJourney = () => {
     try {
-      // Provide haptic feedback
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
       console.log(`PreVisitModal: Starting journey for place: ${place.name}`);
 
-      // Make a deep copy of the place to avoid reference issues
       const placeToShow = JSON.parse(JSON.stringify(place));
 
-      // First call the callback (which may have additional logic)
       onStartJourney();
 
-      // Then use NavigationService to show discover card
-      // Use a slight delay to make sure the modal is dismissed properly
       setTimeout(() => {
         NavigationService.showDiscoverCard(navigation, placeToShow);
       }, 100);
@@ -57,7 +51,6 @@ const PreVisitModal: React.FC<PreVisitModalProps> = ({
     <Modal animationType="fade" transparent={true} visible={true} onRequestClose={onClose}>
       <View style={styles.modalOverlay}>
         <View style={styles.modalContent}>
-          {/* Header with image */}
           <View style={styles.modalHeader}>
             {placeImage ? (
               <Image source={{ uri: placeImage }} style={styles.headerImage} />
@@ -71,7 +64,6 @@ const PreVisitModal: React.FC<PreVisitModalProps> = ({
             </TouchableOpacity>
           </View>
 
-          {/* Content */}
           <View style={styles.modalBody}>
             <Text style={styles.title}>{place.name}</Text>
 

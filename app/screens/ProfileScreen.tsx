@@ -1,4 +1,3 @@
-// screens/ProfileScreen.tsx
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
   View,
@@ -52,7 +51,6 @@ const ProfileScreen = () => {
   const [badgesView, setBadgesView] = useState<"earned" | "progress">("earned");
   const [badges, setBadges] = useState<TravelBadge[]>([]);
 
-  // User profile state
   const [userProfile, setUserProfile] = useState<UserProfile & { joinDate: string }>({
     name: "User",
     email: auth.currentUser?.email || "",
@@ -60,7 +58,6 @@ const ProfileScreen = () => {
     joinDate: "Jan 2023",
   });
 
-  // Animation values
   const fadeIn = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(50)).current;
   const scaleAvatar = useRef(new Animated.Value(0.8)).current;
@@ -68,7 +65,6 @@ const ProfileScreen = () => {
   const progressAnim = useRef(new Animated.Value(0)).current;
   const levelUpScale = useRef(new Animated.Value(1)).current;
 
-  // Stats animation values
   const statsScale = useRef([
     new Animated.Value(0),
     new Animated.Value(0),
@@ -76,10 +72,8 @@ const ProfileScreen = () => {
     new Animated.Value(0),
   ]).current;
 
-  // Badge animation value
   const badgeBounce = useRef(new Animated.Value(0)).current;
 
-  // User achievements data
   const userData = {
     achievements: [
       {
@@ -120,51 +114,37 @@ const ProfileScreen = () => {
     ],
   };
 
-  // Function to get meaningful stats
   const getMeaningfulStats = useCallback((stats: StatItem[], count: number = 4) => {
     if (!stats || stats.length === 0) return [];
 
-    // Helper function to check if a stat has meaningful content
     const isStatMeaningful = (stat: StatItem): boolean => {
       if (typeof stat.value === "number") {
         return stat.value > 0;
       }
       if (typeof stat.value === "string") {
-        // Check for "Level X" format (always show current level)
         if (stat.value.startsWith("Level ")) {
           return true;
         }
-        // Check for distance values
         if (stat.value.endsWith("km") || stat.value.endsWith("m")) {
           return stat.value !== "0 km" && stat.value !== "0 m";
         }
-        // Filter out empty values
         return !["None yet", "0", "0.0"].includes(stat.value);
       }
       return false;
     };
-
-    // Filter stats that have meaningful content
     const meaningfulStats = stats.filter(isStatMeaningful);
-
-    // If we don't have enough stats, just return what we have
     return meaningfulStats.slice(0, count);
   }, []);
 
-  // Helper functions for badge handling - follow the pattern from TravelProfileScreen
   const getCompletedBadges = (): TravelBadge[] => {
     return badges.filter((badge) => badge.completed);
   };
 
   const getInProgressBadges = (): TravelBadge[] => {
-    // Get badges in progress
     const inProgressBadges = badges.filter((badge) => !badge.completed);
-
-    // Limit in-progress badges to prevent overwhelming display
     return inProgressBadges.slice(0, 4);
   };
 
-  // Create a simplified travel profile
   const travelProfile: TravelProfile = {
     type: levelInfo.title,
     level: levelInfo.level.toString(),
@@ -203,16 +183,13 @@ const ProfileScreen = () => {
     isGenerating: false,
   };
 
-  // Function to fetch all badges - similar to what's in TravelProfileScreen
   const fetchAllBadges = async () => {
     try {
-      // Get all badges from the service
       const allBadges = await getAllUserBadges();
       setBadges(allBadges);
     } catch (err) {
       console.error("Error fetching all badges:", err);
 
-      // Fallback: create dummy badges from userData if the service fails
       const dummyBadges: TravelBadge[] = userData.achievements.map((achievement) => ({
         id: achievement.id.toString(),
         name: achievement.title,
@@ -233,13 +210,10 @@ const ProfileScreen = () => {
     }
   };
 
-  // Navigate to the journey screen with all stats
   const navigateToJourneyScreen = () => {
-    // Include all stats, even those with zero values
     navigation.navigate("MyJourney", { stats: allUserStats });
   };
 
-  // Animate the level up effect
   const animateLevelUp = () => {
     Animated.sequence([
       Animated.timing(levelUpScale, {
@@ -256,24 +230,19 @@ const ProfileScreen = () => {
   };
 
   useEffect(() => {
-    // Load user profile using the existing service
     const loadUserProfile = async () => {
       try {
         const profile = await fetchUserProfile(navigation);
-
-        // Update user profile state with the data from the service
         setUserProfile({
           name: profile.name || "User",
           email: profile.email || auth.currentUser?.email || "",
           profileImage: profile.profileImage || null,
-          joinDate: "Jan 2023", // This could be fetched from Firestore if available
+          joinDate: "Jan 2023",
         });
       } catch (error) {
         console.error("Error loading user profile:", error);
       }
     };
-
-    // Fetch user stats from Firebase
     const loadStats = async () => {
       try {
         const stats = await fetchUserStats();
@@ -282,7 +251,6 @@ const ProfileScreen = () => {
         if (userLevelInfo) {
           setLevelInfo(userLevelInfo);
 
-          // Animate progress bar
           Animated.timing(progressAnim, {
             toValue: userLevelInfo.progress / 100,
             duration: 1500,
@@ -293,7 +261,6 @@ const ProfileScreen = () => {
 
         setAllUserStats(stats);
 
-        // Get only meaningful stats
         setDisplayedStats(getMeaningfulStats(stats, 4));
       } catch (error) {
         console.error("Error fetching stats:", error);
@@ -301,15 +268,10 @@ const ProfileScreen = () => {
         setDisplayedStats([]);
       }
     };
-
-    // Fetch badges
     fetchAllBadges();
-
-    // Load both user profile and stats
     loadUserProfile();
     loadStats();
 
-    // Start animations when component mounts
     Animated.sequence([
       Animated.parallel([
         Animated.timing(fadeIn, {
@@ -349,7 +311,6 @@ const ProfileScreen = () => {
       }),
     ]).start();
 
-    // Setup continuous rotation animation for settings gear
     Animated.loop(
       Animated.timing(rotateGear, {
         toValue: 1,
@@ -359,11 +320,9 @@ const ProfileScreen = () => {
       })
     ).start();
 
-    // Trigger level up animation
     animateLevelUp();
   }, []);
 
-  // Handle logout
   const handleLogout = async () => {
     try {
       await signOut(auth);
@@ -373,17 +332,14 @@ const ProfileScreen = () => {
     }
   };
 
-  // Open/close settings drawer
   const toggleSettings = () => {
     if (isSettingsVisible) {
-      // Close settings
       Animated.timing(settingsAnimation, {
         toValue: width,
         duration: 300,
         useNativeDriver: true,
       }).start(() => setIsSettingsVisible(false));
     } else {
-      // Open settings
       setIsSettingsVisible(true);
       Animated.timing(settingsAnimation, {
         toValue: 0,
@@ -393,34 +349,28 @@ const ProfileScreen = () => {
     }
   };
 
-  // Interpolate rotation for settings gear
   const spin = rotateGear.interpolate({
     inputRange: [0, 1],
     outputRange: ["0deg", "360deg"],
   });
 
-  // Badge bounce transform
   const badgeTransform = badgeBounce.interpolate({
     inputRange: [0, 0.5, 1],
     outputRange: [0.5, 1.3, 1],
   });
 
-  // Progress width animation
   const progressWidth = progressAnim.interpolate({
     inputRange: [0, 1],
     outputRange: ["0%", "100%"],
   });
 
-  // Determine if we should show the stats section at all
   const hasStats = displayedStats.length > 0;
 
-  // Get level icon
   const getLevelIcon = (level: number) => {
     const levelData = EXPLORATION_LEVELS.find((l) => l.level === level);
     return levelData ? levelData.icon : "🔍";
   };
 
-  // Function to get initials from name for avatar placeholder
   const getInitials = (name: string) => {
     if (!name) return "U";
     return name
@@ -434,8 +384,6 @@ const ProfileScreen = () => {
   return (
     <ScreenWithNavBar>
       <StatusBar barStyle="light-content" />
-
-      {/* Use the Header component */}
       <Header
         title="Profile"
         subtitle="Your personal explorer journey"
@@ -461,7 +409,6 @@ const ProfileScreen = () => {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* User Profile Card */}
         <Animated.View
           style={[
             styles.profileCard,
@@ -531,8 +478,6 @@ const ProfileScreen = () => {
             </View>
           </View>
         </Animated.View>
-
-        {/* Stats Section */}
         {hasStats && (
           <View style={styles.sectionContainer}>
             <View style={styles.sectionTitleContainer}>
@@ -585,8 +530,6 @@ const ProfileScreen = () => {
             </View>
           </View>
         )}
-
-        {/* XP Insights Section */}
         <View style={styles.sectionContainer}>
           <View style={styles.sectionTitleContainer}>
             <View style={styles.sectionTitleLeft}>
@@ -633,9 +576,6 @@ const ProfileScreen = () => {
             </View>
           </View>
         </View>
-
-        {/* Badges Section */}
-
         <View style={styles.badgesSectionWrapper}>
           <BadgesSection
             completedBadges={getCompletedBadges()}
@@ -645,8 +585,6 @@ const ProfileScreen = () => {
             profile={travelProfile}
           />
         </View>
-
-        {/* Logout button at the bottom */}
         <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
           <Ionicons
             name="log-out-outline"
@@ -657,8 +595,6 @@ const ProfileScreen = () => {
           <Text style={styles.logoutText}>Log Out</Text>
         </TouchableOpacity>
       </ScrollView>
-
-      {/* Settings Drawer */}
       {isSettingsVisible && (
         <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={toggleSettings} />
       )}
@@ -739,7 +675,6 @@ const ProfileScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  // Header
   header: {
     backgroundColor: "#fff",
     borderBottomWidth: 1,
@@ -756,7 +691,6 @@ const styles = StyleSheet.create({
   badgesSectionWrapper: {
     marginHorizontal: -16,
   },
-  // Content
   scrollView: {
     flex: 1,
     backgroundColor: "#f8f9fa",
@@ -766,8 +700,6 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
     paddingTop: 8,
   },
-
-  // Profile Card
   profileCard: {
     backgroundColor: "#fff",
     borderRadius: 20,
@@ -899,8 +831,6 @@ const styles = StyleSheet.create({
     marginTop: 6,
     textAlign: "right",
   },
-
-  // Sections
   sectionContainer: {
     backgroundColor: "#fff",
     borderRadius: 20,
@@ -944,8 +874,6 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     marginRight: 2,
   },
-
-  // Stats Grid
   statsGrid: {
     marginTop: 8,
   },
@@ -985,8 +913,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: NeutralColors.gray600,
   },
-
-  // XP Section
   xpInfoContainer: {
     padding: 6,
   },
@@ -1049,8 +975,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#555",
   },
-
-  // Achievements
   achievementsContainer: {
     marginTop: 8,
   },
@@ -1104,8 +1028,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     opacity: 0.5,
   },
-
-  // Logout button
   logoutButton: {
     flexDirection: "row",
     alignItems: "center",
@@ -1121,8 +1043,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "500",
   },
-
-  // Settings Drawer
   backdrop: {
     position: "absolute",
     top: 0,

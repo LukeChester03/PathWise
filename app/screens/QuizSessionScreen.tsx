@@ -1,4 +1,3 @@
-// screens/QuizSessionScreen.tsx
 import React, { useState, useEffect, useRef } from "react";
 import {
   View,
@@ -35,7 +34,6 @@ import BadgeEarnedNotification from "../components/LearnScreen/KnowledgeQuestSec
 import { awardQuizCompletionXP, awardBadgeCompletionXP } from "../services/Levelling/quizXpService";
 import XPEarnedNotification from "../components/LearnScreen/KnowledgeQuestSection/XpEarnedNotification";
 
-// Define result flow steps
 type ResultStep = "QUIZ" | "RESULTS" | "XP" | "BADGE";
 
 const QuizSessionScreen = ({ navigation, route }) => {
@@ -66,33 +64,26 @@ const QuizSessionScreen = ({ navigation, route }) => {
   }>({ totalXP: 0, breakdown: [] });
   const [badgeXP, setBadgeXP] = useState<number>(0);
 
-  // Track which step of the result flow we're in
   const [resultStep, setResultStep] = useState<ResultStep>("QUIZ");
 
   const scrollViewRef = useRef<ScrollView>(null);
 
-  // Animation values
   const fadeAnim = useRef(new Animated.Value(1)).current;
   const slideAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     loadQuiz();
-
-    // Record question start time
     setQuestionStartTime(Date.now());
   }, []);
 
   useEffect(() => {
-    // Scroll to top when moving to a new question
     if (scrollViewRef.current) {
       scrollViewRef.current.scrollTo({ x: 0, y: 0, animated: true });
     }
   }, [currentQuestionIndex]);
 
-  // Scroll to the bottom to make "Next" button visible when explanation shows
   useEffect(() => {
     if (showingExplanation && scrollViewRef.current) {
-      // Use setTimeout to ensure the explanation view has rendered
       setTimeout(() => {
         scrollViewRef.current?.scrollToEnd({ animated: true });
       }, 300);
@@ -112,8 +103,8 @@ const QuizSessionScreen = ({ navigation, route }) => {
         return false;
       };
 
-      BackHandler.addEventListener("hardwareBackPress", onBackPress);
-      return () => BackHandler.removeEventListener("hardwareBackPress", onBackPress);
+      const backHandlerSub = BackHandler.addEventListener("hardwareBackPress", onBackPress);
+      return () => backHandlerSub.remove();
     }, [quizComplete])
   );
 
@@ -146,15 +137,9 @@ const QuizSessionScreen = ({ navigation, route }) => {
 
   const handleSubmitAnswer = async () => {
     if (selectedAnswerIndex === null || answerSubmitted || !quiz) return;
-
-    // Calculate time spent on question
     const timeSpent = Date.now() - questionStartTime;
-
-    // Get current question
     const currentQuestion = quiz.questions[currentQuestionIndex];
     const isCorrect = selectedAnswerIndex === currentQuestion.correctAnswerIndex;
-
-    // Add answer to answers array
     setAnswers([
       ...answers,
       {
@@ -164,18 +149,12 @@ const QuizSessionScreen = ({ navigation, route }) => {
         timeSpent,
       },
     ]);
-
-    // Mark answer as submitted
     setAnswerSubmitted(true);
-
-    // Show explanation
     setShowingExplanation(true);
   };
 
   const handleNextQuestion = () => {
     if (!quiz) return;
-
-    // Animate transition to next question
     Animated.sequence([
       Animated.timing(fadeAnim, {
         toValue: 0,
@@ -188,21 +167,15 @@ const QuizSessionScreen = ({ navigation, route }) => {
         useNativeDriver: true,
       }),
     ]).start(() => {
-      // If this was the last question, complete the quiz
       if (currentQuestionIndex === quiz.questions.length - 1) {
         handleQuizCompletion();
       } else {
-        // Otherwise, move to next question
         setCurrentQuestionIndex(currentQuestionIndex + 1);
         setSelectedAnswerIndex(null);
         setAnswerSubmitted(false);
         setShowingExplanation(false);
         setQuestionStartTime(Date.now());
-
-        // Reset animations
         slideAnim.setValue(50);
-
-        // Animate in new question
         Animated.timing(fadeAnim, {
           toValue: 1,
           duration: 300,
@@ -217,8 +190,6 @@ const QuizSessionScreen = ({ navigation, route }) => {
 
     try {
       console.log("[SESSION DEBUG] Starting quiz completion for quiz:", quiz.id);
-
-      // Ensure quiz has necessary properties before proceeding
       const completeQuiz = {
         ...quiz,
         id: quiz.id || `local_${Date.now()}`,
@@ -230,19 +201,13 @@ const QuizSessionScreen = ({ navigation, route }) => {
         completions: quiz.completions || 0,
         relatedRegions: quiz.relatedRegions || ["Unknown"],
       };
-
-      // Record quiz completion
       try {
         console.log("[SESSION DEBUG] Calling recordQuizCompletion");
         const result = await recordQuizCompletion(completeQuiz, answers);
         console.log("[SESSION DEBUG] Quiz result:", result);
-
-        // Set the quiz result state
         setQuizResult(result);
       } catch (recordError) {
         console.error("[SESSION DEBUG] Error in recordQuizCompletion:", recordError);
-
-        // Create a fallback result if recordQuizCompletion fails
         const correctAnswers = answers.filter((a) => a.isCorrect).length;
         const score = Math.round((correctAnswers / quiz.questions.length) * 100);
         const totalTimeSpent = answers.reduce((total, answer) => total + answer.timeSpent, 0);
@@ -262,12 +227,8 @@ const QuizSessionScreen = ({ navigation, route }) => {
 
         setQuizResult(fallbackResult);
       }
-
-      // Get user stats for XP calculation
       try {
         const stats = await getKnowledgeQuestStats();
-
-        // Award XP for quiz completion
         const xpResult = await awardQuizCompletionXP(
           quiz,
           quizResult || {
@@ -293,8 +254,6 @@ const QuizSessionScreen = ({ navigation, route }) => {
         console.error("[SESSION DEBUG] Error awarding XP:", xpError);
         setEarnedXP({ totalXP: 0, breakdown: [] });
       }
-
-      // Check and award badges
       try {
         const earnedBadgeIds = await updateQuizBadgeProgress();
         const scoreBadgeIds = await checkScoreBadges(
@@ -302,18 +261,15 @@ const QuizSessionScreen = ({ navigation, route }) => {
             Math.round((answers.filter((a) => a.isCorrect).length / quiz.questions.length) * 100)
         );
 
-        // Combine all earned badge IDs
         const allBadgeIds = [...earnedBadgeIds, ...scoreBadgeIds];
 
         if (allBadgeIds.length > 0) {
-          // Fetch full badge details for earned badges
           const allBadges = await getAllUserBadges();
           const completedBadges = allBadges.filter((badge) => allBadgeIds.includes(badge.id));
 
           if (completedBadges.length > 0) {
             setEarnedBadges(completedBadges);
 
-            // Award XP for each badge earned
             let totalBadgeXP = 0;
             for (const badge of completedBadges) {
               try {
@@ -330,17 +286,13 @@ const QuizSessionScreen = ({ navigation, route }) => {
         console.error("[SESSION DEBUG] Error processing badges:", badgeError);
       }
 
-      // Important: Set these AFTER all async operations to ensure state is set correctly
       setQuizComplete(true);
       setResultStep("RESULTS");
 
-      // Wait a moment before animations to ensure state has updated
       setTimeout(() => {
-        // Reset animation for results screen
         fadeAnim.setValue(0);
         slideAnim.setValue(50);
 
-        // Animate in results
         Animated.parallel([
           Animated.timing(fadeAnim, {
             toValue: 1,
@@ -357,11 +309,9 @@ const QuizSessionScreen = ({ navigation, route }) => {
     } catch (error) {
       console.error("[SESSION DEBUG] Critical error in quiz completion:", error);
 
-      // Still show results even if there's an error
       setQuizComplete(true);
       setResultStep("RESULTS");
 
-      // Create a basic result if needed
       if (!quizResult) {
         const correctAnswers = answers.filter((a) => a.isCorrect).length;
         const score = Math.round((correctAnswers / quiz.questions.length) * 100);
@@ -381,7 +331,6 @@ const QuizSessionScreen = ({ navigation, route }) => {
         });
       }
 
-      // Reset animation for results screen
       setTimeout(() => {
         fadeAnim.setValue(0);
         slideAnim.setValue(50);
@@ -402,35 +351,27 @@ const QuizSessionScreen = ({ navigation, route }) => {
   };
 
   const handleContinueToXP = () => {
-    // Move to XP screen if earned XP
     if (earnedXP.totalXP > 0) {
       setResultStep("XP");
-    }
-    // Otherwise, move to badge screen if earned badges
-    else if (earnedBadges.length > 0) {
+    } else if (earnedBadges.length > 0) {
       setResultStep("BADGE");
       setCurrentBadgeIndex(0);
     }
-    // If no XP or badges, stay on results
   };
 
   const handleXPContinue = () => {
-    // Move to badge screen if earned badges
     if (earnedBadges.length > 0) {
       setResultStep("BADGE");
       setCurrentBadgeIndex(0);
     } else {
-      // Go back to results if no badges
       setResultStep("RESULTS");
     }
   };
 
   const handleBadgeContinue = () => {
-    // If there are more badges to show, show the next one
     if (currentBadgeIndex < earnedBadges.length - 1) {
       setCurrentBadgeIndex((prevIndex) => prevIndex + 1);
     } else {
-      // No more badges, go back to results
       setResultStep("RESULTS");
     }
   };
@@ -492,10 +433,7 @@ const QuizSessionScreen = ({ navigation, route }) => {
             },
           ]}
         >
-          {/* Question Text */}
           <Text style={styles.questionText}>{currentQuestion.question}</Text>
-
-          {/* Answer Options */}
           <View style={styles.optionsContainer}>
             {currentQuestion.options.map((option, index) => (
               <TouchableOpacity
@@ -541,8 +479,6 @@ const QuizSessionScreen = ({ navigation, route }) => {
               </TouchableOpacity>
             ))}
           </View>
-
-          {/* Explanation */}
           {showingExplanation && (
             <View
               style={[
@@ -561,8 +497,6 @@ const QuizSessionScreen = ({ navigation, route }) => {
               <Text style={styles.explanationText}>{currentQuestion.explanation}</Text>
             </View>
           )}
-
-          {/* Submit/Next Button */}
           {!answerSubmitted ? (
             <TouchableOpacity
               style={[
@@ -602,9 +536,7 @@ const QuizSessionScreen = ({ navigation, route }) => {
   };
 
   const renderResults = () => {
-    // Add debug logging
     console.log("Rendering results:", { quizResult, quiz, quizComplete, resultStep });
-
     if (!quizResult || !quiz) {
       console.log("Quiz result or quiz is null, can't render results");
       return (
@@ -678,7 +610,6 @@ const QuizSessionScreen = ({ navigation, route }) => {
               </View>
             </View>
 
-            {/* Toggle Analysis Button */}
             <TouchableOpacity
               style={styles.analysisToggleButton}
               onPress={() => setShowDetailedAnalysis(!showDetailedAnalysis)}
@@ -712,8 +643,6 @@ const QuizSessionScreen = ({ navigation, route }) => {
                   setQuestionStartTime(Date.now());
                   setShowDetailedAnalysis(false);
                   setResultStep("QUIZ");
-
-                  // Reset animations
                   fadeAnim.setValue(1);
                   slideAnim.setValue(0);
                 }}
@@ -772,7 +701,7 @@ const QuizSessionScreen = ({ navigation, route }) => {
         {earnedBadges.length > 0 && currentBadgeIndex < earnedBadges.length && (
           <BadgeEarnedNotification
             badge={earnedBadges[currentBadgeIndex]}
-            xpEarned={badgeXP / earnedBadges.length} // Distribute XP evenly among badges
+            xpEarned={badgeXP / earnedBadges.length}
             onDismiss={handleBadgeContinue}
             onViewAllBadges={handleViewAllBadges}
           />
@@ -781,13 +710,11 @@ const QuizSessionScreen = ({ navigation, route }) => {
     );
   };
 
-  // Helper function to truncate quiz title if too long
   const getTruncatedTitle = () => {
     if (!quiz) return "Knowledge Quest";
     return quiz.title.length > 20 ? quiz.title.substring(0, 20) + "..." : quiz.title;
   };
 
-  // Helper to determine subtitle based on current state
   const getSubtitle = () => {
     if (!quizComplete) {
       return `Question ${currentQuestionIndex + 1} of ${quiz?.questions.length || 0}`;
@@ -875,7 +802,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContentContainer: {
-    paddingBottom: 30, // Add padding to ensure space at the bottom
+    paddingBottom: 30,
   },
   loadingContainer: {
     flex: 1,

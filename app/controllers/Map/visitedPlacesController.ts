@@ -1,4 +1,3 @@
-// src/controllers/Map/visitedPlacesController.ts
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Alert } from "react-native";
 import {
@@ -14,56 +13,39 @@ import {
 } from "firebase/firestore";
 import { db, auth } from "../../config/firebaseConfig";
 
-// In-memory cache for visited places status
 const visitedStatusCache = new Map<string, { status: boolean; timestamp: number }>();
-const VISITED_STATUS_CACHE_EXPIRATION = 7 * 24 * 60 * 60 * 1000; // 7 days
+const VISITED_STATUS_CACHE_EXPIRATION = 7 * 24 * 60 * 60 * 1000;
 
 /**
- * Helper function to ensure all place data is normalized and safe for Firestore
+ * Helper function to ensure all place data is normalized for Firestore
  */
 const normalizePlaceData = (place: any) => {
-  // Create a clean place object with all required fields
   return {
-    // Essential identification
     place_id: place.place_id || place.id || `place-${Date.now()}`,
     id: place.id || place.place_id || `place-${Date.now()}`,
-
-    // Basic information
     name: place.name || "Unnamed Place",
     vicinity: place.vicinity || place.formatted_address || "",
     formatted_address: place.formatted_address || place.vicinity || "",
-
-    // Location data - ensure it has proper structure
     geometry: {
       location: {
         lat: place.geometry?.location?.lat || 0,
         lng: place.geometry?.location?.lng || 0,
       },
     },
-
-    // Optional fields with defaults
     description: place.description || place.editorial_summary?.overview || "",
     types: Array.isArray(place.types) ? place.types : [],
     rating: typeof place.rating === "number" ? place.rating : null,
     user_ratings_total: place.user_ratings_total || 0,
     photos: Array.isArray(place.photos) ? place.photos : [],
-
-    // Contact and other details
     formatted_phone_number: place.formatted_phone_number || place.phone || "",
     website: place.website || "",
     url: place.url || "",
-
-    // Metadata about the visit
     visitedAt: place.visitedAt || new Date().toISOString(),
     visitDate: place.visitedAt || new Date().toISOString(),
     isVisited: true,
-
-    // Additional useful data
     country: extractCountryFromPlace(place) || "Unknown",
     city: extractCityFromPlace(place) || "Unknown",
     category: extractCategoryFromPlace(place) || "Other",
-
-    // For backward compatibility
     location: {
       latitude: place.geometry?.location?.lat || 0,
       longitude: place.geometry?.location?.lng || 0,
@@ -71,19 +53,12 @@ const normalizePlaceData = (place: any) => {
   };
 };
 
-/**
- * Check if a place has already been visited
- * @param placeId The ID of the place to check
- * @returns Boolean indicating whether the place has been visited
- */
 export const isPlaceVisited = async (placeId: string): Promise<boolean> => {
   try {
     if (!placeId) {
       console.log("Cannot check if visited: no placeId provided");
       return false;
     }
-
-    // Check memory cache first
     const cachedStatus = visitedStatusCache.get(placeId);
     if (cachedStatus && Date.now() - cachedStatus.timestamp < VISITED_STATUS_CACHE_EXPIRATION) {
       return cachedStatus.status;
@@ -92,14 +67,11 @@ export const isPlaceVisited = async (placeId: string): Promise<boolean> => {
     const currentUser = auth.currentUser;
     if (!currentUser) {
       console.log("No user logged in, checking local storage only");
-
-      // Check local storage if no user is logged in
       const visitedPlacesJSON = await AsyncStorage.getItem("visitedPlaces");
       if (visitedPlacesJSON) {
         const visitedPlaces = JSON.parse(visitedPlacesJSON);
         const isVisitedLocal = visitedPlaces.some((place: any) => place.place_id === placeId);
 
-        // Update cache
         visitedStatusCache.set(placeId, {
           status: isVisitedLocal,
           timestamp: Date.now(),
@@ -107,8 +79,6 @@ export const isPlaceVisited = async (placeId: string): Promise<boolean> => {
 
         return isVisitedLocal;
       }
-
-      // Not found in local storage
       visitedStatusCache.set(placeId, {
         status: false,
         timestamp: Date.now(),
@@ -116,17 +86,12 @@ export const isPlaceVisited = async (placeId: string): Promise<boolean> => {
 
       return false;
     }
-
-    // Check if place exists in Firestore
     const placeDocRef = doc(db, "users", currentUser.uid, "visitedPlaces", placeId);
     const placeDoc = await getDoc(placeDocRef);
 
-    // If place exists in Firestore and isn't the initialization document, it's been visited
     if (placeDoc.exists()) {
       const data = placeDoc.data();
-      // Skip the initialization document
       if (data && !data._isInitDocument) {
-        // Update cache
         visitedStatusCache.set(placeId, {
           status: true,
           timestamp: Date.now(),
@@ -136,13 +101,11 @@ export const isPlaceVisited = async (placeId: string): Promise<boolean> => {
       }
     }
 
-    // If not in Firestore, try local storage as fallback
     const visitedPlacesJSON = await AsyncStorage.getItem("visitedPlaces");
     if (visitedPlacesJSON) {
       const visitedPlaces = JSON.parse(visitedPlacesJSON);
       const isVisitedLocal = visitedPlaces.some((place: any) => place.place_id === placeId);
 
-      // Update cache
       visitedStatusCache.set(placeId, {
         status: isVisitedLocal,
         timestamp: Date.now(),
@@ -153,7 +116,6 @@ export const isPlaceVisited = async (placeId: string): Promise<boolean> => {
       }
     }
 
-    // Update cache with negative result
     visitedStatusCache.set(placeId, {
       status: false,
       timestamp: Date.now(),
@@ -166,14 +128,8 @@ export const isPlaceVisited = async (placeId: string): Promise<boolean> => {
   }
 };
 
-/**
- * Save a place as visited and update stats
- * @param place The place to save as visited
- * @returns Boolean indicating success
- */
 export const saveVisitedPlace = async (place: any): Promise<boolean> => {
   try {
-    // Validate input
     if (!place) {
       console.error("Cannot save null place");
       return false;
@@ -187,28 +143,23 @@ export const saveVisitedPlace = async (place: any): Promise<boolean> => {
 
     console.log(`Attempting to save place: ${place.name} (ID: ${placeId})`);
 
-    // Check if already visited to avoid duplicates
     const alreadyVisited = await isPlaceVisited(placeId);
     if (alreadyVisited) {
       console.log(`Place ${place.name || "Unknown"} already visited, not saving again`);
-      return true; // Consider this a success since the end state is as expected
+      return true;
     }
-
-    // Normalize place data to ensure consistent format
     const visitTime = new Date();
     const normalizedPlace = normalizePlaceData({
       ...place,
       visitedAt: visitTime.toISOString(),
-      isVisited: true, // Explicitly set this flag
+      isVisited: true,
     });
 
-    // Save to Firestore if user is logged in
     const currentUser = auth.currentUser;
     if (currentUser) {
       const placeDocRef = doc(db, "users", currentUser.uid, "visitedPlaces", placeId);
       await setDoc(placeDocRef, {
         ...normalizedPlace,
-        // Convert geometry location to GeoPoint for Firestore
         geometry: {
           location: {
             latitude: normalizedPlace.geometry.location.lat,
@@ -219,20 +170,14 @@ export const saveVisitedPlace = async (place: any): Promise<boolean> => {
         updatedAt: serverTimestamp(),
       });
       console.log(`Successfully saved place to Firestore: ${placeId}`);
-
-      // Update cache
       visitedStatusCache.set(placeId, {
         status: true,
         timestamp: Date.now(),
       });
     }
-
-    // Also update in local storage for legacy support and offline use
     try {
       const visitedPlacesJSON = await AsyncStorage.getItem("visitedPlaces");
       let visitedPlaces = visitedPlacesJSON ? JSON.parse(visitedPlacesJSON) : [];
-
-      // Add to local storage without duplicates
       if (!visitedPlaces.some((p: any) => p.place_id === placeId)) {
         visitedPlaces.push(normalizedPlace);
         await AsyncStorage.setItem("visitedPlaces", JSON.stringify(visitedPlaces));
@@ -240,7 +185,6 @@ export const saveVisitedPlace = async (place: any): Promise<boolean> => {
       }
     } catch (localStorageError) {
       console.warn("Error updating local storage:", localStorageError);
-      // Continue even if local storage fails
     }
 
     console.log(`Successfully saved ${normalizedPlace.name} as visited`);
@@ -251,17 +195,12 @@ export const saveVisitedPlace = async (place: any): Promise<boolean> => {
   }
 };
 
-/**
- * Get all places visited by the user
- * @returns Array of visited places
- */
 export const getVisitedPlaces = async (): Promise<any[]> => {
   try {
     const currentUser = auth.currentUser;
     if (!currentUser) {
       console.log("No user logged in, getting from local storage");
 
-      // Try local storage
       const visitedPlacesJSON = await AsyncStorage.getItem("visitedPlaces");
       if (visitedPlacesJSON) {
         const parsedPlaces = JSON.parse(visitedPlacesJSON);
@@ -271,7 +210,6 @@ export const getVisitedPlaces = async (): Promise<any[]> => {
       return [];
     }
 
-    // Get from Firestore
     const visitedPlacesRef = collection(db, "users", currentUser.uid, "visitedPlaces");
     const query_ = query(visitedPlacesRef, orderBy("visitedAt", "desc"));
     const snapshot = await getDocs(query_);
@@ -279,7 +217,6 @@ export const getVisitedPlaces = async (): Promise<any[]> => {
     if (snapshot.empty) {
       console.log("No visited places found in Firestore");
 
-      // Try local storage as fallback
       const visitedPlacesJSON = await AsyncStorage.getItem("visitedPlaces");
       if (visitedPlacesJSON) {
         const parsedPlaces = JSON.parse(visitedPlacesJSON);
@@ -289,11 +226,9 @@ export const getVisitedPlaces = async (): Promise<any[]> => {
       return [];
     }
 
-    // Convert to array of normalized places
     const visitedPlaces = snapshot.docs.map((doc) => {
       const data = doc.data();
 
-      // Convert Firestore GeoPoint back to normal lat/lng
       return normalizePlaceData({
         ...data,
         id: doc.id,
@@ -311,7 +246,6 @@ export const getVisitedPlaces = async (): Promise<any[]> => {
   } catch (error) {
     console.error("Error getting visited places:", error);
 
-    // Try local storage as fallback
     try {
       const visitedPlacesJSON = await AsyncStorage.getItem("visitedPlaces");
       if (visitedPlacesJSON) {
@@ -326,17 +260,12 @@ export const getVisitedPlaces = async (): Promise<any[]> => {
   }
 };
 
-/**
- * Get details for a specific visited place
- */
 export const getVisitedPlaceDetails = async (placeId: string, userId = null) => {
   try {
     const currentUser = userId || auth.currentUser?.uid;
 
     if (!currentUser) {
       console.log("No authenticated user found");
-
-      // Try local storage
       const visitedPlacesJSON = await AsyncStorage.getItem("visitedPlaces");
       if (visitedPlacesJSON) {
         const visitedPlaces = JSON.parse(visitedPlacesJSON);
@@ -351,15 +280,12 @@ export const getVisitedPlaceDetails = async (placeId: string, userId = null) => 
       return null;
     }
 
-    // Check directly in Firestore for this specific place
     const placeDocRef = doc(db, "users", currentUser, "visitedPlaces", placeId);
     const placeDoc = await getDoc(placeDocRef);
 
     if (placeDoc.exists()) {
       console.log(`Retrieved visited place details for ${placeId} from firebase`);
       const placeData = placeDoc.data();
-
-      // Convert GeoPoint back to normal lat/lng
       return {
         ...placeData,
         id: placeId,
@@ -373,7 +299,6 @@ export const getVisitedPlaceDetails = async (placeId: string, userId = null) => 
       };
     }
 
-    // If not in Firestore, try local storage as fallback
     const visitedPlacesJSON = await AsyncStorage.getItem("visitedPlaces");
     if (visitedPlacesJSON) {
       const visitedPlaces = JSON.parse(visitedPlacesJSON);
@@ -393,11 +318,7 @@ export const getVisitedPlaceDetails = async (placeId: string, userId = null) => 
   }
 };
 
-/**
- * Extract country from place details
- */
 function extractCountryFromPlace(place: any): string {
-  // Try to extract from address components
   if (place.address_components && Array.isArray(place.address_components)) {
     const countryComponent = place.address_components.find(
       (component: any) => component.types && component.types.includes("country")
@@ -407,7 +328,6 @@ function extractCountryFromPlace(place: any): string {
     }
   }
 
-  // Try to extract from formatted address
   if (place.formatted_address) {
     const addressParts = place.formatted_address.split(",");
     if (addressParts.length > 1) {
@@ -415,15 +335,10 @@ function extractCountryFromPlace(place: any): string {
     }
   }
 
-  // Default country
   return "Unknown";
 }
 
-/**
- * Extract city from place details
- */
 function extractCityFromPlace(place: any): string {
-  // Try to extract from address components
   if (place.address_components && Array.isArray(place.address_components)) {
     const cityComponent = place.address_components.find(
       (component: any) =>
@@ -436,24 +351,17 @@ function extractCityFromPlace(place: any): string {
     }
   }
 
-  // Try to extract from formatted address or vicinity
   if (place.vicinity) {
     const parts = place.vicinity.split(",");
     if (parts.length > 0) {
       return parts[0].trim();
     }
   }
-
-  // Default
   return "Unknown";
 }
 
-/**
- * Extract category from place details
- */
 function extractCategoryFromPlace(place: any): string {
   if (place.types && Array.isArray(place.types) && place.types.length > 0) {
-    // Map common Google Place types to more user-friendly categories
     const typeMapping: { [key: string]: string } = {
       restaurant: "Restaurant",
       cafe: "Café",
@@ -488,44 +396,30 @@ function extractCategoryFromPlace(place: any): string {
       movie_theater: "Entertainment",
       theater: "Entertainment",
     };
-
-    // Try to match with known types
     for (const type of place.types) {
       if (typeMapping[type]) {
         return typeMapping[type];
       }
     }
-
-    // If no match, use first type with underscores converted to spaces
     return place.types[0]
       .replace(/_/g, " ")
       .split(" ")
       .map((word: string) => word.charAt(0).toUpperCase() + word.slice(1))
       .join(" ");
   }
-
-  // Default
   return "Other";
 }
 
-/**
- * Check a list of places against the database to determine which ones have been visited
- * @param places Array of places to check
- * @returns Array of places with isVisited property added
- */
 export const checkVisitedPlaces = async (places: any[]): Promise<any[]> => {
   try {
     if (!places || places.length === 0) {
       return [];
     }
 
-    // Create a new array with isVisited property
     const placeIds = places.map((place) => place.place_id);
 
-    // Batch check place visited status to reduce Firebase reads
     const visitedStatusMap = new Map();
 
-    // First check memory cache
     const uncheckedPlaceIds = [];
 
     for (const placeId of placeIds) {
@@ -537,11 +431,9 @@ export const checkVisitedPlaces = async (places: any[]): Promise<any[]> => {
       }
     }
 
-    // If user is logged in, batch check in Firebase
     const currentUser = auth.currentUser;
     if (currentUser && uncheckedPlaceIds.length > 0) {
-      // We can't query for multiple IDs at once in Firestore, so we need to batch our reads
-      const batchSize = 10; // Process in batches of 10
+      const batchSize = 10;
 
       for (let i = 0; i < uncheckedPlaceIds.length; i += batchSize) {
         const batch = uncheckedPlaceIds.slice(i, i + batchSize);
@@ -555,7 +447,6 @@ export const checkVisitedPlaces = async (places: any[]): Promise<any[]> => {
 
           visitedStatusMap.set(placeId, isVisited);
 
-          // Update cache
           visitedStatusCache.set(placeId, {
             status: isVisited,
             timestamp: Date.now(),
@@ -563,7 +454,6 @@ export const checkVisitedPlaces = async (places: any[]): Promise<any[]> => {
         });
       }
     } else if (uncheckedPlaceIds.length > 0) {
-      // If not logged in, check local storage
       const visitedPlacesJSON = await AsyncStorage.getItem("visitedPlaces");
       if (visitedPlacesJSON) {
         const localVisitedPlaces = JSON.parse(visitedPlacesJSON);
@@ -573,18 +463,15 @@ export const checkVisitedPlaces = async (places: any[]): Promise<any[]> => {
           const isVisited = localVisitedIds.has(placeId);
           visitedStatusMap.set(placeId, isVisited);
 
-          // Update cache
           visitedStatusCache.set(placeId, {
             status: isVisited,
             timestamp: Date.now(),
           });
         });
       } else {
-        // No local storage data, mark all as not visited
         uncheckedPlaceIds.forEach((placeId) => {
           visitedStatusMap.set(placeId, false);
 
-          // Update cache
           visitedStatusCache.set(placeId, {
             status: false,
             timestamp: Date.now(),
@@ -593,21 +480,16 @@ export const checkVisitedPlaces = async (places: any[]): Promise<any[]> => {
       }
     }
 
-    // Apply visited status to places
     return places.map((place) => ({
       ...place,
       isVisited: visitedStatusMap.get(place.place_id) || false,
     }));
   } catch (error) {
     console.error("Error checking visited places:", error);
-    // Return original places if there's an error
     return places.map((place) => ({ ...place, isVisited: false }));
   }
 };
 
-/**
- * Sync local visited places with Firebase
- */
 export const syncVisitedPlaces = async (): Promise<boolean> => {
   try {
     const currentUser = auth.currentUser;
@@ -616,7 +498,6 @@ export const syncVisitedPlaces = async (): Promise<boolean> => {
       return false;
     }
 
-    // Get local visited places
     const visitedPlacesJSON = await AsyncStorage.getItem("visitedPlaces");
     if (!visitedPlacesJSON) {
       console.log("No local visited places to sync");
@@ -635,7 +516,6 @@ export const syncVisitedPlaces = async (): Promise<boolean> => {
 
     console.log(`Syncing ${localVisitedPlaces.length} local visited places to Firebase`);
 
-    // Process in batches to avoid overloading Firestore
     const batchSize = 10;
     let successCount = 0;
 
@@ -646,17 +526,14 @@ export const syncVisitedPlaces = async (): Promise<boolean> => {
         const placeId = place.place_id;
         const placeDocRef = doc(db, "users", currentUser.uid, "visitedPlaces", placeId);
 
-        // Check if already exists in Firebase
         const placeDoc = await getDoc(placeDocRef);
         if (placeDoc.exists()) {
-          return true; // Already synced
+          return true;
         }
 
-        // Save to Firebase
         const normalizedPlace = normalizePlaceData(place);
         await setDoc(placeDocRef, {
           ...normalizedPlace,
-          // Convert geometry location to GeoPoint for Firestore
           geometry: {
             location: {
               latitude: normalizedPlace.geometry.location.lat,
@@ -682,10 +559,6 @@ export const syncVisitedPlaces = async (): Promise<boolean> => {
   }
 };
 
-/**
- * Clear visited status cache
- */
 export const clearVisitedStatusCache = () => {
   visitedStatusCache.clear();
-  console.log("Visited status cache cleared");
 };

@@ -20,7 +20,6 @@ import { Colors, NeutralColors } from "../../constants/colours";
 import * as Haptics from "expo-haptics";
 
 const { width, height } = Dimensions.get("window");
-// Calculate responsive dimensions based on screen size
 const isSmallDevice = width < 375;
 const contentMaxWidth = Math.min(width * 0.9, 420);
 const iconSize = Math.min(width * 0.15, 60);
@@ -28,22 +27,18 @@ const titleSize = isSmallDevice ? 24 : 28;
 const basePadding = width * 0.035;
 const contentPadding = Math.min(basePadding, 20);
 
-// Define prop interface for the component
 interface MapGettingStartedModalProps {
   visible: boolean;
   onClose: () => void;
 }
 
-// Specify icon name type for more precise typing
 type IoniconsName = React.ComponentProps<typeof Ionicons>["name"];
 
 const MapGettingStartedModal: React.FC<MapGettingStartedModalProps> = ({ visible, onClose }) => {
-  // State to track which intro screen to show
   const [currentStep, setCurrentStep] = useState(0);
-  const MAX_STEPS = 4; // Total number of steps
+  const MAX_STEPS = 4;
   const prevStepRef = useRef(currentStep);
 
-  // Animation values
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const contentSlideAnim = useRef(new Animated.Value(0)).current;
   const contentScaleAnim = useRef(new Animated.Value(1)).current;
@@ -51,26 +46,21 @@ const MapGettingStartedModal: React.FC<MapGettingStartedModalProps> = ({ visible
     .fill(0)
     .map(() => useRef(new Animated.Value(0)).current);
 
-  // Progress bar animation
   const progressAnim = useRef(new Animated.Value(0)).current;
 
-  // Set up pan responder for swipe gestures
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: (evt, gestureState) => {
-        return Math.abs(gestureState.dx) > 20; // Only respond to horizontal gestures
+        return Math.abs(gestureState.dx) > 20;
       },
       onPanResponderRelease: (evt, gestureState) => {
-        // Swipe left (next)
         if (gestureState.dx < -50 && currentStep < MAX_STEPS - 1) {
           if (Platform.OS === "ios") {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
           }
           setCurrentStep(currentStep + 1);
-        }
-        // Swipe right (previous)
-        else if (gestureState.dx > 50 && currentStep > 0) {
+        } else if (gestureState.dx > 50 && currentStep > 0) {
           if (Platform.OS === "ios") {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
           }
@@ -80,26 +70,21 @@ const MapGettingStartedModal: React.FC<MapGettingStartedModalProps> = ({ visible
     })
   ).current;
 
-  // Animate when visibility changes
   useEffect(() => {
     if (visible) {
       StatusBar.setBarStyle("light-content");
-      // Only fade in the overlay container
       Animated.timing(fadeAnim, {
         toValue: 1,
         duration: 500,
         useNativeDriver: true,
         easing: Easing.out(Easing.cubic),
       }).start(() => {
-        // Animate the icons in sequence for initial step
         animateIcons();
       });
 
-      // Start progress animation
       animateProgress(0);
     } else {
       StatusBar.setBarStyle("default");
-      // Fade out the entire overlay
       Animated.timing(fadeAnim, {
         toValue: 0,
         duration: 300,
@@ -108,24 +93,19 @@ const MapGettingStartedModal: React.FC<MapGettingStartedModalProps> = ({ visible
     }
   }, [visible]);
 
-  // Effect to handle step changes
   useEffect(() => {
     if (visible && prevStepRef.current !== currentStep) {
-      // Determine slide direction based on step change
       const slideDirection = currentStep > prevStepRef.current ? 1 : -1;
 
-      // First, slide current content out
       Animated.timing(contentSlideAnim, {
         toValue: -slideDirection * width,
         duration: 300,
         useNativeDriver: true,
         easing: Easing.out(Easing.cubic),
       }).start(() => {
-        // Reset animations for new slide
         iconAnimValues.forEach((val) => val.setValue(0));
         contentSlideAnim.setValue(slideDirection * width);
 
-        // Then slide new content in
         Animated.parallel([
           Animated.timing(contentSlideAnim, {
             toValue: 0,
@@ -140,19 +120,16 @@ const MapGettingStartedModal: React.FC<MapGettingStartedModalProps> = ({ visible
             easing: Easing.out(Easing.back(1.2)),
           }),
         ]).start(() => {
-          // Animate icons for this step
           animateIcons();
         });
       });
 
       prevStepRef.current = currentStep;
 
-      // Update progress bar
       animateProgress(currentStep);
     }
   }, [currentStep, visible]);
 
-  // Animate progress bar
   const animateProgress = (step: number) => {
     Animated.timing(progressAnim, {
       toValue: (step + 1) / MAX_STEPS,
@@ -162,38 +139,33 @@ const MapGettingStartedModal: React.FC<MapGettingStartedModalProps> = ({ visible
     }).start();
   };
 
-  // Function to animate icons in sequence
   const animateIcons = () => {
     iconAnimValues.forEach((anim, index) => {
       Animated.timing(anim, {
         toValue: 1,
         duration: 350,
-        delay: 150 + index * 80, // Faster animation sequence
+        delay: 150 + index * 80,
         useNativeDriver: true,
         easing: Easing.out(Easing.back(1.5)),
       }).start();
     });
   };
 
-  // Close overlay handler
   const handleClose = () => {
     if (Platform.OS === "ios") {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
 
-    // Just fade out the overlay
     Animated.timing(fadeAnim, {
       toValue: 0,
       duration: 300,
       useNativeDriver: true,
     }).start(() => {
-      // Reset to first step before closing
       setCurrentStep(0);
       onClose();
     });
   };
 
-  // Navigate to next step
   const handleNextStep = () => {
     if (Platform.OS === "ios") {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -206,7 +178,6 @@ const MapGettingStartedModal: React.FC<MapGettingStartedModalProps> = ({ visible
     }
   };
 
-  // Render step content based on current step
   const renderStepContent = () => {
     switch (currentStep) {
       case 0:
@@ -566,7 +537,6 @@ const styles = StyleSheet.create({
     justifyContent: "flex-start",
   },
 
-  // Welcome step styles
   welcomeContainer: {
     alignItems: "center",
     marginBottom: 12,
@@ -622,7 +592,6 @@ const styles = StyleSheet.create({
     color: "#666",
   },
 
-  // Step content styles
   stepHeader: {
     alignItems: "center",
     marginBottom: 12,
@@ -676,7 +645,6 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
   },
 
-  // Final step styles
   finalFeatures: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -717,7 +685,6 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
 
-  // Navigation controls
   navigationContainer: {
     width: "100%",
     marginTop: 2,

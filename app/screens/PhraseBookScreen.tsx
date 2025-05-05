@@ -39,7 +39,6 @@ import useTextToSpeech from "../hooks/AI/useTextToSpeech";
 import { Colors } from "../constants/colours";
 import PhrasePreviewModal from "../components/LearnScreen/LanguageSection/PhrasePreviewModal";
 
-// Define the blue color constants from the LanguageAssistant
 const BLUE_PRIMARY = "#0369A1";
 const BLUE_SECONDARY = "#0284C7";
 
@@ -58,7 +57,6 @@ interface MemoizedPhraseCardProps {
   index: number;
 }
 
-// Enhanced Phrase Card Component
 const MemoizedPhraseCard = memo(
   ({
     phrase,
@@ -74,7 +72,6 @@ const MemoizedPhraseCard = memo(
     const rotateAnim = useRef(new Animated.Value(0)).current;
 
     useEffect(() => {
-      // Entrance animation with staggered delay based on index
       Animated.parallel([
         Animated.spring(scaleAnim, {
           toValue: 1,
@@ -92,7 +89,6 @@ const MemoizedPhraseCard = memo(
     }, []);
 
     useEffect(() => {
-      // Heart icon animation
       if (phrase.isFavorite) {
         Animated.spring(rotateAnim, {
           toValue: 1,
@@ -108,7 +104,6 @@ const MemoizedPhraseCard = memo(
       }
     }, [phrase.isFavorite]);
 
-    // Color-coding cards by language
     const getLanguageColor = (language: string) => {
       const colors: { [key: string]: string } = {
         French: "#E3F2FD",
@@ -126,13 +121,11 @@ const MemoizedPhraseCard = memo(
       return colors[language] || "#F5F7FA";
     };
 
-    // Animation for heart icon
     const rotateInterpolate = rotateAnim.interpolate({
       inputRange: [0, 1],
       outputRange: ["0deg", "360deg"],
     });
 
-    // Animation for pronunciation container
     const expandHeight = useRef(new Animated.Value(0)).current;
 
     useEffect(() => {
@@ -143,7 +136,6 @@ const MemoizedPhraseCard = memo(
       }).start();
     }, [isExpanded]);
 
-    // Get category icon based on context
     const getCategoryIcon = (context: string) => {
       const contextLower = context.toLowerCase();
       if (contextLower.includes("greeting")) return "hand-left-outline";
@@ -245,7 +237,6 @@ const MemoizedPhraseCard = memo(
   }
 );
 
-// Language Filter Pills Component
 const LanguageFilterPills = ({
   languages,
   selectedLanguage,
@@ -314,7 +305,6 @@ const LanguageFilterPills = ({
   );
 };
 
-// Country Item Component for Explore Modal
 const CountryItem = ({
   name,
   onSelect,
@@ -324,7 +314,6 @@ const CountryItem = ({
   onSelect: () => void;
   disabled: boolean;
 }) => {
-  // Function to get a flag emoji from country name
   const getCountryFlag = (countryName: string) => {
     const flags: { [key: string]: string } = {
       France: "🇫🇷",
@@ -376,7 +365,6 @@ const CountryItem = ({
   );
 };
 
-// Main Phrasebook Screen Component
 const PhrasebookScreen: React.FC<PhrasebookScreenProps> = ({ route, navigation }) => {
   const { visitedPlaces } = route.params;
   const { speakPhrase } = useTextToSpeech();
@@ -395,13 +383,9 @@ const PhrasebookScreen: React.FC<PhrasebookScreenProps> = ({ route, navigation }
   const [explorableCountries, setExplorableCountries] = useState<string[]>([]);
   const [selectedCountry, setSelectedCountry] = useState<string | null>(null);
   const [loadingCountryPhrases, setLoadingCountryPhrases] = useState(false);
-
-  // New state variables for the PhrasePreviewModal
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [previewPhrases, setPreviewPhrases] = useState<Phrase[]>([]);
   const [loadingAddPhrases, setLoadingAddPhrases] = useState(false);
-
-  // Request limits state
   const [requestLimits, setRequestLimits] = useState<{
     requestsRemaining: number;
     nextAvailableTime?: string;
@@ -409,7 +393,6 @@ const PhrasebookScreen: React.FC<PhrasebookScreenProps> = ({ route, navigation }
     requestsRemaining: 3,
   });
 
-  // Fetch data on mount
   useEffect(() => {
     fetchPhrases();
     fetchSavedPhrases();
@@ -417,19 +400,16 @@ const PhrasebookScreen: React.FC<PhrasebookScreenProps> = ({ route, navigation }
     fetchRequestLimits();
   }, []);
 
-  // Improved: Add searchQuery to dependencies to reprocess whenever search changes
   useEffect(() => {
     processPhrases(phrases);
   }, [phrases, searchQuery]);
 
-  // Improved: Add searchQuery to dependencies for saved phrases processing
   useEffect(() => {
     if (viewMode === "saved") {
       processPhrases(savedPhrases);
     }
   }, [savedPhrases, viewMode, searchQuery]);
 
-  // Fetch saved phrases from Firebase
   const fetchSavedPhrases = async () => {
     try {
       const savedPhrasesData = await getSavedPhrases();
@@ -439,7 +419,6 @@ const PhrasebookScreen: React.FC<PhrasebookScreenProps> = ({ route, navigation }
     }
   };
 
-  // Fetch request limits from Firebase
   const fetchRequestLimits = async () => {
     try {
       const limitInfo = await checkRequestLimit();
@@ -457,27 +436,22 @@ const PhrasebookScreen: React.FC<PhrasebookScreenProps> = ({ route, navigation }
     setError(null);
 
     try {
-      // First check for cached phrases
       const cachedPhrases = await getCachedPhrases();
       let comprehensivePhrases = [];
 
       if (cachedPhrases.phrases.length > 0) {
-        // If we have cached phrases and they don't need refresh, use them
         if (!cachedPhrases.needsRefresh) {
           console.log("Using cached phrases from Firebase - no refresh needed");
           comprehensivePhrases = cachedPhrases.phrases;
         } else {
-          // If cached phrases need refresh, check if we're at our request limit
           const limitInfo = await checkRequestLimit();
 
           if (limitInfo.canRequest) {
-            // If we can make requests, get fresh phrases
             console.log(
               "Cached phrases need refresh and we have requests available - getting fresh data"
             );
             comprehensivePhrases = await getComprehensivePhrasebook(visitedPlaces);
           } else {
-            // If at request limit, use cached phrases even though they're stale
             console.log(
               "Cached phrases need refresh but we're at request limit - using cached data"
             );
@@ -485,31 +459,21 @@ const PhrasebookScreen: React.FC<PhrasebookScreenProps> = ({ route, navigation }
           }
         }
       } else {
-        // No cached phrases, check request limits before attempting to get new phrases
         const limitInfo = await checkRequestLimit();
 
         if (limitInfo.canRequest) {
           console.log("No cached phrases found - requesting new phrases");
           comprehensivePhrases = await getComprehensivePhrasebook(visitedPlaces);
         } else {
-          // At request limit with no cache, use mock data
           console.log("At request limit with no cached data - using mock phrases");
           comprehensivePhrases = createMockPhrases();
         }
       }
 
-      // Get favorite phrases
       const favoritePhrases = await getFavoritePhrases();
-
-      // Get saved phrases
       const userSavedPhrases = await getSavedPhrases();
-
-      // Create a Map to track unique phrases by their content to avoid duplicates
       const uniquePhrasesMap = new Map<string, Phrase>();
-
-      // Process all phrases in order of priority
       if (comprehensivePhrases.length > 0) {
-        // Process comprehensive phrases first
         comprehensivePhrases.forEach((phrase) => {
           const phraseKey = `${phrase.language}-${phrase.phrase}`;
           uniquePhrasesMap.set(phraseKey, {
@@ -518,11 +482,9 @@ const PhrasebookScreen: React.FC<PhrasebookScreenProps> = ({ route, navigation }
           });
         });
 
-        // Process favorite phrases, overriding any existing ones
         favoritePhrases.forEach((favorite) => {
           const phraseKey = `${favorite.language}-${favorite.phrase}`;
           if (uniquePhrasesMap.has(phraseKey)) {
-            // Update existing phrase with favorite's ID and marked as favorite
             const existingPhrase = uniquePhrasesMap.get(phraseKey)!;
             uniquePhrasesMap.set(phraseKey, {
               ...existingPhrase,
@@ -530,16 +492,13 @@ const PhrasebookScreen: React.FC<PhrasebookScreenProps> = ({ route, navigation }
               isFavorite: true,
             });
           } else {
-            // Add as new phrase
             uniquePhrasesMap.set(phraseKey, favorite);
           }
         });
 
-        // Process saved phrases, overriding any existing ones
         userSavedPhrases.forEach((saved) => {
           const phraseKey = `${saved.language}-${saved.phrase}`;
           if (uniquePhrasesMap.has(phraseKey)) {
-            // Update existing phrase with saved's ID and marked as favorite
             const existingPhrase = uniquePhrasesMap.get(phraseKey)!;
             uniquePhrasesMap.set(phraseKey, {
               ...existingPhrase,
@@ -547,30 +506,25 @@ const PhrasebookScreen: React.FC<PhrasebookScreenProps> = ({ route, navigation }
               isFavorite: true,
             });
           } else {
-            // Add as new phrase
             uniquePhrasesMap.set(phraseKey, saved);
           }
         });
 
-        // Convert the map values to array
         setPhrases(Array.from(uniquePhrasesMap.values()));
       } else if (favoritePhrases.length > 0) {
         setPhrases(favoritePhrases);
       } else if (userSavedPhrases.length > 0) {
         setPhrases(userSavedPhrases);
       } else {
-        // Fallback to mock data if all are empty
         setPhrases(createMockPhrases());
       }
 
       setSavedPhrases(userSavedPhrases);
 
-      // Update request limits after fetch
       await fetchRequestLimits();
     } catch (err) {
       console.error("Error fetching phrases:", err);
       setError(err instanceof Error ? err.message : "Failed to load phrasebook");
-      // Use mock data as fallback
       setPhrases(createMockPhrases());
     } finally {
       setLoading(false);
@@ -580,13 +534,11 @@ const PhrasebookScreen: React.FC<PhrasebookScreenProps> = ({ route, navigation }
 
   const fetchExplorableCountries = async () => {
     try {
-      // First try to get stored settings
       const settings = await getPhrasebookSettings();
 
       if (settings.explorableCountries && settings.explorableCountries.length > 0) {
         setExplorableCountries(settings.explorableCountries);
       } else {
-        // Generate suggestions if none stored
         const suggestedCountries = await getSuggestedCountries(visitedPlaces);
         setExplorableCountries(suggestedCountries);
       }
@@ -596,12 +548,10 @@ const PhrasebookScreen: React.FC<PhrasebookScreenProps> = ({ route, navigation }
     }
   };
 
-  // Improved: Make processPhrases a useCallback with searchQuery as dependency
   const processPhrases = useCallback(
     (phrasesToProcess: Phrase[]) => {
       console.log(`Processing ${phrasesToProcess.length} phrases with search: "${searchQuery}"`);
 
-      // Filter phrases based on search query
       const filteredPhrases = phrasesToProcess.filter((phrase) => {
         if (!searchQuery) return true;
 
@@ -617,7 +567,6 @@ const PhrasebookScreen: React.FC<PhrasebookScreenProps> = ({ route, navigation }
 
       console.log(`After filtering: ${filteredPhrases.length} phrases remain`);
 
-      // Group by language
       const grouped: { [key: string]: Phrase[] } = {};
       filteredPhrases.forEach((phrase) => {
         if (!grouped[phrase.language]) {
@@ -626,7 +575,6 @@ const PhrasebookScreen: React.FC<PhrasebookScreenProps> = ({ route, navigation }
         grouped[phrase.language].push(phrase);
       });
 
-      // Convert to array of language groups
       const languageGroups = Object.keys(grouped).map((language) => ({
         language,
         phrases: grouped[language],
@@ -634,7 +582,7 @@ const PhrasebookScreen: React.FC<PhrasebookScreenProps> = ({ route, navigation }
 
       setGroupedPhrases(languageGroups);
     },
-    [searchQuery] // Add searchQuery as a dependency
+    [searchQuery]
   );
 
   const handleRefresh = useCallback(() => {
@@ -646,8 +594,6 @@ const PhrasebookScreen: React.FC<PhrasebookScreenProps> = ({ route, navigation }
     }
   }, [viewMode]);
 
-  // Improved: Simplified handleSearch to just update searchQuery
-  // The useEffect hooks will take care of reprocessing
   const handleSearch = useCallback((text: string) => {
     console.log("Search query changed:", text);
     setSearchQuery(text);
@@ -663,30 +609,24 @@ const PhrasebookScreen: React.FC<PhrasebookScreenProps> = ({ route, navigation }
   const handleToggleFavorite = useCallback(
     async (phraseId: string, isFavorite: boolean, phrase: Phrase) => {
       try {
-        // Optimistic update for UI
         if (viewMode === "all") {
           setPhrases((prevPhrases) =>
             prevPhrases.map((p) => (p.id === phraseId ? { ...p, isFavorite: !isFavorite } : p))
           );
         }
 
-        // Update saved phrases collection
         if (!isFavorite) {
-          // Add to saved phrases
           const newPhrase = { ...phrase, isFavorite: true };
           setSavedPhrases((prev) => [...prev, newPhrase]);
           await savePhrase(newPhrase);
         } else {
-          // Remove from saved phrases
           setSavedPhrases((prev) =>
             prev.filter((p) => !(p.phrase === phrase.phrase && p.language === phrase.language))
           );
 
-          // If we're in saved view and this is the last phrase of its language, refresh UI
           if (viewMode === "saved") {
             const languageGroup = groupedPhrases.find((g) => g.language === phrase.language);
             if (languageGroup && languageGroup.phrases.length === 1) {
-              // This is the last phrase in this language group
               setTimeout(() => processPhrases(savedPhrases), 50);
             }
           }
@@ -694,12 +634,10 @@ const PhrasebookScreen: React.FC<PhrasebookScreenProps> = ({ route, navigation }
           await removeSavedPhrase(phraseId);
         }
 
-        // Also update the phrase in the temporary collection
         await toggleFavoritePhrase(phraseId, !isFavorite, phrase);
       } catch (err) {
         console.error("Error toggling favorite:", err);
 
-        // Revert UI on error
         if (viewMode === "all") {
           setPhrases((prevPhrases) =>
             prevPhrases.map((p) => (p.id === phraseId ? { ...p, isFavorite: isFavorite } : p))
@@ -728,17 +666,14 @@ const PhrasebookScreen: React.FC<PhrasebookScreenProps> = ({ route, navigation }
     [expandedPhraseId]
   );
 
-  // Updated handlePlayPhrase to use our text-to-speech hook
   const handlePlayPhrase = useCallback(
     (phrase: string, language: string) => {
-      // Use the speakPhrase function from our hook
       speakPhrase(phrase, language);
     },
     [speakPhrase]
   );
 
   const handleExploreNewCountry = useCallback(() => {
-    // Check if the user has reached their daily request limit
     if (requestLimits.requestsRemaining <= 0) {
       Alert.alert(
         "Request Limit Reached",
@@ -754,12 +689,10 @@ const PhrasebookScreen: React.FC<PhrasebookScreenProps> = ({ route, navigation }
     setShowExploreModal(true);
   }, [requestLimits]);
 
-  // UPDATED: Modified to use the PhrasePreviewModal
   const handleSelectCountryToExplore = useCallback((country: string) => {
     setSelectedCountry(country);
     setLoadingCountryPhrases(true);
 
-    // First, check if the user can make more requests
     checkRequestLimit()
       .then((limitInfo) => {
         if (!limitInfo.canRequest) {
@@ -775,15 +708,12 @@ const PhrasebookScreen: React.FC<PhrasebookScreenProps> = ({ route, navigation }
           return;
         }
 
-        // If they can make more requests, proceed
         return getPhrasesForCountry(country);
       })
       .then((newPhrases) => {
-        // If user hit request limit, this will be undefined
         if (!newPhrases) return;
 
         if (newPhrases.length > 0) {
-          // Hide the explore modal and show the preview modal
           setShowExploreModal(false);
           setPreviewPhrases(newPhrases);
           setShowPreviewModal(true);
@@ -799,16 +729,13 @@ const PhrasebookScreen: React.FC<PhrasebookScreenProps> = ({ route, navigation }
       });
   }, []);
 
-  // NEW: Handle closing the preview modal
   const handleClosePreview = useCallback(() => {
     setShowPreviewModal(false);
     setPreviewPhrases([]);
 
-    // Refresh the request limits after cancellation
     fetchRequestLimits();
   }, []);
 
-  // NEW: Handle adding all phrases from the preview
   const handleAddAllPhrases = useCallback(async () => {
     if (previewPhrases.length === 0) return;
 
@@ -819,25 +746,20 @@ const PhrasebookScreen: React.FC<PhrasebookScreenProps> = ({ route, navigation }
         await addPhraseToPhrasebook(phrase);
       }
 
-      // Update local state
       setPhrases((prevPhrases) => [
         ...prevPhrases,
         ...previewPhrases.map((p) => ({ ...p, isFavorite: true })),
       ]);
 
-      // Also update saved phrases
       setSavedPhrases((prev) => [
         ...prev,
         ...previewPhrases.map((p) => ({ ...p, isFavorite: true })),
       ]);
 
-      // Refresh the request limits after successfully adding phrases
       await fetchRequestLimits();
 
-      // Close the preview modal
       setShowPreviewModal(false);
 
-      // Show success message
       Alert.alert(
         "Success",
         `Added ${previewPhrases.length} phrases from ${selectedCountry} to your phrasebook!`
@@ -851,20 +773,15 @@ const PhrasebookScreen: React.FC<PhrasebookScreenProps> = ({ route, navigation }
     }
   }, [previewPhrases, selectedCountry]);
 
-  // Toggle between All and Saved views
   const handleToggleViewMode = useCallback((mode: "all" | "saved") => {
     setViewMode(mode);
     setSelectedLanguage(null);
-
-    // Process the appropriate set of phrases automatically through useEffect
   }, []);
 
-  // Toggle favorites filter
   const handleToggleFavoritesFilter = useCallback(() => {
     setSelectedLanguage(selectedLanguage === "favorites" ? null : "favorites");
   }, [selectedLanguage]);
 
-  // Render the content section
   const renderContent = () => {
     if (loading) {
       return (
@@ -887,7 +804,6 @@ const PhrasebookScreen: React.FC<PhrasebookScreenProps> = ({ route, navigation }
       );
     }
 
-    // Empty states
     if (viewMode === "saved" && savedPhrases.length === 0) {
       return (
         <View style={styles.emptyContainer}>
@@ -950,8 +866,6 @@ const PhrasebookScreen: React.FC<PhrasebookScreenProps> = ({ route, navigation }
         </View>
       );
     }
-
-    // Regular content with phrases
     return (
       <FlatList
         contentContainerStyle={styles.contentContainer}
@@ -988,11 +902,9 @@ const PhrasebookScreen: React.FC<PhrasebookScreenProps> = ({ route, navigation }
           />
         )}
         keyExtractor={(item, index) => {
-          // Create a unique key that includes viewMode, item.id and index
           if (item.id) {
             return `${viewMode}-${item.id}-${index}`;
           }
-          // Fallback to a predictable key based on index
           return `phrase-${index}`;
         }}
         showsVerticalScrollIndicator={false}
@@ -1039,7 +951,6 @@ const PhrasebookScreen: React.FC<PhrasebookScreenProps> = ({ route, navigation }
         iconColor={Colors.primary}
       />
       <SafeAreaView style={styles.container}>
-        {/* Search Bar */}
         <View style={styles.searchContainer}>
           <Ionicons name="search" size={20} color="#9CA3AF" style={styles.searchIcon} />
           <TextInput
@@ -1056,9 +967,7 @@ const PhrasebookScreen: React.FC<PhrasebookScreenProps> = ({ route, navigation }
           )}
         </View>
 
-        {/* Navigation Controls */}
         <View style={styles.controlsRow}>
-          {/* View Toggle */}
           <View style={styles.segmentedControl}>
             <TouchableOpacity
               style={[styles.segmentButton, viewMode === "all" && styles.segmentButtonActive]}
@@ -1080,7 +989,6 @@ const PhrasebookScreen: React.FC<PhrasebookScreenProps> = ({ route, navigation }
             </TouchableOpacity>
           </View>
 
-          {/* Request Limit Badge */}
           <View style={styles.rightControls}>
             <View
               style={[
@@ -1096,7 +1004,6 @@ const PhrasebookScreen: React.FC<PhrasebookScreenProps> = ({ route, navigation }
               <Text style={styles.requestLimitText}>{requestLimits.requestsRemaining} left</Text>
             </View>
 
-            {/* Explore Button */}
             <TouchableOpacity
               style={[
                 styles.exploreButton,
@@ -1115,10 +1022,8 @@ const PhrasebookScreen: React.FC<PhrasebookScreenProps> = ({ route, navigation }
           </View>
         </View>
 
-        {/* Main Content */}
         {renderContent()}
 
-        {/* Explore Countries Modal */}
         <Modal
           visible={showExploreModal}
           transparent={true}
@@ -1171,8 +1076,6 @@ const PhrasebookScreen: React.FC<PhrasebookScreenProps> = ({ route, navigation }
             </View>
           </View>
         </Modal>
-
-        {/* NEW: Phrase Preview Modal */}
         <PhrasePreviewModal
           visible={showPreviewModal}
           phrases={previewPhrases}
@@ -1218,7 +1121,6 @@ const styles = StyleSheet.create({
   clearButton: {
     padding: 4,
   },
-  // Tab control & navigation styles
   controlsRow: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -1293,7 +1195,6 @@ const styles = StyleSheet.create({
   exploreButtonDisabled: {
     backgroundColor: "#F3F4F6",
   },
-  // Filter styles
   filterContainer: {
     marginBottom: 16,
   },
@@ -1350,12 +1251,10 @@ const styles = StyleSheet.create({
   languagePillTextSelected: {
     color: "#FFFFFF",
   },
-  // Content styles
   contentContainer: {
     paddingHorizontal: 16,
     paddingBottom: 16,
   },
-  // Phrase card styles
   phraseCard: {
     borderRadius: 16,
     padding: 16,
@@ -1465,7 +1364,6 @@ const styles = StyleSheet.create({
     fontStyle: "italic",
     lineHeight: 22,
   },
-  // Loading & Error States
   loadingContainer: {
     flex: 1,
     justifyContent: "center",
@@ -1507,7 +1405,6 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#FFFFFF",
   },
-  // Empty State
   emptyContainer: {
     flex: 1,
     justifyContent: "center",
@@ -1552,7 +1449,6 @@ const styles = StyleSheet.create({
   buttonIcon: {
     marginRight: 8,
   },
-  // Modal styles
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0, 0, 0, 0.5)",

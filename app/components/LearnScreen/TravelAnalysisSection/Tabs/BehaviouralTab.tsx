@@ -1,4 +1,3 @@
-// components/AdvancedAnalysis/tabs/BehavioralTab.tsx
 import React from "react";
 import { View, Text, StyleSheet } from "react-native";
 import { Colors, NeutralColors } from "../../../../constants/colours";
@@ -6,7 +5,7 @@ import SectionCard, { NoDataText } from "../SectionCard";
 import TabContainer from "../TabContainer";
 
 type BehavioralTabProps = {
-  behavioralAnalysis: any; // Use proper type from your TravelAnalysisTypes
+  behavioralAnalysis: any;
 };
 
 const BehavioralTab: React.FC<BehavioralTabProps> = ({ behavioralAnalysis }) => {
@@ -486,7 +485,7 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
   },
   influenceFactorTag: {
-    backgroundColor: `${Colors.primary}26`, // 15% opacity
+    backgroundColor: `${Colors.primary}26`,
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 12,

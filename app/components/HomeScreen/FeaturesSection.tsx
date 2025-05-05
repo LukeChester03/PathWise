@@ -1,4 +1,3 @@
-// components/HomeScreen/FeaturesSection.tsx
 import React, { useRef, useEffect } from "react";
 import {
   View,
@@ -43,45 +42,7 @@ const FeaturesSection: React.FC<FeaturesSectionProps> = ({ navigateToScreen }) =
   const rotateAnim = useRef(new Animated.Value(0)).current;
   const floatAnim = useRef(new Animated.Value(0)).current;
 
-  const featureCards: FeatureCard[] = [
-    {
-      id: 1,
-      title: "Discover",
-      description: "Explore new locations and get guided directions to exciting places around you.",
-      icon: "compass-outline",
-      screen: "Discover",
-      gradientColors: ["#4A90E2", "#5DA9FF"],
-    },
-    {
-      id: 2,
-      title: "Learn",
-      description:
-        "Get AI-powered information tailored to each location, like having a personal tour guide.",
-      icon: "sparkles-outline",
-      screen: "Learn",
-      gradientColors: ["#50C878", "#63E08C"],
-    },
-    {
-      id: 3,
-      title: "Places",
-      description: "View and collect places you've visited to build your personal travel journal.",
-      icon: "location-outline",
-      screen: "Explore",
-      gradientColors: ["#FF7043", "#FF8A65"],
-    },
-    {
-      id: 4,
-      title: "Achievements",
-      description: "Track your progress and earn badges as you explore new locations.",
-      icon: "trophy-outline",
-      screen: "Achievements",
-      gradientColors: ["#9C27B0", "#BA68C8"],
-    },
-  ];
-
-  // Setup animations
   useEffect(() => {
-    // Fade in main component
     Animated.timing(fadeAnim, {
       toValue: 1,
       duration: 800,
@@ -89,7 +50,6 @@ const FeaturesSection: React.FC<FeaturesSectionProps> = ({ navigateToScreen }) =
       useNativeDriver: true,
     }).start();
 
-    // Title slide in
     Animated.timing(titleAnim, {
       toValue: 1,
       duration: 600,
@@ -98,7 +58,6 @@ const FeaturesSection: React.FC<FeaturesSectionProps> = ({ navigateToScreen }) =
       useNativeDriver: true,
     }).start();
 
-    // Pulse animation for icons
     Animated.loop(
       Animated.sequence([
         Animated.timing(pulseAnim, {
@@ -116,7 +75,6 @@ const FeaturesSection: React.FC<FeaturesSectionProps> = ({ navigateToScreen }) =
       ])
     ).start();
 
-    // Subtle rotation for some elements
     Animated.loop(
       Animated.sequence([
         Animated.timing(rotateAnim, {
@@ -134,7 +92,6 @@ const FeaturesSection: React.FC<FeaturesSectionProps> = ({ navigateToScreen }) =
       ])
     ).start();
 
-    // Floating effect for background circles
     Animated.loop(
       Animated.sequence([
         Animated.timing(floatAnim, {
@@ -153,15 +110,8 @@ const FeaturesSection: React.FC<FeaturesSectionProps> = ({ navigateToScreen }) =
     ).start();
   }, []);
 
-  const onScroll = Animated.event([{ nativeEvent: { contentOffset: { x: scrollX } } }], {
-    useNativeDriver: true,
-  });
-
-  // Function to render decorative circles with different positions for each card
   const renderCircles = (index: number, colors: [string, string]) => {
-    // Different circle arrangements based on card index
     if (index === 0) {
-      // Discover card circles
       return (
         <>
           <Animated.View
@@ -310,7 +260,6 @@ const FeaturesSection: React.FC<FeaturesSectionProps> = ({ navigateToScreen }) =
         </>
       );
     } else {
-      // Places card circles
       return (
         <>
           <Animated.View
@@ -385,166 +334,6 @@ const FeaturesSection: React.FC<FeaturesSectionProps> = ({ navigateToScreen }) =
         </>
       );
     }
-  };
-
-  const renderCard = ({ item, index }: { item: FeatureCard; index: number }) => {
-    const inputRange = [
-      (index - 1) * (CARD_WIDTH + SPACING * 2),
-      index * (CARD_WIDTH + SPACING * 2),
-      (index + 1) * (CARD_WIDTH + SPACING * 2),
-    ];
-
-    const scale = scrollX.interpolate({
-      inputRange,
-      outputRange: [0.9, 1, 0.9],
-      extrapolate: "clamp",
-    });
-
-    const translateY = scrollX.interpolate({
-      inputRange,
-      outputRange: [15, 0, 15],
-      extrapolate: "clamp",
-    });
-
-    const opacity = scrollX.interpolate({
-      inputRange,
-      outputRange: [0.85, 1, 0.85],
-      extrapolate: "clamp",
-    });
-
-    const cardRotate = scrollX.interpolate({
-      inputRange,
-      outputRange: ["-1deg", "0deg", "1deg"],
-      extrapolate: "clamp",
-    });
-
-    // Animation for the arrow button on focus
-    const arrowScale = scrollX.interpolate({
-      inputRange,
-      outputRange: [1, 1.1, 1],
-      extrapolate: "clamp",
-    });
-
-    return (
-      <Animated.View
-        style={[
-          styles.cardContainer,
-          {
-            opacity,
-            transform: [{ scale }, { translateY }, { rotate: cardRotate }],
-          },
-        ]}
-      >
-        <TouchableOpacity
-          style={styles.card}
-          onPress={() => navigateToScreen(item.screen)}
-          activeOpacity={0.95}
-        >
-          <LinearGradient
-            colors={[item.gradientColors[0], item.gradientColors[1]]}
-            style={styles.cardGradient}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-          >
-            {/* Render background circles with unique positions per card */}
-            {renderCircles(index, item.gradientColors)}
-
-            <View style={styles.cardContent}>
-              <View style={styles.cardHeader}>
-                <Animated.View
-                  style={[
-                    styles.iconContainer,
-                    {
-                      transform: [
-                        {
-                          scale: pulseAnim.interpolate({
-                            inputRange: [0, 1],
-                            outputRange: [1, 1.12],
-                          }),
-                        },
-                      ],
-                    },
-                  ]}
-                >
-                  <Ionicons name={item.icon as any} size={24} color="white" />
-                </Animated.View>
-                <Text style={styles.cardTitle}>{item.title}</Text>
-              </View>
-
-              <Text style={styles.cardDescription}>{item.description}</Text>
-
-              <View style={styles.cardFooter}>
-                <Animated.View
-                  style={[
-                    styles.tapPromptContainer,
-                    {
-                      opacity: scrollX.interpolate({
-                        inputRange,
-                        outputRange: [0.7, 1, 0.7],
-                        extrapolate: "clamp",
-                      }),
-                    },
-                  ]}
-                >
-                  <Animated.View
-                    style={[
-                      styles.tapPromptLine,
-                      {
-                        backgroundColor: "white",
-                        opacity: 0.3,
-                        width: 20, // Fixed max width
-                        transform: [
-                          {
-                            scaleX: scrollX.interpolate({
-                              inputRange,
-                              outputRange: [0.75, 1, 0.75], // 15/20 = 0.75
-                              extrapolate: "clamp",
-                            }),
-                          },
-                        ],
-                      },
-                    ]}
-                  />
-                  <Text style={styles.tapPromptText}>tap to explore</Text>
-                  <Animated.View
-                    style={[
-                      styles.tapPromptLine,
-                      {
-                        backgroundColor: "white",
-                        opacity: 0.3,
-                        width: 20, // Fixed max width
-                        transform: [
-                          {
-                            scaleX: scrollX.interpolate({
-                              inputRange,
-                              outputRange: [0.75, 1, 0.75], // 15/20 = 0.75
-                              extrapolate: "clamp",
-                            }),
-                          },
-                        ],
-                      },
-                    ]}
-                  />
-                </Animated.View>
-
-                <View style={styles.arrowContainer}>
-                  <Animated.View
-                    style={[
-                      styles.arrowButton,
-                      {
-                        transform: [{ scale: arrowScale }],
-                      },
-                    ]}
-                  >
-                    <Ionicons name="arrow-forward" size={18} color="#fff" />
-                  </Animated.View>
-                </View>
-              </View>
-            </View>
-          </LinearGradient>
-        </TouchableOpacity>
-      </Animated.View>
-    );
   };
 
   return (

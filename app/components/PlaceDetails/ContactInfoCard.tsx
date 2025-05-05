@@ -18,12 +18,10 @@ interface ContactInfoCardProps {
 }
 
 const ContactInfoCard: React.FC<ContactInfoCardProps> = ({ placeDetails, fontSize, iconSize }) => {
-  // Check if contact info exists
   const hasPhone =
     placeDetails.formatted_phone_number && placeDetails.formatted_phone_number.length > 0;
   const hasWebsite = placeDetails.website && placeDetails.website.length > 0;
 
-  // Handle phone call
   const handleCallPress = () => {
     if (placeDetails.formatted_phone_number) {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -31,7 +29,6 @@ const ContactInfoCard: React.FC<ContactInfoCardProps> = ({ placeDetails, fontSiz
     }
   };
 
-  // Handle website visit
   const handleWebsitePress = () => {
     if (placeDetails.website) {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);

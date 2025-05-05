@@ -1,4 +1,3 @@
-// components/LearnScreen/TravelSnapshotSection/TravelTimelineComponent.tsx
 import React, { useState, useEffect } from "react";
 import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
@@ -71,7 +70,6 @@ const TravelTimelineComponent: React.FC<TravelTimelineComponentProps> = ({ profi
     }
   };
 
-  // Define gradient colors for different event types
   const firstVisitGradient = [Colors.primary, adjustColorBrightness(Colors.primary, 30)];
   const badgeGradient = [Colors.secondary, adjustColorBrightness(Colors.secondary, 30)];
   const currentJourneyGradient = [
@@ -81,7 +79,6 @@ const TravelTimelineComponent: React.FC<TravelTimelineComponentProps> = ({ profi
 
   return (
     <View style={styles.container}>
-      {/* Section Header */}
       <TouchableOpacity
         style={styles.headerContainer}
         onPress={() => setExpanded(!expanded)}
@@ -107,7 +104,6 @@ const TravelTimelineComponent: React.FC<TravelTimelineComponentProps> = ({ profi
         <View style={styles.timelineContent}>
           <View style={styles.timelineLine} />
 
-          {/* First Place Visited Event */}
           <View style={styles.timelineEvent}>
             <View style={styles.dotContainer}>
               <View style={[styles.timelineDot, styles.primaryDot]} />
@@ -133,7 +129,6 @@ const TravelTimelineComponent: React.FC<TravelTimelineComponentProps> = ({ profi
             </View>
           </View>
 
-          {/* First Achievement Event (if any) */}
           {completedBadgesCount > 0 && (
             <View style={styles.timelineEvent}>
               <View style={styles.dotContainer}>
@@ -165,7 +160,6 @@ const TravelTimelineComponent: React.FC<TravelTimelineComponentProps> = ({ profi
             </View>
           )}
 
-          {/* Current Journey Event */}
           <View style={styles.timelineEvent}>
             <View style={styles.dotContainer}>
               <View style={[styles.timelineDot, styles.accentDot]} />
@@ -201,39 +195,31 @@ const TravelTimelineComponent: React.FC<TravelTimelineComponentProps> = ({ profi
   );
 };
 
-// Helper function to adjust color brightness
 function adjustColorBrightness(hex: string, percent: number): string {
-  // Validate hex color
   hex = hex.replace(/^\s*#|\s*$/g, "");
   if (hex.length === 3) {
     hex = hex[0] + hex[0] + hex[1] + hex[1] + hex[2] + hex[2];
   }
 
-  // Convert to RGB
   const r = parseInt(hex.substring(0, 2), 16);
   const g = parseInt(hex.substring(2, 4), 16);
   const b = parseInt(hex.substring(4, 6), 16);
 
-  // Adjust brightness
   const adjustR = Math.floor((r * (100 + percent)) / 100);
   const adjustG = Math.floor((g * (100 + percent)) / 100);
   const adjustB = Math.floor((b * (100 + percent)) / 100);
 
-  // Ensure the values are within valid range
   const clampR = Math.min(255, Math.max(0, adjustR));
   const clampG = Math.min(255, Math.max(0, adjustG));
   const clampB = Math.min(255, Math.max(0, adjustB));
 
-  // Convert back to hex
   return `#${clampR.toString(16).padStart(2, "0")}${clampG.toString(16).padStart(2, "0")}${clampB
     .toString(16)
     .padStart(2, "0")}`;
 }
 
 const styles = StyleSheet.create({
-  container: {
-    // No background color, padding, or border - parent container handles this
-  },
+  container: {},
   headerContainer: {
     flexDirection: "row",
     alignItems: "center",

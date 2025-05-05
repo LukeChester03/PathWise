@@ -1,4 +1,3 @@
-// screens/AdvancedTravelAnalysisScreen.tsx
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   View,
@@ -20,8 +19,8 @@ import {
   checkAdvancedAnalysisRequestLimit,
   getAdvancedAnalysisProgress,
   generateAdvancedTravelAnalysis,
-  checkAndPerformAutomaticUpdate, // Import the new function
-  getLatestAnalysisFromFirestore, // Import this to directly check Firebase
+  checkAndPerformAutomaticUpdate,
+  getLatestAnalysisFromFirestore,
 } from "../services/LearnScreen/aiTravelAnalysisService";
 import { getVisitedPlaces } from "../controllers/Map/visitedPlacesController";
 import { VisitedPlaceDetails } from "../types/MapTypes";
@@ -38,7 +37,6 @@ import RequestLimitsBadge from "../components/LearnScreen/TravelAnalysisSection/
 import ScrollableContainer from "../components/LearnScreen/TravelAnalysisSection/ScrollableContainer";
 import TabContent from "../components/LearnScreen/TravelAnalysisSection/TabContent";
 
-// Tab sections for navigation
 export type TabSection =
   | "temporal"
   | "spatial"
@@ -75,7 +73,6 @@ const AdvancedTravelAnalysisScreen: React.FC<AdvancedTravelAnalysisScreenProps> 
     loadData();
     loadRequestLimits();
 
-    // Set up progress polling
     const progressInterval = setInterval(loadProgress, 3000);
     return () => clearInterval(progressInterval);
   }, []);
@@ -85,24 +82,19 @@ const AdvancedTravelAnalysisScreen: React.FC<AdvancedTravelAnalysisScreenProps> 
       setLoading(true);
       setError(null);
 
-      // Load visited places
       const places = await getVisitedPlaces();
       setVisitedPlaces(places || []);
 
-      // First, directly check Firebase for existing analysis data
       const firebaseData = await getLatestAnalysisFromFirestore();
       setFirebaseDataExists(!!firebaseData);
 
-      // If we have enough visited places, check for auto-update
       if (places && places.length > 0) {
         await checkAndPerformAutomaticUpdate(places);
       }
 
-      // Load advanced travel analysis (from cache or Firebase)
       const analysisData = await getAdvancedTravelAnalysis();
       if (analysisData) {
         setAnalysis(analysisData);
-        // Set last updated time from the analysis data
         setLastUpdated(
           analysisData.lastRefreshed ? new Date(analysisData.lastRefreshed) : new Date()
         );
@@ -131,12 +123,10 @@ const AdvancedTravelAnalysisScreen: React.FC<AdvancedTravelAnalysisScreenProps> 
       const progressInfo = await getAdvancedAnalysisProgress();
       if (progressInfo) {
         setProgress(progressInfo);
-        // If we have progress info and it's generating, set the appropriate states
         if (progressInfo.isGenerating) {
           setLoading(true);
           setRefreshing(true);
         } else if (progressInfo.progress === 100) {
-          // If completed, reload the analysis
           await loadData();
           await loadRequestLimits();
           setRefreshing(false);
@@ -181,11 +171,8 @@ const AdvancedTravelAnalysisScreen: React.FC<AdvancedTravelAnalysisScreenProps> 
       setError(null);
       setRefreshing(true);
 
-      // Start the generation process
       await generateAdvancedTravelAnalysis(visitedPlaces);
-      setFirebaseDataExists(true); // Update this flag since we've created data in Firebase
-
-      // The analysis will be loaded when the progress polling detects completion
+      setFirebaseDataExists(true);
     } catch (err: any) {
       console.error("Error generating advanced travel analysis:", err);
       setError(err.message || "Failed to generate analysis");
@@ -201,7 +188,6 @@ const AdvancedTravelAnalysisScreen: React.FC<AdvancedTravelAnalysisScreenProps> 
   const formatLastUpdated = (date: Date | null) => {
     if (!date) return "Never updated";
 
-    // Format the date and time
     const formattedDate = date.toLocaleDateString(undefined, {
       year: "numeric",
       month: "short",
@@ -216,12 +202,11 @@ const AdvancedTravelAnalysisScreen: React.FC<AdvancedTravelAnalysisScreenProps> 
     return `${formattedDate} at ${formattedTime}`;
   };
 
-  // Calculate the next update time (24 hours after last update)
   const getNextUpdateTime = (date: Date | null) => {
     if (!date) return "Unknown";
 
     const nextUpdate = new Date(date);
-    nextUpdate.setDate(nextUpdate.getDate() + 1); // Add 24 hours
+    nextUpdate.setDate(nextUpdate.getDate() + 1);
 
     return nextUpdate.toLocaleTimeString(undefined, {
       hour: "2-digit",
@@ -229,7 +214,6 @@ const AdvancedTravelAnalysisScreen: React.FC<AdvancedTravelAnalysisScreenProps> 
     });
   };
 
-  // Main render function
   return (
     <View style={styles.container}>
       <StatusBar style="light" />

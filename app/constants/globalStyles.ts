@@ -2,7 +2,6 @@ import { StyleSheet } from "react-native";
 import { Colors, NeutralColors } from "./colours";
 
 export const globalStyles = StyleSheet.create({
-  // Container Styles
   container: {
     flex: 1,
     backgroundColor: Colors.background,
@@ -22,7 +21,6 @@ export const globalStyles = StyleSheet.create({
     elevation: 3,
   },
 
-  // Text Styles
   title: {
     fontSize: 48,
     fontWeight: "bold",
@@ -44,7 +42,6 @@ export const globalStyles = StyleSheet.create({
     marginBottom: 8,
   },
 
-  // Input Styles
   input: {
     height: 50,
     borderColor: "#ddd",
@@ -55,7 +52,6 @@ export const globalStyles = StyleSheet.create({
     backgroundColor: "#fafafa",
   },
 
-  // Button Styles
   button: {
     padding: 15,
     borderRadius: 5,
@@ -74,7 +70,6 @@ export const globalStyles = StyleSheet.create({
     fontWeight: "bold",
   },
 
-  // Link Styles
   linkText: {
     textAlign: "center",
     fontSize: 14,

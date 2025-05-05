@@ -17,7 +17,6 @@ const VisitStatsCardsComponent: React.FC<VisitStatsCardsComponentProps> = ({
 }) => {
   return (
     <View style={styles.statsCardContainer}>
-      {/* Average Duration Card */}
       <LinearGradient
         colors={[Colors.primary, AccentColors.accent1]}
         start={{ x: 0, y: 0 }}
@@ -35,7 +34,6 @@ const VisitStatsCardsComponent: React.FC<VisitStatsCardsComponentProps> = ({
         </View>
       </LinearGradient>
 
-      {/* Average Distance Card */}
       <LinearGradient
         colors={[AccentColors.accent2, AccentColors.accent3]}
         start={{ x: 0, y: 0 }}
@@ -53,7 +51,6 @@ const VisitStatsCardsComponent: React.FC<VisitStatsCardsComponentProps> = ({
         </View>
       </LinearGradient>
 
-      {/* Most Visited City Card */}
       <LinearGradient
         colors={[Colors.secondary, AccentColors.accent4 || "#9C27B0"]}
         start={{ x: 0, y: 0 }}

@@ -3,7 +3,6 @@ import { View, Text, StyleSheet, TouchableOpacity, Platform } from "react-native
 import { Ionicons } from "@expo/vector-icons";
 import { Colors } from "../../constants/colours";
 
-// Import types but maintain compatibility with existing code
 import { Place } from "../../types/MapTypes";
 
 interface OpeningHoursCardProps {
@@ -20,18 +19,14 @@ interface OpeningHoursCardProps {
 const OpeningHoursCard: React.FC<OpeningHoursCardProps> = ({ placeDetails, fontSize }) => {
   const [expanded, setExpanded] = useState(false);
 
-  // Get current day of the week (0 is Sunday, 1 is Monday, etc.)
   const today = new Date().getDay();
-  // Convert to match the format used in weekday_text (0 becomes Monday in some APIs)
-  const adjustedToday = (today + 6) % 7; // This assumes weekday_text[0] is Monday
+  const adjustedToday = (today + 6) % 7;
 
-  // Check if the place is open now
   const isOpenNow = useMemo(() => {
     if (!placeDetails.opening_hours) return null;
     return placeDetails.opening_hours.open_now;
   }, [placeDetails]);
 
-  // Format the hours text from "Monday: 9:00 AM – 10:00 PM" to just "9:00 AM – 10:00 PM"
   const formatHoursText = (text: string) => {
     const parts = text.split(": ");
     return parts.length > 1 ? parts[1] : text;
@@ -39,7 +34,6 @@ const OpeningHoursCard: React.FC<OpeningHoursCardProps> = ({ placeDetails, fontS
 
   const weekdays = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
-  // If we don't have the weekday_text, we should handle that case
   if (
     !placeDetails.opening_hours?.weekday_text ||
     placeDetails.opening_hours.weekday_text.length === 0
@@ -56,7 +50,6 @@ const OpeningHoursCard: React.FC<OpeningHoursCardProps> = ({ placeDetails, fontS
 
   return (
     <View style={styles.container}>
-      {/* Current status indicator */}
       <View style={styles.statusContainer}>
         <View
           style={[styles.statusIndicator, { backgroundColor: isOpenNow ? "#4CAF50" : "#F44336" }]}
@@ -65,16 +58,13 @@ const OpeningHoursCard: React.FC<OpeningHoursCardProps> = ({ placeDetails, fontS
           {isOpenNow ? "Open now" : "Closed now"}
         </Text>
 
-        {/* Today's hours */}
         <Text style={[styles.todayHours, { fontSize: fontSize.body }]}>
           {formatHoursText(placeDetails.opening_hours.weekday_text[adjustedToday])}
         </Text>
       </View>
 
-      {/* Divider */}
       <View style={styles.divider} />
 
-      {/* Toggle button */}
       <TouchableOpacity style={styles.toggleButton} onPress={() => setExpanded(!expanded)}>
         <Text style={[styles.toggleText, { fontSize: fontSize.small }]}>
           {expanded ? "Hide full schedule" : "Show full schedule"}
@@ -86,7 +76,6 @@ const OpeningHoursCard: React.FC<OpeningHoursCardProps> = ({ placeDetails, fontS
         />
       </TouchableOpacity>
 
-      {/* Weekly schedule */}
       {expanded && (
         <View style={styles.scheduleContainer}>
           {placeDetails.opening_hours.weekday_text.map((dayText, index) => {

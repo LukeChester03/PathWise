@@ -1,9 +1,7 @@
-// hooks/usePlaceAnimations.ts
 import { useState, useEffect, useRef } from "react";
 import { Animated, Easing } from "react-native";
 import { Place, VisitedPlaceDetails } from "../../types/MapTypes";
 
-// Animation timing constants
 const FADE_IN_DURATION = 400;
 const HERO_ANIMATION_DURATION = 600;
 
@@ -11,24 +9,17 @@ export const usePlaceAnimations = (
   placeDetails: Place | VisitedPlaceDetails | null,
   loading: boolean
 ) => {
-  // Animation refs
   const scrollY = useRef(new Animated.Value(0)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(30)).current;
   const imageScale = useRef(new Animated.Value(1)).current;
   const headerOpacity = useRef(new Animated.Value(0)).current;
-
-  // Animation state
   const [animationsReady, setAnimationsReady] = useState(false);
 
-  // Effect for animations
   useEffect(() => {
     if (placeDetails && !loading) {
-      // Delay to ensure everything is loaded
       setTimeout(() => {
         setAnimationsReady(true);
-
-        // Run entry animations
         Animated.parallel([
           Animated.timing(fadeAnim, {
             toValue: 1,
@@ -68,7 +59,6 @@ export const usePlaceAnimations = (
     }
   }, [placeDetails, loading]);
 
-  // Convert scrollY to header animations
   const titleOpacity = scrollY.interpolate({
     inputRange: [0, 60, 90],
     outputRange: [1, 0.3, 0],

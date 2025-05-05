@@ -1,4 +1,3 @@
-// src/controllers/Map/routesController.ts
 import { Alert } from "react-native";
 import * as Polyline from "@mapbox/polyline";
 import { TravelMode, Coordinate } from "../../types/MapTypes";
@@ -7,7 +6,6 @@ import { hasQuotaAvailable, recordApiCall } from "./quotaController";
 import { GOOGLE_MAPS_APIKEY } from "../../constants/Map/mapConstants";
 import { haversineDistance } from "../../utils/mapUtils";
 
-// Firebase imports
 import {
   doc,
   getDoc,
@@ -20,11 +18,9 @@ import {
 } from "firebase/firestore";
 import { db, auth } from "../../config/firebaseConfig";
 
-// Constants for route optimization
 const ROUTES_CACHE_STORAGE_KEY = "route_cache_v1";
-const ROUTE_CACHE_EXPIRATION = 30 * 24 * 60 * 60 * 1000; // 30 days
+const ROUTE_CACHE_EXPIRATION = 30 * 24 * 60 * 60 * 1000;
 
-// Typing for route response
 interface Route {
   overview_polyline: {
     points: string;
@@ -46,7 +42,6 @@ interface RouteResponse {
   routes: Route[];
 }
 
-// Structure for cached routes
 interface CachedRoute {
   origin: string;
   destination: string;
@@ -57,7 +52,6 @@ interface CachedRoute {
   timestamp: number;
 }
 
-// Firebase route structure
 interface FirebaseRoute {
   origin: string;
   destination: string;
@@ -68,17 +62,14 @@ interface FirebaseRoute {
   }[];
   duration: string;
   distance: number;
-  createdAt: any; // Timestamp
-  updatedAt: any; // Timestamp
+  createdAt: any;
+  updatedAt: any;
 }
 
-// In-memory route cache
 let routesCache: { [key: string]: CachedRoute } = {};
 
-// Distance threshold for driving vs walking (2km = 2000m)
 const DRIVING_DISTANCE_THRESHOLD = 2000;
 
-// Initialize cache from storage
 const initializeRouteCache = async () => {
   try {
     const cachedRoutesJson = await AsyncStorage.getItem(ROUTES_CACHE_STORAGE_KEY);
@@ -92,10 +83,8 @@ const initializeRouteCache = async () => {
   }
 };
 
-// Run initialization
 initializeRouteCache();
 
-// Persist cache to storage
 const persistRouteCache = async () => {
   try {
     await AsyncStorage.setItem(ROUTES_CACHE_STORAGE_KEY, JSON.stringify(routesCache));
@@ -104,41 +93,32 @@ const persistRouteCache = async () => {
   }
 };
 
-// Generate cache key for a route
 const getRouteCacheKey = (origin: string, destination: string, travelMode: TravelMode): string => {
   return `${origin}|${destination}|${travelMode}`;
 };
 
-// Check if a cached route is still valid
 const isCachedRouteValid = (cachedRoute: CachedRoute): boolean => {
   const now = Date.now();
   return now - cachedRoute.timestamp < ROUTE_CACHE_EXPIRATION;
 };
 
-/**
- * Fetch a route from Firebase cache
- */
 const fetchRouteFromFirebase = async (
   origin: string,
   destination: string,
   travelMode: TravelMode
 ): Promise<CachedRoute | null> => {
   try {
-    // Only try Firebase if user is logged in
     const currentUser = auth.currentUser;
     if (!currentUser) return null;
 
-    // Create a cache key for this route
     const cacheKey = getRouteCacheKey(origin, destination, travelMode);
 
-    // Check if route exists in Firebase
     const routeDocRef = doc(db, "routes", cacheKey);
     const routeDoc = await getDoc(routeDocRef);
 
     if (routeDoc.exists()) {
       const routeData = routeDoc.data() as FirebaseRoute;
 
-      // Check if route is still valid (not expired)
       const createdTime = routeData.createdAt.toDate().getTime();
       if (Date.now() - createdTime > ROUTE_CACHE_EXPIRATION) {
         console.log(`[routesController] Firebase route is expired`);
@@ -147,7 +127,6 @@ const fetchRouteFromFirebase = async (
 
       console.log(`[routesController] Found route in Firebase: ${cacheKey}`);
 
-      // Convert to cached route format
       return {
         origin: routeData.origin,
         destination: routeData.destination,
@@ -159,7 +138,6 @@ const fetchRouteFromFirebase = async (
       };
     }
 
-    // No route found in Firebase
     return null;
   } catch (error) {
     console.error("[routesController] Error fetching route from Firebase:", error);
@@ -167,15 +145,11 @@ const fetchRouteFromFirebase = async (
   }
 };
 
-/**
- * Save a route to Firebase cache
- */
 const saveRouteToFirebase = async (cacheKey: string, route: CachedRoute): Promise<void> => {
   try {
     const currentUser = auth.currentUser;
     if (!currentUser) return;
 
-    // Create Firebase route entry
     const firebaseRoute: FirebaseRoute = {
       origin: route.origin,
       destination: route.destination,
@@ -187,7 +161,6 @@ const saveRouteToFirebase = async (cacheKey: string, route: CachedRoute): Promis
       updatedAt: serverTimestamp(),
     };
 
-    // Save to Firebase
     const routeDocRef = doc(db, "routes", cacheKey);
     await setDoc(routeDocRef, firebaseRoute);
 
@@ -197,9 +170,6 @@ const saveRouteToFirebase = async (cacheKey: string, route: CachedRoute): Promis
   }
 };
 
-/**
- * Estimates the direct distance between two coordinates
- */
 const estimateDirectDistance = (
   originLat: number,
   originLng: number,
@@ -209,9 +179,6 @@ const estimateDirectDistance = (
   return haversineDistance(originLat, originLng, destLat, destLng);
 };
 
-/**
- * Parse coordinates from string format (e.g., "37.7749,-122.4194")
- */
 const parseCoordinates = (coordString: string): { lat: number; lng: number } | null => {
   try {
     const [lat, lng] = coordString.split(",").map((coord) => parseFloat(coord.trim()));
@@ -222,15 +189,9 @@ const parseCoordinates = (coordString: string): { lat: number; lng: number } | n
   }
 };
 
-/**
- * Calculate estimated travel time based on distance and mode
- */
 const estimateTravelTime = (distanceInMeters: number, travelMode: TravelMode): string => {
-  // Rough travel speeds:
-  // Walking: ~5 km/h = ~1.4 m/s
-  // Driving urban: ~30 km/h = ~8.3 m/s
-  const walkingSpeed = 1.4; // meters per second
-  const drivingSpeed = 8.3; // meters per second
+  const walkingSpeed = 1.4;
+  const drivingSpeed = 8.3;
 
   const timeInSeconds =
     travelMode === "driving" ? distanceInMeters / drivingSpeed : distanceInMeters / walkingSpeed;
@@ -239,9 +200,6 @@ const estimateTravelTime = (distanceInMeters: number, travelMode: TravelMode): s
   return `${minutes} min`;
 };
 
-/**
- * Generate a route without making API calls
- */
 const generateOfflineRoute = (
   originLat: number,
   originLng: number,
@@ -254,17 +212,11 @@ const generateOfflineRoute = (
   distance: number;
   travelMode: TravelMode;
 } => {
-  // Calculate direct distance
   const distanceInMeters = haversineDistance(originLat, originLng, destLat, destLng);
   const distanceInKm = distanceInMeters / 1000;
-
-  // Estimate duration
   const duration = estimateTravelTime(distanceInMeters, travelMode);
-
-  // Create a simple straight-line route with a few points
   const coords: Coordinate[] = [
     { latitude: originLat, longitude: originLng },
-    // Add a slight curve point
     {
       latitude: originLat + (destLat - originLat) * 0.33 + (Math.random() * 0.001 - 0.0005),
       longitude: originLng + (destLng - originLng) * 0.33 + (Math.random() * 0.001 - 0.0005),
@@ -284,9 +236,6 @@ const generateOfflineRoute = (
   };
 };
 
-/**
- * Fetches a route between two points with extensive caching
- */
 export const fetchRoute = async (
   origin: string,
   destination: string,
@@ -300,13 +249,11 @@ export const fetchRoute = async (
   try {
     console.log(`[routesController] fetchRoute from ${origin} to ${destination}`);
 
-    // STEP 1: Auto-detect travel mode if not forced
     let travelMode: TravelMode = "walking";
 
     if (forceTravelMode) {
       travelMode = forceTravelMode;
     } else {
-      // Estimate distance to determine mode
       const originCoords = parseCoordinates(origin);
       const destCoords = parseCoordinates(destination);
 
@@ -326,7 +273,6 @@ export const fetchRoute = async (
 
     console.log(`[routesController] Using travel mode: ${travelMode}`);
 
-    // STEP 2: Check in-memory cache first
     const cacheKey = getRouteCacheKey(origin, destination, travelMode);
     const cachedRoute = routesCache[cacheKey];
 
@@ -340,10 +286,8 @@ export const fetchRoute = async (
       };
     }
 
-    // STEP 3: Check Firebase cache
     const firebaseRoute = await fetchRouteFromFirebase(origin, destination, travelMode);
     if (firebaseRoute) {
-      // Update in-memory cache
       routesCache[cacheKey] = firebaseRoute;
       persistRouteCache();
 
@@ -356,13 +300,11 @@ export const fetchRoute = async (
       };
     }
 
-    // STEP 4: Check quota before making API call
     const hasQuota = await hasQuotaAvailable("directions");
 
     if (!hasQuota) {
       console.warn("[routesController] No directions API quota left, using offline route");
 
-      // Generate an offline route if we have coordinates
       const originCoords = parseCoordinates(origin);
       const destCoords = parseCoordinates(destination);
 
@@ -375,7 +317,6 @@ export const fetchRoute = async (
           travelMode
         );
 
-        // Cache this offline route
         const routeToCache: CachedRoute = {
           origin,
           destination,
@@ -389,7 +330,6 @@ export const fetchRoute = async (
         routesCache[cacheKey] = routeToCache;
         persistRouteCache();
 
-        // Save to Firebase as well
         saveRouteToFirebase(cacheKey, routeToCache);
 
         return offlineRoute;
@@ -398,13 +338,10 @@ export const fetchRoute = async (
       return null;
     }
 
-    // STEP 5: Make API call for real route
     console.log(`[routesController] Fetching route from API`);
 
-    // Record the API call
     await recordApiCall("directions");
 
-    // Fetch route with appropriate travel mode
     const response = await fetch(
       `https://maps.googleapis.com/maps/api/directions/json?origin=${origin}&destination=${destination}&mode=${travelMode}&key=${GOOGLE_MAPS_APIKEY}`
     );
@@ -418,7 +355,6 @@ export const fetchRoute = async (
         longitude: lng,
       }));
 
-      // Get duration and distance from API
       const duration = data.routes[0].legs[0].duration.text;
       const distanceInMeters = data.routes[0].legs[0].distance.value;
       const distanceInKm = distanceInMeters / 1000;
@@ -429,16 +365,13 @@ export const fetchRoute = async (
         )}km with ${travelMode} mode, time: ${duration}`
       );
 
-      // Double check threshold with actual route distance
       if (travelMode === "walking" && distanceInMeters > DRIVING_DISTANCE_THRESHOLD) {
         console.log(`[routesController] Distance exceeds walking threshold, switching to driving`);
         return fetchRoute(origin, destination, "driving");
       }
 
-      // Use API duration or estimate if not available
       const finalDuration = duration || estimateTravelTime(distanceInMeters, travelMode);
 
-      // Create route to cache
       const routeToCache: CachedRoute = {
         origin,
         destination,
@@ -449,11 +382,9 @@ export const fetchRoute = async (
         timestamp: Date.now(),
       };
 
-      // Update in-memory cache
       routesCache[cacheKey] = routeToCache;
       persistRouteCache();
 
-      // Save to Firebase
       saveRouteToFirebase(cacheKey, routeToCache);
 
       return {
@@ -465,7 +396,6 @@ export const fetchRoute = async (
     } else {
       console.warn("[routesController] No routes found in API response");
 
-      // Generate an offline route as fallback
       const originCoords = parseCoordinates(origin);
       const destCoords = parseCoordinates(destination);
 
@@ -484,7 +414,6 @@ export const fetchRoute = async (
   } catch (error: any) {
     console.error("[routesController] Error fetching route:", error);
 
-    // Try to create an offline route as fallback
     const originCoords = parseCoordinates(origin);
     const destCoords = parseCoordinates(destination);
 
@@ -502,14 +431,12 @@ export const fetchRoute = async (
   }
 };
 
-// Utility to clear route cache if needed
 export const clearRouteCache = async (): Promise<void> => {
   routesCache = {};
   await AsyncStorage.removeItem(ROUTES_CACHE_STORAGE_KEY);
   console.log("[routesController] Route cache cleared");
 };
 
-// Get route cache statistics
 export const getRouteCacheStats = (): {
   memoryCache: {
     count: number;
@@ -552,9 +479,7 @@ export const getRouteCacheStats = (): {
     stats.memoryCache.oldestAge = `${oldestAgeDays} days`;
   }
 
-  // Get Firebase stats if possible
   if (auth.currentUser) {
-    // Add function to query routes collection
     getDocs(collection(db, "routes"))
       .then((snapshot) => {
         if (!stats.firebaseCache) stats.firebaseCache = {};

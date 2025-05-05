@@ -1,4 +1,3 @@
-// components/Places/PlaceCard.tsx
 import React from "react";
 import {
   View,
@@ -25,7 +24,6 @@ interface PlaceCardComponentProps {
   cardHeight?: number;
 }
 
-// Map of place types to user-friendly tags with appropriate icons
 const TYPE_MAPPING: { [key: string]: { label: string; icon: string } } = {
   restaurant: { label: "Restaurant", icon: "restaurant" },
   cafe: { label: "Café", icon: "cafe" },
@@ -42,7 +40,6 @@ const TYPE_MAPPING: { [key: string]: { label: string; icon: string } } = {
   zoo: { label: "Zoo", icon: "paw" },
 };
 
-// Priority order for tags
 const TYPE_PRIORITY = [
   "restaurant",
   "cafe",
@@ -64,7 +61,6 @@ const PlaceCard: React.FC<PlaceCardComponentProps> = ({
   cardWidth = CARD_WIDTH,
   cardHeight = CARD_HEIGHT,
 }) => {
-  // Function to get relevant tags from place types
   const getPlaceTags = (place: Place, maxTags: number = 1) => {
     if (!place.types || !Array.isArray(place.types) || place.types.length === 0) {
       return [];
@@ -93,7 +89,6 @@ const PlaceCard: React.FC<PlaceCardComponentProps> = ({
     return relevantTags;
   };
 
-  // Helper to format visit date in elegant way
   const formatVisitDate = (date: Date): string => {
     try {
       if (!date || isNaN(date.getTime())) {
@@ -119,17 +114,14 @@ const PlaceCard: React.FC<PlaceCardComponentProps> = ({
     }
   };
 
-  // Extract place data, ensuring required fields are present
   const placeId =
     place.place_id || place.id || `place-${Math.random().toString(36).substring(2, 9)}`;
   const name = place.name || "Unnamed Place";
   const rating = typeof place.rating === "number" ? place.rating : null;
   const isVisited = place.isVisited === true || !!place.visitedAt;
 
-  // Handle visit date
   let visitDate: Date | null = null;
   if (isVisited && place.visitedAt) {
-    // Check if visitedAt is a string (which it should be in the Place type)
     visitDate = new Date(place.visitedAt);
   }
 
@@ -137,7 +129,6 @@ const PlaceCard: React.FC<PlaceCardComponentProps> = ({
     visitDate = null;
   }
 
-  // Get photo URL
   const photo =
     place.photos && place.photos.length > 0 && place.photos[0]?.photo_reference
       ? `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photoreference=${place.photos[0].photo_reference}&key=AIzaSyDAGq_6eJGQpR3RcO0NrVOowel9-DxZkvA`
@@ -148,11 +139,8 @@ const PlaceCard: React.FC<PlaceCardComponentProps> = ({
   const placeTags = getPlaceTags(place);
   const formattedDate = visitDate ? formatVisitDate(visitDate) : "";
 
-  // Handle card press
   const handleCardPress = () => {
-    // If a custom onPress handler is provided, use it
     if (onPress) {
-      // Call the onPress handler with the place ID and the full place object
       onPress(placeId, place);
     }
   };
@@ -164,33 +152,25 @@ const PlaceCard: React.FC<PlaceCardComponentProps> = ({
       onPress={handleCardPress}
     >
       <View style={[styles.card, isVisited && styles.visitedCard]}>
-        {/* Image Container */}
         <View style={styles.imageContainer}>
           <Image source={{ uri: photo }} style={styles.cardImage} resizeMode="cover" />
 
-          {/* Enhanced Gradient for Better Text Readability */}
           <LinearGradient
             colors={["rgba(0,0,0,0)", "rgba(0,0,0,0.5)", "rgba(0,0,0,0.8)"]}
             locations={[0.4, 0.7, 0.9]}
             style={styles.cardGradient}
           />
 
-          {/* Ultra-Minimal Visited Indicator */}
           {isVisited && <View style={styles.visitedIndicator} />}
         </View>
 
-        {/* Content Section */}
         <View style={styles.contentContainer}>
-          {/* Full-width Title */}
           <Text style={styles.placeName} numberOfLines={1}>
             {name}
           </Text>
 
-          {/* Tags and Metadata Row */}
           <View style={styles.metadataRow}>
-            {/* Left Side - Type Tag and Rating */}
             <View style={styles.leftMetadata}>
-              {/* Type Tag */}
               {placeTags.length > 0 && (
                 <View style={styles.tagPill}>
                   <Ionicons name={placeTags[0].icon} size={12} color="#fff" />
@@ -198,7 +178,6 @@ const PlaceCard: React.FC<PlaceCardComponentProps> = ({
                 </View>
               )}
 
-              {/* Rating */}
               {rating !== null && (
                 <View style={styles.ratingPill}>
                   <Ionicons name="star" size={11} color="#FFD700" />
@@ -207,7 +186,6 @@ const PlaceCard: React.FC<PlaceCardComponentProps> = ({
               )}
             </View>
 
-            {/* Right Side - Visit Date Badge */}
             {isVisited && formattedDate && (
               <View style={styles.visitedBadge}>
                 <Text style={styles.visitedText}>{formattedDate}</Text>

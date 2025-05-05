@@ -1,100 +1,28 @@
-// components/common/GradientCard.tsx
 import React from "react";
 import { View, Text, StyleSheet, StyleProp, ViewStyle, TextStyle } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 
 interface GradientCardProps {
-  /**
-   * Array of colors for the gradient background
-   */
   gradientColors: string[];
-
-  /**
-   * Optional starting point for the gradient
-   */
   gradientStart?: { x: number; y: number };
-
-  /**
-   * Optional ending point for the gradient
-   */
   gradientEnd?: { x: number; y: number };
-
-  /**
-   * Icon name from Ionicons
-   */
   icon?: string;
-
-  /**
-   * Size of the icon
-   */
   iconSize?: number;
-
-  /**
-   * Color of the icon
-   */
   iconColor?: string;
-
-  /**
-   * Custom style for the icon container
-   */
   iconContainerStyle?: StyleProp<ViewStyle>;
-
-  /**
-   * Primary value displayed in the card
-   */
   value?: string | number;
-
-  /**
-   * Custom style for the value text
-   */
   valueStyle?: StyleProp<TextStyle>;
-
-  /**
-   * Title of the card
-   */
   title: string;
-
-  /**
-   * Custom style for the title text
-   */
   titleStyle?: StyleProp<TextStyle>;
-
-  /**
-   * Optional description for the card
-   */
   description?: string;
-
-  /**
-   * Custom style for the description text
-   */
   descriptionStyle?: StyleProp<TextStyle>;
-
-  /**
-   * Custom style for the card container
-   */
   cardStyle?: StyleProp<ViewStyle>;
-
-  /**
-   * Custom style for the content container
-   */
   contentStyle?: StyleProp<ViewStyle>;
-
-  /**
-   * Use compact layout (less padding/margins)
-   */
   compact?: boolean;
-
-  /**
-   * Optional custom content to render instead of the default layout
-   */
   children?: React.ReactNode;
 }
 
-/**
- * A reusable gradient card component that can be used for various card displays
- * throughout the application, including milestones and traveler traits.
- */
 const GradientCard: React.FC<GradientCardProps> = ({
   gradientColors,
   gradientStart = { x: 0, y: 0 },
@@ -114,7 +42,6 @@ const GradientCard: React.FC<GradientCardProps> = ({
   compact = false,
   children,
 }) => {
-  // If children are provided, render custom content
   if (children) {
     return (
       <LinearGradient
@@ -130,7 +57,6 @@ const GradientCard: React.FC<GradientCardProps> = ({
     );
   }
 
-  // Otherwise, render the default card layout
   return (
     <LinearGradient
       colors={gradientColors}

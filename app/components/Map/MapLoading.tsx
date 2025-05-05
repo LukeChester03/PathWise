@@ -11,7 +11,6 @@ interface MapLoadingProps {
 }
 
 const MapLoading: React.FC<MapLoadingProps> = ({ message = "Discovering places around you" }) => {
-  // Animation values
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const pulseAnim = useRef(new Animated.Value(0.8)).current;
   const rotateAnim = useRef(new Animated.Value(0)).current;
@@ -21,14 +20,12 @@ const MapLoading: React.FC<MapLoadingProps> = ({ message = "Discovering places a
   const dotAnim3 = useRef(new Animated.Value(0)).current;
   const shimmerAnim = useRef(new Animated.Value(-width)).current;
 
-  // Words that will cycle through
   const words = ["places", "wonders", "attractions", "landmarks", "adventures"];
   const wordAnim = useRef(new Animated.Value(0)).current;
   const currentWordIndex = useRef(0);
   const [currentWord, setCurrentWord] = useState(words[0]);
 
   useEffect(() => {
-    // Initial fade in
     Animated.timing(fadeAnim, {
       toValue: 1,
       duration: 800,
@@ -36,7 +33,6 @@ const MapLoading: React.FC<MapLoadingProps> = ({ message = "Discovering places a
       easing: Easing.out(Easing.cubic),
     }).start();
 
-    // Pulsing animation for pin
     Animated.loop(
       Animated.sequence([
         Animated.timing(pulseAnim, {
@@ -54,7 +50,6 @@ const MapLoading: React.FC<MapLoadingProps> = ({ message = "Discovering places a
       ])
     ).start();
 
-    // Rotating compass
     Animated.loop(
       Animated.timing(rotateAnim, {
         toValue: 1,
@@ -64,7 +59,6 @@ const MapLoading: React.FC<MapLoadingProps> = ({ message = "Discovering places a
       })
     ).start();
 
-    // Map scale animation
     Animated.loop(
       Animated.sequence([
         Animated.timing(mapScaleAnim, {
@@ -82,7 +76,6 @@ const MapLoading: React.FC<MapLoadingProps> = ({ message = "Discovering places a
       ])
     ).start();
 
-    // Shimmer effect
     Animated.loop(
       Animated.timing(shimmerAnim, {
         toValue: width,
@@ -92,28 +85,23 @@ const MapLoading: React.FC<MapLoadingProps> = ({ message = "Discovering places a
       })
     ).start();
 
-    // Dot animation sequence
     Animated.loop(
       Animated.sequence([
-        // First dot
         Animated.timing(dotAnim1, {
           toValue: 1,
           duration: 400,
           useNativeDriver: true,
         }),
-        // Second dot
         Animated.timing(dotAnim2, {
           toValue: 1,
           duration: 400,
           useNativeDriver: true,
         }),
-        // Third dot
         Animated.timing(dotAnim3, {
           toValue: 1,
           duration: 400,
           useNativeDriver: true,
         }),
-        // Reset
         Animated.parallel([
           Animated.timing(dotAnim1, {
             toValue: 0,
@@ -134,7 +122,6 @@ const MapLoading: React.FC<MapLoadingProps> = ({ message = "Discovering places a
       ])
     ).start();
 
-    // Word cycling animation
     const cycleWords = () => {
       Animated.timing(wordAnim, {
         toValue: 0,
@@ -162,16 +149,14 @@ const MapLoading: React.FC<MapLoadingProps> = ({ message = "Discovering places a
       });
     };
 
-    // Start word cycling with a delay
     const timer = setTimeout(() => {
-      wordAnim.setValue(1); // Start with fully visible
+      wordAnim.setValue(1);
       cycleWords();
     }, 1500);
 
     return () => clearTimeout(timer);
   }, []);
 
-  // Interpolate rotation
   const rotate = rotateAnim.interpolate({
     inputRange: [0, 1],
     outputRange: ["0deg", "360deg"],
@@ -179,7 +164,6 @@ const MapLoading: React.FC<MapLoadingProps> = ({ message = "Discovering places a
 
   return (
     <View style={loadingStyles.container}>
-      {/* Background map graphic */}
       <Animated.View
         style={[
           loadingStyles.mapBackgroundContainer,
@@ -196,7 +180,6 @@ const MapLoading: React.FC<MapLoadingProps> = ({ message = "Discovering places a
         </View>
       </Animated.View>
 
-      {/* Compass Rose */}
       <Animated.View
         style={[
           loadingStyles.compassContainer,
@@ -209,9 +192,7 @@ const MapLoading: React.FC<MapLoadingProps> = ({ message = "Discovering places a
         <Ionicons name="compass-outline" size={150} color={Colors.primary} />
       </Animated.View>
 
-      {/* Main content */}
       <Animated.View style={[loadingStyles.contentContainer, { opacity: fadeAnim }]}>
-        {/* Map Pin */}
         <Animated.View
           style={[
             loadingStyles.pinContainer,
@@ -227,7 +208,6 @@ const MapLoading: React.FC<MapLoadingProps> = ({ message = "Discovering places a
           <View style={loadingStyles.pulseCircle} />
         </Animated.View>
 
-        {/* Loading Message */}
         <View style={loadingStyles.messageContainer}>
           <Animated.Text
             style={[
@@ -263,7 +243,6 @@ const MapLoading: React.FC<MapLoadingProps> = ({ message = "Discovering places a
           </View>
         </View>
 
-        {/* Animated dots */}
         <View style={loadingStyles.dotsContainer}>
           <Animated.View
             style={[

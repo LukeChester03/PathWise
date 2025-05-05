@@ -1,4 +1,3 @@
-// types/LearnScreen/LanguageTypes.ts
 export interface Phrase {
   id?: string;
   language: string;

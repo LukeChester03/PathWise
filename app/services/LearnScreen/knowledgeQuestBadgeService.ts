@@ -1,4 +1,3 @@
-// services/LearnScreen/knowledgeQuestBadgeService.ts
 import { getAllUserBadges, updateBadgeRequirements, completeBadge } from "./badgeService";
 import { TravelBadge } from "../../types/LearnScreen/TravelProfileTypes";
 import { auth, db } from "../../config/firebaseConfig";
@@ -15,7 +14,6 @@ import {
   addDoc,
 } from "firebase/firestore";
 
-// Quiz-related badge types to check for
 const QUIZ_BADGE_TYPES = ["quizCount", "quizStreak", "quizScore", "quizAccuracy", "quizCorrect"];
 
 /**
@@ -28,22 +26,14 @@ export const initializeQuizBadges = async (): Promise<void> => {
       console.warn("Cannot initialize quiz badges: No authenticated user");
       return;
     }
-
-    // Get existing badges
     const badges = await getAllUserBadges();
-
-    // Filter for quiz-related badges
     const quizBadges = badges.filter((badge) =>
       badge.requirements.some((req) => QUIZ_BADGE_TYPES.includes(req.type))
     );
-
-    // If we already have quiz badges, no need to create them
     if (quizBadges.length >= 5) {
       console.log("Quiz badges already exist");
       return;
     }
-
-    // Create default quiz badges
     await createDefaultQuizBadges();
   } catch (error) {
     console.error("Error initializing quiz badges:", error);
@@ -60,8 +50,6 @@ const createDefaultQuizBadges = async (): Promise<void> => {
       console.warn("Cannot create quiz badges: No authenticated user");
       return;
     }
-
-    // Default quiz badges to create
     const quizBadges = [
       {
         id: "quiz-beginner",
@@ -148,19 +136,14 @@ const createDefaultQuizBadges = async (): Promise<void> => {
       },
     ];
 
-    // Get existing badges to avoid duplicates
     const existingBadges = await getAllUserBadges();
     const existingBadgeIds = new Set(existingBadges.map((badge) => badge.id));
-
-    // Filter out badges that already exist
     const badgesToCreate = quizBadges.filter((badge) => !existingBadgeIds.has(badge.id));
 
     if (badgesToCreate.length === 0) {
       console.log("No new quiz badges to create");
       return;
     }
-
-    // Create badges using a batch
     const batch = writeBatch(db);
     const badgesCollection = collection(db, "users", currentUser.uid, "badges");
 
@@ -183,7 +166,6 @@ const createDefaultQuizBadges = async (): Promise<void> => {
 
 /**
  * Update quiz badge progress based on Knowledge Quest stats
- * FIXED: Better error handling and logging
  */
 export const updateQuizBadgeProgress = async (): Promise<string[]> => {
   try {
@@ -192,14 +174,10 @@ export const updateQuizBadgeProgress = async (): Promise<string[]> => {
       console.warn("Cannot update quiz badges: No authenticated user");
       return [];
     }
-
-    // Get stats and badges
     const stats = await getKnowledgeQuestStats();
     const badges = await getAllUserBadges();
 
     console.log("Updating quiz badge progress with current stats");
-
-    // Filter for quiz-related badges that aren't completed
     const quizBadges = badges.filter(
       (badge) =>
         !badge.completed && badge.requirements.some((req) => QUIZ_BADGE_TYPES.includes(req.type))
@@ -229,8 +207,6 @@ export const updateQuizBadgeProgress = async (): Promise<string[]> => {
             break;
 
           case "quizScore":
-            // This would be updated when a quiz is completed
-            // We leave it as-is for now since it's updated elsewhere
             break;
 
           case "quizAccuracy":
@@ -241,13 +217,9 @@ export const updateQuizBadgeProgress = async (): Promise<string[]> => {
             current = stats.totalCorrectAnswers;
             break;
         }
-
-        // Check if requirement is met
         if (current < req.value) {
           allRequirementsMet = false;
         }
-
-        // Check if value has changed
         if (current !== req.current) {
           requirementsUpdated = true;
         }
@@ -258,19 +230,15 @@ export const updateQuizBadgeProgress = async (): Promise<string[]> => {
         };
       });
 
-      // Update badge requirements if needed
       if (requirementsUpdated) {
         try {
           await updateBadgeRequirements(badge.id, updatedRequirements);
           console.log(`Updated requirements for badge: ${badge.name}`);
         } catch (updateError) {
           console.error(`Error updating requirements for badge ${badge.id}:`, updateError);
-          // Continue with other badges even if one fails
           continue;
         }
       }
-
-      // Complete the badge if all requirements are met
       if (allRequirementsMet) {
         try {
           await completeBadge(badge.id);
@@ -278,7 +246,6 @@ export const updateQuizBadgeProgress = async (): Promise<string[]> => {
           console.log(`Badge completed: ${badge.name}`);
         } catch (completeError) {
           console.error(`Error completing badge ${badge.id}:`, completeError);
-          // Continue with other badges even if one fails to complete
         }
       }
     }
@@ -292,7 +259,6 @@ export const updateQuizBadgeProgress = async (): Promise<string[]> => {
 
 /**
  * Check if a new high score should update a badge
- * FIXED: Better error handling and validation
  */
 export const checkScoreBadges = async (score: number): Promise<string[]> => {
   try {
@@ -301,8 +267,6 @@ export const checkScoreBadges = async (score: number): Promise<string[]> => {
       console.warn("Cannot check score badges: No authenticated user");
       return [];
     }
-
-    // Validate score is a positive number
     if (typeof score !== "number" || score < 0 || score > 100) {
       console.warn(`Invalid score value: ${score}. Must be between 0 and 100.`);
       return [];
@@ -311,8 +275,6 @@ export const checkScoreBadges = async (score: number): Promise<string[]> => {
     console.log(`Checking score badges for new score: ${score}%`);
 
     const badges = await getAllUserBadges();
-
-    // Filter for quiz score badges that aren't completed
     const scoreBadges = badges.filter(
       (badge) => !badge.completed && badge.requirements.some((req) => req.type === "quizScore")
     );
@@ -333,20 +295,14 @@ export const checkScoreBadges = async (score: number): Promise<string[]> => {
         let current = req.current;
 
         if (req.type === "quizScore") {
-          // Update the highest score if this one is better
           current = Math.max(current, score);
-
-          // Check if requirement is met
           if (current < req.value) {
             allRequirementsMet = false;
           }
-
-          // Check if value has changed
           if (current !== req.current) {
             requirementsUpdated = true;
           }
         } else {
-          // For other requirement types, just check if they're met
           if (req.current < req.value) {
             allRequirementsMet = false;
           }
@@ -358,19 +314,16 @@ export const checkScoreBadges = async (score: number): Promise<string[]> => {
         };
       });
 
-      // Update badge requirements if needed
       if (requirementsUpdated) {
         try {
           await updateBadgeRequirements(badge.id, updatedRequirements);
           console.log(`Updated requirements for score badge: ${badge.name}`);
         } catch (updateError) {
           console.error(`Error updating requirements for badge ${badge.id}:`, updateError);
-          // Continue with other badges even if one fails
           continue;
         }
       }
 
-      // Complete the badge if all requirements are met
       if (allRequirementsMet) {
         try {
           await completeBadge(badge.id);
@@ -378,7 +331,6 @@ export const checkScoreBadges = async (score: number): Promise<string[]> => {
           console.log(`Score badge completed: ${badge.name}`);
         } catch (completeError) {
           console.error(`Error completing badge ${badge.id}:`, completeError);
-          // Continue with other badges even if one fails to complete
         }
       }
     }

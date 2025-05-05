@@ -1,4 +1,3 @@
-// components/LearnScreen/TravelMilestonesComponent.tsx
 import React, { useState, useEffect } from "react";
 import { View, Text, StyleSheet, ScrollView } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
@@ -23,11 +22,8 @@ const TravelMilestonesComponent: React.FC<TravelMilestonesComponentProps> = ({ p
   useEffect(() => {
     const fetchMilestoneData = async () => {
       try {
-        // Fetch badges
         const fetchedBadges = await getAllUserBadges();
         setBadges(fetchedBadges);
-
-        // Fetch visited places
         const visitedPlaces = await fetchUserVisitedPlaces();
         setVisitedPlacesCount(visitedPlaces.length);
       } catch (error) {
@@ -38,13 +34,11 @@ const TravelMilestonesComponent: React.FC<TravelMilestonesComponentProps> = ({ p
     fetchMilestoneData();
   }, []);
 
-  // Generate milestones based on available data
   const generateMilestones = (): TravelMilestone[] => {
     if (!profile) return [];
 
     const milestones: TravelMilestone[] = [];
 
-    // Badges Milestone
     const completedBadgesCount = badges.filter((b) => b.completed).length;
     milestones.push({
       title: "Badges Earned",
@@ -58,7 +52,6 @@ const TravelMilestonesComponent: React.FC<TravelMilestonesComponentProps> = ({ p
           : "Your journey to earning badges begins now",
     });
 
-    // Places Visited Milestone
     milestones.push({
       title: "Places Explored",
       value: visitedPlacesCount.toString(),
@@ -71,7 +64,6 @@ const TravelMilestonesComponent: React.FC<TravelMilestonesComponentProps> = ({ p
           : "Start exploring to track your visited places",
     });
 
-    // Streak Milestone
     milestones.push({
       title: "Exploration Streak",
       value: profile.streak.toString(),
@@ -82,7 +74,6 @@ const TravelMilestonesComponent: React.FC<TravelMilestonesComponentProps> = ({ p
           : "Keep exploring to build your travel streak",
     });
 
-    // Exploration Score Milestone
     const explorationScore = profile.explorationScore || 0;
     milestones.push({
       title: "Exploration Score",
@@ -97,7 +88,6 @@ const TravelMilestonesComponent: React.FC<TravelMilestonesComponentProps> = ({ p
     return milestones;
   };
 
-  // Color pairs for gradient backgrounds
   const gradientColors = [
     [Colors.primary, AccentColors.accent1],
     [AccentColors.accent2, AccentColors.accent3 || "#4CAF50"],
@@ -105,7 +95,6 @@ const TravelMilestonesComponent: React.FC<TravelMilestonesComponentProps> = ({ p
     [AccentColors.accent1, Colors.primary],
   ];
 
-  // Generate milestones or use existing ones
   const milestones = profile?.travelMilestones || generateMilestones();
 
   if (milestones.length === 0) {

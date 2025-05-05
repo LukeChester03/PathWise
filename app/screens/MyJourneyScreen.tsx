@@ -1,4 +1,3 @@
-// screens/MyJourneyScreen.tsx
 import React, { useRef, useEffect } from "react";
 import {
   View,
@@ -19,22 +18,20 @@ import { LinearGradient } from "expo-linear-gradient";
 import { StatItem } from "../types/StatTypes";
 import { RootStackParamList } from "../navigation/types";
 import { Colors } from "../constants/colours";
-import Header from "../components/Global/Header"; // Import the global Header component
+import Header from "../components/Global/Header";
 
 type MyJourneyScreenNavigationProp = NativeStackNavigationProp<RootStackParamList>;
 type MyJourneyScreenRouteProp = RouteProp<RootStackParamList, "MyJourney">;
 
 const { width } = Dimensions.get("window");
 const GRID_SPACING = 12;
-const GRID_ITEM_WIDTH = (width - 48) / 2; // 2 columns with margins
+const GRID_ITEM_WIDTH = (width - 48) / 2;
 
 const MyJourneyScreen = () => {
   const navigation = useNavigation<MyJourneyScreenNavigationProp>();
   const route = useRoute<MyJourneyScreenRouteProp>();
-  // We're using all stats now, including zeros
   const stats: StatItem[] = route.params?.stats || [];
 
-  // Animation values
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const gridAnims = useRef<Animated.Value[]>(
     Array(stats.length)
@@ -43,14 +40,12 @@ const MyJourneyScreen = () => {
   ).current;
 
   useEffect(() => {
-    // Start fade in animation
     Animated.timing(fadeAnim, {
       toValue: 1,
       duration: 400,
       useNativeDriver: true,
     }).start();
 
-    // Animate grid items with staggered entrance
     const animations = gridAnims.map((anim, index) => {
       return Animated.timing(anim, {
         toValue: 1,
@@ -63,14 +58,11 @@ const MyJourneyScreen = () => {
     Animated.stagger(50, animations).start();
   }, []);
 
-  // Navigate back to previous screen
   const handleGoBack = () => {
     navigation.goBack();
   };
 
-  // Function to render a stat card in the grid
   const renderStatCard = (item: StatItem, index: number) => {
-    // Format stat value with appropriate styling
     const displayValue = typeof item.value === "number" && item.value === 0 ? "0" : item.value;
 
     return (
@@ -115,9 +107,7 @@ const MyJourneyScreen = () => {
     );
   };
 
-  // Render the journey summary stats - including zeros
   const renderJourneySummary = () => {
-    // Find the specific stats we want to highlight
     const totalPlaces = stats.find((s) => s.label === "Places Discovered")?.value || 0;
     const totalCountries = stats.find((s) => s.label === "Countries Visited")?.value || 0;
     const explorerLevel = stats.find((s) => s.label.includes("Level"))?.value || "Level 1";
@@ -155,7 +145,6 @@ const MyJourneyScreen = () => {
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
-      {/* Global Header Component */}
       <Header
         title="My Journey"
         subtitle="Your exploration statistics"
@@ -173,15 +162,12 @@ const MyJourneyScreen = () => {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Journey Summary */}
         {renderJourneySummary()}
 
-        {/* Stats Grid - Show all stats, including zeros */}
         <View style={styles.gridContainer}>
           {stats.map((item, index) => renderStatCard(item, index))}
         </View>
 
-        {/* Future Journey */}
         <Animated.View
           style={[
             styles.futureJourney,
@@ -229,7 +215,6 @@ const styles = StyleSheet.create({
     backgroundColor: "#f8f9fa",
   },
   headerStyles: {
-    // Any custom styles for the header
     marginBottom: 0,
   },
   scrollView: {
@@ -238,13 +223,13 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 16,
     paddingBottom: 30,
-    paddingTop: 10, // Add some padding since we now have the global header
+    paddingTop: 10,
   },
   journeySummary: {
     backgroundColor: "#fff",
     borderRadius: 16,
     padding: 20,
-    marginTop: 10, // Adjusted from 20 to account for the header
+    marginTop: 10,
     marginBottom: 16,
     ...Platform.select({
       ios: {

@@ -1,4 +1,3 @@
-// components/HomeScreen/DiscoveredLocationsSection.tsx
 import React, { useState, useEffect, useRef } from "react";
 import {
   View,
@@ -19,8 +18,8 @@ import { getVisitedPlaces } from "../../controllers/Map/visitedPlacesController"
 import { Colors } from "../../constants/colours";
 
 const { width } = Dimensions.get("window");
-const LOCATION_CARD_WIDTH = width * 0.42; // Slightly wider cards
-const SPACING = 10; // Reduced from 12 to tighten layout
+const LOCATION_CARD_WIDTH = width * 0.42;
+const SPACING = 10;
 
 interface DiscoveredLocationsSectionProps {
   navigateToScreen: (screenName: string, params?: any) => void;
@@ -43,20 +42,17 @@ const DiscoveredLocationsSection: React.FC<DiscoveredLocationsSectionProps> = ({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Animation values
   const fadeAnimation = useRef(new Animated.Value(0)).current;
   const slideAnimation = useRef(new Animated.Value(30)).current;
   const scaleAnimation = useRef(new Animated.Value(0.9)).current;
   const loadingAnimation = useRef(new Animated.Value(0)).current;
   const headerAnimation = useRef(new Animated.Value(0)).current;
 
-  // Scroll handling for location cards
   const scrollX = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     fetchUserDiscoveredLocations();
 
-    // Start animations
     Animated.timing(headerAnimation, {
       toValue: 1,
       duration: 800,
@@ -64,10 +60,8 @@ const DiscoveredLocationsSection: React.FC<DiscoveredLocationsSectionProps> = ({
       easing: Easing.out(Easing.cubic),
     }).start();
 
-    // Start with higher initial opacity (1 instead of 0.6)
     fadeAnimation.setValue(1);
 
-    // Start the entrance animations
     Animated.parallel([
       Animated.timing(fadeAnimation, {
         toValue: 1,
@@ -89,7 +83,6 @@ const DiscoveredLocationsSection: React.FC<DiscoveredLocationsSectionProps> = ({
       }),
     ]).start();
 
-    // Start loading animation loop
     Animated.loop(
       Animated.sequence([
         Animated.timing(loadingAnimation, {
@@ -108,34 +101,27 @@ const DiscoveredLocationsSection: React.FC<DiscoveredLocationsSectionProps> = ({
     ).start();
   }, []);
 
-  // Function to fetch user's discovered locations from database
   const fetchUserDiscoveredLocations = async () => {
     setLoading(true);
     setError(null);
 
     try {
-      // Get visited places from database
       const visitedPlaces = await getVisitedPlaces();
 
-      // Process the visited places to match our component's data structure
       const formattedLocations = visitedPlaces
-        .filter((place) => place && place.place_id) // Filter out any invalid places
+        .filter((place) => place && place.place_id)
         .map((place) => {
-          // Create a clean city string by limiting length
           let cityText = place.vicinity || place.formatted_address || "Unknown location";
           if (cityText.length > 25) {
             cityText = cityText.substring(0, 22) + "...";
           }
 
-          // Ensure place.name exists and is a string
           const placeName = typeof place.name === "string" ? place.name : "Unnamed Place";
 
-          // Generate placeholder images with location name if no photo is available
           const placeholderImage = `https://via.placeholder.com/400x300/f0f0f0/666666?text=${encodeURIComponent(
             placeName.substring(0, 15)
           )}`;
 
-          // Ensure we have a valid id for the list item
           const id =
             place.place_id ||
             place.id ||
@@ -145,16 +131,12 @@ const DiscoveredLocationsSection: React.FC<DiscoveredLocationsSectionProps> = ({
             id: id,
             name: placeName.length > 20 ? placeName.substring(0, 18) + "..." : placeName,
             city: cityText,
-            // Use photos array if available or fallback to a placeholder
             image:
               place.photos && place.photos.length > 0 && place.photos[0].photo_reference
                 ? `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photoreference=${place.photos[0].photo_reference}&key=AIzaSyDAGq_6eJGQpR3RcO0NrVOowel9-DxZkvA`
                 : placeholderImage,
-            // Format the visit date
             date: formatVisitDate(place.visitedAt),
-            // Include the full place data for potential use
             placeData: place,
-            // Add rating if available
             rating: place.rating || null,
           };
         });
@@ -168,20 +150,17 @@ const DiscoveredLocationsSection: React.FC<DiscoveredLocationsSectionProps> = ({
     }
   };
 
-  // Helper function to format visit date
   const formatVisitDate = (visitedAt: string | number | Date | undefined) => {
     if (!visitedAt) return "Unknown date";
 
     try {
       const visitDate = new Date(visitedAt);
 
-      // Check if the date is valid
       if (isNaN(visitDate.getTime())) {
         return "Unknown date";
       }
 
       const now = new Date();
-      // Get time in milliseconds and convert to days
       const diffTime = Math.abs(now.getTime() - visitDate.getTime());
       const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
 
@@ -210,15 +189,13 @@ const DiscoveredLocationsSection: React.FC<DiscoveredLocationsSectionProps> = ({
     item: PlaceData | { id: string };
     index: number;
   }) => {
-    // For the "View All" card at the end
     if (item.id === "ViewAll") {
-      // Animation for the view-all card
       const viewAllOpacity = scrollX.interpolate({
         inputRange: [
           (discoveredLocations.length - 1) * (LOCATION_CARD_WIDTH + SPACING) - width,
           (discoveredLocations.length - 0.5) * (LOCATION_CARD_WIDTH + SPACING) - width,
         ],
-        outputRange: [0.9, 1], // Increased minimum opacity from 0.6 to 0.9
+        outputRange: [0.9, 1],
         extrapolate: "clamp",
       });
 
@@ -233,7 +210,7 @@ const DiscoveredLocationsSection: React.FC<DiscoveredLocationsSectionProps> = ({
                     (discoveredLocations.length - 1) * (LOCATION_CARD_WIDTH + SPACING) - width,
                     discoveredLocations.length * (LOCATION_CARD_WIDTH + SPACING) - width,
                   ],
-                  outputRange: [0.95, 1], // Increased minimum scale from 0.92 to 0.95
+                  outputRange: [0.95, 1],
                   extrapolate: "clamp",
                 }),
               },
@@ -322,38 +299,33 @@ const DiscoveredLocationsSection: React.FC<DiscoveredLocationsSectionProps> = ({
 
     const typedItem = item as PlaceData;
 
-    // Calculate input range for animations
     const inputRange = [
       (index - 1) * (LOCATION_CARD_WIDTH + SPACING),
       index * (LOCATION_CARD_WIDTH + SPACING),
       (index + 1) * (LOCATION_CARD_WIDTH + SPACING),
     ];
 
-    // Fixed opacity animation - increased minimum opacity from 0.7 to 0.9
     const opacity = scrollX.interpolate({
       inputRange,
       outputRange: [0.9, 1, 0.9],
       extrapolate: "clamp",
     });
 
-    // Fixed scale animation - increased minimum scale from 0.92 to 0.96
     const scale = scrollX.interpolate({
       inputRange,
       outputRange: [0.96, 1, 0.96],
       extrapolate: "clamp",
     });
 
-    // Reduced vertical movement to make it more subtle
     const translateY = scrollX.interpolate({
       inputRange,
-      outputRange: [4, 0, 4], // Reduced from [7, 0, 7] to [4, 0, 4]
+      outputRange: [4, 0, 4],
       extrapolate: "clamp",
     });
 
     return (
       <Animated.View
         style={{
-          // Use opacity directly instead of multiplying with fadeAnimation
           opacity: opacity,
           transform: [{ scale }, { translateY }],
         }}
@@ -374,7 +346,6 @@ const DiscoveredLocationsSection: React.FC<DiscoveredLocationsSectionProps> = ({
             style={styles.locationGradient}
           />
 
-          {/* Rating badge with animation if available */}
           {typedItem.rating && (
             <Animated.View
               style={[
@@ -415,7 +386,6 @@ const DiscoveredLocationsSection: React.FC<DiscoveredLocationsSectionProps> = ({
     );
   };
 
-  // Animated empty state component
   const renderEmptyState = () => {
     return (
       <Animated.View
@@ -510,7 +480,6 @@ const DiscoveredLocationsSection: React.FC<DiscoveredLocationsSectionProps> = ({
             </View>
           </View>
 
-          {/* "Click to explore" text at the bottom */}
           <Animated.View
             style={[
               styles.clickPromptContainer,
@@ -526,12 +495,12 @@ const DiscoveredLocationsSection: React.FC<DiscoveredLocationsSectionProps> = ({
               style={[
                 styles.clickPromptLine,
                 {
-                  width: 30, // Fixed width of 30
+                  width: 30,
                   transform: [
                     {
                       scaleX: fadeAnimation.interpolate({
                         inputRange: [0, 1],
-                        outputRange: [0, 1], // Scale from 0 to full width
+                        outputRange: [0, 1],
                       }),
                     },
                   ],
@@ -543,12 +512,12 @@ const DiscoveredLocationsSection: React.FC<DiscoveredLocationsSectionProps> = ({
               style={[
                 styles.clickPromptLine,
                 {
-                  width: 30, // Fixed width of 30
+                  width: 30,
                   transform: [
                     {
                       scaleX: fadeAnimation.interpolate({
                         inputRange: [0, 1],
-                        outputRange: [0, 1], // Scale from 0 to full width
+                        outputRange: [0, 1],
                       }),
                     },
                   ],
@@ -561,7 +530,6 @@ const DiscoveredLocationsSection: React.FC<DiscoveredLocationsSectionProps> = ({
     );
   };
 
-  // Animated loading state
   const renderLoadingState = () => {
     return (
       <Animated.View
@@ -588,7 +556,6 @@ const DiscoveredLocationsSection: React.FC<DiscoveredLocationsSectionProps> = ({
     );
   };
 
-  // Animated error state
   const renderErrorState = () => {
     return (
       <Animated.View
@@ -635,7 +602,6 @@ const DiscoveredLocationsSection: React.FC<DiscoveredLocationsSectionProps> = ({
       return renderEmptyState();
     }
 
-    // Make sure all items have a valid id for the keyExtractor
     const dataWithViewAll = [
       ...discoveredLocations.map((location) => ({
         ...location,
@@ -702,7 +668,7 @@ const DiscoveredLocationsSection: React.FC<DiscoveredLocationsSectionProps> = ({
 
 const styles = StyleSheet.create({
   locationsContainer: {
-    marginVertical: 10, // Standardized margin
+    marginVertical: 10,
     width: "100%",
   },
   sectionHeader: {
@@ -712,18 +678,18 @@ const styles = StyleSheet.create({
     paddingLeft: 4,
   },
   sectionTitle: {
-    fontSize: 18, // Standardized font size
-    fontWeight: "600", // Standardized font weight
-    color: Colors.text || "#333", // Consistent color with fallback
+    fontSize: 18,
+    fontWeight: "600",
+    color: Colors.text || "#333",
     marginLeft: 8,
   },
   locationsCarousel: {
-    paddingVertical: 6, // Reduced from 8 to 6
+    paddingVertical: 6,
     paddingRight: SPACING,
   },
   locationCard: {
     width: LOCATION_CARD_WIDTH,
-    height: 165, // Reduced from 170 to 165
+    height: 165,
     marginRight: SPACING,
     borderRadius: 16,
     overflow: "hidden",
@@ -759,7 +725,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    padding: 10, // Reduced from 12 to 10
+    padding: 10,
   },
   locationName: {
     fontSize: 15,
@@ -815,7 +781,7 @@ const styles = StyleSheet.create({
   },
   viewAllCard: {
     width: LOCATION_CARD_WIDTH,
-    height: 165, // Reduced from 170 to 165
+    height: 165,
     marginRight: SPACING,
     borderRadius: 16,
     overflow: "hidden",
@@ -876,14 +842,14 @@ const styles = StyleSheet.create({
   },
   viewAllContent: {
     alignItems: "center",
-    padding: 14, // Reduced from 16 to 14
+    padding: 14,
     zIndex: 1,
   },
   viewAllText: {
     fontSize: 18,
     fontWeight: "bold",
     color: "#fff",
-    marginTop: 10, // Reduced from 12 to 10
+    marginTop: 10,
     marginBottom: 4,
   },
   viewAllSubtext: {
@@ -893,10 +859,9 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
 
-  // Empty state styles (with animation enhancements)
   emptyStateCard: {
     width: "100%",
-    height: 165, // Reduced from 170 to 165
+    height: 165,
     borderRadius: 16,
     backgroundColor: "#ffffff",
     overflow: "hidden",
@@ -919,7 +884,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     width: "100%",
-    paddingHorizontal: 20, // Reduced from 24 to 20
+    paddingHorizontal: 20,
     zIndex: 1,
     height: "100%",
   },
@@ -937,7 +902,7 @@ const styles = StyleSheet.create({
   },
   middleContainer: {
     flex: 1,
-    paddingHorizontal: 14, // Reduced from 16 to 14
+    paddingHorizontal: 14,
   },
   emptyStateTitle: {
     fontSize: 18,
@@ -964,7 +929,7 @@ const styles = StyleSheet.create({
   },
   clickPromptContainer: {
     position: "absolute",
-    bottom: 14, // Reduced from 16 to 14
+    bottom: 14,
     left: 0,
     right: 0,
     flexDirection: "row",
@@ -984,9 +949,8 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
 
-  // Loading state styles
   loadingContainer: {
-    height: 165, // Reduced from 170 to 165
+    height: 165,
     justifyContent: "center",
     alignItems: "center",
     backgroundColor: "#f9f9f9",
@@ -999,14 +963,13 @@ const styles = StyleSheet.create({
     color: "#666",
   },
 
-  // Error state styles
   errorContainer: {
-    height: 165, // Reduced from 170 to 165
+    height: 165,
     justifyContent: "center",
     alignItems: "center",
     backgroundColor: "#f9f9f9",
     borderRadius: 16,
-    padding: 18, // Reduced from 20 to 18
+    padding: 18,
     width: "100%",
   },
   errorText: {
@@ -1014,7 +977,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#666",
     textAlign: "center",
-    marginBottom: 12, // Reduced from 14 to 12
+    marginBottom: 12,
   },
   retryButton: {
     backgroundColor: "#d03f74",

@@ -40,14 +40,12 @@ const MapDistanceSettingsModal: React.FC<MapDistanceSettingsModalProps> = ({
   const [radius, setRadius] = useState<number>(initialRadius);
   const [isSaving, setIsSaving] = useState<boolean>(false);
 
-  // Animation values
   const modalAnimation = useRef(new Animated.Value(0)).current;
   const backdropAnimation = useRef(new Animated.Value(0)).current;
   const contentScaleAnimation = useRef(new Animated.Value(0.95)).current;
   const sliderAnimationMaxPlaces = useRef(new Animated.Value(0)).current;
   const sliderAnimationRadius = useRef(new Animated.Value(0)).current;
 
-  // Reset values when modal opens
   useEffect(() => {
     if (visible) {
       setMaxPlaces(initialMaxPlaces);
@@ -75,7 +73,6 @@ const MapDistanceSettingsModal: React.FC<MapDistanceSettingsModalProps> = ({
         }),
       ]).start();
 
-      // Staggered animations for internal elements
       Animated.stagger(150, [
         Animated.timing(sliderAnimationMaxPlaces, {
           toValue: 1,
@@ -91,7 +88,6 @@ const MapDistanceSettingsModal: React.FC<MapDistanceSettingsModalProps> = ({
         }),
       ]).start();
     } else {
-      // Reset animations when modal closes
       backdropAnimation.setValue(0);
       modalAnimation.setValue(0);
       contentScaleAnimation.setValue(0.95);
@@ -103,16 +99,14 @@ const MapDistanceSettingsModal: React.FC<MapDistanceSettingsModalProps> = ({
   const handleSave = () => {
     setIsSaving(true);
 
-    // Ensure we pass numbers, not any type
     setTimeout(() => {
       onSave(Number(maxPlaces), Number(radius));
-    }, 300); // Short delay to show loading state
+    }, 300);
   };
 
   const handleClose = () => {
-    if (isSaving) return; // Don't close if saving
+    if (isSaving) return;
 
-    // Animate out before calling onClose
     Animated.parallel([
       Animated.timing(backdropAnimation, {
         toValue: 0,
@@ -134,13 +128,11 @@ const MapDistanceSettingsModal: React.FC<MapDistanceSettingsModalProps> = ({
     });
   };
 
-  // Calculate modal position
   const translateY = modalAnimation.interpolate({
     inputRange: [0, 1],
     outputRange: [SCREEN_HEIGHT * 0.1, 0],
   });
 
-  // Calculate slider animations
   const translateXMaxPlaces = sliderAnimationMaxPlaces.interpolate({
     inputRange: [0, 1],
     outputRange: [-20, 0],
@@ -160,7 +152,7 @@ const MapDistanceSettingsModal: React.FC<MapDistanceSettingsModalProps> = ({
       visible={visible}
       onRequestClose={handleClose}
       statusBarTranslucent={true}
-      animationType="none" // We'll handle our own animations
+      animationType="none"
     >
       <StatusBar barStyle="dark-content" backgroundColor="rgba(0, 0, 0, 0.5)" translucent={true} />
       <TouchableWithoutFeedback onPress={handleClose}>
@@ -181,10 +173,8 @@ const MapDistanceSettingsModal: React.FC<MapDistanceSettingsModalProps> = ({
                 },
               ]}
             >
-              {/* Pill indicator for better UX */}
               <View style={styles.pillIndicator} />
 
-              {/* Header */}
               <View style={styles.header}>
                 <Text style={styles.title}>Map Settings</Text>
                 <TouchableOpacity
@@ -200,10 +190,8 @@ const MapDistanceSettingsModal: React.FC<MapDistanceSettingsModalProps> = ({
                 </TouchableOpacity>
               </View>
 
-              {/* Divider */}
               <View style={styles.divider} />
 
-              {/* Settings */}
               <Animated.View
                 style={[
                   styles.settingContainer,
@@ -286,7 +274,6 @@ const MapDistanceSettingsModal: React.FC<MapDistanceSettingsModalProps> = ({
                 </Text>
               </Animated.View>
 
-              {/* Buttons */}
               <View style={styles.buttonContainer}>
                 <TouchableOpacity
                   style={[styles.button, styles.cancelButton]}
@@ -318,7 +305,6 @@ const MapDistanceSettingsModal: React.FC<MapDistanceSettingsModalProps> = ({
                 </TouchableOpacity>
               </View>
 
-              {/* Status message */}
               <Animated.View
                 style={[
                   styles.statusContainer,
@@ -487,7 +473,7 @@ const styles = StyleSheet.create({
     marginLeft: 6,
   },
   disabledButton: {
-    backgroundColor: Colors.primary + "80", // Add opacity to primary color
+    backgroundColor: Colors.primary + "80",
     shadowOpacity: 0,
     elevation: 0,
   },

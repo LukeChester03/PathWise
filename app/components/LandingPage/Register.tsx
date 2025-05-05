@@ -1,4 +1,3 @@
-// app/components/LandingPage/Register.tsx
 import React, { useState, useRef, useEffect } from "react";
 import {
   View,
@@ -19,7 +18,7 @@ import {
 } from "react-native";
 import { Colors, NeutralColors } from "../../constants/colours";
 import { handleRegister } from "../../controllers/Register/RegisterController";
-import { Ionicons } from "@expo/vector-icons"; // Assuming Expo is used
+import { Ionicons } from "@expo/vector-icons";
 
 const { height } = Dimensions.get("window");
 
@@ -34,14 +33,12 @@ export default function RegisterModal({
   onRequestClose,
   onRegisterSuccess,
 }: RegisterModalProps) {
-  // Form state
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // UI state
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [nameFocused, setNameFocused] = useState(false);
@@ -49,23 +46,19 @@ export default function RegisterModal({
   const [passwordFocused, setPasswordFocused] = useState(false);
   const [confirmPasswordFocused, setConfirmPasswordFocused] = useState(false);
 
-  // Password strength indicators
   const [passwordStrength, setPasswordStrength] = useState(0);
 
-  // Animation
   const slideAnim = useRef(new Animated.Value(height)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     if (visible) {
-      // Reset form when modal opens
       setName("");
       setEmail("");
       setPassword("");
       setConfirmPassword("");
       setPasswordStrength(0);
 
-      // Start animations
       Animated.parallel([
         Animated.timing(slideAnim, {
           toValue: 0,
@@ -79,13 +72,11 @@ export default function RegisterModal({
         }),
       ]).start();
     } else {
-      // Reset animations when modal closes
       slideAnim.setValue(height);
       fadeAnim.setValue(0);
     }
   }, [visible]);
 
-  // Check password strength
   useEffect(() => {
     if (!password) {
       setPasswordStrength(0);
@@ -93,22 +84,16 @@ export default function RegisterModal({
     }
 
     let strength = 0;
-    // Length check
     if (password.length >= 8) strength += 1;
-    // Uppercase check
     if (/[A-Z]/.test(password)) strength += 1;
-    // Lowercase check
     if (/[a-z]/.test(password)) strength += 1;
-    // Number check
     if (/[0-9]/.test(password)) strength += 1;
-    // Special character check
     if (/[^A-Za-z0-9]/.test(password)) strength += 1;
 
     setPasswordStrength(strength);
   }, [password]);
 
   const performRegister = async () => {
-    // Form validation
     if (!name.trim()) {
       Alert.alert("Error", "Please enter your name");
       return;
@@ -149,7 +134,6 @@ export default function RegisterModal({
   };
 
   const closeModal = () => {
-    // Animate closing
     Animated.parallel([
       Animated.timing(slideAnim, {
         toValue: height,
@@ -166,18 +150,16 @@ export default function RegisterModal({
     });
   };
 
-  // Get color for password strength indicator
   const getStrengthColor = (index: number) => {
     if (passwordStrength === 0) return NeutralColors.gray300;
     if (index < passwordStrength) {
-      if (passwordStrength <= 2) return "#F59E0B"; // Yellow for weak
-      if (passwordStrength <= 3) return "#10B981"; // Green for medium
-      return "#3B82F6"; // Blue for strong
+      if (passwordStrength <= 2) return "#F59E0B";
+      if (passwordStrength <= 3) return "#10B981";
+      return "#3B82F6";
     }
     return NeutralColors.gray300;
   };
 
-  // Get text for password strength
   const getStrengthText = () => {
     if (passwordStrength === 0) return "";
     if (passwordStrength <= 2) return "Weak";
@@ -186,12 +168,7 @@ export default function RegisterModal({
   };
 
   return (
-    <Modal
-      animationType="none" // We'll handle animation ourselves
-      transparent={true}
-      visible={visible}
-      onRequestClose={closeModal}
-    >
+    <Modal animationType="none" transparent={true} visible={visible} onRequestClose={closeModal}>
       <TouchableWithoutFeedback onPress={closeModal}>
         <Animated.View style={[styles.modalOverlay, { opacity: fadeAnim }]}>
           <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
@@ -211,7 +188,6 @@ export default function RegisterModal({
 
                 <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
                   <View style={styles.formContainer}>
-                    {/* Name Input */}
                     <View style={styles.inputContainer}>
                       <Text style={styles.inputLabel}>Full Name</Text>
                       <View
@@ -231,7 +207,6 @@ export default function RegisterModal({
                       </View>
                     </View>
 
-                    {/* Email Input */}
                     <View style={styles.inputContainer}>
                       <Text style={styles.inputLabel}>Email</Text>
                       <View
@@ -253,7 +228,6 @@ export default function RegisterModal({
                       </View>
                     </View>
 
-                    {/* Password Input */}
                     <View style={styles.inputContainer}>
                       <Text style={styles.inputLabel}>Password</Text>
                       <View
@@ -283,7 +257,6 @@ export default function RegisterModal({
                         </TouchableOpacity>
                       </View>
 
-                      {/* Password Strength Indicator */}
                       {password.length > 0 && (
                         <View style={styles.strengthContainer}>
                           <View style={styles.strengthBars}>
@@ -302,7 +275,6 @@ export default function RegisterModal({
                       )}
                     </View>
 
-                    {/* Confirm Password Input */}
                     <View style={styles.inputContainer}>
                       <Text style={styles.inputLabel}>Confirm Password</Text>
                       <View
@@ -342,7 +314,6 @@ export default function RegisterModal({
                       )}
                     </View>
 
-                    {/* Register Button */}
                     <TouchableOpacity
                       style={styles.registerButton}
                       onPress={performRegister}
@@ -356,7 +327,6 @@ export default function RegisterModal({
                       )}
                     </TouchableOpacity>
 
-                    {/* Terms & Conditions */}
                     <Text style={styles.termsText}>
                       By creating an account, you agree to our{" "}
                       <Text style={styles.termsLink}>Terms of Service</Text> and{" "}
@@ -395,7 +365,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 10,
-    maxHeight: height * 0.9, // Ensure modal doesn't take up more than 90% of the screen
+    maxHeight: height * 0.9,
   },
   scrollView: {
     maxHeight: height * 0.75,
@@ -446,7 +416,7 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   inputWrapperError: {
-    borderColor: "#EF4444", // Red for error
+    borderColor: "#EF4444",
   },
   input: {
     flex: 1,

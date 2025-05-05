@@ -16,7 +16,6 @@ import { Colors, NeutralColors } from "../../constants/colours";
 import MaterialIcon from "react-native-vector-icons/MaterialIcons";
 import { TravelMode } from "../../types/MapTypes";
 
-// Enable layout animations for Android
 if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
@@ -29,7 +28,6 @@ interface DetailsCardProps {
   travelMode: TravelMode;
   onInfoPress?: () => void;
 
-  // Navigation properties
   currentStep: any | null;
   nextStepDistance: string | null;
   navigationSteps: any[];
@@ -40,24 +38,16 @@ interface DetailsCardProps {
   autoShowUpcomingStep?: boolean;
 }
 
-// Get screen dimensions
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
-// Calculate responsive sizes
 const getResponsiveWidth = () => {
-  // For smaller phones
   if (SCREEN_WIDTH < 350) return "88%";
-  // For medium sized phones
   else if (SCREEN_WIDTH < 450) return "82%";
-  // For larger phones and small tablets
   else return "75%";
 };
 
-// Calculate size constraints
 const MIN_CARD_WIDTH = 310;
 const MAX_CARD_WIDTH = 520;
-
-// Auto-hide timeout duration (ms)
 const AUTO_HIDE_DURATION = 10000;
 
 const DetailsCard: React.FC<DetailsCardProps> = ({
@@ -67,8 +57,6 @@ const DetailsCard: React.FC<DetailsCardProps> = ({
   onSwipeOff,
   travelMode,
   onInfoPress = () => {},
-
-  // Navigation properties
   currentStep,
   nextStepDistance,
   navigationSteps,
@@ -76,8 +64,6 @@ const DetailsCard: React.FC<DetailsCardProps> = ({
   soundEnabled,
   setSoundEnabled,
   getManeuverIcon,
-
-  // Auto-show properties
   autoShowUpcomingStep = true,
 }) => {
   const [expanded, setExpanded] = useState(false);
@@ -91,11 +77,8 @@ const DetailsCard: React.FC<DetailsCardProps> = ({
   const shadowAnim = useRef(new Animated.Value(0.15)).current;
   const cardHeightAnim = useRef(new Animated.Value(0)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
-
-  // Track card dimensions
   const [cardWidth, setCardWidth] = useState(0);
 
-  // Start pulse animation on load
   useEffect(() => {
     Animated.loop(
       Animated.sequence([
@@ -113,23 +96,16 @@ const DetailsCard: React.FC<DetailsCardProps> = ({
     ).start();
   }, []);
 
-  // Watch for step index changes to auto-expand
   useEffect(() => {
-    // Clear any existing timer when step changes
     if (autoShowTimer) {
       clearTimeout(autoShowTimer);
       setAutoShowTimer(null);
     }
 
-    // Don't auto-show for the first step
     if (stepIndex !== lastStepIndex && stepIndex > 0 && autoShowUpcomingStep) {
-      // If card is not currently shown because of auto-show
       if (!isAutoShown) {
-        // Expand the card
         setExpanded(true);
         setIsAutoShown(true);
-
-        // Set timer to collapse after duration
         const timer = setTimeout(() => {
           setExpanded(false);
           setIsAutoShown(false);
@@ -138,12 +114,9 @@ const DetailsCard: React.FC<DetailsCardProps> = ({
         setAutoShowTimer(timer);
       }
     }
-
-    // Update the last step index
     setLastStepIndex(stepIndex);
   }, [stepIndex, autoShowUpcomingStep]);
 
-  // Cleanup timer on unmount
   useEffect(() => {
     return () => {
       if (autoShowTimer) {
@@ -152,7 +125,6 @@ const DetailsCard: React.FC<DetailsCardProps> = ({
     };
   }, [autoShowTimer]);
 
-  // Track when travel mode changes
   const lastModeRef = useRef<TravelMode>(travelMode);
   useEffect(() => {
     if (lastModeRef.current !== travelMode) {
@@ -160,21 +132,17 @@ const DetailsCard: React.FC<DetailsCardProps> = ({
     }
   }, [travelMode]);
 
-  // Listen for screen dimension changes
   useEffect(() => {
     const subscription = Dimensions.addEventListener("change", () => {
-      // Force re-render to update responsive styles
       setCardWidth(0);
       setTitleExpanded(false);
     });
 
     return () => {
-      // Clean up the subscription
       subscription.remove();
     };
   }, []);
 
-  // Animate card height on expansion/collapse
   useEffect(() => {
     Animated.timing(cardHeightAnim, {
       toValue: expanded ? 1 : 0,
@@ -183,7 +151,6 @@ const DetailsCard: React.FC<DetailsCardProps> = ({
     }).start();
   }, [expanded, cardHeightAnim]);
 
-  // Handle title toggle
   const toggleTitle = () => {
     if (isTitleEllipsized) {
       LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
@@ -191,22 +158,17 @@ const DetailsCard: React.FC<DetailsCardProps> = ({
     }
   };
 
-  // Handle title text layout to check if ellipsized
   const onTextLayout = (e: { nativeEvent: { lines: string | any[] } }) => {
-    // Check if text is ellipsized (more than 1 line)
     const linesCount = e.nativeEvent.lines.length;
     setIsTitleEllipsized(linesCount > 1);
   };
 
-  // Handle expand/collapse button press
   const handleExpandPress = () => {
-    // Clear any auto-show timer when manually expanded/collapsed
     if (autoShowTimer) {
       clearTimeout(autoShowTimer);
       setAutoShowTimer(null);
     }
 
-    // Toggle expanded state
     setExpanded(!expanded);
     setIsAutoShown(false);
   };
@@ -215,7 +177,6 @@ const DetailsCard: React.FC<DetailsCardProps> = ({
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
       onPanResponderGrant: () => {
-        // Clear auto-show timer when user interacts with card
         if (autoShowTimer) {
           clearTimeout(autoShowTimer);
           setAutoShowTimer(null);
@@ -257,7 +218,6 @@ const DetailsCard: React.FC<DetailsCardProps> = ({
     })
   ).current;
 
-  // Get appropriate asset based on travel mode
   const getTravelModeAsset = () => {
     if (travelMode === "driving") {
       try {
@@ -271,13 +231,11 @@ const DetailsCard: React.FC<DetailsCardProps> = ({
     }
   };
 
-  // Determine opacity for upcoming step (fade in when expanded)
   const upcomingStepOpacity = cardHeightAnim.interpolate({
     inputRange: [0, 0.7, 1],
     outputRange: [0, 0, 1],
   });
 
-  // Handle card layout to get dimensions
   const handleCardLayout = (event: { nativeEvent: { layout: { width: any } } }) => {
     const { width } = event.nativeEvent.layout;
     if (width !== cardWidth) {
@@ -301,7 +259,6 @@ const DetailsCard: React.FC<DetailsCardProps> = ({
       {...panResponder.panHandlers}
     >
       <View style={styles.cardInner}>
-        {/* Compact Info Section */}
         <View style={styles.compactHeader}>
           <Animated.View
             style={{
@@ -366,7 +323,6 @@ const DetailsCard: React.FC<DetailsCardProps> = ({
                 </Text>
               </View>
 
-              {/* Sound toggle is always visible but smaller */}
               <TouchableOpacity
                 style={styles.soundToggle}
                 onPress={() => setSoundEnabled(!soundEnabled)}
@@ -385,7 +341,6 @@ const DetailsCard: React.FC<DetailsCardProps> = ({
             </View>
           </View>
 
-          {/* Expand/collapse button */}
           <TouchableOpacity
             style={styles.expandButton}
             onPress={handleExpandPress}
@@ -401,7 +356,6 @@ const DetailsCard: React.FC<DetailsCardProps> = ({
           </TouchableOpacity>
         </View>
 
-        {/* Navigation section appears when expanded */}
         {currentStep && (
           <Animated.View
             style={[
@@ -416,7 +370,6 @@ const DetailsCard: React.FC<DetailsCardProps> = ({
               },
             ]}
           >
-            {/* Current direction */}
             <View style={styles.currentStep}>
               <View
                 style={[styles.iconContainer, cardWidth < 320 ? styles.smallIconContainer : {}]}
@@ -437,7 +390,6 @@ const DetailsCard: React.FC<DetailsCardProps> = ({
               </View>
             </View>
 
-            {/* Upcoming direction */}
             {/* {stepIndex < navigationSteps.length - 1 && (
               <Animated.View style={[styles.upcomingStep, { opacity: upcomingStepOpacity }]}>
                 <View
@@ -459,7 +411,6 @@ const DetailsCard: React.FC<DetailsCardProps> = ({
           </Animated.View>
         )}
 
-        {/* Swipe hint indicator */}
         <View style={styles.swipeHintContainer}>
           <View style={styles.swipeHintDot} />
           <View style={styles.swipeHintDot} />
@@ -585,7 +536,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: "rgba(0,0,0,0.05)",
     paddingHorizontal: 14,
-    paddingBottom: 6, // Reduced padding to minimize space
+    paddingBottom: 6,
     backgroundColor: "rgba(0,0,0,0.01)",
   },
   currentStep: {
@@ -641,7 +592,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     marginTop: 12,
-    marginBottom: 4, // Added to reduce space
+    marginBottom: 4,
     backgroundColor: "rgba(255,255,255,0.8)",
     padding: 12,
     borderRadius: 12,
@@ -683,7 +634,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
-    paddingVertical: 4, // Reduced to minimize spacing
+    paddingVertical: 4,
     backgroundColor: "rgba(0,0,0,0.01)",
   },
   swipeHintDot: {

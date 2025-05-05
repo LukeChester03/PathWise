@@ -39,7 +39,7 @@ import { RouteProp, useFocusEffect } from "@react-navigation/native";
 import { StackNavigationProp } from "@react-navigation/stack";
 import { Place, NearbyPlacesResponse, VisitedPlaceDetails, Region } from "../types/MapTypes";
 import MapLoading from "../components/Map/MapLoading";
-import NetInfo from "@react-native-community/netinfo"; // Added for network detection
+import NetInfo from "@react-native-community/netinfo";
 
 const { width } = Dimensions.get("window");
 const GRID_CARD_WIDTH = (width - 48) / 2;
@@ -67,12 +67,7 @@ interface ViewAllScreenProps {
 }
 
 const ViewAllScreen: React.FC<ViewAllScreenProps> = ({ route, navigation }) => {
-  // Extract route params
   const { viewType = "nearbyPlaces" } = route.params || {};
-
-  console.log(`[ViewAllScreen] Rendered with viewType: ${viewType}`);
-
-  // State for the component
   const [places, setPlaces] = useState<(Place | VisitedPlaceDetails)[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [refreshing, setRefreshing] = useState<boolean>(false);
@@ -80,12 +75,10 @@ const ViewAllScreen: React.FC<ViewAllScreenProps> = ({ route, navigation }) => {
   const [debugInfo, setDebugInfo] = useState<string>("");
   const [isConnected, setIsConnected] = useState<boolean>(true);
 
-  // Flags to control behavior
   const ignoreSubscriptionUpdates = useRef<boolean>(false);
   const isInitialized = useRef(false);
   const placesSubscriptionRef = useRef<(() => void) | null>(null);
 
-  // Set dynamic header properties based on view type
   const headerConfig: Record<ViewType, HeaderConfig> = {
     myPlaces: {
       title: "My Places",
@@ -101,10 +94,8 @@ const ViewAllScreen: React.FC<ViewAllScreenProps> = ({ route, navigation }) => {
     },
   };
 
-  // Get current header configuration
   const currentHeaderConfig = headerConfig[viewType] || headerConfig.nearbyPlaces;
 
-  // Monitor network connectivity
   useEffect(() => {
     const unsubscribe = NetInfo.addEventListener((state) => {
       const connected = state.isConnected ?? false;
@@ -114,7 +105,6 @@ const ViewAllScreen: React.FC<ViewAllScreenProps> = ({ route, navigation }) => {
       );
     });
 
-    // Initial check
     NetInfo.fetch().then((state) => {
       setIsConnected(state.isConnected ?? false);
     });
@@ -124,15 +114,10 @@ const ViewAllScreen: React.FC<ViewAllScreenProps> = ({ route, navigation }) => {
     };
   }, []);
 
-  // Initialize component
   useEffect(() => {
-    // Now that settings are loaded, check for preloaded data
     const initializeComponent = async () => {
       if (viewType === "nearbyPlaces") {
-        // Get places state
         const placesState = getNearbyPlacesState();
-
-        // If we have preloaded data, use it
         if (placesState.hasPreloaded && placesState.places && placesState.places.length > 0) {
           console.log(`[ViewAllScreen] Using ${placesState.places.length} preloaded places`);
           setPlaces(placesState.places);
@@ -140,11 +125,9 @@ const ViewAllScreen: React.FC<ViewAllScreenProps> = ({ route, navigation }) => {
           isInitialized.current = true;
         } else {
           console.log("[ViewAllScreen] No preloaded places, need to fetch");
-          // Fetch data if no preloaded places
           await fetchData(false);
         }
       } else {
-        // For MyPlaces view, fetch from Firestore
         await fetchVisitedPlacesFromFirestore();
       }
 
@@ -153,9 +136,7 @@ const ViewAllScreen: React.FC<ViewAllScreenProps> = ({ route, navigation }) => {
 
     initializeComponent();
 
-    // Cleanup
     return () => {
-      // Clean up subscription if it exists
       if (placesSubscriptionRef.current) {
         placesSubscriptionRef.current();
         placesSubscriptionRef.current = null;
@@ -163,42 +144,27 @@ const ViewAllScreen: React.FC<ViewAllScreenProps> = ({ route, navigation }) => {
     };
   }, [viewType]);
 
-  // Subscribe to global places updates
   useEffect(() => {
-    // Only needed for nearby places
     if (viewType !== "nearbyPlaces") return;
-
-    // Clean up any existing subscription
     if (placesSubscriptionRef.current) {
       placesSubscriptionRef.current();
       placesSubscriptionRef.current = null;
     }
-
-    // Subscribe to global places updates
     const unsubscribe = onPlacesUpdate((placesState) => {
-      // Skip updates while applying settings
       if (ignoreSubscriptionUpdates.current) {
         console.log("[ViewAllScreen] Ignoring subscription update");
         return;
       }
 
-      // Only update if we have meaningful data
       if (placesState.hasPreloaded && placesState.places && placesState.places.length > 0) {
-        // Update places state from global data
         setPlaces(placesState.places);
-
-        // Update loading state
         setLoading(false);
-
         console.log(
           `[ViewAllScreen] Updated places from subscription: ${placesState.places.length} places`
         );
       }
     });
-
-    // Store the unsubscribe function
     placesSubscriptionRef.current = unsubscribe;
-
     return () => {
       if (placesSubscriptionRef.current) {
         placesSubscriptionRef.current();
@@ -207,7 +173,6 @@ const ViewAllScreen: React.FC<ViewAllScreenProps> = ({ route, navigation }) => {
     };
   }, [viewType]);
 
-  // Track when the screen comes into focus
   useFocusEffect(
     useCallback(() => {
       console.log("[ViewAllScreen] Screen focused");
@@ -220,7 +185,6 @@ const ViewAllScreen: React.FC<ViewAllScreenProps> = ({ route, navigation }) => {
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
-    // When user manually refreshes, we force refresh
     fetchData(true).finally(() => setRefreshing(false));
   }, []);
 
@@ -232,10 +196,8 @@ const ViewAllScreen: React.FC<ViewAllScreenProps> = ({ route, navigation }) => {
       setError(null);
 
       if (viewType === "myPlaces") {
-        // Fetch visited places from Firestore
         await fetchVisitedPlacesFromFirestore();
       } else {
-        // For Nearby Places, fetch from Google Places API
         const location: Region | null = await getCurrentLocation();
         if (!location) {
           setError("Unable to get your location");
@@ -244,16 +206,9 @@ const ViewAllScreen: React.FC<ViewAllScreenProps> = ({ route, navigation }) => {
         }
 
         console.log(`[ViewAllScreen] Fetching places with params: forceRefresh=${forceRefresh}`);
-
-        // Use the updateNearbyPlaces function which properly uses the Firebase cache
         try {
-          // This will update the global state which our subscription will pick up
           await updateNearbyPlaces(location, forceRefresh);
-
-          // No need to set places directly, our subscription will handle it
           console.log("[ViewAllScreen] Called updateNearbyPlaces successfully");
-
-          // We'll let the subscription update the places, but we can stop loading now if there was an initial delay
           setTimeout(() => {
             if (loading) {
               const placesState = getNearbyPlacesState();
@@ -265,11 +220,7 @@ const ViewAllScreen: React.FC<ViewAllScreenProps> = ({ route, navigation }) => {
           }, 1000);
         } catch (apiError) {
           console.error("[ViewAllScreen] Error in updateNearbyPlaces:", apiError);
-
-          // Fallback to direct API call if the global approach fails
           console.log("[ViewAllScreen] Falling back to direct fetchNearbyPlaces");
-
-          // Fixed: Only pass the correct number of arguments
           const { places: nearbyPlaces }: NearbyPlacesResponse = await fetchNearbyPlaces(
             location.latitude,
             location.longitude,
@@ -290,7 +241,6 @@ const ViewAllScreen: React.FC<ViewAllScreenProps> = ({ route, navigation }) => {
 
   const fetchVisitedPlacesFromFirestore = async (): Promise<void> => {
     try {
-      // Check if user is authenticated
       const currentUser = auth.currentUser;
       if (!currentUser) {
         console.log("[ViewAllScreen] No authenticated user found");
@@ -298,8 +248,6 @@ const ViewAllScreen: React.FC<ViewAllScreenProps> = ({ route, navigation }) => {
         setLoading(false);
         return;
       }
-
-      // Use the user's visited places subcollection
       const userVisitedPlacesRef = collection(db, "users", currentUser.uid, "visitedPlaces");
       const querySnapshot = await getDocs(userVisitedPlacesRef);
 
@@ -307,17 +255,14 @@ const ViewAllScreen: React.FC<ViewAllScreenProps> = ({ route, navigation }) => {
         console.log("[ViewAllScreen] No saved places found in Firestore");
         setPlaces([]);
       } else {
-        // Transform Firestore documents to place objects
         const userPlacesData = querySnapshot.docs
           .filter((doc) => {
-            // Filter out the initialization document and any invalid entries
             const data = doc.data();
-            return !data._isInitDocument && data.name; // Ensure there's at least a name
+            return !data._isInitDocument && data.name;
           })
           .map((doc) => {
             const data = doc.data();
 
-            // Always use null instead of undefined for optional fields
             return {
               id: doc.id,
               place_id: data.place_id || doc.id,
@@ -328,13 +273,11 @@ const ViewAllScreen: React.FC<ViewAllScreenProps> = ({ route, navigation }) => {
                 location: { lat: 0, lng: 0 },
               },
               photos: data.photos || [],
-              // Use null instead of undefined
               rating: data.rating || null,
               user_ratings_total: data.user_ratings_total || null,
               price_level: data.price_level || null,
               visitedAt: data.visitedAt || null,
               isVisited: true,
-              // Add any other necessary fields with null fallbacks
               website: data.website || null,
               url: data.url || null,
               formatted_phone_number: data.formatted_phone_number || null,
@@ -357,7 +300,6 @@ const ViewAllScreen: React.FC<ViewAllScreenProps> = ({ route, navigation }) => {
 
   const navigateToPlaceDetails = async (placeId: string): Promise<void> => {
     try {
-      // Find the place object in the places array
       const placeObject = places.find((place) => place.place_id === placeId);
 
       if (!placeObject) {
@@ -366,18 +308,13 @@ const ViewAllScreen: React.FC<ViewAllScreenProps> = ({ route, navigation }) => {
         return;
       }
 
-      // If online and place doesn't have full details, try to fetch them using Firebase-first approach
       if (isConnected && !placeObject.hasFullDetails && viewType === "nearbyPlaces") {
         try {
           console.log(
             `[ViewAllScreen] Fetching full details for ${placeObject.name} before navigation`
           );
-          // Show loading feedback
-
-          // Use the Firebase-first approach to fetch details
           const detailedPlace = await fetchPlaceDetailsOnDemand(placeId);
 
-          // If we got details, navigate with those
           if (detailedPlace) {
             console.log(`[ViewAllScreen] Got full details for ${detailedPlace.name}, navigating`);
             navigation.navigate("PlaceDetails", {
@@ -388,11 +325,9 @@ const ViewAllScreen: React.FC<ViewAllScreenProps> = ({ route, navigation }) => {
           }
         } catch (error) {
           console.error("[ViewAllScreen] Error fetching place details:", error);
-          // Continue with basic place object if fetch fails
         }
       }
 
-      // Navigate with the basic place object if we couldn't get details
       navigation.navigate("PlaceDetails", {
         placeId,
         place: placeObject,
@@ -403,7 +338,6 @@ const ViewAllScreen: React.FC<ViewAllScreenProps> = ({ route, navigation }) => {
     }
   };
 
-  // Format the date for display
   const formatVisitDate = (dateString?: string): string => {
     if (!dateString) return "Visited recently";
 
@@ -415,7 +349,6 @@ const ViewAllScreen: React.FC<ViewAllScreenProps> = ({ route, navigation }) => {
     }
   };
 
-  // Render a grid item for nearby places
   const renderGridItem: ListRenderItem<Place | VisitedPlaceDetails> = ({ item }) => {
     return (
       <TouchableOpacity
@@ -449,7 +382,6 @@ const ViewAllScreen: React.FC<ViewAllScreenProps> = ({ route, navigation }) => {
     );
   };
 
-  // Render a list item for my places
   const renderListItem: ListRenderItem<Place | VisitedPlaceDetails> = ({ item }) => {
     return (
       <TouchableOpacity
@@ -470,7 +402,6 @@ const ViewAllScreen: React.FC<ViewAllScreenProps> = ({ route, navigation }) => {
               {item.vicinity || "Unknown location"}
             </Text>
           </View>
-          {/* Display formatted visit date */}
           <View style={styles.visitDateContainer}>
             <Ionicons name="time-outline" size={14} color="#fff" style={{ marginRight: 4 }} />
             <Text style={styles.visitDateText}>{formatVisitDate(item.visitedAt)}</Text>
@@ -486,7 +417,6 @@ const ViewAllScreen: React.FC<ViewAllScreenProps> = ({ route, navigation }) => {
     );
   };
 
-  // Empty state based on view type
   const renderEmptyState = (): React.ReactNode => {
     if (viewType === "myPlaces") {
       return (
@@ -523,10 +453,7 @@ const ViewAllScreen: React.FC<ViewAllScreenProps> = ({ route, navigation }) => {
 
   return (
     <View style={styles.container}>
-      {/* We're replacing SafeAreaView with a custom approach for better control */}
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
-
-      {/* Apply platform-specific top padding */}
       <View style={styles.headerContainer}>
         <Header
           title={currentHeaderConfig.title}
@@ -540,15 +467,11 @@ const ViewAllScreen: React.FC<ViewAllScreenProps> = ({ route, navigation }) => {
           onBackPress={() => navigation.goBack()}
         />
       </View>
-
-      {/* Network Status Indicator - Show when offline */}
       {!isConnected && (
         <View style={styles.networkStatusContainer}>
           <Text style={styles.networkStatusText}>Offline Mode</Text>
         </View>
       )}
-
-      {/* Content */}
       {loading ? (
         <MapLoading />
       ) : error ? (
@@ -613,13 +536,11 @@ const styles = StyleSheet.create({
   headerContainer: {
     paddingTop:
       Platform.OS === "ios"
-        ? // On iOS, apply minimal padding based on device
-          Platform.select({
+        ? Platform.select({
             ios: Math.max(StatusBar.currentHeight || 0, 10),
             default: 0,
           })
-        : // On Android, just enough for the status bar
-          StatusBar.currentHeight || 0,
+        : StatusBar.currentHeight || 0,
   },
   centerContainer: {
     flex: 1,
@@ -647,8 +568,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-
-  // Network status indicator
   networkStatusContainer: {
     backgroundColor: "rgba(255, 59, 48, 0.1)",
     paddingVertical: 8,

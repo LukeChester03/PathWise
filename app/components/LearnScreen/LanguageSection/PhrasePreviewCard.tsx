@@ -1,4 +1,3 @@
-// components/PhrasePreviewCard.tsx
 import React from "react";
 import { View, Text, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
@@ -10,7 +9,6 @@ interface PhrasePreviewCardProps {
 }
 
 const PhrasePreviewCard: React.FC<PhrasePreviewCardProps> = ({ phrase }) => {
-  // Get category icon based on context
   const getCategoryIcon = (context: string) => {
     const contextLower = context.toLowerCase();
     if (contextLower.includes("greeting")) return "hand-left-outline";

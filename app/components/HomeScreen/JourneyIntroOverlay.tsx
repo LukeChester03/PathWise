@@ -22,14 +22,12 @@ import { updateUserOnboardingStatus } from "../../services/userService";
 import * as Haptics from "expo-haptics";
 
 const { width, height } = Dimensions.get("window");
-// Calculate responsive dimensions based on screen size
 const isSmallDevice = width < 375;
 const contentMaxWidth = Math.min(width * 0.9, 420);
 const iconSize = Math.min(width * 0.15, 60);
 const titleSize = isSmallDevice ? 24 : 28;
-// Dynamically calculate padding based on screen size - reduced for less whitespace
-const basePadding = width * 0.035; // Reduced from 0.045 to 0.035
-const contentPadding = Math.min(basePadding, 20); // Reduced from 24 to 20
+const basePadding = width * 0.035;
+const contentPadding = Math.min(basePadding, 20);
 
 interface JourneyIntroOverlayProps {
   visible: boolean;
@@ -37,9 +35,8 @@ interface JourneyIntroOverlayProps {
 }
 
 const JourneyIntroOverlay: React.FC<JourneyIntroOverlayProps> = ({ visible, onClose }) => {
-  // State to track which intro screen to show
   const [currentStep, setCurrentStep] = useState(0);
-  const MAX_STEPS = 5; // Increased from 4 to include the Learn step
+  const MAX_STEPS = 5;
   const prevStepRef = useRef(currentStep);
 
   // Animation values
@@ -50,15 +47,13 @@ const JourneyIntroOverlay: React.FC<JourneyIntroOverlayProps> = ({ visible, onCl
     .fill(0)
     .map(() => useRef(new Animated.Value(0)).current);
 
-  // Progress bar animation
   const progressAnim = useRef(new Animated.Value(0)).current;
 
-  // Set up pan responder for swipe gestures
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: (evt, gestureState) => {
-        return Math.abs(gestureState.dx) > 20; // Only respond to horizontal gestures
+        return Math.abs(gestureState.dx) > 20;
       },
       onPanResponderRelease: (evt, gestureState) => {
         // Swipe left (next)
@@ -79,28 +74,22 @@ const JourneyIntroOverlay: React.FC<JourneyIntroOverlayProps> = ({ visible, onCl
     })
   ).current;
 
-  // Animate when visibility changes
   useEffect(() => {
     if (visible) {
       StatusBar.setBarStyle("light-content");
-      // Reset to first step when opening
       setCurrentStep(0);
-      // Only fade in the overlay container
       Animated.timing(fadeAnim, {
         toValue: 1,
         duration: 500,
         useNativeDriver: true,
         easing: Easing.out(Easing.cubic),
       }).start(() => {
-        // Animate the icons in sequence for initial step
         animateIcons();
       });
 
-      // Start progress animation
       animateProgress(0);
     } else {
       StatusBar.setBarStyle("default");
-      // Fade out the entire overlay
       Animated.timing(fadeAnim, {
         toValue: 0,
         duration: 300,
@@ -109,24 +98,19 @@ const JourneyIntroOverlay: React.FC<JourneyIntroOverlayProps> = ({ visible, onCl
     }
   }, [visible]);
 
-  // Effect to handle step changes
   useEffect(() => {
     if (visible && prevStepRef.current !== currentStep) {
-      // Determine slide direction based on step change
       const slideDirection = currentStep > prevStepRef.current ? 1 : -1;
 
-      // First, slide current content out
       Animated.timing(contentSlideAnim, {
         toValue: -slideDirection * width,
         duration: 300,
         useNativeDriver: true,
         easing: Easing.out(Easing.cubic),
       }).start(() => {
-        // Reset animations for new slide
         iconAnimValues.forEach((val) => val.setValue(0));
         contentSlideAnim.setValue(slideDirection * width);
 
-        // Then slide new content in
         Animated.parallel([
           Animated.timing(contentSlideAnim, {
             toValue: 0,
@@ -141,19 +125,16 @@ const JourneyIntroOverlay: React.FC<JourneyIntroOverlayProps> = ({ visible, onCl
             easing: Easing.out(Easing.back(1.2)),
           }),
         ]).start(() => {
-          // Animate icons for this step
           animateIcons();
         });
       });
 
       prevStepRef.current = currentStep;
 
-      // Update progress bar
       animateProgress(currentStep);
     }
   }, [currentStep, visible]);
 
-  // Animate progress bar
   const animateProgress = (step: number) => {
     Animated.timing(progressAnim, {
       toValue: (step + 1) / MAX_STEPS,
@@ -163,38 +144,33 @@ const JourneyIntroOverlay: React.FC<JourneyIntroOverlayProps> = ({ visible, onCl
     }).start();
   };
 
-  // Function to animate icons in sequence
   const animateIcons = () => {
     iconAnimValues.forEach((anim, index) => {
       Animated.timing(anim, {
         toValue: 1,
         duration: 350,
-        delay: 150 + index * 80, // Faster animation sequence
+        delay: 150 + index * 80,
         useNativeDriver: true,
         easing: Easing.out(Easing.back(1.5)),
       }).start();
     });
   };
 
-  // Close overlay handler
   const handleClose = () => {
     if (Platform.OS === "ios") {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
 
-    // Just fade out the overlay
     Animated.timing(fadeAnim, {
       toValue: 0,
       duration: 300,
       useNativeDriver: true,
     }).start(() => {
-      // Reset to first step when closing
       setCurrentStep(0);
       onClose();
     });
   };
 
-  // Navigate to next step
   const handleNextStep = () => {
     if (Platform.OS === "ios") {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -207,16 +183,14 @@ const JourneyIntroOverlay: React.FC<JourneyIntroOverlayProps> = ({ visible, onCl
     }
   };
 
-  // Handle the start journey button press
+  // handle the start journey button press
   const handleStartJourney = () => {
     if (Platform.OS === "ios") {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     }
-
-    // Get current user ID
     const userId = auth.currentUser?.uid;
 
-    // Update Firebase
+    // update Firebase
     if (userId) {
       updateUserOnboardingStatus(userId, false)
         .then(() => {
@@ -232,13 +206,11 @@ const JourneyIntroOverlay: React.FC<JourneyIntroOverlayProps> = ({ visible, onCl
   };
 
   const handleAnimatedClose = () => {
-    // Just fade out the overlay
     Animated.timing(fadeAnim, {
       toValue: 0,
       duration: 300,
       useNativeDriver: true,
     }).start(() => {
-      // Reset to first step when closing
       setCurrentStep(0);
       onClose();
     });
@@ -645,7 +617,6 @@ const styles = StyleSheet.create({
     justifyContent: "flex-start",
   },
 
-  // Welcome step styles - reduced spacing
   welcomeContainer: {
     alignItems: "center",
     marginBottom: 12,
@@ -701,7 +672,6 @@ const styles = StyleSheet.create({
     color: "#666",
   },
 
-  // Step content styles - reduced spacing
   stepHeader: {
     alignItems: "center",
     marginBottom: 12,
@@ -755,7 +725,6 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
   },
 
-  // Final step styles - reduced spacing
   finalFeatures: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -796,7 +765,6 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
 
-  // Navigation controls - modified to remove dots and reduce spacing
   navigationContainer: {
     width: "100%",
     marginTop: 2,

@@ -1,4 +1,3 @@
-// components/AskAiSection.tsx
 import React, { useState } from "react";
 import {
   View,
@@ -57,7 +56,6 @@ const AskAiSection: React.FC<AskAiSectionProps> = ({
       );
     } finally {
       setIsGeneratingAnswer(false);
-      // Clear the question for next input
       setAiQuestion("");
     }
   };
@@ -67,7 +65,7 @@ const AskAiSection: React.FC<AskAiSectionProps> = ({
       <View style={styles.askAiInputContainer}>
         <TextInput
           style={[styles.askAiInput, { fontSize: fontSize.body }]}
-          placeholder="e.g., What's the best time to visit?"
+          placeholder="e.g. What's the best time to visit?"
           placeholderTextColor="#999"
           value={aiQuestion}
           onChangeText={setAiQuestion}

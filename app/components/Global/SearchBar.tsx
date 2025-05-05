@@ -1,7 +1,6 @@
 import React from "react";
 import { View, TextInput, StyleSheet, TouchableOpacity } from "react-native";
-import { Ionicons } from "@expo/vector-icons"; // Assuming you're using Expo
-
+import { Ionicons } from "@expo/vector-icons";
 interface SearchBarProps {
   value?: string;
   onChangeText?: (text: string) => void;

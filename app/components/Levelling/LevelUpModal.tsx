@@ -1,4 +1,3 @@
-// components/Modals/LevelUpModal.tsx
 import React, { useEffect, useRef } from "react";
 import {
   View,
@@ -23,28 +22,22 @@ interface LevelUpModalProps {
 }
 
 const LevelUpModal: React.FC<LevelUpModalProps> = ({ visible, level, onClose }) => {
-  // Animation values
   const scaleAnim = useRef(new Animated.Value(0.5)).current;
   const rotateAnim = useRef(new Animated.Value(0)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const badgeSpinAnim = useRef(new Animated.Value(0)).current;
 
-  // Confetti reference
   const confettiRef = useRef<any>(null);
 
-  // Get level data
   const levelData = EXPLORATION_LEVELS.find((l) => l.level === level) || EXPLORATION_LEVELS[0];
   const nextLevelData = EXPLORATION_LEVELS.find((l) => l.level === level + 1);
 
-  // Create animations when modal becomes visible
   useEffect(() => {
     if (visible) {
-      // Start confetti
       if (confettiRef.current) {
         confettiRef.current.startConfetti();
       }
 
-      // Entry animation
       Animated.spring(scaleAnim, {
         toValue: 1,
         friction: 6,
@@ -52,7 +45,6 @@ const LevelUpModal: React.FC<LevelUpModalProps> = ({ visible, level, onClose }) 
         useNativeDriver: true,
       }).start();
 
-      // Continuous badge rotation
       Animated.loop(
         Animated.timing(badgeSpinAnim, {
           toValue: 1,
@@ -62,7 +54,6 @@ const LevelUpModal: React.FC<LevelUpModalProps> = ({ visible, level, onClose }) 
         })
       ).start();
 
-      // Pulsing animation for the badge
       Animated.loop(
         Animated.sequence([
           Animated.timing(pulseAnim, {
@@ -78,14 +69,12 @@ const LevelUpModal: React.FC<LevelUpModalProps> = ({ visible, level, onClose }) 
         ])
       ).start();
     } else {
-      // Stop animations when modal closes
       if (confettiRef.current) {
         confettiRef.current.stopConfetti();
       }
     }
   }, [visible]);
 
-  // Handler for closing the modal with animation
   const handleClose = () => {
     Animated.timing(scaleAnim, {
       toValue: 0,
@@ -96,7 +85,6 @@ const LevelUpModal: React.FC<LevelUpModalProps> = ({ visible, level, onClose }) 
     });
   };
 
-  // Badge spin interpolation
   const spin = badgeSpinAnim.interpolate({
     inputRange: [0, 1],
     outputRange: ["0deg", "360deg"],
@@ -145,7 +133,6 @@ const LevelUpModal: React.FC<LevelUpModalProps> = ({ visible, level, onClose }) 
             <Text style={styles.levelTitle}>{levelData.title}</Text>
 
             <View style={styles.benefitsContainer}>
-              <Text style={styles.benefitsTitle}>New Abilities:</Text>
               <View style={styles.benefitItem}>
                 <Ionicons
                   name="checkmark-circle"

@@ -1,5 +1,3 @@
-// Update components/LearnScreen/KnowledgeQuestSection/XPEarnedNotification.tsx
-
 import React, { useEffect, useRef } from "react";
 import { View, Text, StyleSheet, Animated, TouchableOpacity, Easing } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
@@ -12,20 +10,16 @@ interface XPEarnedNotificationProps {
 }
 
 const XPEarnedNotification = ({ totalXP, breakdown, onDismiss }: XPEarnedNotificationProps) => {
-  // Animation values
   const scaleAnim = useRef(new Animated.Value(0.8)).current;
   const opacityAnim = useRef(new Animated.Value(0)).current;
   const translateYAnim = useRef(new Animated.Value(-20)).current;
   const xpCountAnim = useRef(new Animated.Value(0)).current;
-
-  // Formatted XP value for animation
   const formattedXP = xpCountAnim.interpolate({
     inputRange: [0, totalXP],
     outputRange: ["0", totalXP.toString()],
   });
 
   useEffect(() => {
-    // Entrance animation
     Animated.parallel([
       Animated.timing(opacityAnim, {
         toValue: 1,
@@ -46,7 +40,6 @@ const XPEarnedNotification = ({ totalXP, breakdown, onDismiss }: XPEarnedNotific
       }),
     ]).start();
 
-    // XP counter animation
     Animated.timing(xpCountAnim, {
       toValue: totalXP,
       duration: 1500,
@@ -55,7 +48,6 @@ const XPEarnedNotification = ({ totalXP, breakdown, onDismiss }: XPEarnedNotific
     }).start();
   }, []);
 
-  // Render breakdown items directly instead of using FlatList
   const renderBreakdownItems = () => {
     return breakdown.map((item, index) => (
       <React.Fragment key={`xp-reason-${index}`}>

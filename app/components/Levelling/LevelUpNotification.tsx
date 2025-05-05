@@ -1,4 +1,3 @@
-// components/Levelling/LevelUpNotification.tsx
 import React, { useEffect, useRef } from "react";
 import {
   View,
@@ -24,18 +23,15 @@ interface LevelUpNotificationProps {
 }
 
 const LevelUpNotification: React.FC<LevelUpNotificationProps> = ({ visible, level, onClose }) => {
-  // Animation values
   const slideAnim = useRef(new Animated.Value(-300)).current;
   const scaleAnim = useRef(new Animated.Value(0.5)).current;
   const opacityAnim = useRef(new Animated.Value(0)).current;
   const starAnim = useRef(new Animated.Value(0)).current;
 
-  // Ensure level is valid for safety
   const safeLevel = typeof level === "number" && level > 0 ? level : 1;
 
   useEffect(() => {
     if (visible) {
-      // Show the notification with animation
       Animated.parallel([
         Animated.timing(slideAnim, {
           toValue: 0,
@@ -56,7 +52,6 @@ const LevelUpNotification: React.FC<LevelUpNotificationProps> = ({ visible, leve
         }),
       ]).start();
 
-      // Start star burst animation after the notification appears
       Animated.loop(
         Animated.sequence([
           Animated.timing(starAnim, {
@@ -74,14 +69,12 @@ const LevelUpNotification: React.FC<LevelUpNotificationProps> = ({ visible, leve
         ])
       ).start();
 
-      // Auto-hide the notification after 5 seconds
       const timer = setTimeout(() => {
         hideNotification();
       }, 5000);
 
       return () => clearTimeout(timer);
     } else {
-      // Reset animations when not visible
       slideAnim.setValue(-300);
       opacityAnim.setValue(0);
     }
@@ -104,12 +97,10 @@ const LevelUpNotification: React.FC<LevelUpNotificationProps> = ({ visible, leve
     });
   };
 
-  // Get level title and icon with safety
   const levelData = EXPLORATION_LEVELS.find((l) => l.level === safeLevel) || EXPLORATION_LEVELS[0];
   const levelTitle = levelData?.title || "Explorer";
   const levelIcon = levelData?.icon || "🔍";
 
-  // Star animation transforms
   const starScale = starAnim.interpolate({
     inputRange: [0, 0.5, 1],
     outputRange: [1, 1.3, 1],

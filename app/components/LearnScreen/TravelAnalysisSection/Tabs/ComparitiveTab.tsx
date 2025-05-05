@@ -1,4 +1,3 @@
-// components/AdvancedAnalysis/tabs/ComparativeTab.tsx
 import React from "react";
 import { View, Text, StyleSheet } from "react-native";
 import { Colors, NeutralColors } from "../../../../constants/colours";
@@ -6,7 +5,7 @@ import SectionCard, { NoDataText } from "../SectionCard";
 import TabContainer from "../TabContainer";
 
 type ComparativeTabProps = {
-  comparativeAnalysis: any; // Use proper type from your TravelAnalysisTypes
+  comparativeAnalysis: any;
 };
 
 const ComparativeTab: React.FC<ComparativeTabProps> = ({ comparativeAnalysis }) => {
@@ -64,9 +63,6 @@ const ComparativeTab: React.FC<ComparativeTabProps> = ({ comparativeAnalysis }) 
           <NoDataText text="No persona comparison data available" />
         )}
       </SectionCard>
-
-      {/* Note: You can add additional comparative tab sections here if needed,
-          such as archetype analysis, benchmarks, uniqueness, etc. */}
     </TabContainer>
   );
 };

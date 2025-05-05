@@ -18,33 +18,27 @@ import { AuthProvider } from "./contexts/authContext";
 import AuthNavigator from "./navigation/AuthNavigator";
 
 export default function Index() {
-  // State to track initialization
   const [initialized, setInitialized] = useState(false);
   const [loading, setLoading] = useState(true);
   const [initStatus, setInitStatus] = useState("Starting app initialization...");
 
-  // Refs to track initialization state
   const locationInitializedRef = useRef(false);
   const placesLoadedRef = useRef(false);
   const authReadyRef = useRef(false);
   const maxRetries = 3;
   const retryCountRef = useRef(0);
 
-  // Track the unsubscribe functions
   const unsubscribeFunctionsRef = useRef<Array<() => void>>([]);
 
-  // Initialize systems when the app loads
   useEffect(() => {
-    console.log("🚀 App initialization starting...");
+    console.log("App initialization starting...");
 
-    // Explicitly disable places loading until user logs in
     setPlacesLoadingEnabled(false);
 
     const initialize = async () => {
       try {
         setInitStatus("Initializing core systems...");
 
-        // Initialize authentication first - this will resolve with the current user state
         setInitStatus("Checking authentication status...");
         const currentUser = await initAuth();
         authReadyRef.current = true;
@@ -52,32 +46,25 @@ export default function Index() {
           `🔐 Authentication initialized: User ${currentUser ? "signed in" : "signed out"}`
         );
 
-        // Initialize stats system
-        const unsubscribeStats = await initStatsSystem(() => {
-          // This callback is triggered when stats change
-        });
+        const unsubscribeStats = await initStatsSystem(() => {});
 
         unsubscribeFunctionsRef.current.push(unsubscribeStats);
 
-        // Check Firebase indexes early to help with debugging
         await checkRequiredIndexes();
 
-        // Initialize location tracking BUT don't load places
         setInitStatus("Initializing location services...");
-        console.log("📍 Initializing location tracking only (no places yet)...");
-        await initLocationAndPlaces(); // This won't load places since we disabled places loading
+        console.log(" Initializing location tracking only (no places yet)...");
+        await initLocationAndPlaces();
         locationInitializedRef.current = true;
 
-        // Subscribe to places updates
         const unsubscribePlaces = onPlacesUpdate((placesState) => {
           if (placesState.places && placesState.places.length > 0) {
-            console.log(`🏙️ Places loaded: ${placesState.places.length} places available`);
+            console.log(` Places loaded: ${placesState.places.length} places available`);
             placesLoadedRef.current = true;
 
-            // Get and log cache stats
             getCacheStats()
               .then((stats) => {
-                console.log("📊 Places cache stats:", JSON.stringify(stats));
+                console.log("Places cache stats:", JSON.stringify(stats));
               })
               .catch((e) => console.error("Error getting cache stats:", e));
 
@@ -88,21 +75,16 @@ export default function Index() {
         unsubscribeFunctionsRef.current.push(unsubscribePlaces);
 
         if (currentUser) {
-          console.log(`👤 User authenticated: ${currentUser.uid}`);
-          // User is logged in - enable places loading and kick off the process
+          console.log(`User authenticated: ${currentUser.uid}`);
           setPlacesLoadingEnabled(true);
           setInitStatus("User authenticated. Loading places data...");
-
-          // Now that user is logged in, start the places loading process
           ensurePlacesAreLoaded();
         } else {
-          console.log(`👤 User not authenticated`);
-          // Make sure places loading stays disabled for unauthenticated users
+          console.log(`User not authenticated`);
           setPlacesLoadingEnabled(false);
           completeInitialization();
         }
 
-        // Safety timeout - allow app to proceed after 8 seconds regardless
         setTimeout(() => {
           if (!initialized) {
             console.warn("⚠️ Initialization safety timeout reached");
@@ -110,13 +92,11 @@ export default function Index() {
           }
         }, 8000);
       } catch (error) {
-        console.error("❌ Failed to initialize systems:", error);
-        // Still mark as initialized so app can function
+        console.error("Failed to initialize systems:", error);
         completeInitialization();
       }
     };
 
-    // Helper function to ensure places are loaded - only called after login
     const ensurePlacesAreLoaded = async () => {
       try {
         if (placesLoadedRef.current) {
@@ -127,7 +107,7 @@ export default function Index() {
         // Check if we already have places
         const placesState = getNearbyPlacesState();
         if (placesState.places && placesState.places.length > 0) {
-          console.log(`🏙️ Using ${placesState.places.length} existing places`);
+          console.log(` Using ${placesState.places.length} existing places`);
           placesLoadedRef.current = true;
           completeInitialization();
           return;
@@ -141,36 +121,28 @@ export default function Index() {
         if (!currentLocation) {
           console.warn("⚠️ Could not get location for places refresh");
 
-          // If we've tried less than max retries, schedule another attempt
           if (retryCountRef.current < maxRetries) {
             retryCountRef.current++;
             setTimeout(() => {
               ensurePlacesAreLoaded();
-            }, 2000); // Retry after 2 seconds
+            }, 2000);
             return;
           }
 
-          // If we've reached max retries, proceed without places
+          // If max retries, proceed without places
           console.warn(
-            `⚠️ Max retries (${maxRetries}) reached for getting location, proceeding anyway`
+            `Max retries (${maxRetries}) reached for getting location, proceeding anyway`
           );
           completeInitialization();
           return;
         }
 
-        console.log(`📍 Got location: ${currentLocation.latitude}, ${currentLocation.longitude}`);
-
-        // IMPORTANT: Use forceRefresh=false to try cache first!
+        console.log(`Got location: ${currentLocation.latitude}, ${currentLocation.longitude}`);
         console.log("Attempting to load places from cache first...");
         let result = await updateNearbyPlaces(currentLocation, false);
 
         if (result) {
-          console.log("✅ Places loaded successfully (from cache or API if needed)");
-
-          // We don't set placesLoadedRef.current=true here because we'll wait for the
-          // places update callback to confirm places are actually loaded
-
-          // Set a fallback in case the callback doesn't fire
+          console.log("Places loaded successfully (from cache or API if needed)");
           setTimeout(() => {
             if (!placesLoadedRef.current) {
               console.warn("⚠️ Places callback didn't fire, completing initialization anyway");
@@ -178,27 +150,24 @@ export default function Index() {
             }
           }, 5000);
         } else {
-          console.warn("⚠️ Places refresh failed");
-          completeInitialization(); // Continue anyway
+          console.warn("Places refresh failed");
+          completeInitialization();
         }
       } catch (error) {
-        console.error("❌ Error ensuring places are loaded:", error);
-        completeInitialization(); // Continue anyway
+        console.error("Error ensuring places are loaded:", error);
+        completeInitialization();
       }
     };
 
     const completeInitialization = () => {
       if (!initialized) {
-        console.log("✅ App initialization complete");
+        console.log("App initialization complete");
         setInitialized(true);
         setLoading(false);
       }
     };
-
-    // Call the async initialization function
     initialize();
 
-    // Cleanup on unmount
     return () => {
       console.log("🧹 Cleaning up initialization resources");
       unsubscribeFunctionsRef.current.forEach((unsubscribe) => {
@@ -209,7 +178,6 @@ export default function Index() {
     };
   }, []);
 
-  // Show a loading screen during initialization
   if (loading) {
     return (
       <View
@@ -236,7 +204,6 @@ export default function Index() {
     );
   }
 
-  // When initialization is complete, render the app with authentication provider
   return (
     <AuthProvider>
       <XPProvider>

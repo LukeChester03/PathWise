@@ -36,8 +36,7 @@ const Header = ({
 }: HeaderProps) => {
   const insets = useSafeAreaInsets();
 
-  // Ensure the header is positioned correctly
-  const headerPaddingTop = insets.top + 10; // Add safe area inset + some extra padding
+  const headerPaddingTop = insets.top + 10;
   const headerPaddingBottom = 16;
 
   return (
@@ -80,12 +79,6 @@ const Header = ({
 
           <View style={styles.rightSection}>
             {rightComponent && <View style={styles.rightComponentContainer}>{rightComponent}</View>}
-
-            {/* {showLogo && (
-              <View style={styles.logoContainer}>
-                <Image source={logoSource} style={styles.logo} />
-              </View>
-            )} */}
 
             {showHelp && (
               <TouchableOpacity style={styles.helpButton} onPress={onHelpPress} activeOpacity={0.7}>

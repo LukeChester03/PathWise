@@ -1,4 +1,3 @@
-// components/LearnScreen/KnowledgeQuestSection/QuizzesTabContent.tsx
 import React from "react";
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
@@ -32,13 +31,12 @@ const QuizzesTabContent: React.FC<QuizzesTabContentProps> = ({
     );
   }
 
-  // Deduplicate quizzes by ID
+  //checks they are no duplicate quizzes
   const uniqueQuizMap = new Map<string, Quiz>();
   quizzes.forEach((quiz) => {
     if (!uniqueQuizMap.has(quiz.id)) {
       uniqueQuizMap.set(quiz.id, quiz);
     } else {
-      // If we have a duplicate, choose the one with higher completion count (more recent)
       const existingQuiz = uniqueQuizMap.get(quiz.id)!;
       if ((quiz.completions || 0) > (existingQuiz.completions || 0)) {
         uniqueQuizMap.set(quiz.id, quiz);
@@ -48,7 +46,6 @@ const QuizzesTabContent: React.FC<QuizzesTabContentProps> = ({
 
   const uniqueQuizzes = Array.from(uniqueQuizMap.values());
 
-  // Separate quizzes by region-specific vs general
   const regionQuizzes: Quiz[] = [];
   const generalQuizzes: Quiz[] = [];
 
@@ -65,7 +62,7 @@ const QuizzesTabContent: React.FC<QuizzesTabContentProps> = ({
     }
   });
 
-  // Group quizzes by category for each type
+  // Group quizzes by category
   const regionQuizzesByCategory = regionQuizzes.reduce((acc, quiz) => {
     if (!acc[quiz.category]) {
       acc[quiz.category] = [];
@@ -95,7 +92,6 @@ const QuizzesTabContent: React.FC<QuizzesTabContentProps> = ({
         </TouchableOpacity>
       </View>
 
-      {/* Explanation of how quizzes work */}
       <View style={styles.quizExplanationCard}>
         <Ionicons name="information-circle" size={22} color="#6366F1" style={styles.infoIcon} />
         <Text style={styles.quizExplanationText}>
@@ -104,7 +100,6 @@ const QuizzesTabContent: React.FC<QuizzesTabContentProps> = ({
         </Text>
       </View>
 
-      {/* Region-specific quizzes section */}
       {Object.keys(regionQuizzesByCategory).length > 0 ? (
         <View style={styles.quizGroupContainer}>
           <View style={styles.quizGroupHeader}>
@@ -132,7 +127,6 @@ const QuizzesTabContent: React.FC<QuizzesTabContentProps> = ({
         </View>
       )}
 
-      {/* General quizzes section */}
       {Object.keys(generalQuizzesByCategory).length > 0 && (
         <View style={styles.quizGroupContainer}>
           <View style={styles.quizGroupHeader}>
@@ -152,7 +146,6 @@ const QuizzesTabContent: React.FC<QuizzesTabContentProps> = ({
         </View>
       )}
 
-      {/* Bottom padding for better scrolling */}
       <View style={{ height: 30 }} />
     </ScrollView>
   );

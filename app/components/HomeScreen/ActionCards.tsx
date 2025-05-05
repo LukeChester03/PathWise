@@ -1,4 +1,3 @@
-// components/HomeScreen/ActionCards.tsx
 import React, { useEffect, useRef } from "react";
 import {
   View,
@@ -20,19 +19,15 @@ interface ActionCardsProps {
 }
 
 const ActionCards: React.FC<ActionCardsProps> = ({ navigateToScreen }) => {
-  // Animation values for entrance and hover effects
   const cardsOpacity = useRef(new Animated.Value(0)).current;
   const cardsScale = useRef(new Animated.Value(0.9)).current;
   const headerAnimation = useRef(new Animated.Value(0)).current;
 
-  // Animated values for each card's hover effect
   const discoverPulse = useRef(new Animated.Value(0)).current;
   const placesPulse = useRef(new Animated.Value(0)).current;
   const learnPulse = useRef(new Animated.Value(0)).current;
 
-  // Start entrance animation on component mount
   useEffect(() => {
-    // Header animation
     Animated.timing(headerAnimation, {
       toValue: 1,
       duration: 600,
@@ -40,7 +35,6 @@ const ActionCards: React.FC<ActionCardsProps> = ({ navigateToScreen }) => {
       easing: Easing.out(Easing.cubic),
     }).start();
 
-    // Entrance animation
     Animated.parallel([
       Animated.timing(cardsOpacity, {
         toValue: 1,
@@ -56,13 +50,11 @@ const ActionCards: React.FC<ActionCardsProps> = ({ navigateToScreen }) => {
       }),
     ]).start();
 
-    // Start pulsing animations for cards
     startPulsingAnimation(discoverPulse, 0);
     startPulsingAnimation(placesPulse, 800);
     startPulsingAnimation(learnPulse, 1600);
   }, []);
 
-  // Function to create pulsing animation with staggered start times
   const startPulsingAnimation = (animValue: Animated.Value, delay: number) => {
     setTimeout(() => {
       Animated.loop(
@@ -84,7 +76,6 @@ const ActionCards: React.FC<ActionCardsProps> = ({ navigateToScreen }) => {
     }, delay);
   };
 
-  // Function to create a press animation
   const createPressAnimation = (component: React.RefObject<typeof TouchableOpacity>) => {
     if (component.current) {
       Animated.sequence([
@@ -103,14 +94,12 @@ const ActionCards: React.FC<ActionCardsProps> = ({ navigateToScreen }) => {
     }
   };
 
-  // Refs for press animations
   const discoverRef = useRef<typeof TouchableOpacity>(null);
   const placesRef = useRef<typeof TouchableOpacity>(null);
   const learnRef = useRef<typeof TouchableOpacity>(null);
 
   return (
     <View style={styles.container}>
-      {/* Added section header */}
       <Animated.View
         style={[
           styles.sectionHeader,
@@ -140,7 +129,6 @@ const ActionCards: React.FC<ActionCardsProps> = ({ navigateToScreen }) => {
           },
         ]}
       >
-        {/* Discover Card */}
         <TouchableOpacity
           ref={discoverRef}
           style={styles.actionCard}
@@ -207,7 +195,6 @@ const ActionCards: React.FC<ActionCardsProps> = ({ navigateToScreen }) => {
           </LinearGradient>
         </TouchableOpacity>
 
-        {/* Places Card */}
         <TouchableOpacity
           ref={placesRef}
           style={styles.actionCard}
@@ -277,7 +264,6 @@ const ActionCards: React.FC<ActionCardsProps> = ({ navigateToScreen }) => {
           </LinearGradient>
         </TouchableOpacity>
 
-        {/* Learn Card */}
         <TouchableOpacity
           ref={learnRef}
           style={styles.actionCard}
@@ -369,7 +355,7 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
   cardsContainer: {
-    gap: 10, // Reduced from 12 to 10
+    gap: 10,
   },
   actionCard: {
     height: 80,

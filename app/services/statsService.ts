@@ -1,4 +1,3 @@
-// services/statsService.ts
 import {
   doc,
   getDoc,
@@ -25,12 +24,10 @@ import {
   getLevelTitle,
 } from "./Levelling/xpService";
 
-// Constants
-const DAY_IN_MS = 86400000; // 24 hours in milliseconds
+const DAY_IN_MS = 86400000;
 const WEEK_IN_MS = DAY_IN_MS * 7;
-const KM_MULTIPLIER = 1.2; // Apply a multiplier to make distance traveled more exciting
+const KM_MULTIPLIER = 1.2;
 
-// List of continents and some countries in them for simple continent detection
 const CONTINENT_MAPPING = {
   Africa: [
     "Algeria",
@@ -72,9 +69,6 @@ const CONTINENT_MAPPING = {
   Antarctica: ["Antarctica"],
 };
 
-/**
- * Creates a default stats document for a new user
- */
 const createDefaultUserStatsDocument = async (userId: string) => {
   try {
     const statsDocRef = doc(db, "userStats", userId);
@@ -95,7 +89,7 @@ const createDefaultUserStatsDocument = async (userId: string) => {
       photosTaken: 0,
       favoriteCategory: "",
       favoriteCategoryCount: 0,
-      peakExplorationHour: 12, // Default to noon
+      peakExplorationHour: 12,
       explorationLevel: 1,
       totalTime: 0,
       weekendExplorerScore: 0,
@@ -108,8 +102,8 @@ const createDefaultUserStatsDocument = async (userId: string) => {
       processedPlaceIds: [],
       visitedCities: {},
       visitedCategories: {},
-      weekdayVisits: [0, 0, 0, 0, 0, 0, 0], // Sunday to Saturday
-      hourVisits: Array(24).fill(0), // 0-23 hours
+      weekdayVisits: [0, 0, 0, 0, 0, 0, 0],
+      hourVisits: Array(24).fill(0),
       explorationMilestones: {},
     };
 
@@ -120,11 +114,8 @@ const createDefaultUserStatsDocument = async (userId: string) => {
   }
 };
 
-/**
- * Calculate distance between two coordinates in kilometers
- */
 function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
-  const R = 6371; // Radius of the Earth in km
+  const R = 6371;
   const dLat = ((lat2 - lat1) * Math.PI) / 180;
   const dLon = ((lon2 - lon1) * Math.PI) / 180;
   const a =
@@ -134,12 +125,9 @@ function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: numbe
       Math.sin(dLon / 2) *
       Math.sin(dLon / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c * KM_MULTIPLIER; // Distance in km with multiplier
+  return R * c * KM_MULTIPLIER;
 }
 
-/**
- * Determine which continent a country is in
- */
 function getContinent(country: string): string | null {
   for (const [continent, countries] of Object.entries(CONTINENT_MAPPING)) {
     if (countries.includes(country)) {
@@ -149,9 +137,6 @@ function getContinent(country: string): string | null {
   return null;
 }
 
-/**
- * Count unique continents from a list of countries
- */
 function countContinents(countries: string[]): number {
   const continents = new Set<string>();
   countries.forEach((country) => {
@@ -161,47 +146,25 @@ function countContinents(countries: string[]): number {
   return continents.size;
 }
 
-/**
- * Calculate exploration score based on various factors
- */
 function calculateExplorationScore(statsData: UserStatsData): number {
-  // If we already have an exploration score, use that as the base
   if (statsData.explorationScore) {
     return statsData.explorationScore;
   }
-
-  // Otherwise, calculate from scratch for backward compatibility
   let score = 0;
 
-  // Base points from places and countries
   score += statsData.placesDiscovered * 10;
   score += statsData.countriesVisited * 50;
-
-  // Points from distance traveled (1 point per km, capped at 1000)
   score += Math.min(statsData.distanceTraveled, 1000);
-
-  // Points from streak
   score += statsData.dayStreak * 5;
-
-  // Points from achievements
   score += statsData.achievementsEarned * 25;
-
-  // Points from diversity (categories and cities)
   const uniqueCategories = Object.keys(statsData.visitedCategories || {}).length;
   const uniqueCities = Object.keys(statsData.visitedCities || {}).length;
-
   score += uniqueCategories * 15;
   score += uniqueCities * 20;
-
-  // Points from continent diversity
   score += (statsData.continentsVisited || 0) * 100;
-
   return Math.floor(score);
 }
 
-/**
- * Fetches the user's stats from Firestore with extended stats
- */
 export const fetchUserStats = async (): Promise<StatItem[]> => {
   try {
     const currentUser = auth.currentUser;
@@ -217,12 +180,9 @@ export const fetchUserStats = async (): Promise<StatItem[]> => {
     if (statsDoc.exists()) {
       const statsData = statsDoc.data() as UserStatsData;
 
-      // Calculate exploration level if not already calculated
       if (!statsData.explorationLevel || !statsData.explorationScore) {
         const score = calculateExplorationScore(statsData);
         const level = calculateLevelFromXP(score);
-
-        // Update the exploration level and score in Firebase
         await updateDoc(statsDocRef, {
           explorationScore: score,
           explorationLevel: level,
@@ -231,8 +191,6 @@ export const fetchUserStats = async (): Promise<StatItem[]> => {
         statsData.explorationScore = score;
         statsData.explorationLevel = level;
       }
-
-      // Format stats for display
       const distance = statsData.distanceTraveled
         ? statsData.distanceTraveled > 1
           ? `${Math.round(statsData.distanceTraveled)} km`
@@ -245,7 +203,6 @@ export const fetchUserStats = async (): Promise<StatItem[]> => {
       const explorationLevel = statsData.explorationLevel || 1;
       const levelTitle = getLevelTitle(explorationLevel);
 
-      // Create array of stat items with colors
       return [
         {
           id: 1,
@@ -320,10 +277,8 @@ export const fetchUserStats = async (): Promise<StatItem[]> => {
       ];
     }
 
-    // If no document exists, create a new one with default values
     await createDefaultUserStatsDocument(currentUser.uid);
 
-    // Return default stats for new users
     return [
       {
         id: 1,
@@ -402,9 +357,6 @@ export const fetchUserStats = async (): Promise<StatItem[]> => {
   }
 };
 
-/**
- * Updates specific user stats fields
- */
 export const updateUserStats = async (statsUpdate: Partial<UserStatsData>): Promise<void> => {
   try {
     const currentUser = auth.currentUser;
@@ -415,7 +367,6 @@ export const updateUserStats = async (statsUpdate: Partial<UserStatsData>): Prom
 
     const statsDocRef = doc(db, "userStats", currentUser.uid);
 
-    // Merge the update with existing data and add a timestamp
     await updateDoc(statsDocRef, {
       ...statsUpdate,
       lastUpdated: new Date(),
@@ -428,9 +379,6 @@ export const updateUserStats = async (statsUpdate: Partial<UserStatsData>): Prom
   }
 };
 
-/**
- * Increments a specific stat by a given amount
- */
 export const incrementStat = async (
   statKey: keyof UserStatsData,
   incrementBy: number = 1
@@ -451,14 +399,11 @@ export const incrementStat = async (
 
     const statsData = statsDoc.exists() ? (statsDoc.data() as UserStatsData) : null;
 
-    // Fixed: Safely handle the value by ensuring it's a number before adding
     const currentValue =
       statsData && typeof statsData[statKey] === "number" ? (statsData[statKey] as number) : 0;
 
-    // Calculate new value, ensuring it's never negative
     const newValue = Math.max(0, currentValue + incrementBy);
 
-    // Update the specific stat
     await updateDoc(statsDocRef, {
       [statKey]: newValue,
       lastUpdated: new Date(),
@@ -471,10 +416,6 @@ export const incrementStat = async (
   }
 };
 
-/**
- * Updates the day streak when a user opens the app
- * Returns the updated streak value
- */
 export const updateDayStreak = async (): Promise<number> => {
   try {
     const currentUser = auth.currentUser;
@@ -496,31 +437,24 @@ export const updateDayStreak = async (): Promise<number> => {
         : statsData.lastLogin.toDate()
       : new Date(0);
 
-    // Calculate time difference in milliseconds
     const timeDifference = now.getTime() - lastLogin.getTime();
 
     let newStreak = statsData.dayStreak || 0;
     let streakUpdated = false;
 
     if (timeDifference > DAY_IN_MS * 2) {
-      // If more than 2 days since last login, reset streak
       newStreak = 1;
       console.log("Streak reset: More than 2 days since last login");
       streakUpdated = true;
     } else if (timeDifference > DAY_IN_MS) {
-      // If between 1-2 days, increment streak
       newStreak += 1;
       console.log("Streak incremented: New day login");
       streakUpdated = true;
-
-      // Award XP for streak
       await awardStreakXP(newStreak);
     } else {
-      // Same day login, no streak change
       console.log("Same day login, streak unchanged");
     }
 
-    // Update last login and streak
     await updateDoc(statsDocRef, {
       lastLogin: now,
       dayStreak: newStreak,
@@ -534,9 +468,6 @@ export const updateDayStreak = async (): Promise<number> => {
   }
 };
 
-/**
- * Process a newly visited place and update relevant stats
- */
 export const processVisitedPlace = async (placeData: {
   placeId: string;
   name: string;
@@ -552,8 +483,6 @@ export const processVisitedPlace = async (placeData: {
   try {
     const currentUser = auth.currentUser;
     if (!currentUser) return;
-
-    // Reference to user stats
     const statsDocRef = doc(db, "userStats", currentUser.uid);
     const statsDoc = await getDoc(statsDocRef);
 
@@ -563,8 +492,6 @@ export const processVisitedPlace = async (placeData: {
 
     const statsData = statsDoc.exists() ? (statsDoc.data() as UserStatsData) : null;
     if (!statsData) return;
-
-    // Get current values
     const visitedCountries = statsData.visitedCountries || [];
     const processedPlaceIds = statsData.processedPlaceIds || [];
     const visitedCities = statsData.visitedCities || {};
@@ -572,27 +499,21 @@ export const processVisitedPlace = async (placeData: {
     const weekdayVisits = statsData.weekdayVisits || Array(7).fill(0);
     const hourVisits = statsData.hourVisits || Array(24).fill(0);
 
-    // Check if this place has already been processed
     if (processedPlaceIds.includes(placeData.placeId)) {
       console.log(`Place ${placeData.name} already counted in stats`);
       return;
     }
 
-    // Check if this is a new country
     const isNewCountry = !visitedCountries.includes(placeData.country);
 
-    // Check if this is a new category
     const category = placeData.category || "Other";
     const isNewCategory = !Object.keys(visitedCategories).includes(category);
 
-    // Update city stats
     const city = placeData.city || "Unknown";
     visitedCities[city] = (visitedCities[city] || 0) + 1;
 
-    // Update category stats
     visitedCategories[category] = (visitedCategories[category] || 0) + 1;
 
-    // Find top city and category
     let topCity = statsData.topCity || "";
     let topCityCount = statsData.topCityCount || 0;
     let favoriteCategory = statsData.favoriteCategory || "";
@@ -612,15 +533,12 @@ export const processVisitedPlace = async (placeData: {
       }
     });
 
-    // Calculate continents visited
     const continents = countContinents(
       visitedCountries.concat(isNewCountry ? [placeData.country] : [])
     );
 
-    // Calculate distance traveled if we have previous locations
     let newDistance = 0;
     if (processedPlaceIds.length > 0) {
-      // Get the last visited place to calculate distance
       const visitedPlacesRef = collection(db, "users", currentUser.uid, "visitedPlaces");
       const q = query(visitedPlacesRef, orderBy("visitedAt", "desc"), limit(1));
       const lastVisitSnapshot = await getDocs(q);
@@ -638,11 +556,10 @@ export const processVisitedPlace = async (placeData: {
       }
     }
 
-    // Update visit time stats
     const visitTime = placeData.visitedAt || new Date();
     const visitDate = visitTime instanceof Date ? visitTime : visitTime.toDate();
-    const dayOfWeek = visitDate.getDay(); // 0 = Sunday, 6 = Saturday
-    const hourOfDay = visitDate.getHours(); // 0-23
+    const dayOfWeek = visitDate.getDay();
+    const hourOfDay = visitDate.getHours();
     const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
 
     if (weekdayVisits[dayOfWeek] !== undefined) {
@@ -653,7 +570,6 @@ export const processVisitedPlace = async (placeData: {
       hourVisits[hourOfDay]++;
     }
 
-    // Find peak hour
     let peakHour = 0;
     let peakHourCount = 0;
     hourVisits.forEach((count, hour) => {
@@ -663,17 +579,15 @@ export const processVisitedPlace = async (placeData: {
       }
     });
 
-    // Calculate weekend explorer score (% of visits on weekends)
     const weekendVisits =
       (weekdayVisits[0] !== undefined ? weekdayVisits[0] : 0) +
-      (weekdayVisits[6] !== undefined ? weekdayVisits[6] : 0); // Sunday + Saturday
+      (weekdayVisits[6] !== undefined ? weekdayVisits[6] : 0);
     const totalVisits = weekdayVisits.reduce(
       (sum, count) => sum + (typeof count === "number" ? count : 0),
       0
     );
     const weekendExplorerScore = totalVisits > 0 ? (weekendVisits / totalVisits) * 100 : 0;
 
-    // Calculate visit frequency
     const firstVisitTime = statsData.firstVisitTime
       ? statsData.firstVisitTime instanceof Date
         ? statsData.firstVisitTime
@@ -684,47 +598,32 @@ export const processVisitedPlace = async (placeData: {
     const weeksActive = Math.max(1, timeSinceFirstVisit / WEEK_IN_MS);
     const avgVisitsPerWeek = (processedPlaceIds.length + 1) / weeksActive;
 
-    // Update total time spent
     const totalTime = (statsData.totalTime || 0) + (placeData.stayDuration || 0);
 
-    // Calculate longest journey
     const longestJourney = Math.max(statsData.longestJourney || 0, newDistance);
 
-    // Prepare updates
     let updates: Partial<UserStatsData> = {
-      // Add place to processed IDs list
       processedPlaceIds: [...processedPlaceIds, placeData.placeId],
-      // Increment places discovered
       placesDiscovered: (statsData.placesDiscovered || 0) + 1,
-      // Update distance
       distanceTraveled: (statsData.distanceTraveled || 0) + newDistance,
-      // Update cities
       visitedCities,
       topCity,
       topCityCount,
-      // Update categories
       visitedCategories,
       favoriteCategory,
       favoriteCategoryCount,
-      // Update time stats
       weekdayVisits,
       hourVisits,
       peakExplorationHour: peakHour,
       weekendExplorerScore,
-      // Update frequency
       firstVisitTime: statsData.firstVisitTime || visitDate,
       avgVisitsPerWeek,
-      // Update duration
       totalTime,
-      // Update journey stats
       longestJourney,
-      // Update photos if available
       photosTaken: (statsData.photosTaken || 0) + (placeData.photosTaken || 0),
-      // Update timestamp
       lastUpdated: new Date(),
     };
 
-    // If new country, update countries visited
     if (isNewCountry) {
       updates.visitedCountries = [...visitedCountries, placeData.country];
       updates.countriesVisited = (statsData.countriesVisited || 0) + 1;
@@ -732,32 +631,26 @@ export const processVisitedPlace = async (placeData: {
       console.log(`New country visited: ${placeData.country}`);
     }
 
-    // Award XP for this visit
     await awardVisitXP(isNewCountry, isWeekend);
 
-    // Award XP for new category if applicable
     if (isNewCategory) {
       await awardNewCategoryXP(category);
     }
 
-    // Award XP for distance traveled
     if (newDistance > 0) {
       await awardDistanceXP(newDistance, (statsData.distanceTraveled || 0) + newDistance);
     }
 
-    // Check milestones and award XP for them
     await checkPlacesMilestone(updates.placesDiscovered);
 
     if (isNewCountry) {
       await checkCountriesMilestone(updates.countriesVisited);
 
-      // Check if continent milestone was reached
       if (continents > (statsData.continentsVisited || 0)) {
         await checkContinentsMilestone(continents);
       }
     }
 
-    // Update stats
     await updateDoc(statsDocRef, updates);
     console.log(`Place visit processed: ${placeData.name} (${newDistance.toFixed(1)}km added)`);
   } catch (error) {
@@ -765,34 +658,26 @@ export const processVisitedPlace = async (placeData: {
   }
 };
 
-/**
- * Set up a listener for visited places to keep stats in sync
- */
 export const setupVisitedPlacesListener = (onStatsChange: () => void) => {
   const currentUser = auth.currentUser;
   if (!currentUser) {
     console.log("No user logged in for visited places listener");
-    return () => {}; // Empty unsubscribe function
+    return () => {};
   }
 
-  // Reference to the user's visited places collection
   const visitedPlacesRef = collection(db, "users", currentUser.uid, "visitedPlaces");
 
-  // Set up real-time listener
   const unsubscribe = onSnapshot(visitedPlacesRef, async (snapshot) => {
     console.log("Visited places updated, processing changes");
 
-    // Get newly added documents
     const changes = snapshot.docChanges();
 
-    // Track if any changes were made
     let statsChanged = false;
 
     for (const change of changes) {
       if (change.type === "added") {
         const placeData = change.doc.data();
 
-        // Check if this place has already been processed in stats
         const statsDocRef = doc(db, "userStats", currentUser.uid);
         const statsDoc = await getDoc(statsDocRef);
 
@@ -800,7 +685,6 @@ export const setupVisitedPlacesListener = (onStatsChange: () => void) => {
           const statsData = statsDoc.data() as UserStatsData;
           const processedPlaceIds = statsData.processedPlaceIds || [];
 
-          // Skip if already processed
           const placeId = placeData.placeId || placeData.place_id;
           if (placeId && processedPlaceIds.includes(placeId)) {
             console.log(`Place ${placeData.name} already counted in stats, skipping`);
@@ -808,7 +692,6 @@ export const setupVisitedPlacesListener = (onStatsChange: () => void) => {
           }
         }
 
-        // Extract city from address components or vicinity
         let city = "Unknown";
         if (placeData.address_components) {
           const cityComponent = placeData.address_components.find(
@@ -820,14 +703,12 @@ export const setupVisitedPlacesListener = (onStatsChange: () => void) => {
             city = cityComponent.long_name;
           }
         } else if (placeData.vicinity) {
-          // Extract city from vicinity (usually last part after comma)
           const parts = placeData.vicinity.split(",");
           if (parts.length > 1) {
             city = parts[parts.length - 1].trim();
           }
         }
 
-        // Extract category from types
         let category = "Other";
         if (placeData.types && placeData.types.length > 0) {
           const typeMapping: { [key: string]: string } = {
@@ -850,7 +731,6 @@ export const setupVisitedPlacesListener = (onStatsChange: () => void) => {
           }
         }
 
-        // Process the new place
         await processVisitedPlace({
           placeId: placeData.placeId || placeData.place_id,
           name: placeData.name,
@@ -868,7 +748,6 @@ export const setupVisitedPlacesListener = (onStatsChange: () => void) => {
       }
     }
 
-    // Only trigger callback if stats actually changed
     if (statsChanged) {
       onStatsChange();
     }
@@ -881,16 +760,10 @@ export const setupVisitedPlacesListener = (onStatsChange: () => void) => {
  * Update streak on app start and setup listeners
  */
 export const initStatsSystem = async (onStatsChange: () => void) => {
-  // Update day streak
   await updateDayStreak();
-
-  // Return the unsubscribe function
   return setupVisitedPlacesListener(onStatsChange);
 };
 
-/**
- * Record an achievement and update stats
- */
 export const unlockAchievement = async (
   achievementId: string,
   achievementName: string
@@ -909,22 +782,17 @@ export const unlockAchievement = async (
     const statsData = statsDoc.data() as UserStatsData;
     const achievements = statsData.explorationMilestones || {};
 
-    // Check if achievement already unlocked
     if (achievements[achievementId]) {
       return false;
     }
-
-    // Mark achievement as unlocked
     achievements[achievementId] = true;
 
-    // Update achievements count and milestones
     await updateDoc(statsDocRef, {
       achievementsEarned: (statsData.achievementsEarned || 0) + 1,
       explorationMilestones: achievements,
       lastUpdated: new Date(),
     });
 
-    // Award XP for the achievement - standard 50 XP
     await awardVisitXP(false, false);
 
     console.log(`Achievement unlocked: ${achievementName}`);
@@ -935,9 +803,6 @@ export const unlockAchievement = async (
   }
 };
 
-/**
- * Check for milestones that should be automatically awarded based on stats
- */
 export const checkAndAwardMilestones = async (): Promise<string[]> => {
   try {
     const currentUser = auth.currentUser;
@@ -953,9 +818,7 @@ export const checkAndAwardMilestones = async (): Promise<string[]> => {
 
     const awardedMilestones: string[] = [];
 
-    // Define milestone criteria and check each one
     const milestonesToCheck = [
-      // Places milestones
       { id: "first_place", name: "First Steps", condition: statsData.placesDiscovered >= 1 },
       { id: "ten_places", name: "Frequent Explorer", condition: statsData.placesDiscovered >= 10 },
       {
@@ -968,17 +831,11 @@ export const checkAndAwardMilestones = async (): Promise<string[]> => {
         name: "Century Explorer",
         condition: statsData.placesDiscovered >= 100,
       },
-
-      // Countries milestones
       { id: "first_country", name: "Home Sweet Home", condition: statsData.countriesVisited >= 1 },
       { id: "three_countries", name: "Border Crosser", condition: statsData.countriesVisited >= 3 },
       { id: "ten_countries", name: "Globetrotter", condition: statsData.countriesVisited >= 10 },
-
-      // Streak milestones
       { id: "week_streak", name: "Consistency is Key", condition: statsData.dayStreak >= 7 },
       { id: "month_streak", name: "Dedicated Explorer", condition: statsData.dayStreak >= 30 },
-
-      // Distance milestones
       {
         id: "first_hundred_km",
         name: "First Hundred",
@@ -989,26 +846,17 @@ export const checkAndAwardMilestones = async (): Promise<string[]> => {
         name: "Distance Champion",
         condition: statsData.distanceTraveled >= 1000,
       },
-
-      // Level milestones
       { id: "level_5", name: "Rising Star", condition: statsData.explorationLevel >= 5 },
       { id: "level_10", name: "Explorer Legend", condition: statsData.explorationLevel >= 10 },
-
-      // Continent milestones
       {
         id: "three_continents",
         name: "Continental Traveler",
         condition: statsData.continentsVisited >= 3,
       },
-
-      // City milestones
       { id: "city_expert", name: "City Expert", condition: statsData.topCityCount >= 10 },
     ];
-
-    // Check each milestone
     for (const milestone of milestonesToCheck) {
       if (milestone.condition && !milestones[milestone.id]) {
-        // Award the milestone
         const awarded = await unlockAchievement(milestone.id, milestone.name);
         if (awarded) {
           awardedMilestones.push(milestone.name);
@@ -1023,9 +871,6 @@ export const checkAndAwardMilestones = async (): Promise<string[]> => {
   }
 };
 
-/**
- * Get user's current XP and level information
- */
 export const fetchUserLevelInfo = async () => {
   try {
     const currentUser = auth.currentUser;
@@ -1044,8 +889,8 @@ export const fetchUserLevelInfo = async () => {
         title: "Beginner Explorer",
         nextLevelXP: 100,
         progress: 0,
-        xpNeeded: 100, // Added required property
-        xpProgress: 0, // Added required property
+        xpNeeded: 100,
+        xpProgress: 0,
       };
     }
 
@@ -1054,11 +899,9 @@ export const fetchUserLevelInfo = async () => {
     const currentLevel = statsData.explorationLevel || 1;
     const currentXP = statsData.explorationScore || 0;
 
-    // Find current and next level data
     const currentLevelData = EXPLORATION_LEVELS.find((level) => level.level === currentLevel);
     const nextLevelData = EXPLORATION_LEVELS.find((level) => level.level === currentLevel + 1);
 
-    // If at max level or missing data
     if (!currentLevelData || !nextLevelData) {
       return {
         level: currentLevel,
@@ -1066,12 +909,11 @@ export const fetchUserLevelInfo = async () => {
         title: getLevelTitle(currentLevel),
         nextLevelXP: 0,
         progress: 100,
-        xpNeeded: 0, // Added required property
-        xpProgress: 0, // Added required property
+        xpNeeded: 0,
+        xpProgress: 0,
       };
     }
 
-    // Calculate XP needed for next level
     const nextLevelXP = nextLevelData.requiredScore;
     const currentLevelXP = currentLevelData.requiredScore;
     const xpNeeded = nextLevelXP - currentLevelXP;

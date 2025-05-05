@@ -1,4 +1,3 @@
-// constants/data.js
 export const USER_STATS = [
   {
     id: 1,

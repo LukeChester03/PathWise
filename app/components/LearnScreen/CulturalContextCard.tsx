@@ -1,4 +1,3 @@
-// components/LearnScreen/CulturalContextCard.tsx
 import React, { useState, useEffect, useRef } from "react";
 import {
   View,
@@ -20,7 +19,7 @@ import {
 import { EnhancedCulturalInsight } from "../../types/LearnScreen/CulturalContextTypes";
 
 const { width } = Dimensions.get("window");
-const ROTATION_INTERVAL = 6000; // 6 seconds between regions
+const ROTATION_INTERVAL = 6000;
 
 interface CulturalContextCardProps {
   cardAnimation: Animated.Value;
@@ -33,7 +32,6 @@ const CulturalContextCard = ({
   visitedPlaces,
   navigation,
 }: CulturalContextCardProps) => {
-  // State for cultural insights
   const [culturalInsights, setCulturalInsights] = useState<EnhancedCulturalInsight[]>([]);
   const [currentInsightIndex, setCurrentInsightIndex] = useState<number>(0);
   const [loading, setLoading] = useState<boolean>(true);
@@ -43,22 +41,18 @@ const CulturalContextCard = ({
     requestsRemaining: number;
   }>({ canRequest: true, requestsRemaining: 5 });
 
-  // Animation refs
   const fadeAnim = useRef(new Animated.Value(1)).current;
   const slideAnim = useRef(new Animated.Value(0)).current;
   const rotationTimer = useRef<NodeJS.Timeout | null>(null);
   const isAnimating = useRef<boolean>(false);
 
-  // Determine which insight to show as a preview
   const previewInsight = culturalInsights.length > 0 ? culturalInsights[currentInsightIndex] : null;
 
-  // Setup rotation timer when insights are loaded
   useEffect(() => {
     if (culturalInsights.length > 1 && !loading && !error) {
       startRotationTimer();
     }
 
-    // Cleanup timer on unmount
     return () => {
       if (rotationTimer.current) {
         clearInterval(rotationTimer.current);
@@ -66,12 +60,9 @@ const CulturalContextCard = ({
     };
   }, [culturalInsights, loading, error]);
 
-  // Fetch cultural insights when component mounts
   useEffect(() => {
     fetchCulturalInsights();
     checkApiLimits();
-
-    // Cleanup timer on unmount
     return () => {
       if (rotationTimer.current) {
         clearInterval(rotationTimer.current);
@@ -79,7 +70,6 @@ const CulturalContextCard = ({
     };
   }, [visitedPlaces]);
 
-  // Start the rotation timer
   const startRotationTimer = () => {
     if (rotationTimer.current) {
       clearInterval(rotationTimer.current);
@@ -92,13 +82,11 @@ const CulturalContextCard = ({
     }, ROTATION_INTERVAL);
   };
 
-  // Animate to the next insight
   const rotateToNextInsight = () => {
     if (culturalInsights.length <= 1) return;
 
     isAnimating.current = true;
 
-    // Fade out current insight
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 0,
@@ -113,15 +101,10 @@ const CulturalContextCard = ({
         easing: Easing.out(Easing.ease),
       }),
     ]).start(() => {
-      // Update index
       setCurrentInsightIndex((prevIndex) =>
         prevIndex === culturalInsights.length - 1 ? 0 : prevIndex + 1
       );
-
-      // Reset animations
       slideAnim.setValue(20);
-
-      // Fade in new insight
       Animated.parallel([
         Animated.timing(fadeAnim, {
           toValue: 1,
@@ -140,8 +123,6 @@ const CulturalContextCard = ({
       });
     });
   };
-
-  // Fetch cultural insights from AI service
   const fetchCulturalInsights = async () => {
     try {
       setLoading(true);
@@ -151,8 +132,6 @@ const CulturalContextCard = ({
         setLoading(false);
         return;
       }
-
-      // Get insights using our enhanced service with caching and AI validation
       const insights = await getCulturalInsightsForVisitedPlaces(visitedPlaces);
       console.log(
         `Received ${insights.length} cultural insights:`,
@@ -166,8 +145,6 @@ const CulturalContextCard = ({
       setLoading(false);
     }
   };
-
-  // Check API request limits
   const checkApiLimits = async () => {
     try {
       const limits = await checkRequestLimit();
@@ -177,17 +154,13 @@ const CulturalContextCard = ({
     }
   };
 
-  // Get a random custom to display
   const getHighlightedCustom = () => {
     if (!previewInsight || !previewInsight.customs || previewInsight.customs.length === 0) {
       return null;
     }
-
-    // Return the first custom for consistency
     return previewInsight.customs[0];
   };
 
-  // Navigate to full cultural context screen
   const navigateToFullContextScreen = () => {
     navigation.navigate("CulturalContext", {
       visitedPlaces: visitedPlaces,
@@ -195,7 +168,6 @@ const CulturalContextCard = ({
     });
   };
 
-  // Render loading state
   const renderLoading = () => (
     <View style={styles.contentContainer}>
       <ActivityIndicator size="small" color="#ffffff" />
@@ -203,7 +175,6 @@ const CulturalContextCard = ({
     </View>
   );
 
-  // Render error state
   const renderError = () => (
     <View style={styles.contentContainer}>
       <Ionicons name="alert-circle-outline" size={32} color="#ffffff" />
@@ -215,7 +186,6 @@ const CulturalContextCard = ({
     </View>
   );
 
-  // Render empty state
   const renderEmpty = () => (
     <View style={styles.contentContainer}>
       <Ionicons name="globe-outline" size={36} color="#ffffff" />
@@ -226,7 +196,6 @@ const CulturalContextCard = ({
     </View>
   );
 
-  // Render content state
   const renderContent = () => {
     const highlightedCustom = getHighlightedCustom();
 
@@ -461,14 +430,12 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  // Loading state styles
   loadingText: {
     fontSize: 16,
     fontWeight: "600",
     color: "#ffffff",
     marginTop: 12,
   },
-  // Error state styles
   errorTitle: {
     fontSize: 18,
     fontWeight: "700",
@@ -493,7 +460,6 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#ffffff",
   },
-  // Empty state styles
   emptyTitle: {
     fontSize: 20,
     fontWeight: "700",

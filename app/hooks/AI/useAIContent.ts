@@ -1,4 +1,3 @@
-// hooks/useAiContent.ts
 import { useState, useEffect } from "react";
 import { Place, VisitedPlaceDetails } from "../../types/MapTypes";
 import {
@@ -12,7 +11,6 @@ export const useAiContent = (placeDetails: Place | VisitedPlaceDetails | null) =
   const [aiContentError, setAiContentError] = useState<string | null>(null);
   const [sectionsVisible, setSectionsVisible] = useState(false);
 
-  // Effect for AI content generation
   useEffect(() => {
     if (placeDetails && !aiContent && !aiContentLoading) {
       generateAiContent();
@@ -26,7 +24,6 @@ export const useAiContent = (placeDetails: Place | VisitedPlaceDetails | null) =
     setAiContentError(null);
 
     try {
-      // Mark that AI is generating content
       setAiContent({
         description: "",
         historicalFacts: [],
@@ -36,11 +33,9 @@ export const useAiContent = (placeDetails: Place | VisitedPlaceDetails | null) =
         isGenerating: true,
       });
 
-      // Use the enhanced version with location context
       const content = await fetchAllAiContentWithContext(placeDetails);
       setAiContent(content);
 
-      // Show sections after AI content is loaded
       setTimeout(() => {
         setSectionsVisible(true);
       }, 300);

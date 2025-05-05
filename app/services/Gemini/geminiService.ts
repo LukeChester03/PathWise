@@ -14,7 +14,6 @@ export const generateContent = async ({
   try {
     const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
-    // If JSON response is requested, modify the prompt to request JSON
     let enhancedPrompt = prompt;
     if (responseFormat === "json") {
       enhancedPrompt = `${prompt}\n\nProvide your response in valid JSON format only, with no additional text, explanations, or asterisks.`;
@@ -23,10 +22,8 @@ export const generateContent = async ({
     const result = await model.generateContent(enhancedPrompt);
     const responseText = result.response.text();
 
-    // If JSON was requested, try to parse the response
     if (responseFormat === "json") {
       try {
-        // Sometimes the model might include markdown code blocks, try to extract JSON
         const jsonMatch = responseText.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
         const jsonStr = jsonMatch ? jsonMatch[1].trim() : responseText.trim();
         return JSON.parse(jsonStr);

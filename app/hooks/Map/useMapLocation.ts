@@ -1,9 +1,7 @@
-// useMapLocation.ts - Hook for handling location services
 import { useState, useRef, useCallback, useEffect } from "react";
 import { Alert } from "react-native";
 import {
   requestLocationPermission,
-  watchUserLocation,
   getCurrentLocation,
   hasMovedSignificantly,
 } from "../../controllers/Map/locationController";
@@ -32,21 +30,14 @@ const useMapLocation = (): UseMapLocationReturn => {
   const [userLocation, setUserLocation] = useState<Coordinate | null>(null);
   const [userHeading, setUserHeading] = useState<number>(0);
   const [locationWatcherCleanup, setLocationWatcherCleanup] = useState<(() => void) | null>(null);
-
-  // Refs for tracking user movement
   const previousPositionRef = useRef<Coordinate | null>(null);
   const lastSignificantHeadingRef = useRef<number>(0);
   const locationUpdateCounterRef = useRef<number>(0);
 
-  /**
-   * Initialize location tracking
-   */
   const initializeLocation = useCallback(
     async (onInitialLocationReceived?: (location: Region) => void): Promise<boolean> => {
       try {
         console.log("Initializing location tracking...");
-
-        // Request location permission first
         const hasPermission = await requestLocationPermission();
         if (!hasPermission) {
           Alert.alert(
@@ -57,8 +48,6 @@ const useMapLocation = (): UseMapLocationReturn => {
         }
 
         console.log("Location permission granted, getting current location...");
-
-        // First get current location immediately
         const currentLocation = await getCurrentLocation();
         if (currentLocation) {
           console.log("Initial location received:", currentLocation);
@@ -73,34 +62,28 @@ const useMapLocation = (): UseMapLocationReturn => {
         }
 
         console.log("Starting location watching...");
+        // const locationWatcher = await watchUserLocation(
+        //   (locationUpdate: Region) => {
+        //     if (
+        //       userLocation &&
+        //       hasMovedSignificantly({
+        //         latitude: locationUpdate.latitude,
+        //         longitude: locationUpdate.longitude,
+        //       })
+        //     ) {
+        //       console.log("Significant location update received:", locationUpdate);
+        //       setUserLocation(locationUpdate);
+        //     } else if (!userLocation) {
+        //       setUserLocation(locationUpdate);
+        //     }
+        //   },
+        //   (error: Error) => {
+        //     console.error("Error watching location:", error);
+        //     Alert.alert("Location Error", "Could not track your location.");
+        //   }
+        // );
 
-        // Now start watching for location updates
-        const locationWatcher = await watchUserLocation(
-          (locationUpdate: Region) => {
-            // Only update if the movement is significant
-            if (
-              userLocation &&
-              hasMovedSignificantly({
-                latitude: locationUpdate.latitude,
-                longitude: locationUpdate.longitude,
-              })
-            ) {
-              console.log("Significant location update received:", locationUpdate);
-              // Just update the user location, not the map region
-              setUserLocation(locationUpdate);
-            } else if (!userLocation) {
-              // Always update if we don't have a location yet
-              setUserLocation(locationUpdate);
-            }
-          },
-          (error: Error) => {
-            console.error("Error watching location:", error);
-            Alert.alert("Location Error", "Could not track your location.");
-          }
-        );
-
-        // Set cleanup function
-        setLocationWatcherCleanup(() => locationWatcher);
+        // setLocationWatcherCleanup(() => locationWatcher);
         return true;
       } catch (error) {
         console.error("Error initializing location:", error);
@@ -111,17 +94,12 @@ const useMapLocation = (): UseMapLocationReturn => {
     [userLocation]
   );
 
-  /**
-   * Update user heading based on movement
-   * UPDATED: Requires more movement to update heading (20m instead of previous value)
-   */
   const updateHeadingFromMovement = useCallback((newLocation: Coordinate): boolean => {
     if (!previousPositionRef.current) {
       previousPositionRef.current = { ...newLocation };
       return false;
     }
 
-    // Only calculate new heading if we've moved enough distance
     const distanceMoved = haversineDistance(
       previousPositionRef.current.latitude,
       previousPositionRef.current.longitude,
@@ -132,7 +110,6 @@ const useMapLocation = (): UseMapLocationReturn => {
     if (distanceMoved >= HEADING_UPDATE_MIN_DISTANCE) {
       console.log(`Moved ${distanceMoved.toFixed(2)}m, updating heading...`);
 
-      // Calculate heading based on movement
       const newHeading = calculateBearing(
         previousPositionRef.current.latitude,
         previousPositionRef.current.longitude,
@@ -140,7 +117,6 @@ const useMapLocation = (): UseMapLocationReturn => {
         newLocation.longitude
       );
 
-      // Only update heading if it has changed significantly
       const headingDiff = Math.abs(newHeading - lastSignificantHeadingRef.current);
       if (headingDiff > MIN_HEADING_CHANGE) {
         console.log(
@@ -151,21 +127,16 @@ const useMapLocation = (): UseMapLocationReturn => {
         setUserHeading(newHeading);
         lastSignificantHeadingRef.current = newHeading;
 
-        // Update previous position for next calculation
         previousPositionRef.current = { ...newLocation };
         return true;
       }
 
-      // Still update position even if heading didn't change significantly
       previousPositionRef.current = { ...newLocation };
     }
 
     return false;
   }, []);
 
-  /**
-   * Check if user has reached a destination
-   */
   const checkDestinationReached = useCallback(
     (destinationCoord: Coordinate, threshold: number): boolean => {
       if (!userLocation || !destinationCoord) return false;
@@ -182,9 +153,6 @@ const useMapLocation = (): UseMapLocationReturn => {
     [userLocation]
   );
 
-  /**
-   * Clean up location watcher
-   */
   const cleanupLocationWatcher = useCallback((): void => {
     console.log("Cleaning up location watcher");
     if (locationWatcherCleanup) {
@@ -192,16 +160,12 @@ const useMapLocation = (): UseMapLocationReturn => {
     }
   }, [locationWatcherCleanup]);
 
-  /**
-   * Reset tracking state
-   */
   const resetLocationTracking = useCallback((): void => {
     console.log("Resetting location tracking");
     previousPositionRef.current = null;
     lastSignificantHeadingRef.current = 0;
   }, []);
 
-  // Clean up on unmount
   useEffect(() => {
     return () => {
       cleanupLocationWatcher();

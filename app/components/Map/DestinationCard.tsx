@@ -34,10 +34,7 @@ const DestinationCard: React.FC<DestinationCardProps> = ({
   visible = false,
   initialSavedState = false,
 }) => {
-  // State for save functionality
   const [isSaved, setIsSaved] = useState(initialSavedState);
-
-  // Animation values
   const modalAnim = useRef(new Animated.Value(0)).current;
   const cardScaleAnim = useRef(new Animated.Value(0.8)).current;
   const imageAnim = useRef(new Animated.Value(0)).current;
@@ -48,10 +45,8 @@ const DestinationCard: React.FC<DestinationCardProps> = ({
   const saveIconAnim = useRef(new Animated.Value(0)).current;
   const saveScaleAnim = useRef(new Animated.Value(1)).current;
 
-  // Animation for celebration emoji bounce
   const celebrationBounce = useRef(new Animated.Value(0)).current;
 
-  // Format date nicely
   const formattedDate = discoveryDate
     ? new Date(discoveryDate).toLocaleDateString("en-US", {
         year: "numeric",
@@ -60,10 +55,8 @@ const DestinationCard: React.FC<DestinationCardProps> = ({
       })
     : "";
 
-  // Start animations when card becomes visible
   useEffect(() => {
     if (visible) {
-      // Reset animation values
       modalAnim.setValue(0);
       cardScaleAnim.setValue(0.8);
       imageAnim.setValue(0);
@@ -73,9 +66,7 @@ const DestinationCard: React.FC<DestinationCardProps> = ({
       buttonsAnim.setValue(0);
       saveIconAnim.setValue(0);
 
-      // Start animations in sequence
       Animated.sequence([
-        // First fade in modal backdrop
         Animated.timing(modalAnim, {
           toValue: 1,
           duration: 300,
@@ -83,7 +74,6 @@ const DestinationCard: React.FC<DestinationCardProps> = ({
           easing: Easing.out(Easing.ease),
         }),
 
-        // Then scale up the card with elastic effect
         Animated.spring(cardScaleAnim, {
           toValue: 1,
           friction: 7,
@@ -91,7 +81,6 @@ const DestinationCard: React.FC<DestinationCardProps> = ({
           useNativeDriver: true,
         }),
 
-        // Then fade in and slide down image
         Animated.timing(imageAnim, {
           toValue: 1,
           duration: 400,
@@ -99,9 +88,7 @@ const DestinationCard: React.FC<DestinationCardProps> = ({
           easing: Easing.out(Easing.back(1.5)),
         }),
 
-        // Parallel animations for badge, save icon, and content
         Animated.parallel([
-          // Badge animation (rotate in)
           Animated.timing(badgeAnim, {
             toValue: 1,
             duration: 500,
@@ -109,7 +96,6 @@ const DestinationCard: React.FC<DestinationCardProps> = ({
             easing: Easing.out(Easing.back(2)),
           }),
 
-          // Save icon animation
           Animated.timing(saveIconAnim, {
             toValue: 1,
             duration: 500,
@@ -117,7 +103,6 @@ const DestinationCard: React.FC<DestinationCardProps> = ({
             easing: Easing.out(Easing.back(1.5)),
           }),
 
-          // Celebration icon animation
           Animated.timing(celebrationAnim, {
             toValue: 1,
             duration: 600,
@@ -125,7 +110,6 @@ const DestinationCard: React.FC<DestinationCardProps> = ({
             easing: Easing.out(Easing.back(1.7)),
           }),
 
-          // Content animation (fade and slide up)
           Animated.timing(contentAnim, {
             toValue: 1,
             duration: 500,
@@ -133,7 +117,6 @@ const DestinationCard: React.FC<DestinationCardProps> = ({
             easing: Easing.out(Easing.ease),
           }),
 
-          // Buttons animation (slide up and fade)
           Animated.timing(buttonsAnim, {
             toValue: 1,
             duration: 600,
@@ -146,9 +129,7 @@ const DestinationCard: React.FC<DestinationCardProps> = ({
     }
   }, [visible]);
 
-  // Handle save button press
   const handleSavePress = () => {
-    // Animate the save icon when pressed
     Animated.sequence([
       Animated.spring(saveScaleAnim, {
         toValue: 0.8,
@@ -167,13 +148,9 @@ const DestinationCard: React.FC<DestinationCardProps> = ({
       }),
     ]).start();
 
-    // Toggle saved state
     setIsSaved(!isSaved);
-
-    // Feedback is provided through the icon change and animation
   };
 
-  // Button press animation hooks
   const learnBtnScale = useRef(new Animated.Value(1)).current;
   const dismissBtnScale = useRef(new Animated.Value(1)).current;
 
@@ -209,9 +186,7 @@ const DestinationCard: React.FC<DestinationCardProps> = ({
     }).start();
   };
 
-  // Handle learn more button press with exit animation
   const handleLearnMore = () => {
-    // First animate out
     Animated.parallel([
       Animated.timing(cardScaleAnim, {
         toValue: 1.1,
@@ -226,14 +201,11 @@ const DestinationCard: React.FC<DestinationCardProps> = ({
         easing: Easing.in(Easing.ease),
       }),
     ]).start(() => {
-      // Then call the actual handler
       onLearnMorePress();
     });
   };
 
-  // Handle dismiss with exit animation
   const handleDismiss = () => {
-    // Animate out
     Animated.parallel([
       Animated.timing(cardScaleAnim, {
         toValue: 0.8,
@@ -248,13 +220,11 @@ const DestinationCard: React.FC<DestinationCardProps> = ({
         easing: Easing.in(Easing.ease),
       }),
     ]).start(() => {
-      // Then call the actual dismiss handler
       onDismiss();
     });
   };
 
   if (!visible) {
-    // Don't render anything if not visible and animation is at 0
     return null;
   }
 
@@ -279,7 +249,6 @@ const DestinationCard: React.FC<DestinationCardProps> = ({
           },
         ]}
       >
-        {/* Hero Image with Gradient */}
         <Animated.View
           style={[
             styles.imageWrapper,
@@ -306,7 +275,6 @@ const DestinationCard: React.FC<DestinationCardProps> = ({
             style={styles.imageGradient}
           />
 
-          {/* Achievement Badge */}
           <Animated.View
             style={[
               styles.badgeContainer,
@@ -336,7 +304,6 @@ const DestinationCard: React.FC<DestinationCardProps> = ({
             </View>
           </Animated.View>
 
-          {/* Save for Later Button */}
           <Animated.View
             style={[
               styles.saveButtonContainer,
@@ -366,7 +333,6 @@ const DestinationCard: React.FC<DestinationCardProps> = ({
               />
             </TouchableOpacity>
 
-            {/* Visual feedback indicator */}
             {isSaved && (
               <View style={styles.savedIndicator}>
                 <View style={styles.savedIndicatorDot} />
@@ -375,9 +341,7 @@ const DestinationCard: React.FC<DestinationCardProps> = ({
           </Animated.View>
         </Animated.View>
 
-        {/* Content container */}
         <View style={styles.content}>
-          {/* Celebration Icon */}
           <Animated.View
             style={[
               styles.celebrationIconContainer,
@@ -421,7 +385,6 @@ const DestinationCard: React.FC<DestinationCardProps> = ({
             </View>
           </Animated.View>
 
-          {/* Achievement Title */}
           <Animated.View
             style={[
               styles.headerContainer,
@@ -442,7 +405,6 @@ const DestinationCard: React.FC<DestinationCardProps> = ({
             <Text style={styles.placeName}>{placeName}</Text>
           </Animated.View>
 
-          {/* Achievement Stats */}
           <Animated.View
             style={[
               styles.statsContainer,
@@ -473,7 +435,6 @@ const DestinationCard: React.FC<DestinationCardProps> = ({
             </View>
           </Animated.View>
 
-          {/* Buttons Container */}
           <Animated.View
             style={[
               styles.buttonsContainer,
@@ -530,8 +491,6 @@ const DestinationCard: React.FC<DestinationCardProps> = ({
           </Animated.View>
         </View>
       </Animated.View>
-
-      {/* Toast will appear here */}
     </Animated.View>
   );
 };
@@ -579,7 +538,7 @@ const styles = StyleSheet.create({
   badgeContainer: {
     position: "absolute",
     top: 16,
-    right: 64, // Moved right to make room for save button
+    right: 64,
   },
   badge: {
     width: 36,
@@ -628,11 +587,11 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: 24,
-    paddingTop: 42, // Extra space for the overlapping celebration icon
+    paddingTop: 42,
   },
   celebrationIconContainer: {
     position: "absolute",
-    top: -30, // Overlaps with the image
+    top: -30,
     left: 24,
   },
   celebrationIcon: {

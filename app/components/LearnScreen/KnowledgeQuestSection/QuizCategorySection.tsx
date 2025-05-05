@@ -1,4 +1,3 @@
-// components/LearnScreen/KnowledgeQuestSection/QuizCategorySection.tsx
 import React from "react";
 import { View, Text, StyleSheet, FlatList } from "react-native";
 import { Quiz } from "../../../types/LearnScreen/KnowledgeQuestTypes";
@@ -17,21 +16,15 @@ const QuizCategorySection: React.FC<QuizCategorySectionProps> = ({
   onStartQuiz,
   showRegion = false,
 }) => {
-  // Function to get a cleaned region name from a quiz
   const getRegionDisplay = (quiz: Quiz): string => {
-    // First check if the quiz has metadata with a clarified region
     if (quiz.metadata?.clarifiedRegion) {
       return quiz.metadata.clarifiedRegion;
     }
-
-    // Next check if we have region type information
     if (quiz.regionType && quiz.relatedRegions && quiz.relatedRegions.length > 0) {
       const region = quiz.relatedRegions[0];
       const country = quiz.metadata?.country ? `, ${quiz.metadata.country}` : "";
       return `${region}${country}`;
     }
-
-    // Fallback: Show related regions excluding "World"
     const regions = quiz.relatedRegions?.filter((r) => r !== "World" && r !== "world") || [];
     return regions.join(", ");
   };

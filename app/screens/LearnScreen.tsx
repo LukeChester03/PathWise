@@ -1,4 +1,3 @@
-// screens/LearnScreen.tsx
 import React, { useState, useRef, useEffect } from "react";
 import {
   View,
@@ -44,7 +43,6 @@ interface NavigationProps {
 }
 
 const LearnScreen = ({ navigation }: { navigation: NavigationProps }) => {
-  // State variables
   const [loadingPlaces, setLoadingPlaces] = useState<boolean>(true);
   const [visitedPlaces, setVisitedPlaces] = useState<VisitedPlaceDetails[]>([]);
   const [noPlacesFound, setNoPlacesFound] = useState<boolean>(false);
@@ -53,12 +51,10 @@ const LearnScreen = ({ navigation }: { navigation: NavigationProps }) => {
   const [travelProfile, setTravelProfile] = useState<TravelProfile | null>(null);
   const [isDataReady, setIsDataReady] = useState<boolean>(false);
 
-  // Animation values
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scrollY = useRef(new Animated.Value(0)).current;
   const loadingAnim = useRef(new Animated.Value(0)).current;
 
-  // Section animations (using the same pattern as ProfileScreen)
   const sections = {
     welcome: useRef(new Animated.Value(0)).current,
     snapshot: useRef(new Animated.Value(0)).current,
@@ -69,10 +65,8 @@ const LearnScreen = ({ navigation }: { navigation: NavigationProps }) => {
     quest: useRef(new Animated.Value(0)).current,
   };
 
-  // Dummy animation values for child components
   const dummyAnim = useRef(new Animated.Value(1)).current;
 
-  // Start loading animation
   const startLoadingAnimation = () => {
     Animated.loop(
       Animated.sequence([
@@ -92,9 +86,7 @@ const LearnScreen = ({ navigation }: { navigation: NavigationProps }) => {
     ).start();
   };
 
-  // Trigger staggered entry animations
   const triggerEntryAnimations = () => {
-    // Fade in the whole screen
     Animated.timing(fadeAnim, {
       toValue: 1,
       duration: 600,
@@ -102,7 +94,6 @@ const LearnScreen = ({ navigation }: { navigation: NavigationProps }) => {
       easing: Easing.out(Easing.cubic),
     }).start();
 
-    // Staggered animation for sections (matching ProfileScreen pattern)
     Animated.stagger(120, [
       Animated.timing(sections.welcome, {
         toValue: 1,
@@ -149,19 +140,15 @@ const LearnScreen = ({ navigation }: { navigation: NavigationProps }) => {
     ]).start();
   };
 
-  // Initial loading
   useEffect(() => {
     console.log("LearnScreen mounted - loading data");
 
-    // Start loading animation
     startLoadingAnimation();
 
-    // Initialize data
     const initializeData = async () => {
       try {
         await fetchUserVisitedPlaces();
 
-        // Initialize non-blocking services
         setTimeout(() => {
           initializeKnowledgeQuest().catch((error) => {
             console.error("Error initializing Knowledge Quest:", error);
@@ -172,7 +159,6 @@ const LearnScreen = ({ navigation }: { navigation: NavigationProps }) => {
           });
         }, 1000);
 
-        // Apply small delay to ensure smooth transition
         setTimeout(() => {
           setIsDataReady(true);
           triggerEntryAnimations();
@@ -187,7 +173,6 @@ const LearnScreen = ({ navigation }: { navigation: NavigationProps }) => {
     initializeData();
   }, []);
 
-  // Handle scroll events (using the pattern from ProfileScreen)
   const handleScroll = Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], {
     useNativeDriver: true,
   });
@@ -199,7 +184,6 @@ const LearnScreen = ({ navigation }: { navigation: NavigationProps }) => {
       setError(null);
       console.log("Attempting to fetch visited places");
 
-      // Check if user is authenticated
       const currentUser = auth.currentUser;
       if (!currentUser) {
         console.log("No authenticated user found");
@@ -210,7 +194,6 @@ const LearnScreen = ({ navigation }: { navigation: NavigationProps }) => {
       }
 
       try {
-        // visitedPlaces is a subcollection under the user document
         const userVisitedPlacesRef = collection(db, "users", currentUser.uid, "visitedPlaces");
         const querySnapshot = await getDocs(userVisitedPlacesRef);
 
@@ -221,17 +204,15 @@ const LearnScreen = ({ navigation }: { navigation: NavigationProps }) => {
           setNoPlacesFound(true);
           setVisitedPlaces([]);
         } else {
-          // Transform Firestore documents to place objects
           const userPlacesData: VisitedPlaceDetails[] = querySnapshot.docs
             .filter((doc) => {
-              // Filter out the initialization document
               const data = doc.data();
               return !data._isInitDocument;
             })
             .map((doc) => {
               const data = doc.data();
               return {
-                ...data, // Keep all original properties
+                ...data,
                 id: doc.id,
                 place_id: data.place_id || doc.id,
                 name: data.name || "Unknown Place",
@@ -263,7 +244,7 @@ const LearnScreen = ({ navigation }: { navigation: NavigationProps }) => {
                       day: "numeric",
                     })
                   : "Recently",
-                isVisited: true, // Explicitly mark as visited
+                isVisited: true,
                 website: data.website || null,
               } as VisitedPlaceDetails;
             });
@@ -308,7 +289,6 @@ const LearnScreen = ({ navigation }: { navigation: NavigationProps }) => {
     setShowLearnIntro(true);
   };
 
-  // Render loading state (match ProfileScreen pattern)
   if (!isDataReady) {
     return (
       <ScreenWithNavBar>
@@ -385,7 +365,6 @@ const LearnScreen = ({ navigation }: { navigation: NavigationProps }) => {
               onScroll={handleScroll}
               scrollEventThrottle={16}
             >
-              {/* Welcome Section */}
               <Animated.View
                 style={[
                   styles.welcomeSection,
@@ -408,7 +387,6 @@ const LearnScreen = ({ navigation }: { navigation: NavigationProps }) => {
                 </Text>
               </Animated.View>
 
-              {/* Feature 1: AI Travel Snapshot */}
               <Animated.View
                 style={[
                   styles.cardContainer,
@@ -433,7 +411,6 @@ const LearnScreen = ({ navigation }: { navigation: NavigationProps }) => {
                 />
               </Animated.View>
 
-              {/* Feature Grid */}
               <Animated.View
                 style={[
                   styles.cardContainer,
@@ -489,7 +466,6 @@ const LearnScreen = ({ navigation }: { navigation: NavigationProps }) => {
                 </View> */}
               </Animated.View>
 
-              {/* Feature 5 & 6: Advanced Travel Analysis + Travel Preferences */}
               <Animated.View
                 style={[
                   styles.cardContainer,
@@ -512,7 +488,6 @@ const LearnScreen = ({ navigation }: { navigation: NavigationProps }) => {
                 />
               </Animated.View>
 
-              {/* Feature 2: Language Assistant */}
               <Animated.View
                 style={[
                   styles.cardContainer,
@@ -532,7 +507,6 @@ const LearnScreen = ({ navigation }: { navigation: NavigationProps }) => {
                 <LanguageAssistant visitedPlaces={visitedPlaces} cardAnimation={dummyAnim} />
               </Animated.View>
 
-              {/* Feature 4: Cultural Context */}
               <Animated.View
                 style={[
                   styles.cardContainer,
@@ -556,7 +530,6 @@ const LearnScreen = ({ navigation }: { navigation: NavigationProps }) => {
                 />
               </Animated.View>
 
-              {/* Feature 7: Knowledge Quest Game */}
               <Animated.View
                 style={[
                   styles.cardContainer,
@@ -586,7 +559,6 @@ const LearnScreen = ({ navigation }: { navigation: NavigationProps }) => {
             visible={showLearnIntro}
             onClose={() => {
               setShowLearnIntro(false);
-              // Allow modal to fully close before it can be reopened
               setTimeout(() => {
                 console.log("Modal state reset complete");
               }, 100);
@@ -614,7 +586,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 16,
     paddingTop: 8,
-    paddingBottom: 100, // Extra padding for scroll
+    paddingBottom: 100,
   },
   cardContainer: {
     marginBottom: 20,
@@ -633,7 +605,6 @@ const styles = StyleSheet.create({
     color: "#6B7280",
     marginTop: 4,
   },
-  // Feature Grid
   featuresGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -677,7 +648,6 @@ const styles = StyleSheet.create({
     color: "#6B7280",
     lineHeight: 16,
   },
-  // Loading state styles - matching ProfileScreen's pattern
   loadingContainer: {
     flex: 1,
     justifyContent: "center",
@@ -700,7 +670,6 @@ const styles = StyleSheet.create({
     color: "#6B7280",
     fontWeight: "500",
   },
-  // Error state styles
   errorContainer: {
     flex: 1,
     justifyContent: "center",

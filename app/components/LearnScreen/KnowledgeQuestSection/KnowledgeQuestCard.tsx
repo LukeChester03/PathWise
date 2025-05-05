@@ -1,4 +1,3 @@
-// components/LearnScreen/KnowledgeQuest/KnowledgeQuestCard.tsx
 import React, { useState, useEffect } from "react";
 import {
   View,
@@ -45,16 +44,13 @@ const KnowledgeQuestCard = ({
       setLoading(true);
       setError(null);
 
-      // Load stats
       const userStats = await getKnowledgeQuestStats();
       setStats(userStats);
 
-      // Get available quizzes
       const availableQuizzes = await getAvailableQuizzes(5);
       setQuizzes(availableQuizzes);
 
       if (availableQuizzes.length > 0) {
-        // Find a quiz that hasn't been completed yet, or use the first one
         const uncompletedQuiz = availableQuizzes.find((quiz) => !quiz.lastCompletedAt);
         setFeaturedQuiz(uncompletedQuiz || availableQuizzes[0]);
       }
@@ -107,7 +103,6 @@ const KnowledgeQuestCard = ({
     </View>
   );
 
-  // Render content state
   const renderContent = () => {
     if (!featuredQuiz) return renderEmpty();
 
@@ -378,7 +373,6 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     marginRight: 6,
   },
-  // Loading state styles
   loadingText: {
     fontSize: 16,
     fontWeight: "600",
@@ -386,7 +380,6 @@ const styles = StyleSheet.create({
     marginTop: 12,
     textAlign: "center",
   },
-  // Error state styles
   errorTitle: {
     fontSize: 18,
     fontWeight: "700",
@@ -413,7 +406,6 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#FFFFFF",
   },
-  // Empty state styles
   emptyTitle: {
     fontSize: 20,
     fontWeight: "700",

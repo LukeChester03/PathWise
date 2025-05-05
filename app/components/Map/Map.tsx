@@ -1,4 +1,3 @@
-// Map.tsx - Updated to only show 40 closest places dynamically
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import MapView, { PROVIDER_DEFAULT, Circle, Marker, PROVIDER_GOOGLE } from "react-native-maps";
 import { View, StyleSheet, Vibration, Alert, Text } from "react-native";
@@ -14,34 +13,24 @@ import { useNavigation } from "expo-router";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../../navigation/types";
 import NetInfo from "@react-native-community/netinfo";
-
-// Import controllers and global state
 import {
   getLocationState,
   getNearbyPlacesState,
   onLocationUpdate,
   onPlacesUpdate,
 } from "../../controllers/Map/locationController";
-
-// Import custom hooks
 import useMapLocation from "../../hooks/Map/useMapLocation";
 import useMapCamera from "../../hooks/Map/useMapCamera";
 import useMapPlaces from "../../hooks/Map/useMapPlaces";
 import useMapNavigation from "../../hooks/Map/useMapNavigation";
-
-// Import UI components
 import { CardToggleArrow, EndJourneyButton, DirectionIndicator } from "./MapControls";
 import { ViewModeToggle } from "./ViewModeToggle";
 import MapLoading from "./MapLoading";
 import MapErrorFallback from "./MapErrorFallback";
-
-// Import cards
 import ExploreCard from "./ExploreCard";
 import DetailsCard from "./DetailsCard";
 import DestinationCard from "./DestinationCard";
 import DiscoveredCard from "./DiscoveredCard";
-
-// Import utils and constants
 import {
   GOOGLE_MAPS_APIKEY,
   DESTINATION_REACHED_THRESHOLD,
@@ -51,23 +40,16 @@ import {
 } from "../../constants/Map/mapConstants";
 import { Place, Coordinate, NavigationStep, VisitedPlaceDetails } from "../../types/MapTypes";
 import * as mapUtils from "../../utils/mapUtils";
-import {
-  fetchPlaceDetailsOnDemand,
-  fetchNearbyPlaces,
-  getCacheStats,
-} from "../../controllers/Map/placesController";
+import { fetchPlaceDetailsOnDemand } from "../../controllers/Map/placesController";
 import { hasMovedSignificantly } from "../../controllers/Map/locationController";
-import { getQuotaRecord, getRemainingQuota } from "../../controllers/Map/quotaController";
+import { getQuotaRecord } from "../../controllers/Map/quotaController";
 
-// Constants for visible places
-const MAX_VISIBLE_PLACES = 40; // Show only the 40 closest places on the map
-// Set a smaller threshold specifically for detecting when destination is reached
-const DESTINATION_CHECK_INTERVAL = 5000; // Check every 5 seconds
-const DESTINATION_TRACKING_THRESHOLD = 5; // 5 meters instead of using hasMovedSignificantly
+const MAX_VISIBLE_PLACES = 40;
+const DESTINATION_CHECK_INTERVAL = 5000;
+// const DESTINATION_TRACKING_THRESHOLD = 5;
 
 type MapNavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
-// Define props interface for Map component
 interface MapProps {
   placeToShow?: Place | null;
   onPlaceCardShown?: () => void;
@@ -79,13 +61,10 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
   const navigation = useNavigation<MapNavigationProp>();
   const [placeProcessingAttempts, setPlaceProcessingAttempts] = useState<number>(0);
   const MAX_PROCESSING_ATTEMPTS = 5;
-  // State for tracking location and places loading
   const [loading, setLoading] = useState<boolean>(true);
   const [locationReady, setLocationReady] = useState<boolean>(false);
   const [placesReady, setPlacesReady] = useState<boolean>(false);
   const [mapError, setMapError] = useState<Error | null>(null);
-
-  // State for map functionality
   const [journeyStarted, setJourneyStarted] = useState<boolean>(false);
   const [confirmEndJourney, setConfirmEndJourney] = useState<boolean>(false);
   const [destinationReached, setDestinationReached] = useState<boolean>(false);
@@ -94,36 +73,22 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
   const [showArrow, setShowArrow] = useState<boolean>(false);
   const [showDiscoveredCard, setShowDiscoveredCard] = useState<boolean>(false);
   const [destinationSaved, setDestinationSaved] = useState<boolean>(false);
-  const [viewMode, setViewMode] = useState<string>("follow"); // "follow" or "overview"
-
-  // Add state to track user camera control
+  const [viewMode, setViewMode] = useState<string>("follow");
   const [userControllingCamera, setUserControllingCamera] = useState<boolean>(false);
-  // Add state to track network connectivity
   const [isConnected, setIsConnected] = useState<boolean>(true);
-
-  // NEW STATE: Track visible places - limited to the closest 40
   const [visiblePlaces, setVisiblePlaces] = useState<Place[]>([]);
-
-  // NEW STATE: Dedicated location tracking for journey that updates more frequently
   const [journeyTrackingLocation, setJourneyTrackingLocation] = useState<Coordinate | null>(null);
-
-  // Route state variables
   const [routeCoordinates, setRouteCoordinates] = useState<Coordinate[]>([]);
   const [travelTime, setTravelTime] = useState<string | null>(null);
   const [distance, setDistance] = useState<string | null>(null);
-
-  // Add refs for tracking
   const destinationSaveAttemptedRef = useRef<boolean>(false);
   const mapReadyRef = useRef<boolean>(false);
   const cameraUserControlTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const pendingPlaceToShowRef = useRef<Place | null>(null);
   const placeCardShownRef = useRef<boolean>(false);
-  // NEW REF: Reference to interval for checking destination proximity
   const destinationCheckIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  // NEW REF: Track last time destination proximity was checked
   const lastDestinationCheckTimeRef = useRef<number>(0);
 
-  // Custom hooks
   const location = useMapLocation();
   const camera = useMapCamera();
   const places = useMapPlaces();
@@ -139,7 +104,6 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
     cardShown: false,
   });
 
-  // Monitor network connectivity
   useEffect(() => {
     const unsubscribe = NetInfo.addEventListener((state) => {
       setIsConnected(state.isConnected ?? false);
@@ -155,16 +119,10 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
     };
   }, []);
 
-  /**
-   * NEW FUNCTION: Update visible places based on current location
-   * This filters all cached places to show only the 40 closest ones
-   */
+  // filters all cached places to show the 40 closest
   const updateVisiblePlaces = useCallback(() => {
     if (!location.userLocation || places.places.length === 0) return;
-
-    // Calculate distance for each place from current user location
     const placesWithDistance = places.places.map((place) => {
-      // Calculate or use existing distance
       const distance =
         place.distance ||
         mapUtils.haversineDistance(
@@ -179,8 +137,6 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
         distance,
       };
     });
-
-    // Sort by distance (closest first) and take only MAX_VISIBLE_PLACES
     const closestPlaces = placesWithDistance
       .sort((a, b) => (a.distance || 0) - (b.distance || 0))
       .slice(0, MAX_VISIBLE_PLACES);
@@ -191,20 +147,14 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
     setVisiblePlaces(closestPlaces);
   }, [location.userLocation, places.places]);
 
-  // Track placeToShow in ref to prevent processing it multiple times
   useEffect(() => {
     if (placeToShow && !showCard && !showDiscoveredCard && !journeyStarted) {
       console.log(`Map: DIRECT processing for place: ${placeToShow.name}`);
       setDebugInfo((prev) => ({ ...prev, placeReceived: true }));
 
       try {
-        // Set the place directly to state
         places.setSelectedPlace(placeToShow);
-
-        // Use existing travelTime state
         setTravelTime("Calculating...");
-
-        // Calculate a rough travel time estimate as a fallback
         if (location.userLocation) {
           try {
             const userLoc = location.userLocation;
@@ -213,7 +163,6 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
               longitude: placeToShow.geometry.location.lng,
             };
 
-            // Calculate straight-line distance as fallback
             const distanceInKm =
               mapUtils.haversineDistance(
                 userLoc.latitude,
@@ -222,34 +171,23 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
                 placeLoc.longitude
               ) / 1000;
 
-            // Roughly estimate travel time (assumes 30km/h average speed)
             const estimatedMinutes = Math.ceil(distanceInKm * 2);
             setTravelTime(`~${estimatedMinutes} min`);
-
-            // CHANGED: Instead of immediately showing the card, first check if it's discovered
             console.log(`Checking if place ${placeToShow.name} is already discovered...`);
-
-            // Process place selection while fetching details if needed
             places
               .handlePlaceSelection(placeToShow, userLoc, location.region)
               .then((result) => {
-                // Now show the appropriate card based on discovery status
                 if (result && result.isDiscovered) {
                   console.log(
                     `Place ${placeToShow.name} is already discovered, showing discovered card`
                   );
                   setShowDiscoveredCard(true);
-                  // Make sure explore card is not shown
                   setShowCard(false);
                 } else {
                   console.log(`Place ${placeToShow.name} is not discovered, showing explore card`);
-                  // Only now show the explore card if not discovered
                   setShowCard(true);
-                  // Make sure discovered card is not shown
                   setShowDiscoveredCard(false);
                 }
-
-                // Notify parent that card is shown
                 if (onPlaceCardShown) {
                   setTimeout(() => {
                     onPlaceCardShown();
@@ -260,36 +198,28 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
               })
               .catch((error) => {
                 console.error("Error checking discovery status:", error);
-                // Fallback - show the explore card anyway
                 setShowCard(true);
                 if (onPlaceCardShown) onPlaceCardShown();
               });
-
-            // Check if we need to fetch more details using Firebase-first approach
             if (!placeToShow.hasFullDetails) {
-              // Check network connectivity first
               if (isConnected) {
                 console.log(`Map: Fetching details from Firebase/API for ${placeToShow.name}`);
                 try {
-                  // First check Firebase before making any API call
                   fetchPlaceDetailsOnDemand(placeToShow.place_id)
                     .then((detailedPlace) => {
                       if (
                         detailedPlace &&
                         places.selectedPlace?.place_id === detailedPlace.place_id
                       ) {
-                        // Update the place with detailed info
                         places.setSelectedPlace(detailedPlace);
                         console.log(`Map: Updated with full details for ${detailedPlace.name}`);
                       }
                     })
                     .catch((detailError) => {
                       console.warn("Error fetching place details:", detailError);
-                      // Continue with basic place info
                     });
                 } catch (detailError) {
                   console.warn("Error fetching place details:", detailError);
-                  // Continue with basic place info
                 }
               } else {
                 console.log("Map: Offline, using basic place data");
@@ -299,7 +229,6 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
             }
           } catch (estimateError) {
             console.warn("Error estimating travel time:", estimateError);
-            // Fallback - check discovery status anyway
             places
               .handlePlaceSelection(placeToShow, location.userLocation, location.region)
               .then((result) => {
@@ -316,7 +245,6 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
               });
           }
         } else {
-          // No location yet, but still check discovery status
           places
             .handlePlaceSelection(
               placeToShow,
@@ -343,7 +271,6 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
         }
       } catch (error) {
         console.error("Error processing place to show:", error);
-        // Fallback - show the explore card as a last resort
         setShowCard(true);
         if (onPlaceCardShown) onPlaceCardShown();
       }
@@ -357,10 +284,7 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
     location.userLocation,
   ]);
 
-  // Separate effect to handle processing the pending place
-  // This runs on a timer to keep trying until successful or max attempts reached
   useEffect(() => {
-    // Check if we have a pending place that hasn't been shown yet
     if (
       pendingPlaceToShowRef.current &&
       !placeCardShownRef.current &&
@@ -374,44 +298,31 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
             }`
           );
 
-          // Check if we can process the place now
-          const canProcess = !loading || placeProcessingAttempts >= 2; // After 2 attempts, try anyway
+          const canProcess = !loading || placeProcessingAttempts >= 2;
 
           if (canProcess) {
             const placeToProcess = pendingPlaceToShowRef.current;
             if (placeToProcess) {
               console.log(`Map: Processing place: ${placeToProcess.name}`);
-
-              // Mark as processed to prevent multiple processing
               placeCardShownRef.current = true;
-
-              // Set selected place directly
               places.setSelectedPlace(placeToProcess);
-
-              // Show the card immediately for better UX
               setShowCard(true);
-
-              // Try to get more details in the background only if needed
               if (!placeToProcess.hasFullDetails) {
-                // Check network connectivity first
                 if (isConnected) {
                   try {
-                    // First check if it exists in Firebase before making API call
                     console.log(
-                      `Map: Fetching details from Firebase/permanent storage for ${placeToProcess.name}`
+                      `Map: Fetching details from permanent storage for ${placeToProcess.name}`
                     );
                     const detailedPlace = await fetchPlaceDetailsOnDemand(placeToProcess.place_id);
                     if (
                       detailedPlace &&
                       places.selectedPlace?.place_id === detailedPlace.place_id
                     ) {
-                      // Update the place with detailed info
                       places.setSelectedPlace(detailedPlace);
-                      console.log(`Map: Updated with full details for ${detailedPlace.name}`);
+                      console.log(`Map Updated with full details for ${detailedPlace.name}`);
                     }
                   } catch (detailError) {
                     console.warn("Error fetching place details:", detailError);
-                    // Continue with basic place info
                   }
                 } else {
                   console.log("Map: Offline, using basic place data");
@@ -422,13 +333,11 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
                 );
               }
 
-              // Notify parent
               if (onPlaceCardShown) {
                 onPlaceCardShown();
               }
             }
           } else {
-            // Increment the attempt counter and try again later
             setPlaceProcessingAttempts((prev) => prev + 1);
           }
         } catch (error) {
@@ -436,8 +345,6 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
           setPlaceProcessingAttempts((prev) => prev + 1);
         }
       };
-
-      // Use setTimeout to try processing after a delay
       const timer = setTimeout(attemptToProcessPlace, 500);
       return () => clearTimeout(timer);
     }
@@ -449,25 +356,19 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
     isConnected,
   ]);
 
-  // Function to handle retry when map fails
+  // handle retry when map fails
   const handleRetry = useCallback(() => {
     console.log("Retrying map load...");
     setMapError(null);
     setLoading(true);
     setLocationReady(false);
     setPlacesReady(false);
-
-    // Reset place card state
     pendingPlaceToShowRef.current = null;
     placeCardShownRef.current = false;
-
-    // Force refresh location and places states
     location.resetLocationTracking();
     if (location.userLocation) {
       places.checkAndRefreshPlaces(location.userLocation);
     }
-
-    // Safety timeout to prevent infinite loading
     setTimeout(() => {
       if (loading) {
         setLoading(false);
@@ -477,73 +378,39 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
     }, 5000);
   }, [loading]);
 
-  /**
-   * NEW FUNCTION: Check if user has reached destination
-   * This is called both by the location update effect and the interval timer
-   */
+  //check if user has reached destination
   const checkDestinationReached = useCallback(
     (userLoc: Coordinate) => {
       if (!journeyStarted || !places.destinationCoordinateRef.current || destinationReached) {
         return false;
       }
-
-      // Get the current time to avoid checking too frequently
       const now = Date.now();
-      // Only check if it's been at least 1 second since the last check
       if (now - lastDestinationCheckTimeRef.current < 1000) {
         return false;
       }
       lastDestinationCheckTimeRef.current = now;
-
-      // Calculate distance to destination
       const distanceToDestination = mapUtils.haversineDistance(
         userLoc.latitude,
         userLoc.longitude,
         places.destinationCoordinateRef.current.latitude,
         places.destinationCoordinateRef.current.longitude
       );
-
-      // Log distance to destination (but not too frequently)
-      if (now % 5000 < 1000) {
-        // Log roughly every 5 seconds
-        console.log(
-          `Distance to destination: ${distanceToDestination.toFixed(2)}m, ` +
-            `Threshold: ${DESTINATION_REACHED_THRESHOLD}m, ` +
-            `Current: ${userLoc.latitude.toFixed(6)},${userLoc.longitude.toFixed(6)}, ` +
-            `Destination: ${places.destinationCoordinateRef.current.latitude.toFixed(6)},` +
-            `${places.destinationCoordinateRef.current.longitude.toFixed(6)}`
-        );
-      }
-
-      // Use a more lenient threshold to determine when destination is reached
       const reachThreshold = Math.min(DESTINATION_REACHED_THRESHOLD, 20);
       const reached = distanceToDestination <= reachThreshold;
 
       if (reached) {
-        console.log(`🎯 Destination reached! Distance: ${distanceToDestination.toFixed(2)}m`);
+        console.log(`Destination reached! Distance: ${distanceToDestination.toFixed(2)}m`);
         setDestinationReached(true);
-
-        // Reset the save attempt ref
         destinationSaveAttemptedRef.current = false;
-
-        // Vibrate to alert user
         try {
           Vibration.vibrate([0, 200, 100, 200]);
         } catch (error) {
           console.warn("Could not vibrate:", error);
         }
-
-        // Announce destination reached
         mapNavigation.announceDestinationReached();
-
-        // Mark place as visited with both methods
         if (places.selectedPlace) {
           console.log(`Saving place to database: ${places.selectedPlace.name}`);
-
-          // Method 1: Use the handler
           handleDestinationReached(places.selectedPlace);
-
-          // Method 2: Direct save as a backup
           saveVisitedPlace({
             ...places.selectedPlace,
             isVisited: true,
@@ -557,8 +424,6 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
             })
             .catch((err) => console.error("Error during direct save:", err));
         }
-
-        // Clear the interval check if set
         if (destinationCheckIntervalRef.current) {
           clearInterval(destinationCheckIntervalRef.current);
           destinationCheckIntervalRef.current = null;
@@ -577,22 +442,14 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
     ]
   );
 
-  /**
-   * Initialize map using pre-loaded location and places data
-   */
+  //initialize map using preloaded stored data
   useEffect(() => {
     try {
       console.log("Map component mounting, using pre-loaded location and places");
-
-      // Check if Google Maps API key exists
       if (!GOOGLE_MAPS_APIKEY) {
         throw new Error("Google Maps API key is missing");
       }
-
-      // Get initial location state
       const locationState = getLocationState();
-
-      // If location is already initialized
       if (locationState.isInitialized && locationState.userLocation) {
         console.log("Using pre-initialized location:", locationState.userLocation);
         location.setUserLocation(locationState.userLocation);
@@ -600,19 +457,15 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
         setLocationReady(true);
       } else if (locationState.isInitializing) {
         console.log("Location still initializing, waiting for it...");
-
-        // Subscribe to location updates
         const unsubscribeLocation = onLocationUpdate((updatedLocation) => {
           if (updatedLocation.isInitialized && updatedLocation.userLocation) {
             console.log("Location initialized:", updatedLocation.userLocation);
             location.setUserLocation(updatedLocation.userLocation);
             location.setRegion(updatedLocation.region);
             setLocationReady(true);
-            unsubscribeLocation(); // Unsubscribe once we have the location
+            unsubscribeLocation();
           }
         });
-
-        // Safety timeout for location
         setTimeout(() => {
           if (!locationReady) {
             console.warn("Location initialization timeout");
@@ -624,24 +477,18 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
         console.warn("Location not initializing or initialized, continuing anyway");
         setLocationReady(true);
       }
-
-      // Get initial places state
       const placesState = getNearbyPlacesState();
 
-      // If places are already preloaded
       if (placesState.hasPreloaded) {
         console.log(`Using ${placesState.places.length} preloaded places`);
         places.updatePlaces(placesState.places);
         setPlacesReady(true);
-
-        // Initialize visible places once places are loaded
         if (locationState.userLocation) {
           setTimeout(() => updateVisiblePlaces(), 500);
         }
       } else if (placesState.isPreloading) {
         console.log("Places still preloading, waiting for completion...");
 
-        // Subscribe to places updates
         const unsubscribePlaces = onPlacesUpdate((updatedPlaces) => {
           if (updatedPlaces.hasPreloaded) {
             console.log(`Places preloaded: ${updatedPlaces.places.length} places`);
@@ -655,7 +502,6 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
           }
         });
 
-        // Safety timeout for places
         setTimeout(() => {
           if (!placesReady) {
             console.warn("Places preloading timeout");
@@ -667,8 +513,6 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
         console.warn("Places not preloading or preloaded, continuing anyway");
         setPlacesReady(true);
       }
-
-      // Overall safety timeout
       setTimeout(() => {
         if (loading) {
           console.warn("Overall loading timeout - forcing completion");
@@ -683,15 +527,12 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
       setPlacesReady(true);
     }
 
-    // Cleanup subscriptions on unmount
     return () => {
       console.log("Map component unmounting");
-      // Clear camera control timeout on unmount
       if (cameraUserControlTimeoutRef.current) {
         clearTimeout(cameraUserControlTimeoutRef.current);
       }
 
-      // Clear destination check interval
       if (destinationCheckIntervalRef.current) {
         clearInterval(destinationCheckIntervalRef.current);
         destinationCheckIntervalRef.current = null;
@@ -699,30 +540,25 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
     };
   }, []);
 
-  // Effect to update visible places when the overall places list changes
   useEffect(() => {
     if (places.places.length > 0 && location.userLocation) {
       updateVisiblePlaces();
     }
   }, [places.places, updateVisiblePlaces]);
 
-  // Effect to finish loading when both location and places are ready
   useEffect(() => {
     if (locationReady && placesReady && loading) {
       console.log("Both location and places are ready, finishing loading");
       setLoading(false);
 
-      // Initialize visible places once everything is loaded
       if (location.userLocation && places.places.length > 0) {
         updateVisiblePlaces();
       }
     }
   }, [locationReady, placesReady, loading, updateVisiblePlaces]);
 
-  // Process place to show after map is fully loaded
   useEffect(() => {
     const processPendingPlace = async () => {
-      // Only attempt to show place when map is fully loaded, location is ready, and not already shown
       if (
         !loading &&
         locationReady &&
@@ -735,38 +571,30 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
         console.log(`Processing pending place to show: ${pendingPlaceToShowRef.current.name}`);
 
         try {
-          // Mark as shown to prevent multiple processing
           placeCardShownRef.current = true;
-
-          // Use a small delay to ensure the map is fully rendered
           setTimeout(async () => {
             const placeToProcess = pendingPlaceToShowRef.current;
             if (placeToProcess) {
               try {
                 await handlePlaceSelection(placeToProcess);
 
-                // Move camera to show both user and place
                 if (location.userLocation && places.selectedPlace) {
                   const placeCoord = {
                     latitude: places.selectedPlace.geometry.location.lat,
                     longitude: places.selectedPlace.geometry.location.lng,
                   };
 
-                  // Fit camera to show both user location and place
                   camera.showRouteOverview(location.userLocation, placeCoord, () => {});
                 }
 
-                // Notify parent that place card has been shown
                 if (onPlaceCardShown) {
                   onPlaceCardShown();
                 }
               } catch (processError) {
                 console.error("Error processing selected place:", processError);
 
-                // Reset shown flag to allow retry
                 placeCardShownRef.current = false;
 
-                // Try again with a delay
                 setTimeout(() => {
                   placeCardShownRef.current = false;
                   setPlaceProcessingAttempts(0);
@@ -776,7 +604,6 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
           }, 500);
         } catch (error) {
           console.error("Error in place processing setup:", error);
-          // Reset shown flag to allow retry
           placeCardShownRef.current = false;
         }
       }
@@ -785,41 +612,30 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
     processPendingPlace();
   }, [loading, locationReady, placesReady, location.userLocation, mapReadyRef.current]);
 
-  /**
-   * Handle map ready event
-   */
   const handleMapReady = useCallback(() => {
     console.log("Map is ready");
     mapReadyRef.current = true;
 
-    // Focus camera on user location when map is ready if we have a location
     if (location.userLocation && camera.mapRef.current && !userControllingCamera) {
       console.log("Focusing camera on user location");
       camera.focusOnUserLocation(location.userLocation, true);
       camera.initialCameraSetRef.current = true;
     }
 
-    // Initialize visible places
     if (location.userLocation && places.places.length > 0) {
       updateVisiblePlaces();
     }
   }, [location.userLocation, camera, userControllingCamera, updateVisiblePlaces]);
 
-  /**
-   * Handle map drag to detect user controlling camera
-   */
   const handleMapDrag = useCallback(() => {
-    // When user drags map, set user controlling flag to true
     if (!userControllingCamera) {
       console.log("User is now controlling camera");
       setUserControllingCamera(true);
 
-      // Clear any existing timeout
       if (cameraUserControlTimeoutRef.current) {
         clearTimeout(cameraUserControlTimeoutRef.current);
       }
 
-      // Set a timeout to return to auto mode after 30 seconds (adjust as needed)
       cameraUserControlTimeoutRef.current = setTimeout(() => {
         if (journeyStarted && viewMode === "follow") {
           console.log("Resuming automatic camera control");
@@ -829,23 +645,16 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
     }
   }, [userControllingCamera, journeyStarted, viewMode]);
 
-  /**
-   * NEW EFFECT: Set up an interval to periodically check if we've reached the destination
-   * This serves as a fallback when location updates are infrequent
-   */
   useEffect(() => {
-    // Clean up previous interval if it exists
     if (destinationCheckIntervalRef.current) {
       clearInterval(destinationCheckIntervalRef.current);
       destinationCheckIntervalRef.current = null;
     }
 
-    // Only set up interval if a journey is active and we're not already at destination
     if (journeyStarted && !destinationReached && places.destinationCoordinateRef.current) {
       console.log("Setting up destination check interval");
 
       destinationCheckIntervalRef.current = setInterval(() => {
-        // Only check if we have a valid location
         if (location.userLocation) {
           checkDestinationReached(location.userLocation);
         }
@@ -865,26 +674,14 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
     checkDestinationReached,
   ]);
 
-  /**
-   * Update user heading and check for destination when location changes
-   * MODIFIED: Now also updates visible places when location changes significantly
-   * FIXED: Now always updates journeyTrackingLocation for more frequent destination checks
-   */
   useEffect(() => {
     if (!location.userLocation) return;
-
     try {
-      // Update user heading based on movement
       const headingUpdated = location.updateHeadingFromMovement(location.userLocation);
-
-      // If heading was updated and we're in follow mode, update the camera
-      // Only do this if user is not controlling camera
       if (headingUpdated && viewMode === "follow" && journeyStarted && !userControllingCamera) {
         camera.updateUserCamera(location.userLocation, location.userHeading, false, viewMode);
       }
 
-      // If the camera hasn't been initially focused on the user and we have a location,
-      // and the map is ready, focus on the user (only if user is not controlling camera)
       if (
         !camera.initialCameraSetRef.current &&
         location.userLocation &&
@@ -896,54 +693,39 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
         camera.focusOnUserLocation(location.userLocation, true);
       }
 
-      // Check for nearby places that might need refreshing (dynamic updates based on movement)
       places.checkAndRefreshPlaces(location.userLocation);
 
-      // Update visible places if we've moved significantly
-      // This ensures we're always showing the closest 40 as user moves
       if (hasMovedSignificantly(location.userLocation)) {
         updateVisiblePlaces();
       }
 
-      // IMPORTANT: Always update journey tracking location for more sensitive destination detection
-      // This runs even if the movement is not "significant" by the hasMovedSignificantly standards
       if (journeyStarted) {
         setJourneyTrackingLocation(location.userLocation);
 
-        // Check if we've reached the destination using the main location update
         checkDestinationReached(location.userLocation);
       }
 
-      // Update navigation instructions if journey started
       if (journeyStarted && mapNavigation.navigationSteps.length > 0) {
         mapNavigation.updateNavigationInstructions(location.userLocation, journeyStarted);
       }
     } catch (error) {
       console.error("Error in location update effect:", error);
-      // Don't set map error here to avoid interrupting the user experience
     }
   }, [location.userLocation, userControllingCamera, updateVisiblePlaces, checkDestinationReached]);
 
-  /**
-   * NEW EFFECT: Dedicated effect for journey tracking location updates
-   * This provides more frequent destination checks during navigation
-   */
   useEffect(() => {
     if (!journeyTrackingLocation || !journeyStarted || destinationReached) {
       return;
     }
 
     try {
-      // Check if we've reached the destination using the more frequent journey tracking location
       checkDestinationReached(journeyTrackingLocation);
     } catch (error) {
       console.error("Error in journey tracking location effect:", error);
     }
   }, [journeyTrackingLocation, journeyStarted, destinationReached, checkDestinationReached]);
 
-  // Add a separate effect to ensure place is saved when destination is reached
   useEffect(() => {
-    // If destination is reached but not saved yet, try again
     if (
       destinationReached &&
       places.selectedPlace &&
@@ -954,7 +736,6 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
         destinationSaveAttemptedRef.current = true;
         console.log(`Retry saving place to database: ${places.selectedPlace.name}`);
 
-        // Try direct save again
         saveVisitedPlace({
           ...places.selectedPlace,
           isVisited: true,
@@ -973,22 +754,15 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
     }
   }, [destinationReached, places.selectedPlace, destinationSaved]);
 
-  /**
-   * Setup initial route overview when journey starts
-   */
   useEffect(() => {
     try {
       if (journeyStarted && places.selectedPlace && location.userLocation) {
-        // Reset destination saved state
         setDestinationSaved(false);
 
-        // Set view mode to follow by default
         setViewMode("follow");
 
-        // Reset user camera control when journey starts
         setUserControllingCamera(false);
 
-        // Setup initial route view if route is loaded
         if (!userControllingCamera) {
           camera.setupInitialRouteView(
             location.userLocation,
@@ -1003,9 +777,7 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
     }
   }, [journeyStarted, places.selectedPlace, location.userLocation]);
 
-  /**
-   * Handle starting a journey
-   */
+  //handle starting a journey
   const onStartJourney = async () => {
     try {
       setShowCard(false);
@@ -1015,20 +787,16 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
       setDestinationReached(false);
       setDestinationSaved(false);
       setViewMode("follow");
-      setUserControllingCamera(false); // Reset user control when journey starts
+      setUserControllingCamera(false);
       destinationSaveAttemptedRef.current = false;
 
-      // Reset last destination check time
       lastDestinationCheckTimeRef.current = 0;
 
-      // Reset tracking state
       location.resetLocationTracking();
       camera.resetCameraState();
 
-      // Reset navigation state
       mapNavigation.resetNavigation();
 
-      // IMPORTANT: Make sure destination coordinates are set properly
       if (places.selectedPlace) {
         places.destinationCoordinateRef.current = {
           latitude: places.selectedPlace.geometry.location.lat,
@@ -1042,7 +810,6 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
         return;
       }
 
-      // Initialize journey tracking location with current position
       if (location.userLocation) {
         setJourneyTrackingLocation(location.userLocation);
       }
@@ -1052,23 +819,17 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
     }
   };
 
-  /**
-   * Toggle between follow and overview camera modes
-   */
   const handleToggleViewMode = () => {
     try {
-      // Reset user camera control when toggling view mode
       setUserControllingCamera(false);
 
       if (viewMode === "follow") {
-        // Switch to overview
         camera.showRouteOverview(
           location.userLocation!,
           places.destinationCoordinateRef.current!,
           setViewMode
         );
       } else {
-        // Switch to follow with delay to ensure smooth transition
         setViewMode("follow");
         setTimeout(() => {
           if (location.userLocation && location.userHeading !== null && !userControllingCamera) {
@@ -1081,19 +842,13 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
     }
   };
 
-  /**
-   * Handle place selection with auto-detection for proximity
-   * Updated to use Firebase-first approach
-   */
+  //handle place selection
   const handlePlaceSelection = async (place: Place) => {
     try {
-      // Set selected place immediately for better UX
       places.setSelectedPlace(place);
 
-      // Use existing travelTime state
       setTravelTime("Calculating...");
 
-      // Calculate a rough estimate
       if (location.userLocation) {
         try {
           const userLoc = location.userLocation;
@@ -1114,15 +869,14 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
           setTravelTime(`~${estimatedMinutes} min`);
         } catch (error) {
           console.warn("Error estimating travel time:", error);
-          setTravelTime("Available soon"); // Fallback
+          setTravelTime("Available soon");
         }
       }
 
-      // IMPORTANT: Don't show any card yet - check if discovered first
       console.log(`Checking if place ${place.name} is already discovered...`);
 
       try {
-        // Use location fallbacks if needed
+        // Use location fallbacks
         const userLocationForProcess = location.userLocation || {
           latitude: 0,
           longitude: 0,
@@ -1134,43 +888,36 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
           longitudeDelta: 0.05,
         };
 
-        // First synchronously check if the place is already discovered before showing any card
+        // check if the place is already discovered
         const result = await places.handlePlaceSelection(
           place,
           userLocationForProcess,
           regionForProcess
         );
 
-        // Now show the appropriate card based on discovery status
+        // show card based on discovery status
         if (result && result.isDiscovered) {
           console.log(`Place ${place.name} is already discovered, showing discovered card`);
           setShowDiscoveredCard(true);
-          // Make sure explore card is not shown
           setShowCard(false);
         } else {
           console.log(`Place ${place.name} is not discovered, showing explore card`);
-          // Only now show the explore card if not discovered
           setShowCard(true);
-          // Make sure discovered card is not shown
           setShowDiscoveredCard(false);
         }
 
-        // Fetch detailed place info in the background if needed and connected
         if (!place.hasFullDetails && isConnected) {
           console.log(
             `Map: Background fetching details from Firebase/permanent storage for ${place.name}`
           );
           try {
-            // First check Firebase before attempting any API call
             const detailedPlace = await fetchPlaceDetailsOnDemand(place.place_id);
             if (detailedPlace && places.selectedPlace?.place_id === detailedPlace.place_id) {
-              // Update the place with detailed info
               places.setSelectedPlace(detailedPlace);
               console.log(`Map: Updated with full details for ${place.name}`);
             }
           } catch (detailError) {
             console.warn("Error fetching place details:", detailError);
-            // Continue with basic place info
           }
         } else if (place.hasFullDetails) {
           console.log(`Map: Place ${place.name} already has full details`);
@@ -1179,33 +926,23 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
         }
       } catch (error) {
         console.error("Error checking place discovery status:", error);
-        // Fallback: Show explore card if error occurs
         setShowCard(true);
       }
     } catch (error) {
       console.error("Error in place selection:", error);
-      // Keep showing the card even if there's an error in the background processing
       setShowCard(true);
     }
   };
 
-  /**
-   * Handle learn more action from destination card
-   * Updated to use the permanent cache before navigating
-   * FIXED: Properly handle null values and type checking
-   */
+  //handle learn more
   const handleLearnMore = () => {
     try {
       if (places.selectedPlace) {
         console.log(`Navigating to place details for: ${places.selectedPlace.name}`);
-
-        // Navigate immediately with the current place data
         navigation.navigate("PlaceDetails", {
           placeId: places.selectedPlace.place_id,
           place: places.selectedPlace,
         });
-
-        // If place doesn't have full details and we're online, fetch in background
         if (!places.selectedPlace.hasFullDetails && isConnected) {
           fetchPlaceDetailsOnDemand(places.selectedPlace.place_id)
             .then((detailedPlace) => {
@@ -1238,7 +975,6 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
       setDestinationSaved(false);
       destinationSaveAttemptedRef.current = false;
 
-      // Clear the destination check interval
       if (destinationCheckIntervalRef.current) {
         clearInterval(destinationCheckIntervalRef.current);
         destinationCheckIntervalRef.current = null;
@@ -1259,7 +995,6 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
       places.destinationCoordinateRef.current = null;
       camera.initialRouteLoadedRef.current = false;
 
-      // Reset user camera control
       setUserControllingCamera(false);
     } catch (error) {
       console.error("Error dismissing destination card:", error);
@@ -1277,14 +1012,14 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
 
       return steps.map((step: any, index: number) => ({
         id: index,
-        instructions: step.html_instructions.replace(/<[^>]*>/g, ""), // Remove HTML tags
+        instructions: step.html_instructions.replace(/<[^>]*>/g, ""),
         distance: {
           text: step.distance.text,
-          value: step.distance.value, // meters
+          value: step.distance.value,
         },
         duration: {
           text: step.duration.text,
-          value: step.duration.value, // seconds
+          value: step.duration.value,
         },
         maneuver: step.maneuver || "",
         startLocation: {
@@ -1303,7 +1038,7 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
   };
 
   /**
-   * Handle swipe off for details card
+   * Handle swipe off
    */
   const handleSwipeOff = () => {
     setShowDetailsCard(false);
@@ -1315,21 +1050,16 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
       if (places.selectedPlace) {
         console.log(`Navigating to place details for: ${places.selectedPlace.name}`);
 
-        // Store a reference to the selected place before resetting state
         const placeToView = { ...places.selectedPlace };
 
-        // Reset UI state to remove modal/overlay before navigation
         setShowCard(false);
         setShowDiscoveredCard(false);
 
-        // IMPORTANT: Navigate immediately instead of using setTimeout
-        // This ensures navigation happens before any state updates might interfere
         navigation.navigate("PlaceDetails", {
           placeId: placeToView.place_id,
           place: placeToView,
         });
 
-        // Fetch additional details in background if needed
         if (!placeToView.hasFullDetails && isConnected) {
           fetchPlaceDetailsOnDemand(placeToView.place_id)
             .then((detailedPlace) => {
@@ -1355,20 +1085,13 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
     }
   };
 
-  /**
-   * Handle arrow press to show details card again
-   */
   const handleArrowPress = () => {
     setShowArrow(false);
     setShowDetailsCard(true);
   };
 
-  /**
-   * Handle end journey button press
-   */
   const handleEndJourney = () => {
     try {
-      // Clear the destination check interval
       if (destinationCheckIntervalRef.current) {
         clearInterval(destinationCheckIntervalRef.current);
         destinationCheckIntervalRef.current = null;
@@ -1386,18 +1109,14 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
         setJourneyStarted
       );
 
-      // Reset navigation state
       mapNavigation.resetNavigation();
 
-      // Reset destination tracking
       setDestinationReached(false);
       setDestinationSaved(false);
       destinationSaveAttemptedRef.current = false;
 
-      // Reset user camera control
       setUserControllingCamera(false);
 
-      // Reset refs and state
       places.destinationCoordinateRef.current = null;
       camera.initialRouteLoadedRef.current = false;
       location.resetLocationTracking();
@@ -1406,38 +1125,26 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
     }
   };
 
-  /**
-   * Handle discovered card dismiss
-   */
   const handleDismissDiscoveredCard = () => {
     setShowDiscoveredCard(false);
     places.setSelectedPlace(null);
     places.setVisitedPlaceDetails(null);
   };
 
-  /**
-   * Handle view discovered details
-   * FIXED: Updated to properly handle null values and type checking
-   */
   const handleViewDiscoveredDetails = () => {
     try {
       if (places.selectedPlace) {
         console.log(`View details for discovered place: ${places.selectedPlace.name}`);
 
-        // Capture current state before changing anything
         const placeToView = places.visitedPlaceDetails || places.selectedPlace;
 
-        // Clear the card state
         setShowDiscoveredCard(false);
 
-        // IMPORTANT: Navigate immediately instead of checking Firebase first
-        // This ensures navigation happens without delay
         navigation.navigate("PlaceDetails", {
           placeId: places.selectedPlace.place_id,
           place: placeToView,
         });
 
-        // Optionally fetch updated details in background after navigation
         if (isConnected && !placeToView.hasFullDetails) {
           fetchPlaceDetailsOnDemand(places.selectedPlace.place_id)
             .then((detailedPlace) => {
@@ -1459,25 +1166,20 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
     }
   };
 
-  // If there's a map error, show the error fallback
   if (mapError) {
     return <MapErrorFallback error={mapError} onRetry={handleRetry} />;
   }
 
-  // Show enhanced loading screen while initializing
   if (loading) {
     return <MapLoading />;
   }
 
-  // Check if Google Maps API key is available
   if (!GOOGLE_MAPS_APIKEY) {
     return (
       <MapErrorFallback error={new Error("Google Maps API key is missing")} onRetry={handleRetry} />
     );
   }
 
-  // Only display the selected place marker if journey is started
-  // MODIFIED: Use visiblePlaces array instead of all places
   const markersToDisplay =
     journeyStarted && places.selectedPlace ? [places.selectedPlace] : visiblePlaces;
 
@@ -1491,18 +1193,16 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
           customMapStyle={customMapStyle}
           showsPointsOfInterest={false}
           provider={PROVIDER_DEFAULT}
-          followsUserLocation={!userControllingCamera && viewMode === "follow"} // Only follow if not user-controlled
+          followsUserLocation={!userControllingCamera && viewMode === "follow"}
           showsUserLocation={true}
           rotateEnabled={true}
           pitchEnabled={true}
           onMapReady={handleMapReady}
-          onPanDrag={handleMapDrag} // Add handler for map drag
+          onPanDrag={handleMapDrag}
           onRegionChangeComplete={() => {
-            // Detect when map region changes completely
             if (!userControllingCamera) {
               setUserControllingCamera(true);
 
-              // Set timeout to return to auto mode
               if (cameraUserControlTimeoutRef.current) {
                 clearTimeout(cameraUserControlTimeoutRef.current);
               }
@@ -1517,32 +1217,25 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
           }}
           onUserLocationChange={(event) => {
             try {
-              // Get the coordinate from the event
               const { coordinate } = event.nativeEvent;
               if (!coordinate) return;
 
-              // Create a location update object
               const locationUpdate = {
                 latitude: coordinate.latitude,
                 longitude: coordinate.longitude,
               };
 
-              // IMPORTANT FIX: Always update journey tracking location during active journeys
-              // This ensures we have frequent updates for destination detection
               if (journeyStarted && !destinationReached) {
                 setJourneyTrackingLocation(locationUpdate);
               }
 
-              // Standard throttled location updates for the map
               location.locationUpdateCounterRef.current =
                 (location.locationUpdateCounterRef.current + 1) % LOCATION_UPDATE_THROTTLE;
               if (location.locationUpdateCounterRef.current !== 0) return;
 
-              // Update user location state if we've moved significantly
               if (hasMovedSignificantly(locationUpdate)) {
                 location.setUserLocation(locationUpdate);
 
-                // If we need to update region separately
                 if (location.region) {
                   location.setRegion({
                     latitude: coordinate.latitude,
@@ -1552,7 +1245,6 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
                   });
                 }
 
-                // Update visible places when location changes significantly
                 updateVisiblePlaces();
               }
             } catch (error) {
@@ -1560,7 +1252,6 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
             }
           }}
         >
-          {/* Place markers - using the filtered visiblePlaces array instead of all places */}
           {markersToDisplay.map((place) => (
             <Marker
               key={place.place_id}
@@ -1573,7 +1264,6 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
             />
           ))}
 
-          {/* Route directions */}
           {places.routeCoordinates.length > 0 && journeyStarted && (
             <MapViewDirections
               key={`route-${places.routeKey}-${places.travelMode}`}
@@ -1591,7 +1281,6 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
               onReady={(result) => {
                 try {
                   if (result.distance && result.duration) {
-                    // Update route info when route is ready
                     const newTravelTime = `${parseFloat(result.duration.toString()).toFixed(
                       1
                     )} min`;
@@ -1606,12 +1295,9 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
                     setTravelTime(newTravelTime);
                     setDistance(newDistance);
 
-                    // Parse route instructions and update navigation steps
                     const steps = parseRouteInstructions(result);
                     mapNavigation.setNavigationStepsFromRoute(steps);
 
-                    // If journey has started and this is the first load, show overview
-                    // But only if user is not controlling the camera
                     if (
                       journeyStarted &&
                       !camera.initialRouteLoadedRef.current &&
@@ -1637,31 +1323,20 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
           )}
         </MapView>
 
-        {/* Network status indicator if offline */}
         {!isConnected && (
           <View style={styles.networkStatusContainer}>
             <Text style={styles.networkStatusText}>Offline Mode</Text>
           </View>
         )}
 
-        {/* Location status indicator if needed */}
         {!location.userLocation && (
           <View style={styles.locationStatusContainer}>
             <Text style={styles.locationStatusText}>Waiting for location...</Text>
           </View>
         )}
 
-        {/* Display number of visible vs. total places - Can be removed in production */}
-        {/* <View style={styles.placesInfoContainer}>
-          <Text style={styles.placesInfoText}>
-            Showing {visiblePlaces.length} of {places.places.length} places
-          </Text>
-        </View> */}
-
-        {/* View mode toggle button */}
         {journeyStarted && <ViewModeToggle viewMode={viewMode} onToggle={handleToggleViewMode} />}
 
-        {/* Cards and UI elements */}
         {showCard && places.selectedPlace && (places.travelTime || travelTime) && (
           <View style={styles.cardOverlayContainer}>
             <ExploreCard

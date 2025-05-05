@@ -1,4 +1,3 @@
-// HomeScreen.tsx - Refined layout with consistent spacing and headers
 import React, { useState, useEffect, useRef } from "react";
 import {
   SafeAreaView,
@@ -33,7 +32,6 @@ import { auth } from "../config/firebaseConfig";
 
 const { width, height } = Dimensions.get("window");
 
-// TypeScript interfaces
 interface NavigationParams {
   [key: string]: any;
 }
@@ -44,7 +42,6 @@ interface JourneyTip {
   icon: string;
 }
 
-// Refined Onboarding Tips Component with consistent section header
 const OnboardingTips: React.FC = () => {
   const [currentTipIndex, setCurrentTipIndex] = useState(0);
   const fadeAnim = useRef(new Animated.Value(1)).current;
@@ -76,7 +73,6 @@ const OnboardingTips: React.FC = () => {
   ];
 
   const animateToNextTip = (nextIndex: number) => {
-    // Animation implementation (unchanged)
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 0,
@@ -168,7 +164,6 @@ const OnboardingTips: React.FC = () => {
   );
 };
 
-// Enhanced HomeScreen component with consistent spacing and headers
 const HomeScreen: React.FC = () => {
   const navigation = useNavigation();
   const route = useRoute();
@@ -178,12 +173,10 @@ const HomeScreen: React.FC = () => {
   const [showJourneyIntro, setShowJourneyIntro] = useState<boolean>(false);
   const [isNewUser, setIsNewUser] = useState<boolean>(false);
 
-  // Animation values
   const fadeAnim = useRef<Animated.Value>(new Animated.Value(0)).current;
   const scrollY = useRef<Animated.Value>(new Animated.Value(0)).current;
   const loadingAnim = useRef<Animated.Value>(new Animated.Value(0)).current;
 
-  // Hero image parallax effect
   const heroTranslateY = scrollY.interpolate({
     inputRange: [0, 200],
     outputRange: [0, -50],
@@ -196,7 +189,6 @@ const HomeScreen: React.FC = () => {
     extrapolate: "clamp",
   });
 
-  // Refs to control staggered animations of sections
   const sections: {
     hero: Animated.Value;
     header: Animated.Value;
@@ -219,7 +211,6 @@ const HomeScreen: React.FC = () => {
     quickActions: useRef<Animated.Value>(new Animated.Value(0)).current,
   };
 
-  // Load user profile and trigger animations
   useEffect(() => {
     const startLoadingAnimation = () => {
       Animated.loop(
@@ -245,14 +236,11 @@ const HomeScreen: React.FC = () => {
     const loadUserProfile = async () => {
       try {
         setIsLoading(true);
-        // Fetch user profile from Firestore
         const userProfile = await fetchUserProfile(navigation);
 
-        // Update username and profile image
         setUserName(userProfile.name || "User");
         setProfileImage(userProfile.profileImage || null);
 
-        // Explicit check with triple equals for boolean type
         if (userProfile.isNewUser === true) {
           setShowJourneyIntro(true);
           setIsNewUser(true);
@@ -261,7 +249,6 @@ const HomeScreen: React.FC = () => {
           setIsNewUser(false);
         }
 
-        // Small delay to ensure smooth animation transition
         setTimeout(() => {
           setIsLoading(false);
           triggerEntryAnimations();
@@ -276,9 +263,7 @@ const HomeScreen: React.FC = () => {
     loadUserProfile();
   }, []);
 
-  // Trigger beautiful staggered entry animations for all components
   const triggerEntryAnimations = () => {
-    // Fade in the whole screen
     Animated.timing(fadeAnim, {
       toValue: 1,
       duration: 800,
@@ -286,7 +271,6 @@ const HomeScreen: React.FC = () => {
       easing: Easing.out(Easing.cubic),
     }).start();
 
-    // Staggered animation for sections with improved timing
     Animated.stagger(80, [
       Animated.timing(sections.hero, {
         toValue: 1,
@@ -345,9 +329,7 @@ const HomeScreen: React.FC = () => {
     ]).start();
   };
 
-  // Handle navigation to other screens
   const navigateToScreen = (screenName: string, params?: NavigationParams): void => {
-    // Add a small scale animation when navigating
     Animated.sequence([
       Animated.timing(fadeAnim, {
         toValue: 0.97,
@@ -364,12 +346,10 @@ const HomeScreen: React.FC = () => {
     navigation.navigate(screenName, params);
   };
 
-  // Handle scroll events for parallax effects
   const handleScroll = Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], {
     useNativeDriver: true,
   });
 
-  // Loading state with pulsing animation
   if (isLoading) {
     return (
       <ScreenWithNavBar>
@@ -421,7 +401,6 @@ const HomeScreen: React.FC = () => {
             onScroll={handleScroll}
             scrollEventThrottle={16}
           >
-            {/* Hero Section with Parallax Effect */}
             <Animated.View
               style={[
                 styles.heroSection,
@@ -441,7 +420,6 @@ const HomeScreen: React.FC = () => {
                   colors={["rgba(0,0,0,0.3)", "rgba(0,0,0,0.7)"]}
                   style={styles.heroGradient}
                 >
-                  {/* Help button in the hero section */}
                   <TouchableOpacity
                     style={styles.heroHelpButton}
                     onPress={() => setShowJourneyIntro(true)}
@@ -472,7 +450,6 @@ const HomeScreen: React.FC = () => {
               </ImageBackground>
             </Animated.View>
 
-            {/* Header with User Welcome */}
             <Animated.View
               style={{
                 opacity: sections.header,
@@ -490,7 +467,6 @@ const HomeScreen: React.FC = () => {
             </Animated.View>
 
             <View style={styles.contentContainer}>
-              {/* Action Cards Section */}
               <Animated.View
                 style={{
                   opacity: sections.action,
@@ -506,8 +482,6 @@ const HomeScreen: React.FC = () => {
               >
                 <ActionCards navigateToScreen={navigateToScreen} />
               </Animated.View>
-
-              {/* Features Section */}
               <Animated.View
                 style={{
                   opacity: sections.features,
@@ -524,7 +498,6 @@ const HomeScreen: React.FC = () => {
                 <FeaturesSection navigateToScreen={navigateToScreen} />
               </Animated.View>
 
-              {/* Stats Section */}
               <Animated.View
                 style={{
                   opacity: sections.stats,
@@ -541,7 +514,6 @@ const HomeScreen: React.FC = () => {
                 <StatsSection />
               </Animated.View>
 
-              {/* Discovered Locations */}
               <Animated.View
                 style={{
                   opacity: sections.locations,
@@ -558,7 +530,6 @@ const HomeScreen: React.FC = () => {
                 <DiscoveredLocationsSection navigateToScreen={navigateToScreen} />
               </Animated.View>
 
-              {/* Inspiration Quote Section */}
               <Animated.View
                 style={{
                   opacity: sections.inspiration,
@@ -575,7 +546,6 @@ const HomeScreen: React.FC = () => {
                 <JourneyInspiration />
               </Animated.View>
 
-              {/* Quick Actions Grid */}
               <Animated.View
                 style={{
                   opacity: sections.quickActions,
@@ -592,7 +562,6 @@ const HomeScreen: React.FC = () => {
                 <QuickActions navigateToScreen={navigateToScreen} />
               </Animated.View>
 
-              {/* Journey Tips Section */}
               <Animated.View
                 style={{
                   opacity: sections.tips,
@@ -610,8 +579,6 @@ const HomeScreen: React.FC = () => {
               </Animated.View>
             </View>
           </Animated.ScrollView>
-
-          {/* Journey introduction overlay for new users */}
           <JourneyIntroOverlay
             visible={showJourneyIntro}
             onClose={() => setShowJourneyIntro(false)}
@@ -633,19 +600,18 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
-    paddingBottom: 70, // Reduced from 90 to 70
+    paddingBottom: 70,
   },
   contentContainer: {
     flex: 1,
-    paddingHorizontal: 12, // Reduced from 16 to 12
-    paddingTop: 12, // Reduced from 16 to 12
-    gap: 16, // Reduced from 24 to 16 for tighter spacing
+    paddingHorizontal: 12,
+    paddingTop: 12,
+    gap: 16,
   },
-  // Hero Section Styles - Refined
   heroSection: {
     width: width,
-    height: height * 0.38, // Slightly reduced height
-    marginBottom: 10, // Reduced from 16 to 10
+    height: height * 0.38,
+    marginBottom: 10,
   },
   heroBg: {
     width: "100%",
@@ -654,31 +620,31 @@ const styles = StyleSheet.create({
   heroGradient: {
     flex: 1,
     justifyContent: "flex-end",
-    padding: 16, // Reduced from 20 to 16
+    padding: 16,
   },
   heroContent: {
     alignItems: "center",
-    paddingBottom: 16, // Reduced from 20 to 16
+    paddingBottom: 16,
   },
   heroTitle: {
     fontSize: 36,
     fontWeight: "800",
     color: "#fff",
-    marginBottom: 6, // Reduced from 8 to 6
+    marginBottom: 6,
     textAlign: "center",
   },
   heroSubtitle: {
     fontSize: 18,
     fontWeight: "500",
     color: "rgba(255,255,255,0.9)",
-    marginBottom: 20, // Reduced from 24 to 20
+    marginBottom: 20,
     textAlign: "center",
   },
   heroButton: {
     flexDirection: "row",
     backgroundColor: Colors.primary,
-    paddingVertical: 10, // Reduced from 12 to 10
-    paddingHorizontal: 18, // Reduced from 20 to 18
+    paddingVertical: 10,
+    paddingHorizontal: 18,
     borderRadius: 30,
     alignItems: "center",
     justifyContent: "center",
@@ -693,11 +659,10 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600",
   },
-  // Help button on hero image - Improved positioning
   heroHelpButton: {
     position: "absolute",
     top: Platform.OS === "ios" ? 50 : 35,
-    right: 16, // Reduced from 20 to 16
+    right: 16,
     width: 40,
     height: 40,
     borderRadius: 20,
@@ -706,18 +671,16 @@ const styles = StyleSheet.create({
     alignItems: "center",
     zIndex: 5,
   },
-  // Card container style - Refined
   cardContainer: {
     backgroundColor: "#FFFFFF",
     borderRadius: 16,
-    padding: 14, // Reduced from 16 to 14
+    padding: 14,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
-    shadowRadius: 6, // Reduced from 8 to 6
+    shadowRadius: 6,
     elevation: 2,
   },
-  // Loading styles
   loadingContainer: {
     flex: 1,
     justifyContent: "center",
@@ -728,7 +691,7 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: 30,
-    marginBottom: 16, // Reduced from 20 to 16
+    marginBottom: 16,
     overflow: "hidden",
   },
   loadingGradient: {
@@ -741,7 +704,6 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
 
-  // Section header styles - Standardized across all components
   sectionHeader: {
     flexDirection: "row",
     alignItems: "center",
@@ -754,12 +716,11 @@ const styles = StyleSheet.create({
     color: Colors.text || "#333",
     marginLeft: 8,
   },
-  // Onboarding Tips Styles - Refined
   tipCardContainer: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 12, // Reduced from 16 to 12
+    marginBottom: 12,
   },
   tipNavButton: {
     width: 36,
@@ -772,23 +733,23 @@ const styles = StyleSheet.create({
   tipCard: {
     flex: 1,
     alignItems: "center",
-    paddingVertical: 16, // Reduced from 20 to 16
-    paddingHorizontal: 14, // Reduced from 16 to 14
+    paddingVertical: 16,
+    paddingHorizontal: 14,
   },
   tipIconContainer: {
-    width: 46, // Reduced from 50 to 46
-    height: 46, // Reduced from 50 to 46
+    width: 46,
+    height: 46,
     borderRadius: 23,
     backgroundColor: "rgba(74, 144, 226, 0.1)",
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 10, // Reduced from 12 to 10
+    marginBottom: 10,
   },
   tipTitle: {
     fontSize: 16,
     fontWeight: "600",
     color: "#333",
-    marginBottom: 6, // Reduced from 8 to 6
+    marginBottom: 6,
     textAlign: "center",
   },
   tipDescription: {
@@ -801,7 +762,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
-    marginTop: 2, // Added to create some space above the indicators
+    marginTop: 2,
   },
   tipIndicator: {
     width: 8,

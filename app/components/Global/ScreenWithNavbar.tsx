@@ -13,7 +13,6 @@ const ScreenWithNavBar = ({ children }: { children: React.ReactNode }) => {
 
 export default ScreenWithNavBar;
 
-// Styles
 const styles = StyleSheet.create({
   container: {
     flex: 1,

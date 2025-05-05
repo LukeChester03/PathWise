@@ -1,4 +1,3 @@
-// components/PhrasePreviewModal.tsx
 import React from "react";
 import {
   View,
@@ -31,7 +30,6 @@ const PhrasePreviewModal: React.FC<PhrasePreviewModalProps> = ({
   onClose,
   onAddAll,
 }) => {
-  // Function to get a flag emoji from country name
   const getCountryFlag = (countryName: string) => {
     const flags: { [key: string]: string } = {
       France: "🇫🇷",
@@ -74,8 +72,6 @@ const PhrasePreviewModal: React.FC<PhrasePreviewModalProps> = ({
       <View style={styles.modalOverlay}>
         <View style={styles.previewModalContainer}>
           <View style={styles.modalDragIndicator} />
-
-          {/* Header */}
           <View style={styles.previewModalHeader}>
             <Text style={styles.previewModalFlag}>{getCountryFlag(countryName || "")}</Text>
             <View style={styles.previewModalTitleContainer}>
@@ -88,10 +84,8 @@ const PhrasePreviewModal: React.FC<PhrasePreviewModalProps> = ({
               <Ionicons name="close" size={24} color="#6B7280" />
             </TouchableOpacity>
           </View>
-
-          {/* Preview List */}
           <FlatList
-            data={phrases.slice(0, 3)} // Show just the first 3 phrases as a preview
+            data={phrases.slice(0, 3)}
             renderItem={({ item }) => <PhrasePreviewCard phrase={item} />}
             keyExtractor={(item) => item.id || `preview-${Math.random()}`}
             contentContainerStyle={styles.previewListContainer}
@@ -107,7 +101,6 @@ const PhrasePreviewModal: React.FC<PhrasePreviewModalProps> = ({
             }
           />
 
-          {/* Action Buttons */}
           <View style={styles.previewActionContainer}>
             <TouchableOpacity style={styles.previewCancelButton} onPress={onClose}>
               <Text style={styles.previewCancelButtonText}>Cancel</Text>

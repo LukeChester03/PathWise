@@ -38,32 +38,21 @@ const AiTravelSnapshot: React.FC<AiTravelSnapshotProps> = ({
     checkVisitedPlacesAndFetchProfile();
   }, []);
 
-  // This function first checks directly with Firebase for visited places count
   const checkVisitedPlacesAndFetchProfile = async () => {
     try {
       setLoading(true);
       setError(null);
-
-      // Directly query Firebase/AsyncStorage for all visited places
       const visitedPlaces = await getVisitedPlaces();
-
-      // Check if we have at least 2 valid visited places (excluding initialization documents)
       const validPlaces = visitedPlaces.filter((place) => !place._isInitDocument);
 
       if (validPlaces.length < 2) {
-        // Not enough places to generate a profile
         setInsufficientPlaces(true);
         setProfile(null);
         setLoading(false);
         return;
       }
-
-      // We have enough places, clear the insufficient flag
       setInsufficientPlaces(false);
-
-      // Now fetch the travel profile
       const { profile } = await getTravelProfile();
-
       setProfile(profile);
 
       if (onProfileUpdated) {
@@ -87,7 +76,6 @@ const AiTravelSnapshot: React.FC<AiTravelSnapshotProps> = ({
     checkVisitedPlacesAndFetchProfile();
   };
 
-  // Render view for insufficient places
   if (insufficientPlaces) {
     return (
       <Animated.View
@@ -126,7 +114,6 @@ const AiTravelSnapshot: React.FC<AiTravelSnapshotProps> = ({
     );
   }
 
-  // Error state (for other error scenarios)
   if (error) {
     return (
       <Animated.View
@@ -165,7 +152,6 @@ const AiTravelSnapshot: React.FC<AiTravelSnapshotProps> = ({
     );
   }
 
-  // Loading state
   if (loading || !profile) {
     return (
       <Animated.View
@@ -201,7 +187,6 @@ const AiTravelSnapshot: React.FC<AiTravelSnapshotProps> = ({
     );
   }
 
-  // Normal profile rendering
   return (
     <Animated.View
       style={[
@@ -342,7 +327,6 @@ const styles = StyleSheet.create({
     color: "#4F46E5",
   },
 
-  // Travel Profile Elements
   travelProfileContainer: {
     backgroundColor: "rgba(255, 255, 255, 0.15)",
     borderRadius: 12,
