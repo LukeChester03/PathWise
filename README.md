@@ -1,42 +1,11 @@
-# PathWise 🚀
-
-PathWise is a modern mobile application designed to help users navigate their journeys efficiently. Whether you're planning a trip or exploring new routes, PathWise provides intuitive tools and features to make your experience seamless.
-
-This project is built using [Expo](https://expo.dev) and React Native, leveraging modern development practices to deliver a cross-platform app for iOS and Android.
-
----
-
-## Table of Contents
-
-1. [Features](#features)
-2. [Prerequisites](#prerequisites)
-3. [Setup Instructions](#setup-instructions)
-4. [Running the App](#running-the-app)
-5. [Project Structure](#project-structure)
-6. [Contributing](#contributing)
-7. [Resources](#resources)
-
----
-
-## Features
-
-- **User Authentication**: Secure login and registration using Firebase.
-- **Dynamic Routing**: Plan and visualize routes with ease.
-- **Real-Time Updates**: Stay informed with real-time data synchronization.
-- **Customizable Themes**: Light and dark mode support for user preference.
-- **Cross-Platform**: Runs seamlessly on both iOS and Android.
-
----
-
-## Prerequisites
-
 Before setting up the project, ensure you have the following installed:
 
 1. **Node.js**: [Download and install Node.js](https://nodejs.org/).
 2. **Expo CLI**: Install globally using npm:
    _npm install -g expo-cli_
+3. **React Native**
 
-Setup Instructions
+Setup Instructions:
 
 1. Clone the Repository
    Clone the PathWise repository to your local machine:
@@ -57,3 +26,5 @@ Expo Documentation : https://docs.expo.dev/
 React Navigation : https://reactnavigation.org/
 Firebase Documentation : https://firebase.google.com/docs
 React Native Styling : https://reactnative.dev/docs/style
+
+NOTE: YOU MUST HAVE EXPO GO INSTALLED AND ACCESS TO THE GOOGLE PLATFORM SERVICES AND FIREBASE FOR THE APP TO WORK

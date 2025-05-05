@@ -125,7 +125,7 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
     const placesWithDistance = places.places.map((place) => {
       const distance =
         place.distance ||
-        mapUtils.haversineDistance(
+        mapUtils.calcDist(
           location.userLocation!.latitude,
           location.userLocation!.longitude,
           place.geometry.location.lat,
@@ -164,7 +164,7 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
             };
 
             const distanceInKm =
-              mapUtils.haversineDistance(
+              mapUtils.calcDist(
                 userLoc.latitude,
                 userLoc.longitude,
                 placeLoc.latitude,
@@ -389,7 +389,7 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
         return false;
       }
       lastDestinationCheckTimeRef.current = now;
-      const distanceToDestination = mapUtils.haversineDistance(
+      const distanceToDestination = mapUtils.calcDist(
         userLoc.latitude,
         userLoc.longitude,
         places.destinationCoordinateRef.current.latitude,
@@ -858,7 +858,7 @@ const Map: React.FC<MapProps> = ({ placeToShow, onPlaceCardShown }) => {
           };
 
           const distanceInKm =
-            mapUtils.haversineDistance(
+            mapUtils.calcDist(
               userLoc.latitude,
               userLoc.longitude,
               placeLoc.latitude,

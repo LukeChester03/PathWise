@@ -4,7 +4,7 @@ import { TravelMode, Coordinate } from "../../types/MapTypes";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { hasQuotaAvailable, recordApiCall } from "./quotaController";
 import { GOOGLE_MAPS_APIKEY } from "../../constants/Map/mapConstants";
-import { haversineDistance } from "../../utils/mapUtils";
+import { calcDist } from "../../utils/mapUtils";
 
 import {
   doc,
@@ -176,7 +176,7 @@ const estimateDirectDistance = (
   destLat: number,
   destLng: number
 ): number => {
-  return haversineDistance(originLat, originLng, destLat, destLng);
+  return calcDist(originLat, originLng, destLat, destLng);
 };
 
 const parseCoordinates = (coordString: string): { lat: number; lng: number } | null => {
@@ -212,7 +212,7 @@ const generateOfflineRoute = (
   distance: number;
   travelMode: TravelMode;
 } => {
-  const distanceInMeters = haversineDistance(originLat, originLng, destLat, destLng);
+  const distanceInMeters = calcDist(originLat, originLng, destLat, destLng);
   const distanceInKm = distanceInMeters / 1000;
   const duration = estimateTravelTime(distanceInMeters, travelMode);
   const coords: Coordinate[] = [

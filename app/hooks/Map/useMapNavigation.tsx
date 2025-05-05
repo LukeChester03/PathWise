@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import * as Speech from "expo-speech";
 import { Audio } from "expo-av";
-import { haversineDistance } from "../../utils/mapUtils";
+import { calcDist } from "../../utils/mapUtils";
 import { ANNOUNCEMENT_COOLDOWN, INITIAL_NAVIGATION_DELAY } from "../../constants/Map/mapConstants";
 import { Coordinate, NavigationStep } from "../../types/MapTypes";
 
@@ -191,7 +191,7 @@ const useMapNavigation = (): UseMapNavigationReturn => {
 
       for (let i = stepIndex; i < navigationSteps.length; i++) {
         const step = navigationSteps[i];
-        const distanceToStep = haversineDistance(
+        const distanceToStep = calcDist(
           userLocation.latitude,
           userLocation.longitude,
           step.endLocation.latitude,
@@ -210,7 +210,7 @@ const useMapNavigation = (): UseMapNavigationReturn => {
 
       let distanceMoved = Infinity;
       if (lastAnnouncedPositionRef.current) {
-        distanceMoved = haversineDistance(
+        distanceMoved = calcDist(
           userLocation.latitude,
           userLocation.longitude,
           lastAnnouncedPositionRef.current.latitude,
@@ -238,7 +238,7 @@ const useMapNavigation = (): UseMapNavigationReturn => {
       }
 
       if (closestStepIndex < navigationSteps.length) {
-        const distanceToNextStep = haversineDistance(
+        const distanceToNextStep = calcDist(
           userLocation.latitude,
           userLocation.longitude,
           navigationSteps[closestStepIndex].endLocation.latitude,

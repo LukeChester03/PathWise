@@ -7,7 +7,7 @@ import {
   LOOK_AHEAD_DISTANCE,
   INITIAL_ROUTE_OVERVIEW_DURATION,
 } from "../../constants/Map/mapConstants";
-import { calculateLookAheadPosition, haversineDistance } from "../../utils/mapUtils";
+import { calculateLookAheadPosition, calcDist } from "../../utils/mapUtils";
 import { Coordinate, CameraConfig } from "../../types/MapTypes";
 import MapView from "react-native-maps";
 
@@ -72,7 +72,7 @@ const useMapCamera = (): UseMapCameraReturn => {
       isTransitioningRef.current = true;
       setViewMode("overview");
 
-      const routeDistance = haversineDistance(
+      const routeDistance = calcDist(
         userLocation.latitude,
         userLocation.longitude,
         destinationCoordinate.latitude,

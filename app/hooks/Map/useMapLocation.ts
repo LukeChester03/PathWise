@@ -5,7 +5,7 @@ import {
   getCurrentLocation,
   hasMovedSignificantly,
 } from "../../controllers/Map/locationController";
-import { calculateBearing, haversineDistance } from "../../utils/mapUtils";
+import { calculateBearing, calcDist } from "../../utils/mapUtils";
 import { HEADING_UPDATE_MIN_DISTANCE, MIN_HEADING_CHANGE } from "../../constants/Map/mapConstants";
 import { Coordinate, Region } from "../../types/MapTypes";
 
@@ -100,7 +100,7 @@ const useMapLocation = (): UseMapLocationReturn => {
       return false;
     }
 
-    const distanceMoved = haversineDistance(
+    const distanceMoved = calcDist(
       previousPositionRef.current.latitude,
       previousPositionRef.current.longitude,
       newLocation.latitude,
@@ -141,7 +141,7 @@ const useMapLocation = (): UseMapLocationReturn => {
     (destinationCoord: Coordinate, threshold: number): boolean => {
       if (!userLocation || !destinationCoord) return false;
 
-      const distanceToDestination = haversineDistance(
+      const distanceToDestination = calcDist(
         userLocation.latitude,
         userLocation.longitude,
         destinationCoord.latitude,

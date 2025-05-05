@@ -1,6 +1,6 @@
 import { Place, PlaceDetails, NearbyPlacesResponse } from "../../types/MapTypes";
 import { Alert } from "react-native";
-import { haversineDistance } from "../../utils/mapUtils";
+import { calcDist } from "../../utils/mapUtils";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { hasQuotaAvailable, recordApiCall } from "./quotaController";
 import { GOOGLE_MAPS_APIKEY } from "../../constants/Map/mapConstants";
@@ -368,7 +368,7 @@ const isCacheEntryValidForPosition = (
     }
   }
 
-  const distance = haversineDistance(
+  const distance = calcDist(
     cacheEntry.centerLatitude,
     cacheEntry.centerLongitude,
     latitude,
@@ -662,7 +662,7 @@ const fetchCacheEntryForPosition = async (
         cacheData.id = doc.id;
 
         if (isCacheEntryValidForPosition(cacheData, latitude, longitude)) {
-          const distance = haversineDistance(
+          const distance = calcDist(
             cacheData.centerLatitude,
             cacheData.centerLongitude,
             latitude,
@@ -963,7 +963,7 @@ const calculateTourismScore = (place: any): number => {
 
 const createPlaceObjectFromApiResult = (place: any, latitude: number, longitude: number): Place => {
   // Calculate distance from current location
-  const distance = haversineDistance(
+  const distance = calcDist(
     latitude,
     longitude,
     place.geometry.location.lat,
@@ -1150,7 +1150,7 @@ const fetchPlaceDetailsFromGoogle = async (
         if (basicPlace && basicPlace.distance) {
           distance = basicPlace.distance;
         } else if (memoryCache.cacheEntry) {
-          distance = haversineDistance(
+          distance = calcDist(
             memoryCache.cacheEntry.centerLatitude,
             memoryCache.cacheEntry.centerLongitude,
             data.result.geometry.location.lat,
@@ -1299,7 +1299,7 @@ export const fetchNearbyPlaces = async (
         );
 
         const placesWithDistance = memoryCache.places.map((place) => {
-          const distance = haversineDistance(
+          const distance = calcDist(
             latitude,
             longitude,
             place.geometry.location.lat,
@@ -1336,7 +1336,7 @@ export const fetchNearbyPlaces = async (
       const placesWithDistance = memoryCache.places
         .map((place) => ({
           ...place,
-          distance: haversineDistance(
+          distance: calcDist(
             latitude,
             longitude,
             place.geometry.location.lat,
@@ -1361,7 +1361,7 @@ export const fetchNearbyPlaces = async (
       console.log(`[placesController] Using memory cache with ${memoryCache.places.length} places`);
 
       const placesWithDistance = memoryCache.places.map((place) => {
-        const distance = haversineDistance(
+        const distance = calcDist(
           latitude,
           longitude,
           place.geometry.location.lat,
@@ -1408,7 +1408,7 @@ export const fetchNearbyPlaces = async (
             persistCaches();
 
             const placesWithDistance = places.map((place) => {
-              const distance = haversineDistance(
+              const distance = calcDist(
                 latitude,
                 longitude,
                 place.geometry.location.lat,
@@ -1455,7 +1455,7 @@ export const fetchNearbyPlaces = async (
       if (memoryCache.places.length > 0) {
         const placesWithDistance = memoryCache.places
           .map((place) => {
-            const distance = haversineDistance(
+            const distance = calcDist(
               latitude,
               longitude,
               place.geometry.location.lat,
@@ -1480,7 +1480,7 @@ export const fetchNearbyPlaces = async (
       if (memoryCache.places.length > 0) {
         const placesWithDistance = memoryCache.places
           .map((place) => {
-            const distance = haversineDistance(
+            const distance = calcDist(
               latitude,
               longitude,
               place.geometry.location.lat,

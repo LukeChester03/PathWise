@@ -11,7 +11,7 @@ import {
   getVisitedPlaceDetails,
 } from "../../handlers/Map/visitedPlacesHandlers";
 import { isPlaceVisited } from "../../controllers/Map/visitedPlacesController";
-import { haversineDistance } from "../../utils/mapUtils";
+import { calcDist } from "../../utils/mapUtils";
 import { DEFAULT_CIRCLE_RADIUS, MARKER_REFRESH_THRESHOLD } from "../../constants/Map/mapConstants";
 import {
   Place,
@@ -171,7 +171,7 @@ const useMapPlaces = (): UseMapPlacesReturn => {
         return false;
       }
 
-      const distance = haversineDistance(
+      const distance = calcDist(
         lastRefreshPositionRef.current.latitude,
         lastRefreshPositionRef.current.longitude,
         newLocation.latitude,

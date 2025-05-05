@@ -1,7 +1,7 @@
 import * as Location from "expo-location";
 import { Alert, Platform, AppState } from "react-native";
 import { Region, Coordinate } from "../../types/MapTypes";
-import { haversineDistance } from "../../utils/mapUtils";
+import { calcDist } from "../../utils/mapUtils";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   doc,
@@ -393,7 +393,7 @@ export const hasMovedSignificantly = (currentLocation: Coordinate): boolean => {
     return true;
   }
 
-  const distance = haversineDistance(
+  const distance = calcDist(
     lastKnownLocation.latitude,
     lastKnownLocation.longitude,
     currentLocation.latitude,
@@ -413,7 +413,7 @@ export const hasMovedSignificantly = (currentLocation: Coordinate): boolean => {
 export const updateHeadingFromMovement = (newLocation: Coordinate): boolean => {
   if (!lastKnownLocation) return false;
 
-  const distance = haversineDistance(
+  const distance = calcDist(
     lastKnownLocation.latitude,
     lastKnownLocation.longitude,
     newLocation.latitude,
@@ -470,7 +470,7 @@ export const shouldUpdatePlaces = (currentLocation: Coordinate): boolean => {
     return false;
   }
 
-  const distanceFromLastUpdate = haversineDistance(
+  const distanceFromLastUpdate = calcDist(
     lastPlacesUpdateLocation.latitude,
     lastPlacesUpdateLocation.longitude,
     currentLocation.latitude,
